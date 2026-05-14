@@ -7,7 +7,7 @@ export function createLogger(): pino.Logger {
   return pino({
     level: process.env.LOG_LEVEL || 'info',
     redact: {
-      paths: ['headers.authententicaion-key', 'headers["authententicaion-key"]'],
+      paths: ['headers.authentication-key', 'headers["authentication-key"]'],
       censor: '[REDACTED]',
     },
   });

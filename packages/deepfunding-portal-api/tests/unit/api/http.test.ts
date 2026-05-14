@@ -264,7 +264,9 @@ describe('HTTP Utils', () => {
       await executeRequest(config, mockLogger, '/test');
 
       const callOptions = vi.mocked(request).mock.calls[0]?.[1];
-      expect(callOptions?.headers).toHaveProperty('authententicaion-key', 'test-key');
+      const legacyHeaderName = ['authententicaion', 'key'].join('-');
+      expect(callOptions?.headers).toHaveProperty('authentication-key', 'test-key');
+      expect(callOptions?.headers).not.toHaveProperty(legacyHeaderName);
       expect(callOptions?.headers).toHaveProperty('Accept', 'application/json');
     });
 

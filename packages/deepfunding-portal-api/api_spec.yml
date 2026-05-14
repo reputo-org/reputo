@@ -9,7 +9,7 @@ components:
         AuthenticationKey:
             type: apiKey
             in: header
-            name: authententicaion-key
+            name: authentication-key
     schemas:
         Error:
             type: object

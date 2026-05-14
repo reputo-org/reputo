@@ -98,7 +98,7 @@ export async function executeRequest<T>(
   }
 
   const headers: Record<string, string> = {
-    'authententicaion-key': config.apiKey,
+    'authentication-key': config.apiKey,
     Accept: 'application/json',
   };
 
