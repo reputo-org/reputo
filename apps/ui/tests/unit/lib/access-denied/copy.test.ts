@@ -28,15 +28,32 @@ describe("resolveAccessDeniedCopy", () => {
   } as const
 
   it.each([
-    ["not_allowlisted", ["Access ", { italic: "restricted" }, "."]],
-    ["email_unverified", ["Email ", { italic: "not verified" }, "."]],
-    ["revoked", ["Access ", { italic: "revoked" }, "."]],
-    ["consent_denied", ["Sign-in ", { italic: "cancelled" }, "."]],
-  ] as const)("maps %s to its parted title with a retry CTA", (reason, expectedParts) => {
+    [
+      "not_allowlisted",
+      "Access restricted",
+      "Your account isn't on the Reputo allowlist. Contact an administrator if you believe this is an error.",
+    ],
+    [
+      "email_unverified",
+      "Email not verified",
+      "Verify your email with your identity provider, then sign in again.",
+    ],
+    [
+      "revoked",
+      "Access revoked",
+      "Your access to Reputo has been revoked. Contact an administrator if you need it restored.",
+    ],
+    [
+      "consent_denied",
+      "Sign-in cancelled",
+      "You declined the permissions Reputo needs to sign you in. Try again to continue.",
+    ],
+  ] as const)("maps %s to its title, subtitle, and retry CTA", (reason, expectedTitle, expectedSubtitle) => {
     const copy = resolveAccessDeniedCopy(reason)
 
     expect(copy.reason).toBe(reason)
-    expect(copy.titleParts).toEqual(expectedParts)
+    expect(copy.title).toBe(expectedTitle)
+    expect(copy.subtitle).toBe(expectedSubtitle)
     expect(copy.cta).toEqual(RETRY)
   })
 
@@ -46,7 +63,10 @@ describe("resolveAccessDeniedCopy", () => {
 
     for (const copy of [missing, unknown]) {
       expect(copy.reason).toBe("unknown")
-      expect(copy.titleParts).toEqual(["Access ", { italic: "denied" }, "."])
+      expect(copy.title).toBe("Access denied")
+      expect(copy.subtitle).toBe(
+        "We couldn't sign you in. Please try again, or contact an administrator."
+      )
       expect(copy.cta).toEqual(RETRY)
     }
   })

@@ -52,7 +52,16 @@ export default function LoginPage() {
 
   return (
     <PreAuthShell>
-      <Hero title={["Sign ", { italic: "in" }, "."]}>
+      <Hero
+        title="Sign in to Reputo"
+        subtitle="Choose how you'd like to continue."
+        footer={
+          <>
+            By continuing, you agree to our <a href="/terms">Terms</a> and{" "}
+            <a href="/privacy">Privacy Policy</a>.
+          </>
+        }
+      >
         <ProviderStack />
       </Hero>
     </PreAuthShell>

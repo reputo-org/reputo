@@ -1,36 +1,30 @@
 import type { ReactNode } from "react"
 
 interface HeroProps {
-  /**
-   * Title parts. Strings render as-is; `{ italic: "word" }` wraps the word
-   * in an italic `<em>` so a single accent word reads as `Sign in.`
-   */
-  title: ReadonlyArray<string | { italic: string }>
+  /** Page title — plain bold text, no editorial flourishes. */
+  title: string
+  /** Short message rendered between the title and the CTA stack. */
+  subtitle?: ReactNode
   /** CTA stack rendered beneath the title. */
   children: ReactNode
+  /** Small muted footer (e.g. terms/privacy) rendered below the CTAs. */
+  footer?: ReactNode
 }
 
 /**
- * Centered editorial hero shared by every pre-auth route: an h1 with an
- * italic accent word above the CTA stack. The italic accent is built into
- * the structure rather than inferred from copy so we never have to parse a
- * sentence to find the accent.
+ * Centered hero shared by every pre-auth route. An h1, optional subtitle,
+ * the CTA stack, and an optional muted footer. Title styling lives in
+ * `.rp-title` (globals.css).
  */
-export function Hero({ title, children }: HeroProps) {
+export function Hero({ title, subtitle, children, footer }: HeroProps) {
   return (
-    <div className="flex flex-col gap-7 md:gap-8">
-      <h1 className="rp-title" style={{ fontSize: "clamp(36px, 5vw, 56px)" }}>
-        {title.map((part, index) =>
-          typeof part === "string" ? (
-            // biome-ignore lint/suspicious/noArrayIndexKey: title parts are stable per render
-            <span key={index}>{part}</span>
-          ) : (
-            // biome-ignore lint/suspicious/noArrayIndexKey: title parts are stable per render
-            <em key={index}>{part.italic}</em>
-          )
-        )}
-      </h1>
+    <div className="flex flex-col gap-6 md:gap-7">
+      <div className="flex flex-col gap-3 md:gap-4">
+        <h1 className="rp-title">{title}</h1>
+        {subtitle ? <p className="rp-subtitle">{subtitle}</p> : null}
+      </div>
       {children}
+      {footer ? <div className="rp-legal">{footer}</div> : null}
     </div>
   )
 }

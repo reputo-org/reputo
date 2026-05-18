@@ -10,7 +10,10 @@ export const metadata: Metadata = {
 export default function NotFoundPage() {
   return (
     <PreAuthShell>
-      <Hero title={["Page ", { italic: "not found" }, "."]}>
+      <Hero
+        title="Page not found"
+        subtitle="The page you're looking for doesn't exist or was moved."
+      >
         <a className="rp-btn rp-btn-primary" href="/dashboard">
           <span>Back to dashboard</span>
           <ArrowRight width={16} height={16} aria-hidden="true" />

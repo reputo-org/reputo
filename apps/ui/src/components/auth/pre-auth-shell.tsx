@@ -18,8 +18,7 @@ export function PreAuthShell({ children }: PreAuthShellProps) {
       style={{ background: "var(--rp-bg)" }}
     >
       <div className="flex w-full max-w-[440px] flex-col items-center gap-7 md:gap-9">
-        <Wordmark height={20} className="md:hidden" />
-        <Wordmark height={24} className="hidden md:inline-block" />
+        <Wordmark />
         <div className="rp-card">{children}</div>
       </div>
     </main>

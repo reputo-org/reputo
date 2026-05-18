@@ -26,7 +26,7 @@ export default async function AccessDeniedPage({
 
   return (
     <PreAuthShell>
-      <Hero title={copy.titleParts}>
+      <Hero title={copy.title} subtitle={copy.subtitle}>
         <a className="rp-btn rp-btn-primary" href={copy.cta.href}>
           <span>{copy.cta.label}</span>
           <ArrowRight width={16} height={16} aria-hidden="true" />

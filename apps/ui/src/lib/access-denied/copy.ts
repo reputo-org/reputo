@@ -18,16 +18,11 @@ export interface AccessDeniedCta {
   href: string
 }
 
-/**
- * Title parts shaped for the Hero's italic-accent renderer. Strings render
- * as-is; `{ italic: "word" }` wraps the word in an `<em>` for the accent.
- */
-export type TitlePart = string | { italic: string }
-
 export interface AccessDeniedCopy {
   reason: AccessDeniedReason
-  /** Title broken into parts so the Hero can render the italic accent. */
-  titleParts: ReadonlyArray<TitlePart>
+  title: string
+  /** Short explanatory message rendered between the title and the CTA. */
+  subtitle: string
   cta: AccessDeniedCta
 }
 
@@ -57,31 +52,41 @@ export function resolveAccessDeniedCopy(rawReason: unknown): AccessDeniedCopy {
     case "not_allowlisted":
       return {
         reason,
-        titleParts: ["Access ", { italic: "restricted" }, "."],
+        title: "Access restricted",
+        subtitle:
+          "Your account isn't on the Reputo allowlist. Contact an administrator if you believe this is an error.",
         cta: RETRY_CTA,
       }
     case "email_unverified":
       return {
         reason,
-        titleParts: ["Email ", { italic: "not verified" }, "."],
+        title: "Email not verified",
+        subtitle:
+          "Verify your email with your identity provider, then sign in again.",
         cta: RETRY_CTA,
       }
     case "revoked":
       return {
         reason,
-        titleParts: ["Access ", { italic: "revoked" }, "."],
+        title: "Access revoked",
+        subtitle:
+          "Your access to Reputo has been revoked. Contact an administrator if you need it restored.",
         cta: RETRY_CTA,
       }
     case "consent_denied":
       return {
         reason,
-        titleParts: ["Sign-in ", { italic: "cancelled" }, "."],
+        title: "Sign-in cancelled",
+        subtitle:
+          "You declined the permissions Reputo needs to sign you in. Try again to continue.",
         cta: RETRY_CTA,
       }
     default:
       return {
         reason: "unknown",
-        titleParts: ["Access ", { italic: "denied" }, "."],
+        title: "Access denied",
+        subtitle:
+          "We couldn't sign you in. Please try again, or contact an administrator.",
         cta: RETRY_CTA,
       }
   }

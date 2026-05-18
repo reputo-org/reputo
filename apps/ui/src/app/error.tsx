@@ -19,7 +19,10 @@ export default function ErrorPage({ error, reset }: ErrorPageProps) {
 
   return (
     <PreAuthShell>
-      <Hero title={["Something went ", { italic: "wrong" }, "."]}>
+      <Hero
+        title="Something went wrong"
+        subtitle="An unexpected error occurred. Try again, or contact support if it persists."
+      >
         <button
           type="button"
           className="rp-btn rp-btn-primary"
