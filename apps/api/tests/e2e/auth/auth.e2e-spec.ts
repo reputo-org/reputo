@@ -278,6 +278,29 @@ describe('OAuth auth e2e', () => {
     expect(await authSessionModel.countDocuments()).toBe(0);
   });
 
+  it('redirects to access-denied with consent_denied when the provider returns access_denied', async () => {
+    const agent = supertest.agent(app.getHttpServer());
+
+    await agent.get(base('/auth/deep-id/login')).expect(302);
+
+    const callbackResponse = await agent
+      .get(
+        base(
+          '/auth/deep-id/callback?error=access_denied&error_description=The+resource+owner+denied+the+request&state=anything',
+        ),
+      )
+      .expect(302);
+
+    expect(callbackResponse.headers.location).toBe(
+      `${AUTH_TEST_ENV.APP_PUBLIC_URL}/access-denied?reason=consent_denied`,
+    );
+    expect(callbackResponse.headers['set-cookie']).toEqual(
+      expect.arrayContaining([expect.stringContaining(`${AUTH_TEST_ENV.AUTH_COOKIE_NAME}.flow=;`)]),
+    );
+    expect(await oauthUserModel.countDocuments()).toBe(0);
+    expect(await authSessionModel.countDocuments()).toBe(0);
+  });
+
   it('redirects unverified callback email to access denied without creating a user or session', async () => {
     const agent = supertest.agent(app.getHttpServer());
 

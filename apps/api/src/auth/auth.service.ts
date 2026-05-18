@@ -77,7 +77,7 @@ function getHeaderValue(value: string | string[] | undefined): string | undefine
   return firstValue && firstValue.length > 0 ? firstValue : undefined;
 }
 
-type AccessDeniedReason = 'email_unverified' | 'not_allowlisted';
+type AccessDeniedReason = 'email_unverified' | 'not_allowlisted' | 'consent_denied';
 
 @Injectable()
 export class AuthService {
@@ -139,6 +139,12 @@ export class AuthService {
 
     try {
       if (query.error) {
+        // The provider signals user-initiated cancel with `access_denied` per
+        // RFC 6749 §4.1.2.1. Treat that as a benign back-to-login instead of
+        // surfacing a 401 JSON to the browser.
+        if (query.error === 'access_denied') {
+          return this.denyCallbackAccess('consent_denied', undefined, undefined);
+        }
         throw new UnauthorizedException(query.error_description ?? `OAuth authorization failed: ${query.error}`);
       }
 
