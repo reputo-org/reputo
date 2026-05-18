@@ -91,4 +91,58 @@ export class AuthSessionRepository {
 
     return result.modifiedCount;
   }
+
+  async aggregateActivityByUserIds(
+    userIds: ReadonlyArray<Types.ObjectId | string>,
+    now = new Date(),
+  ): Promise<Map<string, UserSessionActivity>> {
+    const activity = new Map<string, UserSessionActivity>();
+
+    if (userIds.length === 0) {
+      return activity;
+    }
+
+    const rows = (await this.model
+      .aggregate([
+        { $match: { userId: { $in: userIds } } },
+        {
+          $group: {
+            _id: '$userId',
+            lastSignInAt: { $max: '$createdAt' },
+            activeSessionCount: {
+              $sum: {
+                $cond: [
+                  {
+                    // The schema sets revokedAt only when revoked, so $ifNull
+                    // covers both missing-field and explicit-null variants.
+                    $and: [{ $not: [{ $ifNull: ['$revokedAt', false] }] }, { $gt: ['$expiresAt', now] }],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ])
+      .exec()) as AggregatedActivityRow[];
+
+    for (const row of rows) {
+      activity.set(String(row._id), {
+        lastSignInAt: row.lastSignInAt ?? null,
+        activeSessionCount: row.activeSessionCount,
+      });
+    }
+
+    return activity;
+  }
+}
+
+export interface UserSessionActivity {
+  lastSignInAt: Date | null;
+  activeSessionCount: number;
+}
+
+interface AggregatedActivityRow extends UserSessionActivity {
+  _id: Types.ObjectId;
 }
