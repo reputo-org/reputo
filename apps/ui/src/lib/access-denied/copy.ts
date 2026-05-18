@@ -1,25 +1,33 @@
 /**
  * Reason → copy mapping for the public `/access-denied` route.
  *
- * The API redirects rejected DeepID users here with a `?reason=` query string.
- * Unknown / missing values fall through to a generic message so the page never
- * 404s on a value the backend may add later.
+ * The API redirects rejected users here with a `?reason=` query string.
+ * Unknown / missing values fall through to a generic message so the page
+ * never 404s on a value the backend may add later.
  */
 
 export type AccessDeniedReason =
   | "not_allowlisted"
   | "email_unverified"
   | "revoked"
+  | "consent_denied"
   | "unknown"
 
-export type AccessDeniedCta =
-  | { kind: "link"; label: string; href: string }
-  | { kind: "none" }
+export interface AccessDeniedCta {
+  label: string
+  href: string
+}
+
+/**
+ * Title parts shaped for the Hero's italic-accent renderer. Strings render
+ * as-is; `{ italic: "word" }` wraps the word in an `<em>` for the accent.
+ */
+export type TitlePart = string | { italic: string }
 
 export interface AccessDeniedCopy {
   reason: AccessDeniedReason
-  title: string
-  description: string
+  /** Title broken into parts so the Hero can render the italic accent. */
+  titleParts: ReadonlyArray<TitlePart>
   cta: AccessDeniedCta
 }
 
@@ -27,6 +35,7 @@ const KNOWN_REASONS: ReadonlySet<AccessDeniedReason> = new Set([
   "not_allowlisted",
   "email_unverified",
   "revoked",
+  "consent_denied",
 ])
 
 export function normaliseReason(input: unknown): AccessDeniedReason {
@@ -36,8 +45,7 @@ export function normaliseReason(input: unknown): AccessDeniedReason {
     : "unknown"
 }
 
-const RETRY_LINK: AccessDeniedCta = {
-  kind: "link",
+const RETRY_CTA: AccessDeniedCta = {
   label: "Back to sign in",
   href: "/login",
 }
@@ -49,34 +57,32 @@ export function resolveAccessDeniedCopy(rawReason: unknown): AccessDeniedCopy {
     case "not_allowlisted":
       return {
         reason,
-        title: "Access restricted",
-        description:
-          "Reputo is restricted. You're not on the approved list yet. Contact your administrator to request access.",
-        cta: RETRY_LINK,
+        titleParts: ["Access ", { italic: "restricted" }, "."],
+        cta: RETRY_CTA,
       }
     case "email_unverified":
       return {
         reason,
-        title: "Email not verified",
-        description:
-          "Your DeepID email is not verified. Verify it in DeepID and try again.",
-        cta: { kind: "link", label: "Back to sign in", href: "/login" },
+        titleParts: ["Email ", { italic: "not verified" }, "."],
+        cta: RETRY_CTA,
       }
     case "revoked":
       return {
         reason,
-        title: "Access revoked",
-        description:
-          "Your access has been revoked. Contact your administrator if you believe this is a mistake.",
-        cta: RETRY_LINK,
+        titleParts: ["Access ", { italic: "revoked" }, "."],
+        cta: RETRY_CTA,
+      }
+    case "consent_denied":
+      return {
+        reason,
+        titleParts: ["Sign-in ", { italic: "cancelled" }, "."],
+        cta: RETRY_CTA,
       }
     default:
       return {
         reason: "unknown",
-        title: "Access denied",
-        description:
-          "You don't have access to Reputo right now. Try signing in again, or contact your administrator if the issue persists.",
-        cta: { kind: "link", label: "Back to sign in", href: "/login" },
+        titleParts: ["Access ", { italic: "denied" }, "."],
+        cta: RETRY_CTA,
       }
   }
 }

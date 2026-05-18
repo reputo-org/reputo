@@ -9,6 +9,7 @@ describe("normaliseReason", () => {
     expect(normaliseReason("not_allowlisted")).toBe("not_allowlisted")
     expect(normaliseReason("email_unverified")).toBe("email_unverified")
     expect(normaliseReason("revoked")).toBe("revoked")
+    expect(normaliseReason("consent_denied")).toBe("consent_denied")
   })
 
   it("returns 'unknown' for missing, empty, or unrecognised values", () => {
@@ -21,40 +22,22 @@ describe("normaliseReason", () => {
 })
 
 describe("resolveAccessDeniedCopy", () => {
-  it("maps not_allowlisted to the retry link", () => {
-    const copy = resolveAccessDeniedCopy("not_allowlisted")
+  const RETRY = {
+    label: "Back to sign in",
+    href: "/login",
+  } as const
 
-    expect(copy.reason).toBe("not_allowlisted")
-    expect(copy.description).toMatch(/approved list/i)
-    expect(copy.cta).toEqual({
-      kind: "link",
-      label: "Back to sign in",
-      href: "/login",
-    })
-  })
+  it.each([
+    ["not_allowlisted", ["Access ", { italic: "restricted" }, "."]],
+    ["email_unverified", ["Email ", { italic: "not verified" }, "."]],
+    ["revoked", ["Access ", { italic: "revoked" }, "."]],
+    ["consent_denied", ["Sign-in ", { italic: "cancelled" }, "."]],
+  ] as const)("maps %s to its parted title with a retry CTA", (reason, expectedParts) => {
+    const copy = resolveAccessDeniedCopy(reason)
 
-  it("maps email_unverified to a /login retry link", () => {
-    const copy = resolveAccessDeniedCopy("email_unverified")
-
-    expect(copy.reason).toBe("email_unverified")
-    expect(copy.description).toMatch(/DeepID/i)
-    expect(copy.cta).toEqual({
-      kind: "link",
-      label: "Back to sign in",
-      href: "/login",
-    })
-  })
-
-  it("maps revoked to the retry link", () => {
-    const copy = resolveAccessDeniedCopy("revoked")
-
-    expect(copy.reason).toBe("revoked")
-    expect(copy.description).toMatch(/revoked/i)
-    expect(copy.cta).toEqual({
-      kind: "link",
-      label: "Back to sign in",
-      href: "/login",
-    })
+    expect(copy.reason).toBe(reason)
+    expect(copy.titleParts).toEqual(expectedParts)
+    expect(copy.cta).toEqual(RETRY)
   })
 
   it("uses the generic default copy for missing or unknown reasons", () => {
@@ -63,12 +46,8 @@ describe("resolveAccessDeniedCopy", () => {
 
     for (const copy of [missing, unknown]) {
       expect(copy.reason).toBe("unknown")
-      expect(copy.title).toBe("Access denied")
-      expect(copy.cta).toEqual({
-        kind: "link",
-        label: "Back to sign in",
-        href: "/login",
-      })
+      expect(copy.titleParts).toEqual(["Access ", { italic: "denied" }, "."])
+      expect(copy.cta).toEqual(RETRY)
     }
   })
 })
