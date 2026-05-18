@@ -1,16 +1,21 @@
 import axios, { type AxiosError } from "axios"
 import type {
+  AdminListResponseDto,
   AdminViewDto,
   AlgorithmPresetQueryParams,
   AlgorithmPresetResponseDto,
+  CreateAdminDto,
   CreateAlgorithmPresetDto,
   CreateSnapshotDto,
+  ListAdminsQueryParams,
+  OAuthProviderId,
   PaginatedAlgorithmPresetResponseDto,
   PaginatedSnapshotResponseDto,
   SnapshotQueryParams,
   SnapshotResponseDto,
   StorageDownloadResponseDto,
   StorageVerifyResponseDto,
+  UpdateAdminRoleDto,
   UpdateAlgorithmPresetDto,
 } from "./types"
 
@@ -171,21 +176,53 @@ export const storageApi = {
   },
 }
 
+function adminPath(
+  provider: OAuthProviderId,
+  email: string,
+  suffix = ""
+): string {
+  return `/admins/${encodeURIComponent(provider)}/${encodeURIComponent(email)}${suffix}`
+}
+
 // Admins API
 export const adminsApi = {
-  /** Active owner + admin allowlist rows. */
-  list: async (): Promise<AdminViewDto[]> => {
-    const response = await api.get<AdminViewDto[]>("/admins")
+  /** Paginated list with filters. Defaults to active rows sorted by email asc. */
+  list: async (
+    params: ListAdminsQueryParams = {}
+  ): Promise<AdminListResponseDto> => {
+    const response = await api.get<AdminListResponseDto>("/admins", { params })
     return response.data
   },
-  /** Owner-only. POST creates (201) or restores (200) an admin row. */
-  add: async (email: string): Promise<AdminViewDto> => {
-    const response = await api.post<AdminViewDto>("/admins", { email })
+  /** Owner-only. Creates a new active row. 409 if any row exists for (provider, email). */
+  add: async (data: CreateAdminDto): Promise<AdminViewDto> => {
+    const response = await api.post<AdminViewDto>("/admins", data)
     return response.data
   },
-  /** Owner-only. DELETE soft-revokes the admin row and forces logout. */
-  remove: async (email: string): Promise<void> => {
-    await api.delete(`/admins/${encodeURIComponent(email)}`)
+  /** Owner-only. Promote/demote an active row. */
+  updateRole: async (
+    provider: OAuthProviderId,
+    email: string,
+    data: UpdateAdminRoleDto
+  ): Promise<AdminViewDto> => {
+    const response = await api.patch<AdminViewDto>(
+      adminPath(provider, email),
+      data
+    )
+    return response.data
+  },
+  /** Owner-only. Restore a previously revoked row as admin. */
+  restore: async (
+    provider: OAuthProviderId,
+    email: string
+  ): Promise<AdminViewDto> => {
+    const response = await api.post<AdminViewDto>(
+      adminPath(provider, email, "/restore")
+    )
+    return response.data
+  },
+  /** Owner-only. Soft-revoke and force logout for the matching user. */
+  remove: async (provider: OAuthProviderId, email: string): Promise<void> => {
+    await api.delete(adminPath(provider, email))
   },
 }
 

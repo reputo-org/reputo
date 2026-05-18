@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { adminsApi, algorithmPresetsApi, snapshotsApi } from "./services"
 import type {
-  AdminViewDto,
+  AdminRole,
   AlgorithmPresetQueryParams,
+  CreateAdminDto,
   CreateAlgorithmPresetDto,
   CreateSnapshotDto,
+  ListAdminsQueryParams,
+  OAuthProviderId,
   SnapshotQueryParams,
   UpdateAlgorithmPresetDto,
 } from "./types"
@@ -30,7 +33,9 @@ export const queryKeys = {
   },
   admins: {
     all: ["admins"] as const,
-    list: () => [...queryKeys.admins.all, "list"] as const,
+    lists: () => [...queryKeys.admins.all, "list"] as const,
+    list: (params?: ListAdminsQueryParams) =>
+      [...queryKeys.admins.lists(), params ?? {}] as const,
   },
 }
 
@@ -142,57 +147,69 @@ export const useDeleteSnapshot = () => {
 }
 
 // Admins hooks
-export const useAdmins = () => {
+export const useAdmins = (params: ListAdminsQueryParams = {}) => {
   return useQuery({
-    queryKey: queryKeys.admins.list(),
-    queryFn: () => adminsApi.list(),
+    queryKey: queryKeys.admins.list(params),
+    queryFn: () => adminsApi.list(params),
+    placeholderData: (previous) => previous,
   })
 }
+
+const invalidateAdminLists = (queryClient: ReturnType<typeof useQueryClient>) =>
+  queryClient.invalidateQueries({ queryKey: queryKeys.admins.lists() })
 
 export const useAddAdmin = () => {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (email: string) => adminsApi.add(email),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.admins.list() })
-    },
+    mutationFn: (data: CreateAdminDto) => adminsApi.add(data),
+    onSuccess: () => invalidateAdminLists(queryClient),
   })
 }
 
-interface RemoveAdminContext {
-  previous: AdminViewDto[] | undefined
+export const useUpdateAdminRole = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      provider,
+      email,
+      role,
+    }: {
+      provider: OAuthProviderId
+      email: string
+      role: AdminRole
+    }) => adminsApi.updateRole(provider, email, { role }),
+    onSuccess: () => invalidateAdminLists(queryClient),
+  })
 }
 
-/**
- * Optimistic delete: row is removed from the cached list immediately,
- * rolled back on error, and the canonical list is refetched on settle.
- */
+export const useRestoreAdmin = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      provider,
+      email,
+    }: {
+      provider: OAuthProviderId
+      email: string
+    }) => adminsApi.restore(provider, email),
+    onSuccess: () => invalidateAdminLists(queryClient),
+  })
+}
+
 export const useRemoveAdmin = () => {
   const queryClient = useQueryClient()
 
-  return useMutation<void, unknown, string, RemoveAdminContext>({
-    mutationFn: (email: string) => adminsApi.remove(email),
-    onMutate: async (email) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.admins.list() })
-      const previous = queryClient.getQueryData<AdminViewDto[]>(
-        queryKeys.admins.list()
-      )
-      if (previous) {
-        queryClient.setQueryData<AdminViewDto[]>(
-          queryKeys.admins.list(),
-          previous.filter((admin) => admin.email !== email)
-        )
-      }
-      return { previous }
-    },
-    onError: (_err, _email, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(queryKeys.admins.list(), context.previous)
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.admins.list() })
-    },
+  return useMutation({
+    mutationFn: ({
+      provider,
+      email,
+    }: {
+      provider: OAuthProviderId
+      email: string
+    }) => adminsApi.remove(provider, email),
+    onSuccess: () => invalidateAdminLists(queryClient),
   })
 }
