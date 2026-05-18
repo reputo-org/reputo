@@ -138,11 +138,12 @@ describe('Admin access-control e2e', () => {
 
     const response = await requestAs(app, requireSessionCookie(login.cookie), 'get', '/admins').expect(200);
 
-    expect(response.body).toEqual([
-      expect.objectContaining({ email: 'owner@example.com', role: 'owner' }),
+    expect(response.body.results).toEqual([
       expect.objectContaining({ email: 'admin@example.com', role: 'admin' }),
+      expect.objectContaining({ email: 'owner@example.com', role: 'owner' }),
       expect.objectContaining({ email: 'z-admin@example.com', role: 'admin' }),
     ]);
+    expect(response.body.totalResults).toBe(3);
   });
 
   it('rejects admin callers from adding admins', async () => {
@@ -157,6 +158,7 @@ describe('Admin access-control e2e', () => {
     });
 
     await requestAs(app, requireSessionCookie(login.cookie), 'post', '/admins', {
+      provider: 'deep-id',
       email: 'new-admin@example.com',
     }).expect(403);
   });
@@ -174,10 +176,12 @@ describe('Admin access-control e2e', () => {
     const ownerCookie = requireSessionCookie(owner.cookie);
 
     const created = await requestAs(app, ownerCookie, 'post', '/admins', {
+      provider: 'deep-id',
       email: 'New.Admin@Example.COM',
     }).expect(201);
 
     expect(created.body).toMatchObject({
+      provider: 'deep-id',
       email: 'new.admin@example.com',
       role: 'admin',
       invitedByEmail: 'owner@example.com',
@@ -185,12 +189,12 @@ describe('Admin access-control e2e', () => {
 
     const list = await requestAs(app, ownerCookie, 'get', '/admins').expect(200);
 
-    expect(list.body).toEqual(
+    expect(list.body.results).toEqual(
       expect.arrayContaining([expect.objectContaining({ email: 'new.admin@example.com', role: 'admin' })]),
     );
   });
 
-  it('restores a previously revoked admin as owner', async () => {
+  it('restores a previously revoked admin as owner via the restore route', async () => {
     await seedAllowlist(accessAllowlistModel, 'owner', 'owner@example.com');
     await seedAllowlist(accessAllowlistModel, 'admin', 'restore@example.com', {
       invitedAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -206,9 +210,12 @@ describe('Admin access-control e2e', () => {
     });
     const ownerCookie = requireSessionCookie(owner.cookie);
 
-    const restored = await requestAs(app, ownerCookie, 'post', '/admins', {
-      email: 'RESTORE@example.com',
-    }).expect(200);
+    const restored = await requestAs(
+      app,
+      ownerCookie,
+      'post',
+      `/admins/deep-id/${encodeURIComponent('RESTORE@example.com')}/restore`,
+    ).expect(200);
 
     expect(restored.body).toMatchObject({
       email: 'restore@example.com',
@@ -221,7 +228,7 @@ describe('Admin access-control e2e', () => {
 
     expect(row?.revokedAt).toBeUndefined();
     expect(row?.revokedBy).toBeUndefined();
-    expect(list.body).toEqual(
+    expect(list.body.results).toEqual(
       expect.arrayContaining([expect.objectContaining({ email: 'restore@example.com', role: 'admin' })]),
     );
   });
@@ -239,6 +246,7 @@ describe('Admin access-control e2e', () => {
     });
 
     await requestAs(app, requireSessionCookie(owner.cookie), 'post', '/admins', {
+      provider: 'deep-id',
       email: 'active@example.com',
     }).expect(409);
   });
@@ -258,7 +266,7 @@ describe('Admin access-control e2e', () => {
       app,
       requireSessionCookie(owner.cookie),
       'delete',
-      `/admins/${encodeURIComponent('owner@example.com')}`,
+      `/admins/deep-id/${encodeURIComponent('owner@example.com')}`,
     ).expect(403);
 
     const row = await accessAllowlistModel.findOne({ email: 'owner@example.com' }).lean();
@@ -290,7 +298,7 @@ describe('Admin access-control e2e', () => {
       app,
       requireSessionCookie(owner.cookie),
       'delete',
-      `/admins/${encodeURIComponent('target@example.com')}`,
+      `/admins/deep-id/${encodeURIComponent('target@example.com')}`,
     ).expect(204);
 
     const revokedRow = await accessAllowlistModel.findOne({ email: 'target@example.com' }).lean();

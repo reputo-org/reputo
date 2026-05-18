@@ -23,11 +23,14 @@ describe('Admin owner bootstrap conflict e2e', () => {
     await stopMongo();
   });
 
-  it('fails app startup when OWNER_EMAIL differs from an existing active owner row', async () => {
+  it('fails app startup when OWNER_EMAIL is held by an active non-owner allowlist row', async () => {
     applyAuthTestEnv({
       OWNER_EMAIL: 'configured-owner@example.com',
     });
-    await seedExistingOwner(mongoUri, 'existing-owner@example.com');
+    await seedExistingRow(mongoUri, {
+      email: 'configured-owner@example.com',
+      role: 'admin',
+    });
 
     let app: INestApplication | undefined;
     let moduleRef: TestingModule | undefined;
@@ -57,9 +60,47 @@ describe('Admin owner bootstrap conflict e2e', () => {
       await moduleRef?.close().catch(() => undefined);
     }
   });
+
+  it('starts cleanly when OWNER_EMAIL coexists with other active owners', async () => {
+    applyAuthTestEnv({
+      OWNER_EMAIL: 'configured-owner@example.com',
+    });
+    await seedExistingRow(mongoUri, {
+      email: 'another-owner@example.com',
+      role: 'owner',
+    });
+
+    let app: INestApplication | undefined;
+    let moduleRef: TestingModule | undefined;
+
+    try {
+      moduleRef = await Test.createTestingModule({
+        imports: [
+          ConfigModule.forRoot({
+            load: configModules,
+            isGlobal: true,
+            ignoreEnvFile: true,
+          }),
+          LoggerModule.forRoot({
+            pinoHttp: {
+              level: 'silent',
+            },
+          }),
+          MongooseModule.forRoot(mongoUri),
+          AuthModule,
+        ],
+      }).compile();
+      app = moduleRef.createNestApplication();
+
+      await expect(app.init()).resolves.not.toThrow();
+    } finally {
+      await app?.close().catch(() => undefined);
+      await moduleRef?.close().catch(() => undefined);
+    }
+  });
 });
 
-async function seedExistingOwner(mongoUri: string, email: string): Promise<void> {
+async function seedExistingRow(mongoUri: string, options: { email: string; role: 'owner' | 'admin' }): Promise<void> {
   const connection = await mongoose.createConnection(mongoUri).asPromise();
 
   try {
@@ -68,8 +109,8 @@ async function seedExistingOwner(mongoUri: string, email: string): Promise<void>
     await accessAllowlistModel.deleteMany({});
     await accessAllowlistModel.create({
       provider: OAuthProviderDeepId,
-      email,
-      role: 'owner',
+      email: options.email,
+      role: options.role,
       invitedBy: null,
       invitedAt: new Date('2026-04-01T00:00:00.000Z'),
     });

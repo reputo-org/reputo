@@ -22,9 +22,7 @@ describe('Admin access management e2e', () => {
 
   beforeAll(async () => {
     const mongoUri = await startMongo();
-    const boot = await createTestApp({
-      mongoUri,
-    });
+    const boot = await createTestApp({ mongoUri });
 
     app = boot.app;
     moduleRef = boot.moduleRef;
@@ -71,150 +69,331 @@ describe('Admin access management e2e', () => {
     return sessionId;
   }
 
-  it('lists active access rows for an admin with owner first and admins sorted by email', async () => {
-    await createSession('owner@example.com', 'owner');
-    await createSession('z-admin@example.com');
-    const admin = await createSession('m-admin@example.com');
-    await createSession('a-admin@example.com');
+  describe('GET /admins', () => {
+    it('returns a paginated list with active rows sorted by email asc by default', async () => {
+      await createSession('owner@example.com', 'owner');
+      await createSession('z-admin@example.com');
+      const admin = await createSession('m-admin@example.com');
+      await createSession('a-admin@example.com');
 
-    const response = await api(app, admin.cookie).get('/admins').expect(200);
+      const response = await api(app, admin.cookie).get('/admins').expect(200);
 
-    expect(response.body).toEqual([
-      expect.objectContaining({ email: 'owner@example.com', role: 'owner' }),
-      expect.objectContaining({ email: 'a-admin@example.com', role: 'admin' }),
-      expect.objectContaining({ email: 'm-admin@example.com', role: 'admin' }),
-      expect.objectContaining({ email: 'z-admin@example.com', role: 'admin' }),
-    ]);
-    expect(response.body[0]).not.toHaveProperty('_id');
-    expect(response.body[0]).not.toHaveProperty('invitedBy');
-  });
-
-  it('rejects admin callers from adding admins', async () => {
-    const admin = await createSession('admin@example.com');
-
-    await api(app, admin.cookie).post('/admins').send({ email: 'new-admin@example.com' }).expect(403);
-  });
-
-  it('creates a new admin allowlist row as owner', async () => {
-    const owner = await createSession('owner@example.com', 'owner');
-
-    const response = await api(app, owner.cookie)
-      .post('/admins')
-      .send({ email: ' New.Admin@Example.COM ' })
-      .expect(201);
-
-    expect(response.body).toMatchObject({
-      email: 'new.admin@example.com',
-      role: 'admin',
-      invitedByEmail: 'owner@example.com',
-    });
-    expect(response.body).not.toHaveProperty('_id');
-
-    const row = await accessAllowlistModel.findOne({ email: 'new.admin@example.com' }).lean();
-
-    expect(row).toMatchObject({
-      provider: 'deep-id',
-      email: 'new.admin@example.com',
-      role: 'admin',
-    });
-    expect(String(row?.invitedBy)).toBe(owner.userId);
-    expect(row?.revokedAt).toBeUndefined();
-  });
-
-  it('restores a previously revoked admin allowlist row as owner', async () => {
-    const owner = await createSession('owner@example.com', 'owner');
-    const oldInvitedAt = new Date('2026-01-01T00:00:00.000Z');
-
-    await accessAllowlistModel.create({
-      provider: 'deep-id',
-      email: 'restore@example.com',
-      role: 'admin',
-      invitedBy: null,
-      invitedAt: oldInvitedAt,
-      revokedAt: new Date('2026-02-01T00:00:00.000Z'),
-      revokedBy: owner.userId,
+      expect(response.body.results).toEqual([
+        expect.objectContaining({ email: 'a-admin@example.com', role: 'admin', provider: 'deep-id' }),
+        expect.objectContaining({ email: 'm-admin@example.com', role: 'admin' }),
+        expect.objectContaining({ email: 'owner@example.com', role: 'owner' }),
+        expect.objectContaining({ email: 'z-admin@example.com', role: 'admin' }),
+      ]);
+      expect(response.body.totalResults).toBe(4);
+      expect(response.body.page).toBe(1);
+      expect(response.body.results[0]).not.toHaveProperty('_id');
+      expect(response.body.results[0]).not.toHaveProperty('invitedBy');
     });
 
-    const response = await api(app, owner.cookie).post('/admins').send({ email: 'RESTORE@example.com' }).expect(200);
+    it('filters by status=revoked and surfaces revokedAt/By', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+      await accessAllowlistModel.create({
+        provider: 'deep-id',
+        email: 'gone@example.com',
+        role: 'admin',
+        invitedBy: null,
+        invitedAt: new Date('2026-04-01T00:00:00.000Z'),
+        revokedAt: new Date('2026-04-15T00:00:00.000Z'),
+        revokedBy: owner.userId,
+      });
 
-    expect(response.body).toMatchObject({
-      email: 'restore@example.com',
-      role: 'admin',
-      invitedByEmail: 'owner@example.com',
+      const response = await api(app, owner.cookie).get('/admins?status=revoked').expect(200);
+
+      expect(response.body.results).toEqual([
+        expect.objectContaining({
+          email: 'gone@example.com',
+          role: 'admin',
+          revokedAt: expect.any(String),
+          revokedByEmail: 'owner@example.com',
+        }),
+      ]);
     });
 
-    const row = await accessAllowlistModel.findOne({ email: 'restore@example.com' }).lean();
+    it('filters by email prefix search q=', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+      await createSession('alpha-one@example.com');
+      await createSession('alpha-two@example.com');
+      await createSession('beta@example.com');
 
-    expect(row?.revokedAt).toBeUndefined();
-    expect(row?.revokedBy).toBeUndefined();
-    expect(String(row?.invitedBy)).toBe(owner.userId);
-    expect(row?.invitedAt?.getTime()).toBeGreaterThan(oldInvitedAt.getTime());
+      const response = await api(app, owner.cookie).get('/admins?q=alpha').expect(200);
+
+      expect(response.body.totalResults).toBe(2);
+      expect(response.body.results.map((row: { email: string }) => row.email)).toEqual([
+        'alpha-one@example.com',
+        'alpha-two@example.com',
+      ]);
+    });
+
+    it('paginates with page and limit', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+      await Promise.all(['a', 'b', 'c', 'd'].map((letter) => createSession(`${letter}@example.com`)));
+
+      const page1 = await api(app, owner.cookie).get('/admins?limit=2&page=1').expect(200);
+      const page2 = await api(app, owner.cookie).get('/admins?limit=2&page=2').expect(200);
+
+      expect(page1.body.results).toHaveLength(2);
+      expect(page2.body.results).toHaveLength(2);
+      expect(page1.body.totalResults).toBe(5);
+      expect(page1.body.totalPages).toBe(3);
+    });
+
+    it('includes sessions activity when includeSessions=true', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+      const admin = await createSession('m-admin@example.com');
+      await createExtraSessionForUser(admin.userId);
+
+      const response = await api(app, owner.cookie).get('/admins?includeSessions=true&q=m-admin').expect(200);
+
+      const row = response.body.results[0];
+      expect(row.email).toBe('m-admin@example.com');
+      expect(row.activeSessionCount).toBeGreaterThanOrEqual(2);
+      expect(row.hasEverSignedIn).toBe(true);
+      expect(typeof row.lastSignInAt).toBe('string');
+    });
   });
 
-  it('returns 409 when adding an already active row', async () => {
-    const owner = await createSession('owner@example.com', 'owner');
-    await createSession('active@example.com');
+  describe('POST /admins', () => {
+    it('creates a new admin row', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
 
-    await api(app, owner.cookie).post('/admins').send({ email: 'active@example.com' }).expect(409);
+      const response = await api(app, owner.cookie)
+        .post('/admins')
+        .send({ provider: 'deep-id', email: ' New.Admin@Example.COM ' })
+        .expect(201);
+
+      expect(response.body).toMatchObject({
+        provider: 'deep-id',
+        email: 'new.admin@example.com',
+        role: 'admin',
+        invitedByEmail: 'owner@example.com',
+      });
+    });
+
+    it('creates a new admin row with an explicit owner role', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+
+      const response = await api(app, owner.cookie)
+        .post('/admins')
+        .send({ provider: 'deep-id', email: 'second-owner@example.com', role: 'owner' })
+        .expect(201);
+
+      expect(response.body).toMatchObject({ role: 'owner' });
+    });
+
+    it('returns 409 when an active row exists', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+      await createSession('active@example.com');
+
+      await api(app, owner.cookie)
+        .post('/admins')
+        .send({ provider: 'deep-id', email: 'active@example.com' })
+        .expect(409);
+    });
+
+    it('returns 409 instructing restore when a revoked row exists', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+      await accessAllowlistModel.create({
+        provider: 'deep-id',
+        email: 'revoked@example.com',
+        role: 'admin',
+        invitedAt: new Date(),
+        revokedAt: new Date(),
+      });
+
+      await api(app, owner.cookie)
+        .post('/admins')
+        .send({ provider: 'deep-id', email: 'revoked@example.com' })
+        .expect(409);
+    });
+
+    it('returns 400 when email is malformed', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+
+      await api(app, owner.cookie).post('/admins').send({ provider: 'deep-id', email: 'not-an-email' }).expect(400);
+    });
+
+    it('rejects admin callers', async () => {
+      const admin = await createSession('admin@example.com');
+
+      await api(app, admin.cookie).post('/admins').send({ provider: 'deep-id', email: 'new@example.com' }).expect(403);
+    });
   });
 
-  it('returns 400 when adding a malformed email', async () => {
-    const owner = await createSession('owner@example.com', 'owner');
+  describe('POST /admins/:provider/:email/restore', () => {
+    it('restores a revoked row to admin role', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+      await accessAllowlistModel.create({
+        provider: 'deep-id',
+        email: 'restore@example.com',
+        role: 'admin',
+        invitedAt: new Date('2026-01-01T00:00:00.000Z'),
+        revokedAt: new Date('2026-02-01T00:00:00.000Z'),
+      });
 
-    await api(app, owner.cookie).post('/admins').send({ email: 'not-an-email' }).expect(400);
+      const response = await api(app, owner.cookie)
+        .post(`/admins/deep-id/${encodeURIComponent('RESTORE@example.com')}/restore`)
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        email: 'restore@example.com',
+        role: 'admin',
+        invitedByEmail: 'owner@example.com',
+      });
+
+      const row = await accessAllowlistModel.findOne({ email: 'restore@example.com' }).lean();
+      expect(row?.revokedAt).toBeUndefined();
+      expect(row?.revokedBy).toBeUndefined();
+    });
+
+    it('returns 404 when there is no revoked row', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+      await createSession('still-active@example.com');
+
+      await api(app, owner.cookie)
+        .post(`/admins/deep-id/${encodeURIComponent('still-active@example.com')}/restore`)
+        .expect(404);
+    });
+
+    it('rejects admin callers', async () => {
+      const admin = await createSession('admin@example.com');
+
+      await api(app, admin.cookie)
+        .post(`/admins/deep-id/${encodeURIComponent('whatever@example.com')}/restore`)
+        .expect(403);
+    });
   });
 
-  it('soft-revokes an admin and revokes all active sessions for that admin user', async () => {
-    const owner = await createSession('owner@example.com', 'owner');
-    const admin = await createSession('target@example.com');
-    await createExtraSessionForUser(admin.userId);
+  describe('PATCH /admins/:provider/:email', () => {
+    it('promotes an admin to owner', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+      await createSession('promote-me@example.com');
 
-    await api(app, owner.cookie)
-      .delete(`/admins/${encodeURIComponent('target@example.com')}`)
-      .expect(204);
+      const response = await api(app, owner.cookie)
+        .patch(`/admins/deep-id/${encodeURIComponent('promote-me@example.com')}`)
+        .send({ role: 'owner' })
+        .expect(200);
 
-    const row = await accessAllowlistModel.findOne({ email: 'target@example.com' }).lean();
-    const sessions = await authSessionModel.find({ userId: admin.userId }).lean();
+      expect(response.body.role).toBe('owner');
+    });
 
-    expect(row?.revokedAt).toBeTruthy();
-    expect(String(row?.revokedBy)).toBe(owner.userId);
-    expect(sessions).toHaveLength(2);
-    expect(sessions.every((session) => session.revokedAt)).toBe(true);
+    it('demotes an owner to admin when another owner exists', async () => {
+      const owner = await createSession('owner-a@example.com', 'owner');
+      await createSession('owner-b@example.com', 'owner');
 
-    await supertest(app.getHttpServer()).get(base('/auth/me')).set('Cookie', admin.cookie).expect(401);
+      const response = await api(app, owner.cookie)
+        .patch(`/admins/deep-id/${encodeURIComponent('owner-b@example.com')}`)
+        .send({ role: 'admin' })
+        .expect(200);
+
+      expect(response.body.role).toBe('admin');
+    });
+
+    it('forbids the actor from demoting themselves', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+      await createSession('owner-b@example.com', 'owner');
+
+      await api(app, owner.cookie)
+        .patch(`/admins/deep-id/${encodeURIComponent('owner@example.com')}`)
+        .send({ role: 'admin' })
+        .expect(403);
+    });
+
+    it('forbids demoting the last active owner', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+
+      await api(app, owner.cookie)
+        .patch(`/admins/deep-id/${encodeURIComponent('owner@example.com')}`)
+        .send({ role: 'admin' })
+        .expect(403);
+    });
+
+    it('returns 404 when no active row exists', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+
+      await api(app, owner.cookie)
+        .patch(`/admins/deep-id/${encodeURIComponent('missing@example.com')}`)
+        .send({ role: 'admin' })
+        .expect(404);
+    });
+
+    it('rejects admin callers', async () => {
+      const admin = await createSession('admin@example.com');
+
+      await api(app, admin.cookie)
+        .patch(`/admins/deep-id/${encodeURIComponent('admin@example.com')}`)
+        .send({ role: 'owner' })
+        .expect(403);
+    });
   });
 
-  it('rejects owner self-removal', async () => {
-    const owner = await createSession('owner@example.com', 'owner');
+  describe('DELETE /admins/:provider/:email', () => {
+    it('soft-revokes an admin and revokes all active sessions', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+      const admin = await createSession('target@example.com');
+      await createExtraSessionForUser(admin.userId);
 
-    await api(app, owner.cookie)
-      .delete(`/admins/${encodeURIComponent('owner@example.com')}`)
-      .expect(403);
+      await api(app, owner.cookie)
+        .delete(`/admins/deep-id/${encodeURIComponent('target@example.com')}`)
+        .expect(204);
 
-    const row = await accessAllowlistModel.findOne({ email: 'owner@example.com' }).lean();
+      const row = await accessAllowlistModel.findOne({ email: 'target@example.com' }).lean();
+      const sessions = await authSessionModel.find({ userId: admin.userId }).lean();
 
-    expect(row?.revokedAt).toBeUndefined();
-  });
+      expect(row?.revokedAt).toBeTruthy();
+      expect(String(row?.revokedBy)).toBe(owner.userId);
+      expect(sessions).toHaveLength(2);
+      expect(sessions.every((session) => session.revokedAt)).toBe(true);
 
-  it('rejects admin callers from removing admins', async () => {
-    const owner = await createSession('owner@example.com', 'owner');
-    const admin = await createSession('admin@example.com');
+      await supertest(app.getHttpServer()).get(base('/auth/me')).set('Cookie', admin.cookie).expect(401);
+    });
 
-    await api(app, admin.cookie)
-      .delete(`/admins/${encodeURIComponent('owner@example.com')}`)
-      .expect(403);
+    it('forbids the actor from removing themselves', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
 
-    const row = await accessAllowlistModel.findOne({ email: 'owner@example.com' }).lean();
+      await api(app, owner.cookie)
+        .delete(`/admins/deep-id/${encodeURIComponent('owner@example.com')}`)
+        .expect(403);
+    });
 
-    expect(row?.revokedAt).toBeUndefined();
-    expect(owner.cookie).toBeTruthy();
-  });
+    it('forbids removing the last active owner when another owner is the actor', async () => {
+      // Two distinct owners exist; one removes the other and still has one owner left (themselves).
+      const owner = await createSession('owner-a@example.com', 'owner');
+      await createSession('owner-b@example.com', 'owner');
 
-  it('returns 404 when removing a missing active row', async () => {
-    const owner = await createSession('owner@example.com', 'owner');
+      await api(app, owner.cookie)
+        .delete(`/admins/deep-id/${encodeURIComponent('owner-b@example.com')}`)
+        .expect(204);
 
-    await api(app, owner.cookie)
-      .delete(`/admins/${encodeURIComponent('missing@example.com')}`)
-      .expect(404);
+      // owner-a is now the only owner — they cannot remove themselves (self-protect).
+      await api(app, owner.cookie)
+        .delete(`/admins/deep-id/${encodeURIComponent('owner-a@example.com')}`)
+        .expect(403);
+    });
+
+    it('returns 404 when no active row exists', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+
+      await api(app, owner.cookie)
+        .delete(`/admins/deep-id/${encodeURIComponent('missing@example.com')}`)
+        .expect(404);
+    });
+
+    it('rejects admin callers', async () => {
+      const owner = await createSession('owner@example.com', 'owner');
+      const admin = await createSession('admin@example.com');
+
+      await api(app, admin.cookie)
+        .delete(`/admins/deep-id/${encodeURIComponent('owner@example.com')}`)
+        .expect(403);
+
+      const row = await accessAllowlistModel.findOne({ email: 'owner@example.com' }).lean();
+      expect(row?.revokedAt).toBeUndefined();
+      expect(owner.cookie).toBeTruthy();
+    });
   });
 });
