@@ -1,5 +1,5 @@
 import { registerAs } from '@nestjs/config';
-import { type OAuthProvider, OAuthProviderDeepId } from '@reputo/database';
+import { OAUTH_PROVIDERS, type OAuthProvider, OAuthProviderDeepId } from '@reputo/database';
 import * as Joi from 'joi';
 import { AUTH_MODE_MOCK, AUTH_MODE_OAUTH } from '../shared/constants';
 
@@ -19,6 +19,7 @@ export interface AuthConfig {
   cookieSecure: boolean;
   mode: string;
   ownerEmail?: string;
+  ownerProvider: OAuthProvider;
   providers: Record<OAuthProvider, OAuthProviderAuthConfig>;
   refreshLeewaySeconds: number;
   sessionTtlSeconds: number;
@@ -33,6 +34,13 @@ function parseBoolean(value: string | undefined, defaultValue: boolean): boolean
   return value.toLowerCase() === 'true';
 }
 
+function parseOwnerProvider(raw: string | undefined): OAuthProvider {
+  const candidate = (raw ?? OAuthProviderDeepId).toLowerCase();
+  return (OAUTH_PROVIDERS as readonly string[]).includes(candidate)
+    ? (candidate as OAuthProvider)
+    : OAuthProviderDeepId;
+}
+
 const ownerEmailSchema = Joi.string().trim().lowercase().email();
 
 export default registerAs(
@@ -40,6 +48,7 @@ export default registerAs(
   (): AuthConfig => ({
     mode: (process.env.AUTH_MODE ?? AUTH_MODE_OAUTH).toLowerCase(),
     ownerEmail: process.env.OWNER_EMAIL?.trim().toLowerCase() || undefined,
+    ownerProvider: parseOwnerProvider(process.env.OWNER_PROVIDER),
     providers: {
       [OAuthProviderDeepId]: {
         issuerUrl: process.env.DEEP_ID_ISSUER_URL as string,
@@ -74,7 +83,13 @@ export const authConfigSchema = {
     // biome-ignore lint/suspicious/noThenProperty: Joi conditional schemas require a then key.
     then: ownerEmailSchema.required(),
     otherwise: ownerEmailSchema.allow('').optional(),
-  }).description('Email address seeded as the single owner allowlist entry'),
+  }).description('Email address seeded as an owner allowlist entry on bootstrap'),
+  OWNER_PROVIDER: Joi.string()
+    .trim()
+    .lowercase()
+    .valid(...OAUTH_PROVIDERS)
+    .default(OAuthProviderDeepId)
+    .description('Provider against which OWNER_EMAIL is seeded'),
   DEEP_ID_ISSUER_URL: Joi.string().uri().required().description('Deep ID issuer base URL'),
   DEEP_ID_CLIENT_ID: Joi.string().trim().required().description('Deep ID OAuth client identifier'),
   DEEP_ID_CLIENT_SECRET: Joi.string().trim().required().description('Deep ID OAuth client secret'),
