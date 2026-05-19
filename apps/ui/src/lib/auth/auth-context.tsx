@@ -9,12 +9,20 @@ import {
   useMemo,
   useState,
 } from "react"
+import {
+  markSessionAuthenticated,
+  resetSessionAuthenticated,
+} from "@/lib/api/services"
 
 // ── Types ──────────────────────────────────────────────────────────────
+
+/** Access roles surfaced by the API on `/me`. */
+export type AccessRole = "owner" | "admin"
 
 export interface AuthSessionUser {
   id: string
   provider: string
+  role: AccessRole
   sub: string
   aud?: string[]
   auth_time?: number
@@ -32,6 +40,7 @@ export interface AuthSessionUser {
 export interface AuthSession {
   authenticated: boolean
   provider?: string
+  role?: AccessRole
   expiresAt?: string
   scope?: string[]
   user?: AuthSessionUser
@@ -87,6 +96,7 @@ export function AuthBootstrapProvider({
             setSession(null)
             router.replace("/login")
           } else {
+            markSessionAuthenticated()
             setSession(data)
           }
         }
@@ -114,6 +124,7 @@ export function AuthBootstrapProvider({
         credentials: "include",
       })
     } finally {
+      resetSessionAuthenticated()
       setSession(null)
       router.replace("/login")
     }

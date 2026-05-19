@@ -14,11 +14,13 @@ const userId = new Types.ObjectId();
 const MOCK_SESSION_VIEW = {
   authenticated: true,
   provider: 'deep-id' as const,
+  role: 'owner' as const,
   expiresAt: '2026-05-02T10:00:00.000Z',
   scope: ['openid', 'profile', 'email', 'offline_access'],
   user: {
     id: userId.toString(),
     provider: 'deep-id' as const,
+    role: 'owner' as const,
     sub: 'did:deep-id:123',
     email: 'jane@example.com',
     username: 'jane',
@@ -26,6 +28,7 @@ const MOCK_SESSION_VIEW = {
 };
 
 const MOCK_AUTH_CONTEXT = {
+  role: 'owner' as const,
   session: {
     _id: new Types.ObjectId(),
     sessionId: 'session-123',
@@ -169,11 +172,18 @@ describe('AuthController (e2e)', () => {
       expect(response.body).toMatchObject({
         authenticated: true,
         provider: 'deep-id',
+        role: 'owner',
         user: {
+          role: 'owner',
           sub: 'did:deep-id:123',
           email: 'jane@example.com',
         },
       });
+      expect(authService.toCurrentSessionView).toHaveBeenCalledWith(
+        MOCK_AUTH_CONTEXT.session,
+        MOCK_AUTH_CONTEXT.user,
+        'owner',
+      );
     });
 
     it('returns 401 when no session cookie is present', async () => {

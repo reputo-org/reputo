@@ -1,4 +1,4 @@
-import type { OAuthProvider } from '@reputo/database';
+import type { AccessRole, OAuthProvider } from '@reputo/database';
 
 export interface OAuthDiscoveryDocument {
   issuer: string;
@@ -46,6 +46,7 @@ export interface AuthFlowState {
 export interface SessionUserView {
   id: string;
   provider: OAuthProvider;
+  role: AccessRole;
   sub: string;
   aud?: string[];
   auth_time?: number;
@@ -63,6 +64,7 @@ export interface SessionUserView {
 export interface CurrentSessionView {
   authenticated: boolean;
   provider?: OAuthProvider;
+  role?: AccessRole;
   expiresAt?: string;
   scope?: string[];
   user?: SessionUserView;

@@ -3,7 +3,7 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { getModelToken, MongooseModule } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
-import type { AuthSession, OAuthUser } from '@reputo/database';
+import type { AccessAllowlist, AccessRole, AuthSession, OAuthUser } from '@reputo/database';
 import { MODEL_NAMES } from '@reputo/database';
 import type { Model } from 'mongoose';
 import { LoggerModule } from 'nestjs-pino';
@@ -19,6 +19,7 @@ import { base } from '../../utils/request';
 
 describe('OAuth auth e2e', () => {
   let app: INestApplication;
+  let accessAllowlistModel: Model<AccessAllowlist>;
   let authSessionModel: Model<AuthSession>;
   let oauthUserModel: Model<OAuthUser>;
 
@@ -62,6 +63,7 @@ describe('OAuth auth e2e', () => {
 
     authSessionModel = moduleRef.get(getModelToken(MODEL_NAMES.AUTH_SESSION));
     oauthUserModel = moduleRef.get(getModelToken(MODEL_NAMES.OAUTH_USER));
+    accessAllowlistModel = moduleRef.get(getModelToken(MODEL_NAMES.ACCESS_ALLOWLIST));
     app = moduleRef.createNestApplication();
 
     app.useGlobalFilters(new HttpExceptionFilter());
@@ -84,13 +86,66 @@ describe('OAuth auth e2e', () => {
 
   afterEach(async () => {
     vi.clearAllMocks();
-    await Promise.all([authSessionModel.deleteMany({}), oauthUserModel.deleteMany({})]);
+    await Promise.all([
+      authSessionModel.deleteMany({}),
+      oauthUserModel.deleteMany({}),
+      accessAllowlistModel.deleteMany({ email: { $ne: AUTH_TEST_ENV.OWNER_EMAIL } }),
+      accessAllowlistModel.updateOne(
+        {
+          provider: 'deep-id',
+          email: AUTH_TEST_ENV.OWNER_EMAIL,
+        },
+        {
+          $set: {
+            provider: 'deep-id',
+            email: AUTH_TEST_ENV.OWNER_EMAIL,
+            role: 'owner',
+            invitedBy: null,
+          },
+          $setOnInsert: {
+            invitedAt: new Date(),
+          },
+          $unset: {
+            revokedAt: '',
+            revokedBy: '',
+          },
+        },
+        { upsert: true },
+      ),
+    ]);
   });
 
   afterAll(async () => {
     await app.close();
     await stopMongo();
   });
+
+  async function allowlistEmail(email: string, role: AccessRole = 'admin'): Promise<void> {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    await accessAllowlistModel.updateOne(
+      {
+        provider: 'deep-id',
+        email: normalizedEmail,
+      },
+      {
+        $set: {
+          provider: 'deep-id',
+          email: normalizedEmail,
+          role,
+          invitedBy: null,
+        },
+        $setOnInsert: {
+          invitedAt: new Date(),
+        },
+        $unset: {
+          revokedAt: '',
+          revokedBy: '',
+        },
+      },
+      { upsert: true },
+    );
+  }
 
   it('starts the login flow and redirects to Deep ID', async () => {
     const agent = supertest.agent(app.getHttpServer());
@@ -193,9 +248,11 @@ describe('OAuth auth e2e', () => {
     expect(currentSession.body).toMatchObject({
       authenticated: true,
       provider: 'deep-id',
+      role: 'owner',
       scope: ['openid', 'profile', 'email', 'offline_access'],
       user: {
         provider: 'deep-id',
+        role: 'owner',
         sub: 'did:plc:pwtlzekayxk67odbhen6v2bb',
         aud: ['9cad9abe-1dc6-4c66-acac-f747026c3beb'],
         auth_time: 1775166617,
@@ -221,8 +278,106 @@ describe('OAuth auth e2e', () => {
     expect(await authSessionModel.countDocuments()).toBe(0);
   });
 
+  it('redirects to access-denied with consent_denied when the provider returns access_denied', async () => {
+    const agent = supertest.agent(app.getHttpServer());
+
+    await agent.get(base('/auth/deep-id/login')).expect(302);
+
+    const callbackResponse = await agent
+      .get(
+        base(
+          '/auth/deep-id/callback?error=access_denied&error_description=The+resource+owner+denied+the+request&state=anything',
+        ),
+      )
+      .expect(302);
+
+    expect(callbackResponse.headers.location).toBe(
+      `${AUTH_TEST_ENV.APP_PUBLIC_URL}/access-denied?reason=consent_denied`,
+    );
+    expect(callbackResponse.headers['set-cookie']).toEqual(
+      expect.arrayContaining([expect.stringContaining(`${AUTH_TEST_ENV.AUTH_COOKIE_NAME}.flow=;`)]),
+    );
+    expect(await oauthUserModel.countDocuments()).toBe(0);
+    expect(await authSessionModel.countDocuments()).toBe(0);
+  });
+
+  it('redirects unverified callback email to access denied without creating a user or session', async () => {
+    const agent = supertest.agent(app.getHttpServer());
+
+    mockOAuthService.exchangeCodeForTokens.mockResolvedValue({
+      access_token: 'provider-access-token',
+      refresh_token: 'provider-refresh-token',
+      expires_in: 300,
+      refresh_token_expires_in: 1800,
+      token_type: 'Bearer',
+      scope: 'openid profile email offline_access',
+    });
+    mockOAuthService.fetchUserInfo.mockResolvedValue({
+      email: 'unverified@example.com',
+      email_verified: false,
+      sub: 'did:deep-id:unverified',
+      username: 'unverified',
+    });
+
+    const loginResponse = await agent.get(base('/auth/deep-id/login')).expect(302);
+    const state = new URL(loginResponse.headers.location).searchParams.get('state');
+    const callbackResponse = await agent
+      .get(base(`/auth/deep-id/callback?code=code-unverified&state=${state}`))
+      .expect(302);
+
+    expect(callbackResponse.headers.location).toBe(
+      `${AUTH_TEST_ENV.APP_PUBLIC_URL}/access-denied?reason=email_unverified`,
+    );
+    expect(callbackResponse.headers['set-cookie']).toEqual(
+      expect.arrayContaining([expect.stringContaining(`${AUTH_TEST_ENV.AUTH_COOKIE_NAME}.flow=;`)]),
+    );
+    expect(await oauthUserModel.countDocuments()).toBe(0);
+    expect(await authSessionModel.countDocuments()).toBe(0);
+  });
+
+  it('treats a revoked allowlist row as not allowlisted during callback', async () => {
+    const agent = supertest.agent(app.getHttpServer());
+
+    await accessAllowlistModel.create({
+      provider: 'deep-id',
+      email: 'revoked@example.com',
+      role: 'admin',
+      invitedBy: null,
+      invitedAt: new Date('2026-04-01T00:00:00.000Z'),
+      revokedAt: new Date('2026-04-02T00:00:00.000Z'),
+    });
+    mockOAuthService.exchangeCodeForTokens.mockResolvedValue({
+      access_token: 'provider-access-token',
+      refresh_token: 'provider-refresh-token',
+      expires_in: 300,
+      refresh_token_expires_in: 1800,
+      token_type: 'Bearer',
+      scope: 'openid profile email offline_access',
+    });
+    mockOAuthService.fetchUserInfo.mockResolvedValue({
+      email: 'revoked@example.com',
+      email_verified: true,
+      sub: 'did:deep-id:revoked',
+      username: 'revoked',
+    });
+
+    const loginResponse = await agent.get(base('/auth/deep-id/login')).expect(302);
+    const state = new URL(loginResponse.headers.location).searchParams.get('state');
+    const callbackResponse = await agent
+      .get(base(`/auth/deep-id/callback?code=code-revoked&state=${state}`))
+      .expect(302);
+
+    expect(callbackResponse.headers.location).toBe(
+      `${AUTH_TEST_ENV.APP_PUBLIC_URL}/access-denied?reason=not_allowlisted`,
+    );
+    expect(await oauthUserModel.countDocuments()).toBe(0);
+    expect(await authSessionModel.countDocuments()).toBe(0);
+  });
+
   it('refreshes provider tokens during /me when the stored access token is close to expiry', async () => {
     const agent = supertest.agent(app.getHttpServer());
+
+    await allowlistEmail('refresh@example.com');
 
     mockOAuthService.exchangeCodeForTokens.mockResolvedValue({
       access_token: 'stale-access-token',
@@ -287,6 +442,8 @@ describe('OAuth auth e2e', () => {
 
   it('logs out by clearing the cookie and revoking the stored session', async () => {
     const agent = supertest.agent(app.getHttpServer());
+
+    await allowlistEmail('logout@example.com');
 
     mockOAuthService.exchangeCodeForTokens.mockResolvedValue({
       access_token: 'provider-access-token',

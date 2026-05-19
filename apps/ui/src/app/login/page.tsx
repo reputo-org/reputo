@@ -1,17 +1,12 @@
 "use client"
 
-import { LogIn } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Hero } from "@/components/auth/hero"
+import { PreAuthShell } from "@/components/auth/pre-auth-shell"
+import { ProviderLogo } from "@/components/providers/provider-logo"
 import { Spinner } from "@/components/ui/spinner"
+import { SIGN_IN_PROVIDERS } from "@/lib/auth/sign-in-providers"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -47,30 +42,78 @@ export default function LoginPage() {
 
   if (checking) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Spinner className="size-6" />
-      </div>
+      <PreAuthShell>
+        <div className="flex justify-center py-2">
+          <Spinner className="size-6" />
+        </div>
+      </PreAuthShell>
     )
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Reputo</CardTitle>
-          <CardDescription>
-            Sign in with your Deep ID account to continue.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild className="w-full" size="lg">
-            <a href="/api/v1/auth/deep-id/login">
-              <LogIn className="mr-2 size-4" />
-              Sign in with Deep ID
+    <PreAuthShell>
+      <Hero
+        title="Sign in to Reputo"
+        subtitle="Choose how you'd like to continue."
+        footer={
+          <>
+            By continuing, you agree to our <a href="/terms">Terms</a> and{" "}
+            <a href="/privacy">Privacy Policy</a>.
+          </>
+        }
+      >
+        <ProviderStack />
+      </Hero>
+    </PreAuthShell>
+  )
+}
+
+function ProviderStack() {
+  return (
+    <div className="flex flex-col gap-2">
+      {SIGN_IN_PROVIDERS.map((provider) => {
+        if (provider.status === "live") {
+          return (
+            <a
+              key={provider.id}
+              className="rp-btn rp-btn-primary"
+              href={provider.loginPath}
+              aria-label={provider.ariaLabel}
+            >
+              <span className="rp-btn-pre">Sign in with</span>
+              <ProviderLogo
+                provider={provider.id}
+                height={provider.logoHeight}
+              />
             </a>
-          </Button>
-        </CardContent>
-      </Card>
+          )
+        }
+        return (
+          <button
+            key={provider.id}
+            type="button"
+            className="rp-btn rp-btn-disabled"
+            disabled
+            aria-disabled="true"
+            aria-label={provider.ariaLabel}
+          >
+            <span className="rp-btn-pre">Sign in with</span>
+            <span style={{ fontWeight: 600 }}>{provider.label}</span>
+            <span
+              className="rp-mono"
+              style={{
+                marginLeft: "auto",
+                fontSize: 10,
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+                color: "var(--rp-muted-soft)",
+              }}
+            >
+              soon
+            </span>
+          </button>
+        )
+      })}
     </div>
   )
 }

@@ -97,6 +97,10 @@ Tracked files under `docker/env/examples/*.env.example` are the only canonical e
 For operational details, image flow, and local infrastructure setup, see
 [docker/README.md](docker/README.md) and [komodo/README.md](komodo/README.md).
 
+### Access Control
+
+When `AUTH_MODE=oauth`, the API requires `OWNER_EMAIL` and seeds it as the single owner allowlist row. Before rolling this out, follow the operator runbook, including the one-time auth session wipe: [docs/runbooks/access-rollout.md](docs/runbooks/access-rollout.md).
+
 ## Algorithm Development
 
 Algorithms combine a versioned definition in `packages/reputation-algorithms` with execution logic in `apps/workflows`.

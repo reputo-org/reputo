@@ -8,7 +8,7 @@ import { NextResponse } from "next/server"
 const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME ?? "reputo_auth_session"
 
 /** Routes that don't require an auth cookie. */
-const PUBLIC_PATHS = ["/login"]
+const PUBLIC_PATHS = ["/login", "/access-denied"]
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some(

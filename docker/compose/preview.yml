@@ -92,6 +92,8 @@ services:
             - PORT=3000
             - LOG_LEVEL=info
             - AUTH_MODE=mock
+            # OWNER_EMAIL is optional in mock mode, but keep it set so preview env wiring matches OAuth deploys.
+            - OWNER_EMAIL=${OWNER_EMAIL:-preview@example.com}
             - AUTH_COOKIE_NAME=reputo_auth_session
             - AUTH_COOKIE_SECURE=false
             - AUTH_COOKIE_SAME_SITE=lax

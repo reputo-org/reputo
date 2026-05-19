@@ -1,9 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { algorithmPresetsApi, snapshotsApi } from "./services"
+import { adminsApi, algorithmPresetsApi, snapshotsApi } from "./services"
 import type {
+  AdminRole,
   AlgorithmPresetQueryParams,
+  CreateAdminDto,
   CreateAlgorithmPresetDto,
   CreateSnapshotDto,
+  ListAdminsQueryParams,
+  OAuthProviderId,
   SnapshotQueryParams,
   UpdateAlgorithmPresetDto,
 } from "./types"
@@ -26,6 +30,12 @@ export const queryKeys = {
       [...queryKeys.snapshots.lists(), params] as const,
     details: () => [...queryKeys.snapshots.all, "detail"] as const,
     detail: (id: string) => [...queryKeys.snapshots.details(), id] as const,
+  },
+  admins: {
+    all: ["admins"] as const,
+    lists: () => [...queryKeys.admins.all, "list"] as const,
+    list: (params?: ListAdminsQueryParams) =>
+      [...queryKeys.admins.lists(), params ?? {}] as const,
   },
 }
 
@@ -133,5 +143,73 @@ export const useDeleteSnapshot = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.snapshots.lists() })
     },
+  })
+}
+
+// Admins hooks
+export const useAdmins = (params: ListAdminsQueryParams = {}) => {
+  return useQuery({
+    queryKey: queryKeys.admins.list(params),
+    queryFn: () => adminsApi.list(params),
+    placeholderData: (previous) => previous,
+  })
+}
+
+const invalidateAdminLists = (queryClient: ReturnType<typeof useQueryClient>) =>
+  queryClient.invalidateQueries({ queryKey: queryKeys.admins.lists() })
+
+export const useAddAdmin = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: CreateAdminDto) => adminsApi.add(data),
+    onSuccess: () => invalidateAdminLists(queryClient),
+  })
+}
+
+export const useUpdateAdminRole = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      provider,
+      email,
+      role,
+    }: {
+      provider: OAuthProviderId
+      email: string
+      role: AdminRole
+    }) => adminsApi.updateRole(provider, email, { role }),
+    onSuccess: () => invalidateAdminLists(queryClient),
+  })
+}
+
+export const useRestoreAdmin = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      provider,
+      email,
+    }: {
+      provider: OAuthProviderId
+      email: string
+    }) => adminsApi.restore(provider, email),
+    onSuccess: () => invalidateAdminLists(queryClient),
+  })
+}
+
+export const useRemoveAdmin = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      provider,
+      email,
+    }: {
+      provider: OAuthProviderId
+      email: string
+    }) => adminsApi.remove(provider, email),
+    onSuccess: () => invalidateAdminLists(queryClient),
   })
 }

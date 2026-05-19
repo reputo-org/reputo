@@ -1,3 +1,4 @@
+export * from './AccessAllowlist.interface.js';
 export * from './AlgorithmPreset.interface.js';
 export * from './AlgorithmPresetFrozen.interface.js';
 export * from './AuthSession.interface.js';

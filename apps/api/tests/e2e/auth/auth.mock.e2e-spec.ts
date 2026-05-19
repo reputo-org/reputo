@@ -24,6 +24,7 @@ describe('Deep ID auth e2e (mock mode)', () => {
   beforeAll(async () => {
     applyAuthTestEnv({
       AUTH_MODE: 'mock',
+      OWNER_EMAIL: '',
       DEEP_ID_ISSUER_URL: 'https://mock.invalid',
       DEEP_ID_CLIENT_ID: 'mock-client-id',
       DEEP_ID_CLIENT_SECRET: 'mock-client-secret',
@@ -113,9 +114,11 @@ describe('Deep ID auth e2e (mock mode)', () => {
     expect(currentSession.body).toMatchObject({
       authenticated: true,
       provider: 'deep-id',
+      role: 'owner',
       scope: ['openid', 'profile', 'email', 'offline_access'],
       user: {
         provider: 'deep-id',
+        role: 'owner',
         sub: 'did:deep-id:mock-preview-user',
         email: 'preview@reputo.local',
         email_verified: true,
@@ -141,6 +144,7 @@ describe('Deep ID auth e2e (mock mode)', () => {
     const currentSession = await agent.get(base('/auth/me')).expect(200);
 
     expect(currentSession.body.user).toMatchObject({
+      role: 'owner',
       sub: 'did:deep-id:mock-preview-user',
       username: 'preview-user',
     });

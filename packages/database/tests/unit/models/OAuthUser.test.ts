@@ -27,7 +27,7 @@ describe('OAuthUser model', () => {
       const doc = new OAuthUserModel(oauthUser);
 
       await expect(doc.validate()).resolves.toBeUndefined();
-      expect(doc.email).toBe('User@Example.com');
+      expect(doc.email).toBe('user@example.com');
     });
   });
 

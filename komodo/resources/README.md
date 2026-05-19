@@ -113,6 +113,7 @@ non-secret variables:
 - `<ENV>_GRAFANA_DOMAIN`
 - `<ENV>_ALLOWED_ORIGINS`
 - `<ENV>_GRAFANA_ADMIN_USER`
+- `<ENV>_OWNER_EMAIL`
 - `<ENV>_APP_PUBLIC_URL`
 - `<ENV>_MONGODB_DB_NAME`
 - `<ENV>_DEEP_ID_ISSUER_URL`
@@ -128,6 +129,10 @@ non-secret variables:
 - `<ENV>_STORAGE_BUCKET`
 - `<ENV>_DEEPFUNDING_API_BASE_URL`
 - `<ENV>_ONCHAIN_DATA_POSTGRES_DB_NAME`
+
+`<ENV>_OWNER_EMAIL` is required while the app stack runs `AUTH_MODE=oauth`.
+If it is missing, or if it does not match the existing active owner allowlist
+row, the API fails startup.
 
 For each environment prefix, `STAGING` and `PRODUCTION`, create these secrets:
 
@@ -176,7 +181,8 @@ Cutover order for secrets and RBAC:
 6. Manually delete or disable the old `slack` Alerter in Komodo if it already
    exists; ResourceSync has `delete = false`.
 7. Remove any prod/staging dependence on host `docker/env/*.env` files.
-8. Leave `docker/env/examples/*.env.example` unchanged.
+8. Keep `docker/env/examples/*.env.example` aligned with the Compose
+   environment contract.
 
 Keep secrets in Komodo or the password manager only. Do not commit resolved
 values.

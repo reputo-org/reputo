@@ -42,4 +42,36 @@ export class OAuthUserRepository {
   async findById(id: string): Promise<OAuthUserWithId | null> {
     return (await this.model.findById(id).lean().exec()) as OAuthUserWithId | null;
   }
+
+  async findByIds(ids: readonly string[]): Promise<OAuthUserWithId[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    return (await this.model
+      .find({
+        _id: {
+          $in: ids,
+        },
+      })
+      .lean()
+      .exec()) as OAuthUserWithId[];
+  }
+
+  async findByProviderEmail(provider: OAuthProvider, email: string): Promise<OAuthUserWithId | null> {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      return null;
+    }
+
+    return (await this.model
+      .findOne({
+        provider,
+        email: normalizedEmail,
+      })
+      .sort({ updatedAt: -1 })
+      .lean()
+      .exec()) as OAuthUserWithId | null;
+  }
 }

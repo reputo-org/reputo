@@ -1,4 +1,4 @@
-import type { AuthSessionWithId, OAuthUserWithId } from '@reputo/database';
+import type { AccessRole, AuthSessionWithId, OAuthUserWithId } from '@reputo/database';
 import type { Request } from 'express';
 
 type AuthSessionRequestHiddenFields = 'accessTokenCiphertext' | 'refreshTokenCiphertext' | 'state' | 'codeVerifier';
@@ -6,6 +6,7 @@ type AuthSessionRequestHiddenFields = 'accessTokenCiphertext' | 'refreshTokenCip
 export type CurrentAuthSession = Omit<AuthSessionWithId, AuthSessionRequestHiddenFields>;
 
 export interface AuthRequestContext {
+  role: AccessRole;
   session: CurrentAuthSession;
   user: OAuthUserWithId;
 }

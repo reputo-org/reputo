@@ -10,6 +10,8 @@
 export { connect, disconnect } from './connection.js';
 // Export models (as values with Model suffix for clarity)
 export {
+  AccessAllowlistModel,
+  AccessAllowlistModel as AccessAllowlistModelValue,
   AlgorithmPresetModel as AlgorithmPresetModelValue,
   AuthSessionModel as AuthSessionModelValue,
   OAuthConsentGrantModel as OAuthConsentGrantModelValue,
@@ -18,6 +20,7 @@ export {
 } from './models/index.js';
 // Export schemas
 export {
+  AccessAllowlistSchema,
   AlgorithmPresetSchema,
   AuthSessionSchema,
   OAuthConsentGrantSchema,

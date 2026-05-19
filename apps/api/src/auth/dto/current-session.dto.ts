@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ACCESS_ROLES } from '@reputo/database';
 
 export class CurrentSessionUserDto {
   @ApiProperty()
@@ -6,6 +7,9 @@ export class CurrentSessionUserDto {
 
   @ApiProperty()
   provider!: string;
+
+  @ApiProperty({ enum: ACCESS_ROLES })
+  role!: string;
 
   @ApiProperty()
   sub!: string;
@@ -50,6 +54,9 @@ export class CurrentSessionDto {
 
   @ApiPropertyOptional({ example: 'deep-id' })
   provider?: string;
+
+  @ApiPropertyOptional({ enum: ACCESS_ROLES })
+  role?: string;
 
   @ApiPropertyOptional({ example: '2026-05-02T10:00:00.000Z' })
   expiresAt?: string;

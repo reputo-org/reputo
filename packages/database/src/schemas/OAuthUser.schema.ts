@@ -28,6 +28,7 @@ const OAuthUserSchema = new Schema<OAuthUser, OAuthUserModel>(
     email: {
       type: String,
       trim: true,
+      lowercase: true,
     },
     email_verified: {
       type: Boolean,

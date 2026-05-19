@@ -7,6 +7,8 @@ x-api-environment: &api-environment
     PORT: "3000"
     LOG_LEVEL: "${LOG_LEVEL:-info}"
     AUTH_MODE: "${AUTH_MODE:-oauth}"
+    # Required for AUTH_MODE=oauth; API startup fails if this is missing or conflicts with an active owner.
+    OWNER_EMAIL: "${OWNER_EMAIL:?missing OWNER_EMAIL}"
     APP_PUBLIC_URL: "${APP_PUBLIC_URL:?missing APP_PUBLIC_URL}"
     MONGODB_HOST: "${MONGODB_HOST:-mongodb}"
     MONGODB_PORT: "${MONGODB_PORT:-27017}"

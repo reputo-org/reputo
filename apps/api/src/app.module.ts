@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { LoggerModule } from 'nestjs-pino';
 
+import { AdminModule } from './admin';
 import { AlgorithmPresetModule } from './algorithm-preset/algorithm-preset.module';
 import { AuthModule } from './auth';
 import { configModules, configValidationSchema } from './config';
@@ -31,6 +32,7 @@ import { StorageModule } from './storage/storage.module';
       }),
     }),
     AuthModule,
+    AdminModule,
     ConsentModule,
     AlgorithmPresetModule,
     SnapshotModule,

@@ -83,6 +83,11 @@ description = "Staging Grafana admin username."
 is_secret = false
 
 [[variable]]
+name = "STAGING_OWNER_EMAIL"
+description = "Staging access-control owner email; required when AUTH_MODE=oauth."
+is_secret = false
+
+[[variable]]
 name = "STAGING_APP_PUBLIC_URL"
 description = "Public app URL the staging API advertises to clients."
 is_secret = false
@@ -273,6 +278,11 @@ is_secret = false
 [[variable]]
 name = "PRODUCTION_GRAFANA_ADMIN_USER"
 description = "Production Grafana admin username."
+is_secret = false
+
+[[variable]]
+name = "PRODUCTION_OWNER_EMAIL"
+description = "Production access-control owner email; required when AUTH_MODE=oauth."
 is_secret = false
 
 [[variable]]

@@ -121,3 +121,179 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ── Pre-auth design tokens (finalized)
+   Editorial single-column layout used by /login, /access-denied,
+   /not-found, /error. Warm off-white surface, slate fg, neon accent
+   #94DD26 (sampled from the REPUTO logo stroke). Decoration only — neon
+   is never used as text color on the light surface.
+   ───────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Surfaces */
+  --rp-bg: oklch(0.985 0.004 95);
+  --rp-bg-elev: #ffffff;
+  --rp-fg: oklch(0.16 0.008 270);
+  --rp-muted: oklch(0.5 0.006 270);
+  --rp-muted-soft: oklch(0.66 0.005 270);
+  --rp-border: oklch(0.91 0.004 270);
+
+  /* Brand neon — sampled from the REPUTO logo */
+  --rp-neon: #94dd26;
+
+  --rp-radius: 8px;
+}
+
+.rp-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+/* Centered card wrapping the hero on pre-auth pages */
+.rp-card {
+  background: var(--rp-bg-elev);
+  border: 1px solid var(--rp-border);
+  border-radius: var(--rp-radius);
+  box-shadow:
+    0 1px 0 oklch(0.84 0.004 270 / 0.35),
+    0 12px 28px -16px oklch(0.16 0.008 270 / 0.1);
+  padding: 32px;
+  width: 100%;
+}
+@media (min-width: 768px) {
+  .rp-card {
+    padding: 40px;
+  }
+}
+
+/* Wordmark — typographic REPUTO with a neon dot glyph */
+.rp-wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rp-fg);
+  user-select: none;
+}
+.rp-wordmark-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--rp-neon);
+  box-shadow:
+    0 0 4px color-mix(in oklab, #94dd26 60%, transparent),
+    0 0 10px color-mix(in oklab, #94dd26 30%, transparent);
+  transform: translateY(-1px);
+}
+
+/* Buttons */
+.rp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 48px;
+  width: 100%;
+  padding: 0 16px;
+  border-radius: var(--rp-radius);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.18s,
+    background 0.18s,
+    border-color 0.18s;
+}
+.rp-btn:focus-visible {
+  outline: 2px solid var(--rp-fg);
+  outline-offset: 2px;
+}
+.rp-btn-primary {
+  background: var(--rp-fg);
+  color: var(--rp-bg);
+  border-color: var(--rp-fg);
+}
+.rp-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px -10px var(--rp-fg);
+}
+.rp-btn-disabled,
+.rp-btn[disabled] {
+  background: var(--rp-bg-elev);
+  color: var(--rp-muted-soft);
+  border-color: var(--rp-border);
+  cursor: not-allowed;
+}
+.rp-btn[disabled]:hover {
+  transform: none;
+  box-shadow: none;
+}
+.rp-btn-pre {
+  font-size: 13px;
+  color: inherit;
+  opacity: 0.7;
+  font-weight: 400;
+}
+
+/* Title — conventional SaaS auth heading */
+.rp-title {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  color: var(--rp-fg);
+  text-wrap: balance;
+  margin: 0;
+}
+@media (min-width: 768px) {
+  .rp-title {
+    font-size: 32px;
+  }
+}
+
+/* Subtitle — short message that sits between the title and the CTA stack */
+.rp-subtitle {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--rp-muted);
+  text-wrap: pretty;
+  margin: 0;
+}
+
+/* Legal footer — terms / privacy line beneath the CTAs */
+.rp-legal {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--rp-muted-soft);
+  text-align: center;
+  text-wrap: pretty;
+}
+.rp-legal a {
+  color: var(--rp-muted);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  transition: color 0.18s;
+}
+.rp-legal a:hover {
+  color: var(--rp-fg);
+}
+.rp-legal a:focus-visible {
+  outline: 2px solid var(--rp-fg);
+  outline-offset: 2px;
+  border-radius: 2px;
+}

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getModelToken } from '@nestjs/mongoose';
 import type { TestingModule } from '@nestjs/testing';
-import type { AuthSession, OAuthUser } from '@reputo/database';
+import type { AccessAllowlist, AccessRole, AuthSession, OAuthUser } from '@reputo/database';
 import { MODEL_NAMES } from '@reputo/database';
 import type { Model } from 'mongoose';
 import { encryptValue } from '../../src/shared/utils';
@@ -9,6 +9,7 @@ import { encryptValue } from '../../src/shared/utils';
 export const AUTH_TEST_ENV = {
   NODE_ENV: 'test',
   AUTH_MODE: 'oauth',
+  OWNER_EMAIL: 'behzad.rabiei.77@gmail.com',
   DEEP_ID_ISSUER_URL: 'https://identity.deep-id.ai',
   DEEP_ID_CLIENT_ID: 'deep-id-test-client',
   DEEP_ID_CLIENT_SECRET: 'deep-id-test-secret',
@@ -33,6 +34,7 @@ export interface CreateAuthenticatedSessionOptions {
   email?: string;
   expiresAt?: Date;
   refreshTokenExpiresAt?: Date;
+  role?: AccessRole;
   scope?: string[];
 }
 
@@ -48,16 +50,42 @@ export async function createAuthenticatedSession(
 ) {
   const authSessionModel = moduleRef.get<Model<AuthSession>>(getModelToken(MODEL_NAMES.AUTH_SESSION));
   const oauthUserModel = moduleRef.get<Model<OAuthUser>>(getModelToken(MODEL_NAMES.OAUTH_USER));
+  const accessAllowlistModel = moduleRef.get<Model<AccessAllowlist>>(getModelToken(MODEL_NAMES.ACCESS_ALLOWLIST));
   const subSuffix = randomUUID();
   const now = Date.now();
+  const email = options.email ?? `${subSuffix}@example.com`;
+  const role = options.role ?? 'admin';
   const user = await oauthUserModel.create({
     provider: 'deep-id',
     sub: `did:deep-id:${subSuffix}`,
-    email: options.email ?? `${subSuffix}@example.com`,
+    email,
     email_verified: true,
     username: `user-${subSuffix}`,
   });
   const sessionId = randomUUID();
+
+  await accessAllowlistModel.updateOne(
+    {
+      provider: 'deep-id',
+      email: email.trim().toLowerCase(),
+    },
+    {
+      $set: {
+        provider: 'deep-id',
+        email: email.trim().toLowerCase(),
+        role,
+        invitedBy: null,
+      },
+      $setOnInsert: {
+        invitedAt: new Date(now),
+      },
+      $unset: {
+        revokedAt: '',
+        revokedBy: '',
+      },
+    },
+    { upsert: true },
+  );
 
   await authSessionModel.create({
     sessionId,

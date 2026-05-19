@@ -58,6 +58,7 @@ jobs:
                   DEEPFUNDING_API_KEY=$DEEPFUNDING_API_KEY
                   ALCHEMY_API_KEY=$ALCHEMY_API_KEY
                   PREVIEW_IMAGE_TAG=preview-${{ github.event.pull_request.head.sha }}
+                  OWNER_EMAIL=preview@example.com
                   EOF
 
             - name: Generate MongoDB keyfile

@@ -12,15 +12,25 @@ import { HttpExceptionFilter } from '../../src/shared/filters/http-exception.fil
 import { SnapshotModule } from '../../src/snapshot/snapshot.module';
 import { StorageService } from '../../src/storage/storage.service';
 import { TemporalService } from '../../src/temporal';
-import { applyAuthTestEnv } from './auth-session';
+import { AUTH_TEST_ENV, applyAuthTestEnv } from './auth-session';
 
 export interface TestAppOptions {
+  authEnv?: Partial<Record<keyof typeof AUTH_TEST_ENV, string>>;
   includeSwagger?: boolean;
   mongoUri: string;
+  oauthProviderService?: Pick<
+    OAuthAuthProviderService,
+    | 'buildAuthorizationUrl'
+    | 'exchangeCodeForTokens'
+    | 'fetchUserInfo'
+    | 'getDiscoveryDocument'
+    | 'getScopes'
+    | 'refreshTokens'
+  >;
 }
 
 export async function createTestApp(options: TestAppOptions) {
-  applyAuthTestEnv();
+  applyAuthTestEnv(options.authEnv);
 
   const getFilename = (key: string) => key.split('/').pop() ?? key;
   const getExtension = (key: string) => {
@@ -79,25 +89,27 @@ export async function createTestApp(options: TestAppOptions) {
     terminateSnapshotWorkflows: async () => undefined,
   };
 
-  const mockOAuthService = {
-    getScopes: () => ['openid', 'profile', 'email', 'offline_access'],
-    buildAuthorizationUrl: async () => 'https://identity.deep-id.ai/oauth2/auth',
-    exchangeCodeForTokens: async () => {
-      throw new Error('Not implemented in test app');
-    },
-    refreshTokens: async () => {
-      throw new Error('Not implemented in test app');
-    },
-    fetchUserInfo: async () => {
-      throw new Error('Not implemented in test app');
-    },
-    getDiscoveryDocument: async () => ({
-      issuer: process.env.DEEP_ID_ISSUER_URL as string,
-      authorization_endpoint: 'https://identity.deep-id.ai/oauth2/auth',
-      token_endpoint: 'https://identity.deep-id.ai/oauth2/token',
-      userinfo_endpoint: 'https://identity.deep-id.ai/userinfo',
-    }),
-  };
+  const mockOAuthService =
+    options.oauthProviderService ??
+    ({
+      getScopes: () => ['openid', 'profile', 'email', 'offline_access'],
+      buildAuthorizationUrl: async () => 'https://identity.deep-id.ai/oauth2/auth',
+      exchangeCodeForTokens: async () => {
+        throw new Error('Not implemented in test app');
+      },
+      refreshTokens: async () => {
+        throw new Error('Not implemented in test app');
+      },
+      fetchUserInfo: async () => {
+        throw new Error('Not implemented in test app');
+      },
+      getDiscoveryDocument: async () => ({
+        issuer: process.env.DEEP_ID_ISSUER_URL as string,
+        authorization_endpoint: 'https://identity.deep-id.ai/oauth2/auth',
+        token_endpoint: 'https://identity.deep-id.ai/oauth2/token',
+        userinfo_endpoint: 'https://identity.deep-id.ai/userinfo',
+      }),
+    } satisfies TestAppOptions['oauthProviderService']);
 
   const moduleRef = await Test.createTestingModule({
     imports: [

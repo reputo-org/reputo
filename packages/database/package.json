@@ -32,6 +32,7 @@
     },
     "devDependencies": {
         "@types/node": "catalog:",
+        "mongodb-memory-server": "^10.2.3",
         "tsx": "catalog:",
         "typedoc": "catalog:",
         "typedoc-plugin-markdown": "catalog:",

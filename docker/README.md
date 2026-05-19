@@ -142,6 +142,7 @@ Pull request preview builds publish only `preview-<commit>` tags. Preview compos
 
 ```bash
 PREVIEW_IMAGE_TAG=preview-<commit> \
+OWNER_EMAIL=preview@example.com \
 AWS_ACCESS_KEY_ID=<key> \
 AWS_SECRET_ACCESS_KEY=<secret> \
 docker compose -f docker/compose/preview.yml up -d
