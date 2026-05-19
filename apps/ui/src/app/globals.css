@@ -167,32 +167,6 @@
   }
 }
 
-/* Wordmark — typographic REPUTO with a neon dot glyph */
-.rp-wordmark {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  font-family: var(--font-sans);
-  font-weight: 700;
-  font-size: 20px;
-  line-height: 1;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--rp-fg);
-  user-select: none;
-}
-.rp-wordmark-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  background: var(--rp-neon);
-  box-shadow:
-    0 0 4px color-mix(in oklab, #94dd26 60%, transparent),
-    0 0 10px color-mix(in oklab, #94dd26 30%, transparent);
-  transform: translateY(-1px);
-}
-
 /* Buttons */
 .rp-btn {
   display: inline-flex;
