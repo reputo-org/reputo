@@ -711,6 +711,245 @@ describe('AuthService', () => {
     });
   });
 
+  it('preserves the session when the provider refresh fails transiently', async () => {
+    const response = {} as any;
+    const request = { headers: {} } as any;
+    const userId = new Types.ObjectId();
+    const refreshTokenCiphertext = encryptValue(
+      configValues['auth.tokenEncryptionKey'] as string,
+      'provider-refresh-token',
+    );
+    const sessionRow = {
+      _id: new Types.ObjectId(),
+      sessionId: 'session-transient',
+      provider: 'deep-id',
+      userId,
+      accessTokenCiphertext: encryptValue(configValues['auth.tokenEncryptionKey'] as string, 'old-access-token'),
+      refreshTokenCiphertext,
+      accessTokenExpiresAt: new Date(Date.now() - 1_000),
+      refreshTokenExpiresAt: new Date(Date.now() + 10 * 60 * 1_000),
+      scope: ['openid', 'profile'],
+      state: 'state-123',
+      codeVerifier: 'verifier-123',
+      expiresAt: new Date(Date.now() + 30 * 60 * 1_000),
+    };
+
+    cookieService.getSessionId.mockReturnValue('session-transient');
+    authSessionRepository.findActiveBySessionId.mockResolvedValue(sessionRow);
+    oauthService.refreshTokens.mockRejectedValue(new BadGatewayException('upstream is down'));
+    oauthUserRepository.findById.mockResolvedValue({
+      _id: userId,
+      provider: 'deep-id',
+      sub: 'did:deep-id:123',
+      email: 'jane@example.com',
+      email_verified: true,
+      username: 'jane',
+      createdAt: new Date('2026-04-03T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-03T10:00:00.000Z'),
+    });
+    const loggerWarnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    const context = await service.requireSession(request, response);
+
+    expect(context.session.sessionId).toBe('session-transient');
+    expect(authSessionRepository.updateAfterRefresh).not.toHaveBeenCalled();
+    expect(authSessionRepository.revokeBySessionId).not.toHaveBeenCalled();
+    expect(cookieService.clearSessionCookie).not.toHaveBeenCalled();
+    expect(cookieService.setSessionCookie).toHaveBeenCalledTimes(1);
+    expect(loggerWarnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-transient',
+        provider: 'deep-id',
+      }),
+    );
+
+    loggerWarnSpy.mockRestore();
+  });
+
+  it('revokes the session when the provider rejects the refresh token with invalid_grant', async () => {
+    const response = {} as any;
+    const request = { headers: {} } as any;
+    const userId = new Types.ObjectId();
+    const refreshTokenCiphertext = encryptValue(
+      configValues['auth.tokenEncryptionKey'] as string,
+      'provider-refresh-token',
+    );
+
+    cookieService.getSessionId.mockReturnValue('session-invalid-grant');
+    authSessionRepository.findActiveBySessionId.mockResolvedValueOnce({
+      _id: new Types.ObjectId(),
+      sessionId: 'session-invalid-grant',
+      provider: 'deep-id',
+      userId,
+      accessTokenCiphertext: encryptValue(configValues['auth.tokenEncryptionKey'] as string, 'old-access-token'),
+      refreshTokenCiphertext,
+      accessTokenExpiresAt: new Date(Date.now() - 1_000),
+      refreshTokenExpiresAt: new Date(Date.now() + 10 * 60 * 1_000),
+      scope: ['openid', 'profile'],
+      state: 'state-123',
+      codeVerifier: 'verifier-123',
+      expiresAt: new Date(Date.now() + 30 * 60 * 1_000),
+      lastRefreshedAt: new Date(Date.now() - 60 * 1_000),
+    });
+    // The re-read after invalid_grant returns the same (un-refreshed) row.
+    authSessionRepository.findActiveBySessionId.mockResolvedValueOnce({
+      _id: new Types.ObjectId(),
+      sessionId: 'session-invalid-grant',
+      provider: 'deep-id',
+      userId,
+      accessTokenCiphertext: encryptValue(configValues['auth.tokenEncryptionKey'] as string, 'old-access-token'),
+      refreshTokenCiphertext,
+      accessTokenExpiresAt: new Date(Date.now() - 1_000),
+      refreshTokenExpiresAt: new Date(Date.now() + 10 * 60 * 1_000),
+      scope: ['openid', 'profile'],
+      state: 'state-123',
+      codeVerifier: 'verifier-123',
+      expiresAt: new Date(Date.now() + 30 * 60 * 1_000),
+      lastRefreshedAt: new Date(Date.now() - 60 * 1_000),
+    });
+    oauthService.refreshTokens.mockRejectedValue(new UnauthorizedException('invalid_grant'));
+
+    await expect(service.requireSession(request, response)).rejects.toThrow(UnauthorizedException);
+
+    expect(authSessionRepository.revokeBySessionId).toHaveBeenCalledWith('session-invalid-grant');
+    expect(cookieService.clearSessionCookie).toHaveBeenCalledWith(response);
+  });
+
+  it('adopts a peer-refreshed session when invalid_grant follows a remote rotation', async () => {
+    const response = {} as any;
+    const request = { headers: {} } as any;
+    const userId = new Types.ObjectId();
+    const stalelastRefreshedAt = new Date(Date.now() - 60 * 1_000);
+    const freshLastRefreshedAt = new Date(Date.now() - 1_000);
+
+    cookieService.getSessionId.mockReturnValue('session-peer-rotated');
+    authSessionRepository.findActiveBySessionId.mockResolvedValueOnce({
+      _id: new Types.ObjectId(),
+      sessionId: 'session-peer-rotated',
+      provider: 'deep-id',
+      userId,
+      accessTokenCiphertext: encryptValue(configValues['auth.tokenEncryptionKey'] as string, 'old-access-token'),
+      refreshTokenCiphertext: encryptValue(configValues['auth.tokenEncryptionKey'] as string, 'old-refresh-token'),
+      accessTokenExpiresAt: new Date(Date.now() - 1_000),
+      refreshTokenExpiresAt: new Date(Date.now() + 10 * 60 * 1_000),
+      scope: ['openid', 'profile'],
+      state: 'state-123',
+      codeVerifier: 'verifier-123',
+      expiresAt: new Date(Date.now() + 30 * 60 * 1_000),
+      lastRefreshedAt: stalelastRefreshedAt,
+    });
+    authSessionRepository.findActiveBySessionId.mockResolvedValueOnce({
+      _id: new Types.ObjectId(),
+      sessionId: 'session-peer-rotated',
+      provider: 'deep-id',
+      userId,
+      accessTokenCiphertext: encryptValue(configValues['auth.tokenEncryptionKey'] as string, 'peer-access-token'),
+      refreshTokenCiphertext: encryptValue(configValues['auth.tokenEncryptionKey'] as string, 'peer-refresh-token'),
+      accessTokenExpiresAt: new Date(Date.now() + 5 * 60 * 1_000),
+      refreshTokenExpiresAt: new Date(Date.now() + 10 * 60 * 1_000),
+      scope: ['openid', 'profile'],
+      state: 'state-123',
+      codeVerifier: 'verifier-123',
+      expiresAt: new Date(Date.now() + 30 * 60 * 1_000),
+      lastRefreshedAt: freshLastRefreshedAt,
+    });
+    oauthService.refreshTokens.mockRejectedValue(new UnauthorizedException('invalid_grant'));
+    oauthUserRepository.findById.mockResolvedValue({
+      _id: userId,
+      provider: 'deep-id',
+      sub: 'did:deep-id:123',
+      email: 'jane@example.com',
+      email_verified: true,
+      username: 'jane',
+      createdAt: new Date('2026-04-03T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-03T10:00:00.000Z'),
+    });
+
+    const context = await service.requireSession(request, response);
+
+    expect(context.session.sessionId).toBe('session-peer-rotated');
+    expect(authSessionRepository.revokeBySessionId).not.toHaveBeenCalled();
+    expect(cookieService.clearSessionCookie).not.toHaveBeenCalled();
+    expect(cookieService.setSessionCookie).toHaveBeenCalledTimes(1);
+  });
+
+  it('coalesces concurrent refreshes so the provider is only called once per session', async () => {
+    const response = {} as any;
+    const request = { headers: {} } as any;
+    const userId = new Types.ObjectId();
+    const sessionRow = {
+      _id: new Types.ObjectId(),
+      sessionId: 'session-coalesce',
+      provider: 'deep-id',
+      userId,
+      accessTokenCiphertext: encryptValue(configValues['auth.tokenEncryptionKey'] as string, 'old-access-token'),
+      refreshTokenCiphertext: encryptValue(configValues['auth.tokenEncryptionKey'] as string, 'provider-refresh-token'),
+      accessTokenExpiresAt: new Date(Date.now() - 1_000),
+      refreshTokenExpiresAt: new Date(Date.now() + 10 * 60 * 1_000),
+      scope: ['openid', 'profile'],
+      state: 'state-123',
+      codeVerifier: 'verifier-123',
+      expiresAt: new Date(Date.now() + 30 * 60 * 1_000),
+    };
+
+    cookieService.getSessionId.mockReturnValue('session-coalesce');
+    authSessionRepository.findActiveBySessionId.mockResolvedValue(sessionRow);
+
+    let resolveRefresh: (value: unknown) => void = () => undefined;
+    const refreshPromise = new Promise((resolve) => {
+      resolveRefresh = resolve;
+    });
+    oauthService.refreshTokens.mockReturnValue(refreshPromise);
+    authSessionRepository.updateAfterRefresh.mockImplementation(async (_sessionId, payload) => ({
+      _id: new Types.ObjectId(),
+      sessionId: 'session-coalesce',
+      provider: 'deep-id',
+      userId,
+      state: 'state-123',
+      codeVerifier: 'verifier-123',
+      ...payload,
+    }));
+    oauthService.fetchUserInfo.mockResolvedValue({
+      sub: 'did:deep-id:123',
+      email: 'jane@example.com',
+      email_verified: true,
+      username: 'jane',
+    });
+    oauthUserRepository.upsertBySub.mockResolvedValue({
+      _id: userId,
+      provider: 'deep-id',
+      sub: 'did:deep-id:123',
+      email: 'jane@example.com',
+      email_verified: true,
+      username: 'jane',
+    });
+    oauthUserRepository.findById.mockResolvedValue({
+      _id: userId,
+      provider: 'deep-id',
+      sub: 'did:deep-id:123',
+      email: 'jane@example.com',
+      email_verified: true,
+      username: 'jane',
+    });
+
+    const first = service.requireSession(request, response);
+    const second = service.requireSession(request, response);
+
+    resolveRefresh({
+      access_token: 'new-access-token',
+      refresh_token: 'new-refresh-token',
+      expires_in: 300,
+      refresh_token_expires_in: 600,
+      scope: 'openid profile',
+      token_type: 'Bearer',
+    });
+
+    await Promise.all([first, second]);
+
+    expect(oauthService.refreshTokens).toHaveBeenCalledTimes(1);
+    expect(authSessionRepository.updateAfterRefresh).toHaveBeenCalledTimes(1);
+  });
+
   it('revokes the current session and clears cookies during logout', async () => {
     const response = {} as any;
 
