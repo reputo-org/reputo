@@ -91,6 +91,7 @@ export class AuthService {
   private readonly refreshLeewaySeconds: number;
   private readonly authMode: string;
   private readonly appPublicUrl: string;
+  private readonly refreshInFlight = new Map<string, Promise<AuthSessionWithId | null>>();
 
   constructor(
     private readonly oauthAuthProviderService: OAuthAuthProviderService,
@@ -420,6 +421,22 @@ export class AuthService {
       return null;
     }
 
+    // Coalesce concurrent refreshes for the same session within this process so
+    // parallel requests don't replay a rotated refresh token and trip
+    // invalid_grant on the loser.
+    const existing = this.refreshInFlight.get(session.sessionId);
+    if (existing) {
+      return existing;
+    }
+
+    const pending = this.performRefresh(session).finally(() => {
+      this.refreshInFlight.delete(session.sessionId);
+    });
+    this.refreshInFlight.set(session.sessionId, pending);
+    return pending;
+  }
+
+  private async performRefresh(session: AuthSessionWithId): Promise<AuthSessionWithId | null> {
     try {
       const refreshToken = decryptValue(this.tokenEncryptionKey, session.refreshTokenCiphertext);
       const tokenResponse = await this.oauthAuthProviderService.refreshTokens(session.provider, refreshToken);
@@ -464,10 +481,39 @@ export class AuthService {
         ...updatedSession,
         refreshTokenCiphertext: nextRefreshToken,
       };
-    } catch {
-      await this.authSessionRepository.revokeBySessionId(session.sessionId);
-      return null;
+    } catch (error) {
+      return this.handleRefreshFailure(session, error);
     }
+  }
+
+  private async handleRefreshFailure(session: AuthSessionWithId, error: unknown): Promise<AuthSessionWithId | null> {
+    // Only treat provider-rejection errors (invalid_grant / invalid_token) as
+    // terminal — those mean the stored refresh token will never work again.
+    // Everything else (network blips, 5xx, malformed responses) is transient
+    // and must not log the user out.
+    if (!(error instanceof UnauthorizedException)) {
+      this.logger.warn({
+        sessionId: session.sessionId,
+        provider: session.provider,
+        err: error instanceof Error ? error.message : String(error),
+        msg: 'Transient refresh failure; preserving session for retry.',
+      });
+      return session;
+    }
+
+    // A peer instance (or this one after a restart) may have already rotated
+    // the refresh token. If the persisted session was refreshed after our
+    // in-memory snapshot, adopt the latest copy instead of revoking.
+    const latest = await this.authSessionRepository.findActiveBySessionId(session.sessionId, true);
+    const latestRefreshedAt = latest?.lastRefreshedAt?.getTime() ?? 0;
+    const ourRefreshedAt = session.lastRefreshedAt?.getTime() ?? 0;
+
+    if (latest && latestRefreshedAt > ourRefreshedAt) {
+      return latest;
+    }
+
+    await this.authSessionRepository.revokeBySessionId(session.sessionId);
+    return null;
   }
 
   private async resolveSessionRole(provider: OAuthProvider, user: OAuthUserWithId): Promise<AccessRole | null> {
