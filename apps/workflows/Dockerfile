@@ -8,7 +8,7 @@
 #   docker buildx build --build-arg APP_NAME=workflows -f apps/workflows/Dockerfile .
 #
 ARG APP_NAME=workflows
-ARG NODE_VERSION=22.20.0
+ARG NODE_VERSION=24.15.0
 ARG TURBO_VERSION=2.9.6
 
 # ---------- base ------------------------------------------------------------
