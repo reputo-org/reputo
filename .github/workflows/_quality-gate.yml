@@ -4,10 +4,14 @@ run-name: Quality Gate 🛡️
 on:
     workflow_call:
 
+
+env:
+    RUNNER: ubuntu-22.04
+
 jobs:
     quality-gate:
         name: 'Quality Gate 🛡️'
-        runs-on: ubuntu-22.04
+        runs-on: ${{ env.RUNNER }}
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -15,13 +19,12 @@ jobs:
             - name: Setup pnpm
               uses: pnpm/action-setup@v4
               with:
-                  version: '10.30.3'
                   run_install: false
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
-                  node-version: '24.14.0'
+                  node-version-file: .nvmrc
                   cache: pnpm
                   cache-dependency-path: pnpm-lock.yaml
 

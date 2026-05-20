@@ -9,6 +9,9 @@ concurrency:
     group: ci-${{ github.ref }}
     cancel-in-progress: true
 
+env:
+    RUNNER: ubuntu-22.04
+
 jobs:
     quality-gate:
         uses: ./.github/workflows/_quality-gate.yml
@@ -34,7 +37,7 @@ jobs:
         name: deploy-staging
         needs: build-and-push
         if: ${{ needs.build-and-push.outputs.affected-count != '0' }}
-        runs-on: ubuntu-22.04
+        runs-on: ${{ env.RUNNER }}
         environment:
             name: staging
             url: https://staging.logid.xyz

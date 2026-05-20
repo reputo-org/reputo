@@ -16,11 +16,12 @@ on:
 
 env:
     IMAGE_PREFIX: ghcr.io/reputo-org/reputo
+    RUNNER: ubuntu-22.04
 
 jobs:
     affected-apps:
         name: Compute affected apps 📊
-        runs-on: ubuntu-22.04
+        runs-on: ${{ env.RUNNER }}
         outputs:
             matrix: ${{ steps.compute.outputs.matrix }}
             count:  ${{ steps.compute.outputs.count }}
@@ -34,13 +35,12 @@ jobs:
             - name: Setup pnpm
               uses: pnpm/action-setup@v4
               with:
-                  version: '10.30.3'
                   run_install: false
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
-                  node-version: '24.14.0'
+                  node-version-file: .nvmrc
                   cache: pnpm
                   cache-dependency-path: pnpm-lock.yaml
 
