@@ -7,9 +7,6 @@ on:
 
 concurrency: ${{ github.ref }}
 
-env:
-    RUNNER: ubuntu-22.04
-
 jobs:
     build:
         if: |
@@ -34,7 +31,7 @@ jobs:
             (needs.build.result == 'success' || needs.build.result == 'skipped') &&
             (github.event.label.name == 'pullpreview' ||
              contains(github.event.pull_request.labels.*.name, 'pullpreview'))
-        runs-on: ${{ env.RUNNER }}
+        runs-on: ubuntu-22.04
         timeout-minutes: 30
         permissions:
             contents: read

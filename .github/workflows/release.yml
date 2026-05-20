@@ -5,14 +5,10 @@ run-name: Release 📝
 on:
     workflow_call:
 
-
-env:
-    RUNNER: ubuntu-22.04
-
 jobs:
     release:
         name: Release
-        runs-on: ${{ env.RUNNER }}
+        runs-on: ubuntu-22.04
         permissions:
           contents: write
           issues: write

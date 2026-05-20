@@ -20,11 +20,10 @@ permissions:
 env:
     REGISTRY: ghcr.io
     IMAGE_PREFIX: ghcr.io/reputo-org/reputo
-    RUNNER: ubuntu-22.04
 
 jobs:
     resolve-images:
-        runs-on: ${{ env.RUNNER }}
+        runs-on: ubuntu-22.04
         outputs:
             matrix: ${{ steps.resolve.outputs.matrix }}
             count: ${{ steps.resolve.outputs.count }}
@@ -71,7 +70,7 @@ jobs:
     promote:
         needs: resolve-images
         if: ${{ needs.resolve-images.outputs.count != '0' }}
-        runs-on: ${{ env.RUNNER }}
+        runs-on: ubuntu-22.04
         strategy:
             matrix: ${{ fromJSON(needs.resolve-images.outputs.matrix) }}
         steps:
@@ -114,7 +113,7 @@ jobs:
         name: trigger-komodo-production
         needs: [resolve-images, promote]
         if: ${{ needs.resolve-images.outputs.count != '0' }}
-        runs-on: ${{ env.RUNNER }}
+        runs-on: ubuntu-22.04
         environment:
             name: production
             url: https://logid.xyz

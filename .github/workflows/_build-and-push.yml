@@ -16,12 +16,11 @@ on:
 
 env:
     IMAGE_PREFIX: ghcr.io/reputo-org/reputo
-    RUNNER: ubuntu-22.04
 
 jobs:
     affected-apps:
         name: Compute affected apps 📊
-        runs-on: ${{ env.RUNNER }}
+        runs-on: ubuntu-22.04
         outputs:
             matrix: ${{ steps.compute.outputs.matrix }}
             count:  ${{ steps.compute.outputs.count }}

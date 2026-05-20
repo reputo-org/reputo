@@ -4,14 +4,10 @@ run-name: Quality Gate 🛡️
 on:
     workflow_call:
 
-
-env:
-    RUNNER: ubuntu-22.04
-
 jobs:
     quality-gate:
         name: 'Quality Gate 🛡️'
-        runs-on: ${{ env.RUNNER }}
+        runs-on: ubuntu-22.04
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
