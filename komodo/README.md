@@ -5,6 +5,10 @@ runs on the dedicated host at `https://komodo.logid.xyz`; staging and production
 run Periphery agents that execute the declared Compose stacks on each target
 host.
 
+> **Operating Reputo without Komodo?** See [docs/handoff/README.md](../docs/handoff/README.md).
+> The Compose files in `docker/compose/` plus `docker/env/examples/prod.env.example`
+> are sufficient to stand up the same stack on your own host.
+
 ```text
 GitHub Actions -> GHCR image tags -> Komodo webhooks -> Periphery -> Docker Compose
 ```

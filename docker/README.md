@@ -4,8 +4,8 @@ Layout:
 
 ```text
 docker/
-├── compose/                      # all docker-compose files
-│   ├── dev.yml                   # local hot-reload stack
+├── compose/                      # docker-compose files
+│   ├── dev.yml                   # local hot-reload stack (includes MinIO)
 │   ├── apps.yml                  # api, ui, workflows (rotates on deploy)
 │   ├── infra.yml                 # mongo, traefik, temporal*, postgres
 │   ├── observability.yml         # loki, promtail, prometheus, grafana, ...
@@ -13,7 +13,9 @@ docker/
 ├── images/
 │   └── Dockerfile.dev            # used by compose/dev.yml
 ├── env/
-│   ├── examples/*.env.example    # tracked, source of truth
+│   ├── examples/                 # tracked source of truth
+│   │   ├── *.env.example         # per-service files for the dev stack
+│   │   └── prod.env.example      # bundled file for the self-host path
 │   └── *.env                     # runtime, gitignored
 └── config/                       # files mounted into containers
     ├── mongo/                    # init.js, healthcheck.js
@@ -26,21 +28,9 @@ App `Dockerfile`s for `api`, `ui`, and `workflows` live next to each app at `app
 
 ## Environment Files
 
-Tracked examples under `docker/env/examples/*.env.example` are the source of truth. Runtime files in `docker/env/*.env` are local-only and ignored by Git.
+Tracked examples under `docker/env/examples/` are the source of truth. Runtime files in `docker/env/*.env` are local-only and gitignored. Use `make bootstrap` from the repo root to copy them all and generate secrets in one step.
 
-```bash
-mkdir -p docker/env
-cp docker/env/examples/shared.env.example docker/env/shared.env
-cp docker/env/examples/grafana.env.example docker/env/grafana.env
-cp docker/env/examples/api.env.example docker/env/api.env
-cp docker/env/examples/ui.env.example docker/env/ui.env
-cp docker/env/examples/workflows.env.example docker/env/workflows.env
-cp docker/env/examples/mongodb.env.example docker/env/mongodb.env
-cp docker/env/examples/temporal.env.example docker/env/temporal.env
-cp docker/env/examples/temporal-ui.env.example docker/env/temporal-ui.env
-cp docker/env/examples/temporal-postgresql.env.example docker/env/temporal-postgresql.env
-cp docker/env/examples/onchain-data-postgresql.env.example docker/env/onchain-data-postgresql.env
-```
+For the dev stack each service has its own env file (`api.env`, `workflows.env`, `mongodb.env`, …). For the Komodo-free self-host path, a single `docker/env/prod.env` is used for the merged infra + observability + apps stack (see [docs/handoff/README.md](../docs/handoff/README.md)).
 
 For htpasswd-style values such as `TRAEFIK_AUTH` and `GRAFANA_AUTH`, keep the doubled dollar signs from the examples. Docker Compose env files require `$` to be escaped as `$$`.
 
@@ -55,16 +45,21 @@ current Compose files.
 ## Local Hot Reload
 
 ```bash
-docker compose -f docker/compose/dev.yml up --build
+make up               # docker compose -f docker/compose/dev.yml up --build -d
+make logs SVC=api     # docker compose -f docker/compose/dev.yml logs -f api
+make down             # stop, preserve volumes
+make nuke             # stop and delete volumes (irreversible)
 ```
 
-The dev stack builds `docker/images/Dockerfile.dev`, mounts the repo into `/workspace`, and runs watch-mode commands for the API, UI, and workers. Useful local endpoints:
+The dev stack builds `docker/images/Dockerfile.dev`, mounts the repo into `/workspace`, runs watch-mode commands for the API, UI, and workers, and starts a local MinIO for S3 access. Useful local endpoints:
 
 - UI: `http://localhost`
 - API via Traefik: `http://localhost/api`
 - Traefik dashboard: `http://localhost:8080/dashboard/`
 - Temporal UI: `http://localhost:8088`
 - Grafana: `http://localhost:3001`
+- MinIO S3 API: `http://localhost:9000`
+- MinIO console: `http://minio.localhost` (also `http://localhost:9001`)
 
 ## Staging And Production
 
