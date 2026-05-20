@@ -214,7 +214,6 @@ services:
             - '8088:8080'
         environment:
             - TEMPORAL_ADDRESS=temporal:7233
-            - TEMPORAL_CORS_ORIGINS=*
 
     temporal-elasticsearch:
         container_name: temporal-elasticsearch
