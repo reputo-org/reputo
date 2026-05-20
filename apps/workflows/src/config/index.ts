@@ -34,10 +34,12 @@ const commonEnvVarsSchema = Joi.object()
     MONGODB_PASSWORD: Joi.string().allow('').description('MongoDB password'),
     MONGODB_DB_NAME: Joi.string().required().description('MongoDB database name'),
     AWS_REGION: Joi.string().required().description('AWS region for S3 operations'),
-    AWS_ACCESS_KEY_ID: Joi.string().allow('').description('AWS access key ID (optional, only used in non-production)'),
-    AWS_SECRET_ACCESS_KEY: Joi.string()
+    S3_ENDPOINT: Joi.string()
+      .uri()
       .allow('')
-      .description('AWS secret access key (optional, only used in non-production)'),
+      .default('')
+      .description('Custom S3 endpoint, e.g. http://minio:9000. Empty = real AWS S3.'),
+    S3_FORCE_PATH_STYLE: Joi.boolean().default(false).description('Force path-style addressing. Required for MinIO.'),
     STORAGE_BUCKET: Joi.string().required().description('S3 bucket name for algorithm inputs and outputs'),
     STORAGE_PRESIGN_PUT_TTL: Joi.number()
       .integer()
@@ -148,8 +150,8 @@ const config = {
   },
   aws: {
     region: envVars.AWS_REGION,
-    accessKeyId: envVars.AWS_ACCESS_KEY_ID,
-    secretAccessKey: envVars.AWS_SECRET_ACCESS_KEY,
+    s3Endpoint: envVars.S3_ENDPOINT,
+    s3ForcePathStyle: envVars.S3_FORCE_PATH_STYLE,
   },
   storage: {
     bucket: envVars.STORAGE_BUCKET,

@@ -3,16 +3,19 @@ import * as Joi from 'joi';
 
 export default registerAs('aws', () => ({
   region: process.env.AWS_REGION,
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  s3Endpoint: process.env.S3_ENDPOINT,
+  s3ForcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
 }));
 
 export const awsConfigSchema = {
   AWS_REGION: Joi.string().required().description('AWS region for S3 bucket'),
-  AWS_ACCESS_KEY_ID: Joi.string()
+  S3_ENDPOINT: Joi.string()
+    .uri()
     .optional()
-    .description('AWS access key ID (required for non-production environments)'),
-  AWS_SECRET_ACCESS_KEY: Joi.string()
+    .allow('')
+    .description('Custom S3 endpoint, e.g. http://minio:9000. Leave empty for real AWS S3.'),
+  S3_FORCE_PATH_STYLE: Joi.boolean()
     .optional()
-    .description('AWS secret access key (required for non-production environments)'),
+    .default(false)
+    .description('Force path-style addressing. Required for MinIO; auto-defaults to true when S3_ENDPOINT is set.'),
 };
