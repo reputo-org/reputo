@@ -35,8 +35,9 @@ services:
             --keyFile "$$keyfile"
             --bind_ip_all
             '
+
         ports:
-            - 27017:27017
+            - "127.0.0.1:27017:27017"
         environment:
             MONGO_INITDB_ROOT_USERNAME: "${MONGO_INITDB_ROOT_USERNAME:?missing MONGO_INITDB_ROOT_USERNAME}"
             MONGO_INITDB_ROOT_PASSWORD: "${MONGO_INITDB_ROOT_PASSWORD:?missing MONGO_INITDB_ROOT_PASSWORD}"
@@ -176,7 +177,7 @@ services:
             POSTGRES_DB: "${ONCHAIN_DATA_POSTGRES_DB_NAME:?missing ONCHAIN_DATA_POSTGRES_DB_NAME}"
         networks: [production]
         ports:
-            - 5433:5432
+            - "127.0.0.1:5433:5432"
         volumes:
             - onchain_data_postgresql_data:/var/lib/postgresql/data
         healthcheck:

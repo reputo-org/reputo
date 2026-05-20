@@ -12,8 +12,47 @@ volumes:
         driver: local
     onchain_data_postgresql_data:
         driver: local
+    minio_data:
+        driver: local
 
 services:
+    minio:
+        container_name: minio
+        image: minio/minio:RELEASE.2025-10-15T17-29-55Z
+        restart: unless-stopped
+        networks: [preview]
+        environment:
+            - MINIO_ROOT_USER=reputo
+            - MINIO_ROOT_PASSWORD=reputo-preview-secret
+        command: server /data --console-address ":9001"
+        volumes:
+            - minio_data:/data
+        healthcheck:
+            test: ['CMD', 'curl', '-fsS', 'http://localhost:9000/minio/health/live']
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 20s
+
+    minio-init:
+        container_name: minio-init
+        image: minio/mc:RELEASE.2025-10-13T21-51-23Z
+        networks: [preview]
+        depends_on:
+            minio:
+                condition: service_healthy
+        environment:
+            - MINIO_ROOT_USER=reputo
+            - MINIO_ROOT_PASSWORD=reputo-preview-secret
+        entrypoint: >
+            /bin/sh -c '
+            set -euo pipefail;
+            mc alias set local "http://minio:9000" "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD";
+            mc mb --ignore-existing local/reputo-pullpreview;
+            echo "MinIO buckets ready: reputo-pullpreview";
+            '
+        restart: 'no'
+
     preview-proxy:
         image: caddy:2
         restart: unless-stopped
@@ -92,7 +131,6 @@ services:
             - PORT=3000
             - LOG_LEVEL=info
             - AUTH_MODE=mock
-            # OWNER_EMAIL is optional in mock mode, but keep it set so preview env wiring matches OAuth deploys.
             - OWNER_EMAIL=${OWNER_EMAIL:-preview@example.com}
             - AUTH_COOKIE_NAME=reputo_auth_session
             - AUTH_COOKIE_SECURE=false
@@ -112,9 +150,11 @@ services:
             - MONGODB_DB_NAME=reputo_preview
             - MONGODB_USER=admin
             - MONGODB_PASSWORD=preview_password
-            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-            - AWS_REGION=eu-central-1
+            - AWS_ACCESS_KEY_ID=reputo
+            - AWS_SECRET_ACCESS_KEY=reputo-preview-secret
+            - AWS_REGION=us-east-1
+            - S3_ENDPOINT=http://minio:9000
+            - S3_FORCE_PATH_STYLE=true
             - STORAGE_BUCKET=reputo-pullpreview
             - STORAGE_PRESIGN_PUT_TTL=120
             - STORAGE_PRESIGN_GET_TTL=300
@@ -251,9 +291,11 @@ services:
             - STORAGE_CONTENT_TYPE_ALLOWLIST=text/csv,text/plain,application/json,application/x-sqlite3
             - DEEPFUNDING_API_BASE_URL=https://deep-projects.ai/wp-json/deepfunding/v1
             - DEEPFUNDING_API_KEY=${DEEPFUNDING_API_KEY}
-            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-            - AWS_REGION=eu-central-1
+            - AWS_ACCESS_KEY_ID=reputo
+            - AWS_SECRET_ACCESS_KEY=reputo-preview-secret
+            - AWS_REGION=us-east-1
+            - S3_ENDPOINT=http://minio:9000
+            - S3_FORCE_PATH_STYLE=true
             - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
             - ONCHAIN_DATA_POSTGRES_HOST=onchain-data-postgresql
             - ONCHAIN_DATA_POSTGRES_PORT=5432
@@ -292,9 +334,11 @@ services:
             - STORAGE_CONTENT_TYPE_ALLOWLIST=text/csv,text/plain,application/json,application/x-sqlite3
             - DEEPFUNDING_API_BASE_URL=https://deep-projects.ai/wp-json/deepfunding/v1
             - DEEPFUNDING_API_KEY=${DEEPFUNDING_API_KEY}
-            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-            - AWS_REGION=eu-central-1
+            - AWS_ACCESS_KEY_ID=reputo
+            - AWS_SECRET_ACCESS_KEY=reputo-preview-secret
+            - AWS_REGION=us-east-1
+            - S3_ENDPOINT=http://minio:9000
+            - S3_FORCE_PATH_STYLE=true
             - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
             - ONCHAIN_DATA_POSTGRES_HOST=onchain-data-postgresql
             - ONCHAIN_DATA_POSTGRES_PORT=5432
@@ -333,9 +377,11 @@ services:
             - STORAGE_CONTENT_TYPE_ALLOWLIST=text/csv,text/plain,application/json,application/x-sqlite3
             - DEEPFUNDING_API_BASE_URL=https://deep-projects.ai/wp-json/deepfunding/v1
             - DEEPFUNDING_API_KEY=${DEEPFUNDING_API_KEY}
-            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-            - AWS_REGION=eu-central-1
+            - AWS_ACCESS_KEY_ID=reputo
+            - AWS_SECRET_ACCESS_KEY=reputo-preview-secret
+            - AWS_REGION=us-east-1
+            - S3_ENDPOINT=http://minio:9000
+            - S3_FORCE_PATH_STYLE=true
             - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
             - ONCHAIN_DATA_POSTGRES_HOST=onchain-data-postgresql
             - ONCHAIN_DATA_POSTGRES_PORT=5432
