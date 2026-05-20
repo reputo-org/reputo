@@ -41,7 +41,8 @@ Every credential the platform consumes, where it lives, and which environments n
 
 `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are **never read by application code**. The S3 SDK resolves them from the standard AWS credential chain:
 
-- **dev/preview**: docker-compose sets them on the api/worker containers (pointing at the MinIO sidecar). No `.env` file references them.
+- **dev**: `docker/env/api.env` and `docker/env/workflows.env` set local MinIO defaults. Override them there when using another S3 target.
+- **preview**: docker-compose sets them on the api/worker containers (pointing at the MinIO sidecar).
 - **staging/production**: attach an IAM role to the host. The SDK picks credentials up through `EC2InstanceMetadataServiceV2` or container credentials. As a fallback, set `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` in the host shell before `make selfhost-up`.
 
 ## Workers / external APIs

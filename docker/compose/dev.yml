@@ -5,8 +5,6 @@ x-dev-environment: &dev-environment
     TSC_WATCHFILE: UsePolling
     TSC_WATCHDIRECTORY: UsePolling
     NEXT_TELEMETRY_DISABLED: '1'
-    AWS_ACCESS_KEY_ID: reputo
-    AWS_SECRET_ACCESS_KEY: reputo-dev-secret
 
 x-dev-volumes: &dev-volumes
     - ../..:/workspace
