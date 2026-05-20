@@ -346,6 +346,7 @@ services:
             - S3_ENDPOINT=http://minio:9000
             - S3_FORCE_PATH_STYLE=true
             - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
+            - BLOCKFROST_API_KEY=${BLOCKFROST_API_KEY}
             - ONCHAIN_DATA_POSTGRES_HOST=onchain-data-postgresql
             - ONCHAIN_DATA_POSTGRES_PORT=5432
             - ONCHAIN_DATA_POSTGRES_USER=reputo_onchain

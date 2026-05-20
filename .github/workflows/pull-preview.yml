@@ -51,12 +51,14 @@ jobs:
                   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   DEEPFUNDING_API_KEY: ${{ secrets.DEEPFUNDING_API_KEY }}
                   ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
+                  BLOCKFROST_API_KEY: ${{ secrets.BLOCKFROST_API_KEY }}
               run: |
                   cat > docker/compose/.env <<EOF
                   AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
                   AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
                   DEEPFUNDING_API_KEY=$DEEPFUNDING_API_KEY
                   ALCHEMY_API_KEY=$ALCHEMY_API_KEY
+                  BLOCKFROST_API_KEY=$BLOCKFROST_API_KEY
                   PREVIEW_IMAGE_TAG=preview-${{ github.event.pull_request.head.sha }}
                   OWNER_EMAIL=preview@example.com
                   EOF
