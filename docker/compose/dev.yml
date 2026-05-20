@@ -257,7 +257,7 @@ services:
 
     minio:
         container_name: minio
-        image: minio/minio:RELEASE.2025-10-15T17-29-55Z
+        image: minio/minio:RELEASE.2025-09-07T16-13-09Z
         restart: unless-stopped
         networks: [dev]
         ports:
@@ -268,7 +268,13 @@ services:
         volumes:
             - minio_data:/data
         healthcheck:
-            test: ['CMD', 'curl', '-fsS', 'http://localhost:9000/minio/health/live']
+            test:
+                [
+                    'CMD',
+                    'curl',
+                    '-fsS',
+                    'http://localhost:9000/minio/health/live',
+                ]
             interval: 10s
             timeout: 5s
             retries: 12
@@ -281,7 +287,7 @@ services:
 
     minio-init:
         container_name: minio-init
-        image: minio/mc:RELEASE.2025-10-13T21-51-23Z
+        image: minio/mc:RELEASE.2025-08-13T08-35-41Z
         networks: [dev]
         depends_on:
             minio:
@@ -389,7 +395,7 @@ services:
 
     cadvisor:
         container_name: cadvisor
-        image: gcr.io/cadvisor/cadvisor:v0.52.1
+        image: ghcr.io/google/cadvisor:0.55.1
         restart: unless-stopped
         networks: [dev]
         volumes:
