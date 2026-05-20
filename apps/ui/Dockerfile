@@ -9,7 +9,7 @@
 #   docker buildx build --build-arg APP_NAME=ui -f apps/ui/Dockerfile .
 #
 ARG APP_NAME=ui
-ARG NODE_VERSION=22.20.0
+ARG NODE_VERSION=24.15.0
 ARG TURBO_VERSION=2.9.6
 
 # ---------- base ------------------------------------------------------------

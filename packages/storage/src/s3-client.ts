@@ -1,81 +1,33 @@
-/**
- * @reputo/storage/s3-client
- *
- * S3 client factory for consistent client creation across applications.
- */
-
 import { S3Client } from '@aws-sdk/client-s3';
 
 /**
  * Configuration options for creating an S3 client.
+ *
+ * Credentials are intentionally not part of this surface — the AWS SDK
+ * resolves them from its default credential chain (env, container creds,
+ * IAM role, or `~/.aws/credentials`).
  */
 export interface S3ClientConfig {
-  /**
-   * AWS region for S3 operations.
-   *
-   * @example 'us-east-1'
-   */
+  /** AWS region. */
   region: string;
 
-  /**
-   * AWS access key ID.
-   * Only used in non-production environments when explicitly provided.
-   */
-  accessKeyId?: string;
+  /** Custom endpoint for MinIO / LocalStack. Leave undefined for real AWS S3. */
+  endpoint?: string;
 
   /**
-   * AWS secret access key.
-   * Only used in non-production environments when explicitly provided.
+   * Force path-style addressing. Required for MinIO; defaults to `true` when
+   * `endpoint` is set, otherwise `false`.
    */
-  secretAccessKey?: string;
+  forcePathStyle?: boolean;
 }
 
-/**
- * Creates a configured S3 client instance.
- *
- * In production environments, credentials are obtained from the environment
- * (IAM roles, environment variables, etc.) and explicit credentials are ignored.
- *
- * In non-production environments, explicit credentials can be provided for
- * local development with services like LocalStack or MinIO.
- *
- * @param config - S3 client configuration options
- * @param nodeEnv - Current Node.js environment (e.g., 'production', 'development', 'test')
- * @returns Configured S3Client instance
- *
- * @example
- * ```typescript
- * // Production - uses IAM role or environment credentials
- * const client = createS3Client({ region: 'us-east-1' }, 'production');
- *
- * // Development with explicit credentials
- * const client = createS3Client({
- *   region: 'us-east-1',
- *   accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
- *   secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
- * }, 'development');
- *
- * // LocalStack or MinIO
- * const client = createS3Client({
- *   region: 'us-east-1',
- *   endpoint: 'http://localhost:4566',
- *   forcePathStyle: true,
- *   accessKeyId: 'test',
- *   secretAccessKey: 'test',
- * }, 'development');
- * ```
- */
-export function createS3Client(config: S3ClientConfig, nodeEnv: string): S3Client {
-  const s3ClientConfig: ConstructorParameters<typeof S3Client>[0] = {
+export function createS3Client(config: S3ClientConfig): S3Client {
+  const endpoint = config.endpoint && config.endpoint.length > 0 ? config.endpoint : undefined;
+  const forcePathStyle = endpoint ? (config.forcePathStyle ?? true) : config.forcePathStyle;
+
+  return new S3Client({
     region: config.region,
-  };
-
-  if (nodeEnv !== 'production') {
-    s3ClientConfig.credentials = {
-      accessKeyId: config.accessKeyId as string,
-      secretAccessKey: config.secretAccessKey as string,
-    };
-  }
-
-  return new S3Client(s3ClientConfig);
+    ...(endpoint ? { endpoint } : {}),
+    ...(typeof forcePathStyle === 'boolean' ? { forcePathStyle } : {}),
+  });
 }

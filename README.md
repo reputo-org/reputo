@@ -22,32 +22,31 @@
 
 ## Getting Started
 
-Use Node 20+ with `pnpm@10.30.3`.
-
-### Local
+Three commands from clone to running stack:
 
 ```bash
-pnpm install
-pnpm dev
+mise install        # installs Node 24.15.0, pnpm 10.30.3, and friends
+make bootstrap      # copies env examples, generates secrets, prints a credentials checklist
+make up             # brings up api, ui, workers, mongo, temporal, minio, observability
 ```
 
-### Docker
+When the stack is healthy, the UI is at <http://localhost>, the API at <http://localhost/api>, Temporal UI at <http://localhost:8088>, Grafana at <http://localhost:3001>, and the MinIO console at <http://minio.localhost>.
+
+Don't have `mise`? See [docs/onboarding.md](docs/onboarding.md) for `nvm` and manual paths.
+
+Day-to-day:
 
 ```bash
-docker compose -f docker/compose/dev.yml up --build
+make doctor         # preflight: tools, versions, port collisions
+make logs SVC=api   # tail one service
+make test           # vitest
+make check          # biome lint + format
+make build          # turbo build
+make down           # stop the stack (preserves volumes)
+make help           # everything else
 ```
 
-This is the hot-reload local testing stack. The UI is routed at `http://localhost`, the API at `http://localhost/api`, Temporal UI at `http://localhost:8088`, and Grafana at `http://localhost:3001`.
-
-See [docker/README.md](docker/README.md).
-
-### Checks
-
-```bash
-pnpm build
-pnpm check
-pnpm test
-```
+Full guide: [docs/onboarding.md](docs/onboarding.md). Credentials inventory: [docs/credentials.md](docs/credentials.md). Compose layout: [docker/README.md](docker/README.md).
 
 ## Monorepo Overview
 
@@ -92,10 +91,9 @@ flowchart LR
 
 ### Environment Files
 
-Tracked files under `docker/env/examples/*.env.example` are the only canonical environment templates. Copy them into `docker/env/*.env` locally before using the Docker stacks.
+Tracked files under `docker/env/examples/` are the only canonical environment templates — `make bootstrap` copies them into `docker/env/*.env` and generates a real `AUTH_TOKEN_ENCRYPTION_KEY`. The same directory contains `prod.env.example` for the Komodo-free self-host path.
 
-For operational details, image flow, and local infrastructure setup, see
-[docker/README.md](docker/README.md) and [komodo/README.md](komodo/README.md).
+For operational details, image flow, and local infrastructure setup see [docker/README.md](docker/README.md) and [komodo/README.md](komodo/README.md). To run the stack without Komodo, see [docs/handoff/README.md](docs/handoff/README.md).
 
 ### Access Control
 

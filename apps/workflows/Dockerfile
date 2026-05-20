@@ -8,7 +8,7 @@
 #   docker buildx build --build-arg APP_NAME=workflows -f apps/workflows/Dockerfile .
 #
 ARG APP_NAME=workflows
-ARG NODE_VERSION=22.20.0
+ARG NODE_VERSION=24.15.0
 ARG TURBO_VERSION=2.9.6
 
 # ---------- base ------------------------------------------------------------
@@ -32,6 +32,9 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 # the original lockfile back over the pruned one — pnpm ignores entries that
 # aren't referenced from the pruned package.json files.
 FROM base AS installer
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=pruner /repo/out/json/ ./
 COPY --from=pruner /repo/pnpm-lock.yaml ./pnpm-lock.yaml
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \

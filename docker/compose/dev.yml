@@ -73,6 +73,8 @@ volumes:
         driver: local
     prometheus_data:
         driver: local
+    minio_data:
+        driver: local
 
 services:
     mongodb:
@@ -253,6 +255,55 @@ services:
             retries: 12
             start_period: 20s
 
+    minio:
+        container_name: minio
+        image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+        restart: unless-stopped
+        networks: [dev]
+        ports:
+            - '9000:9000'
+            - '9001:9001'
+        env_file: ../env/minio.env
+        command: server /data --console-address ":9001"
+        volumes:
+            - minio_data:/data
+        healthcheck:
+            test:
+                [
+                    'CMD',
+                    'curl',
+                    '-fsS',
+                    'http://localhost:9000/minio/health/live',
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 20s
+        labels:
+            - traefik.enable=true
+            - traefik.http.routers.minio-console.rule=Host(`minio.localhost`)
+            - traefik.http.routers.minio-console.entrypoints=web,web8080
+            - traefik.http.services.minio-console.loadbalancer.server.port=9001
+
+    minio-init:
+        container_name: minio-init
+        image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+        networks: [dev]
+        depends_on:
+            minio:
+                condition: service_healthy
+        env_file: ../env/minio.env
+        entrypoint: >
+            /bin/sh -c '
+            set -euo pipefail;
+            mc alias set local "http://minio:9000" "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD";
+            for bucket in $$(echo "$$MINIO_BUCKETS" | tr "," " "); do
+                mc mb --ignore-existing "local/$$bucket";
+            done;
+            echo "MinIO buckets ready: $$MINIO_BUCKETS";
+            '
+        restart: 'no'
+
     orchestrator-worker:
         <<: *dev-service
         container_name: orchestrator-worker
@@ -344,7 +395,7 @@ services:
 
     cadvisor:
         container_name: cadvisor
-        image: gcr.io/cadvisor/cadvisor:v0.52.1
+        image: ghcr.io/google/cadvisor:0.55.1
         restart: unless-stopped
         networks: [dev]
         volumes:
