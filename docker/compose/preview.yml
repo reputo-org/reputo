@@ -12,6 +12,8 @@ volumes:
         driver: local
     onchain_data_postgresql_data:
         driver: local
+    postgres_data:
+        driver: local
 
 services:
     preview-proxy:
@@ -83,6 +85,8 @@ services:
         depends_on:
             mongodb:
                 condition: service_healthy
+            postgres:
+                condition: service_healthy
             temporal:
                 condition: service_healthy
         restart: unless-stopped
@@ -112,6 +116,12 @@ services:
             - MONGODB_DB_NAME=reputo_preview
             - MONGODB_USER=admin
             - MONGODB_PASSWORD=preview_password
+            - API_POSTGRES_HOST=postgres
+            - API_POSTGRES_PORT=5432
+            - API_POSTGRES_DB_NAME=reputo_preview
+            - API_POSTGRES_USER=reputo_app
+            - API_POSTGRES_PASSWORD=reputo_app
+            - DATABASE_URL=postgresql://reputo_app:reputo_app@postgres:5432/reputo_preview
             - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
             - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
             - AWS_REGION=eu-central-1
@@ -211,6 +221,27 @@ services:
             - POSTGRES_USER=reputo_onchain
             - POSTGRES_PASSWORD=reputo_onchain
             - POSTGRES_DB=reputo_onchain
+        healthcheck:
+            test:
+                ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 20s
+
+    postgres:
+        container_name: postgres
+        image: postgres:16
+        restart: unless-stopped
+        networks: [preview]
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        ports:
+            - 5434:5432
+        environment:
+            - POSTGRES_USER=reputo_app
+            - POSTGRES_PASSWORD=reputo_app
+            - POSTGRES_DB=reputo_preview
         healthcheck:
             test:
                 ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']

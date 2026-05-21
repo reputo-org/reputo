@@ -40,6 +40,7 @@ cp docker/env/examples/temporal.env.example docker/env/temporal.env
 cp docker/env/examples/temporal-ui.env.example docker/env/temporal-ui.env
 cp docker/env/examples/temporal-postgresql.env.example docker/env/temporal-postgresql.env
 cp docker/env/examples/onchain-data-postgresql.env.example docker/env/onchain-data-postgresql.env
+cp docker/env/examples/postgres.env.example docker/env/postgres.env
 ```
 
 For htpasswd-style values such as `TRAEFIK_AUTH` and `GRAFANA_AUTH`, keep the doubled dollar signs from the examples. Docker Compose env files require `$` to be escaped as `$$`.

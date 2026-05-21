@@ -129,6 +129,7 @@ non-secret variables:
 - `<ENV>_STORAGE_BUCKET`
 - `<ENV>_DEEPFUNDING_API_BASE_URL`
 - `<ENV>_ONCHAIN_DATA_POSTGRES_DB_NAME`
+- `<ENV>_API_POSTGRES_DB_NAME`
 
 `<ENV>_OWNER_EMAIL` is required while the app stack runs `AUTH_MODE=oauth`.
 If it is missing, or if it does not match the existing active owner allowlist
@@ -145,6 +146,8 @@ For each environment prefix, `STAGING` and `PRODUCTION`, create these secrets:
 - `<ENV>_TEMPORAL_POSTGRES_PASSWORD`
 - `<ENV>_ONCHAIN_DATA_POSTGRES_USER`
 - `<ENV>_ONCHAIN_DATA_POSTGRES_PASSWORD`
+- `<ENV>_API_POSTGRES_USER`
+- `<ENV>_API_POSTGRES_PASSWORD`
 - `<ENV>_GRAFANA_ADMIN_PASSWORD`
 - `<ENV>_DEEP_ID_CLIENT_SECRET`
 - `<ENV>_AUTH_TOKEN_ENCRYPTION_KEY`

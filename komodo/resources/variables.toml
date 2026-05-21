@@ -162,6 +162,11 @@ name = "STAGING_ONCHAIN_DATA_POSTGRES_DB_NAME"
 description = "Staging onchain-data Postgres database name."
 is_secret = false
 
+[[variable]]
+name = "STAGING_API_POSTGRES_DB_NAME"
+description = "Staging API application Postgres database name."
+is_secret = false
+
 # ---------------------------------------------------------------------------
 # Staging secrets
 # ---------------------------------------------------------------------------
@@ -209,6 +214,16 @@ is_secret = true
 [[variable]]
 name = "STAGING_ONCHAIN_DATA_POSTGRES_PASSWORD"
 description = "Staging onchain-data Postgres password."
+is_secret = true
+
+[[variable]]
+name = "STAGING_API_POSTGRES_USER"
+description = "Staging API application Postgres user."
+is_secret = true
+
+[[variable]]
+name = "STAGING_API_POSTGRES_PASSWORD"
+description = "Staging API application Postgres password."
 is_secret = true
 
 [[variable]]
@@ -360,6 +375,11 @@ name = "PRODUCTION_ONCHAIN_DATA_POSTGRES_DB_NAME"
 description = "Production onchain-data Postgres database name."
 is_secret = false
 
+[[variable]]
+name = "PRODUCTION_API_POSTGRES_DB_NAME"
+description = "Production API application Postgres database name."
+is_secret = false
+
 # ---------------------------------------------------------------------------
 # Production secrets
 # ---------------------------------------------------------------------------
@@ -407,6 +427,16 @@ is_secret = true
 [[variable]]
 name = "PRODUCTION_ONCHAIN_DATA_POSTGRES_PASSWORD"
 description = "Production onchain-data Postgres password."
+is_secret = true
+
+[[variable]]
+name = "PRODUCTION_API_POSTGRES_USER"
+description = "Production API application Postgres user."
+is_secret = true
+
+[[variable]]
+name = "PRODUCTION_API_POSTGRES_PASSWORD"
+description = "Production API application Postgres password."
 is_secret = true
 
 [[variable]]

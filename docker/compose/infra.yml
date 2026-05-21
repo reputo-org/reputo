@@ -13,6 +13,8 @@ volumes:
         driver: local
     onchain_data_postgresql_data:
         driver: local
+    postgres_data:
+        driver: local
 
 services:
     mongodb:
@@ -179,6 +181,27 @@ services:
             - 5433:5432
         volumes:
             - onchain_data_postgresql_data:/var/lib/postgresql/data
+        healthcheck:
+            test:
+                ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 20s
+
+    postgres:
+        container_name: postgres
+        image: postgres:16
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: "${API_POSTGRES_USER:?missing API_POSTGRES_USER}"
+            POSTGRES_PASSWORD: "${API_POSTGRES_PASSWORD:?missing API_POSTGRES_PASSWORD}"
+            POSTGRES_DB: "${API_POSTGRES_DB_NAME:?missing API_POSTGRES_DB_NAME}"
+        networks: [production]
+        ports:
+            - 5434:5432
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
         healthcheck:
             test:
                 ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']

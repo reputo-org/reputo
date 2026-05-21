@@ -67,6 +67,8 @@ volumes:
         driver: local
     onchain_data_postgresql_data:
         driver: local
+    postgres_data:
+        driver: local
     loki_data:
         driver: local
     grafana_data:
@@ -151,6 +153,8 @@ services:
         networks: [dev]
         depends_on:
             mongodb:
+                condition: service_healthy
+            postgres:
                 condition: service_healthy
             temporal:
                 condition: service_healthy
@@ -245,6 +249,24 @@ services:
             - 5433:5432
         volumes:
             - onchain_data_postgresql_data:/var/lib/postgresql/data
+        healthcheck:
+            test:
+                ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 20s
+
+    postgres:
+        container_name: postgres
+        image: postgres:16
+        restart: unless-stopped
+        env_file: ../env/postgres.env
+        networks: [dev]
+        ports:
+            - 5434:5432
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
         healthcheck:
             test:
                 ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
