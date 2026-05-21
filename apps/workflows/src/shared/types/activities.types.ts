@@ -1,35 +1,23 @@
-import type { Snapshot as SnapshotBase } from '@reputo/database';
+import type {
+  AlgorithmPresetFrozenDto,
+  ApiSnapshotActivities,
+  GetSnapshotInput,
+  GetSnapshotOutput,
+  SnapshotDto,
+  UpdateSnapshotInput,
+} from '@reputo/contracts';
 import type { Storage } from '@reputo/storage';
 
 import type { AlgorithmResult, StorageConfig } from './algorithm.types.js';
 import type { ResolveDependencyInput } from './dependency.types.js';
 
-/** Serialized snapshot (activity boundary): base shape with _id as string. */
-export type Snapshot = Omit<SnapshotBase, '_id'> & { _id: string };
+/** Wire-level snapshot shape returned by the API's snapshot activities. */
+export type Snapshot = SnapshotDto;
 
-export interface GetSnapshotInput {
-  snapshotId: string;
-}
+/** Wire-level frozen algorithm preset shape carried inside a snapshot. */
+export type AlgorithmPresetFrozen = AlgorithmPresetFrozenDto;
 
-export interface GetSnapshotOutput {
-  snapshot: Snapshot;
-}
-
-export interface UpdateSnapshotInput {
-  snapshotId: string;
-  status?: SnapshotBase['status'];
-  temporal?: SnapshotBase['temporal'];
-  outputs?: SnapshotBase['outputs'];
-  error?: {
-    message: string;
-    [key: string]: unknown;
-  };
-}
-
-export interface DbActivities {
-  getSnapshot: (input: GetSnapshotInput) => Promise<GetSnapshotOutput>;
-  updateSnapshot: (input: UpdateSnapshotInput) => Promise<void>;
-}
+export type { ApiSnapshotActivities, GetSnapshotInput, GetSnapshotOutput, UpdateSnapshotInput };
 
 export interface GetAlgorithmDefinitionInput {
   key: string;

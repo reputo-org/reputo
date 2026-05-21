@@ -1,10 +1,8 @@
 import { createRequire } from 'node:module';
-import { connect, disconnect } from '@reputo/database';
 import { createS3Client, Storage } from '@reputo/storage';
 import { NativeConnection, Worker } from '@temporalio/worker';
 import {
   createAlgorithmLibraryActivities,
-  createDbActivities,
   createOrchestratorDependencyResolverActivities,
 } from '../../activities/orchestrator/index.js';
 import config from '../../config/index.js';
@@ -19,7 +17,6 @@ const require = createRequire(import.meta.url);
 async function run(): Promise<void> {
   logger.info('Starting Orchestrator Worker');
 
-  await connect(config.mongoDB.uri);
   const connection = await NativeConnection.connect({
     address: config.temporal.address,
   });
@@ -49,7 +46,6 @@ async function run(): Promise<void> {
 
     workflowsPath: require.resolve('../../workflows/orchestrator.workflow'),
     activities: {
-      ...createDbActivities(),
       ...createAlgorithmLibraryActivities(),
       ...createOrchestratorDependencyResolverActivities({
         storage,
@@ -78,9 +74,6 @@ async function run(): Promise<void> {
         }
       }
       logger.info('Worker shutdown initiated');
-
-      await disconnect();
-      logger.info('MongoDB connection closed');
 
       logger.info('Worker shut down successfully');
       process.exit(0);

@@ -57,7 +57,7 @@ describe('dispatchAlgorithm mapping', () => {
     const run = dispatchAlgorithm({} as never);
 
     const snapshot = {
-      _id: 'snapshot-1',
+      id: 'snapshot-1',
       algorithmPresetFrozen: {
         key: 'token_value_over_time',
         version: '1.0.0',
@@ -80,7 +80,7 @@ describe('dispatchAlgorithm mapping', () => {
     const run = dispatchAlgorithm({} as never);
 
     const snapshot = {
-      _id: 'snapshot-2',
+      id: 'snapshot-2',
       algorithmPresetFrozen: {
         key: 'custom_algorithm',
         version: '1.0.0',

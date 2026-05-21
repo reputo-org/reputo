@@ -71,6 +71,7 @@ describe('OrchestratorWorkflow branches', () => {
     const { proxyActivities } = await loadWorkflowModule();
     const activities = createProxyActivitiesMock({
       getSnapshot: vi.fn().mockResolvedValue({
+        ok: true,
         snapshot: {
           status: SnapshotStatus.completed,
           algorithmPresetFrozen: {
@@ -99,6 +100,7 @@ describe('OrchestratorWorkflow branches', () => {
     const { proxyActivities } = await loadWorkflowModule();
     const activities = createProxyActivitiesMock({
       getSnapshot: vi.fn().mockResolvedValue({
+        ok: true,
         snapshot: {
           status: SnapshotStatus.queued,
           algorithmPresetFrozen: {
@@ -134,6 +136,7 @@ describe('OrchestratorWorkflow branches', () => {
     const cancelError = new Error('cancelled by user');
     const activities = createProxyActivitiesMock({
       getSnapshot: vi.fn().mockResolvedValue({
+        ok: true,
         snapshot: {
           status: SnapshotStatus.queued,
           algorithmPresetFrozen: {
@@ -188,6 +191,7 @@ describe('OrchestratorWorkflow branches', () => {
     const executionError = new Error('algorithm failed');
     const activities = createProxyActivitiesMock({
       getSnapshot: vi.fn().mockResolvedValue({
+        ok: true,
         snapshot: {
           status: SnapshotStatus.queued,
           algorithmPresetFrozen: {

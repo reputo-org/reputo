@@ -33,7 +33,7 @@ import {
 export async function computeContributionScore(snapshot: Snapshot, storage: Storage): Promise<AlgorithmResult> {
   const ctx = Context.current();
   const logger = ctx.log;
-  const snapshotId = snapshot._id;
+  const snapshotId = snapshot.id;
 
   const params = extractInputs(snapshot.algorithmPresetFrozen.inputs);
   const subIdInputMap = await loadSubIdInputMap({

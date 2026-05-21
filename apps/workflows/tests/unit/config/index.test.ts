@@ -10,11 +10,6 @@ const BASE_ENV = {
   TEMPORAL_ALGORITHM_TYPESCRIPT_TASK_QUEUE: 'algorithm-typescript-worker',
   TEMPORAL_ALGORITHM_PYTHON_TASK_QUEUE: 'algorithm-python-worker',
   TEMPORAL_ONCHAIN_DATA_TASK_QUEUE: 'onchain-data-worker',
-  MONGODB_HOST: 'localhost',
-  MONGODB_PORT: '27017',
-  MONGODB_USER: '',
-  MONGODB_PASSWORD: '',
-  MONGODB_DB_NAME: 'reputo_test',
   AWS_REGION: 'eu-central-1',
   STORAGE_BUCKET: 'reputo-test',
   DEEPFUNDING_API_BASE_URL: 'https://api.deepfunding.xyz',
@@ -43,9 +38,7 @@ describe('workflows config', () => {
 
     expect(configModule.default.temporal.onchainDataTaskQueue).toBe('onchain-data-worker');
     expect(configModule.default.storage.bucket).toBe('reputo-test');
-    expect(configModule.default.mongoDB.uri).toBe(
-      'mongodb://localhost:27017/reputo_test?authSource=admin&replicaSet=rs0&directConnection=true',
-    );
+    expect(configModule.default).not.toHaveProperty('mongoDB');
     expect(configModule.default.onchainData).toEqual({
       host: 'localhost',
       port: '5432',
@@ -56,17 +49,6 @@ describe('workflows config', () => {
       alchemyApiKey: undefined,
       blockfrostAPIKey: undefined,
     });
-  });
-
-  it('builds the MongoDB URI with encoded credentials when auth is present', async () => {
-    process.env.MONGODB_USER = 'mongo@user';
-    process.env.MONGODB_PASSWORD = 'pass:word';
-    process.env.MONGODB_DB_NAME = 'reputo_auth';
-    const configModule = await import('../../../src/config/index.js');
-
-    expect(configModule.default.mongoDB.uri).toBe(
-      'mongodb://mongo%40user:pass%3Aword@localhost:27017/reputo_auth?authSource=admin&replicaSet=rs0&directConnection=true',
-    );
   });
 
   it('rejects missing required on-chain PostgreSQL env vars during shared config load', async () => {

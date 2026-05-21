@@ -1,4 +1,4 @@
-import type { AlgorithmPresetFrozen } from '@reputo/database';
+import type { AlgorithmPresetFrozenDto as AlgorithmPresetFrozen } from '@reputo/contracts';
 import { extractSubIdsKey } from '../../shared/sub-id-input.js';
 
 import type { EffectiveDateRange, SelectedResourceInput, SupportedChain, TokenValueOverTimeParams } from '../types.js';

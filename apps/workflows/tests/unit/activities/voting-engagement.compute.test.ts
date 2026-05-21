@@ -134,7 +134,7 @@ describe('computeVotingEngagement', () => {
 
     const result = await computeVotingEngagement(
       {
-        _id: 'snapshot-1',
+        id: 'snapshot-1',
         algorithmPresetFrozen: {
           key: 'voting_engagement',
           inputs: [],

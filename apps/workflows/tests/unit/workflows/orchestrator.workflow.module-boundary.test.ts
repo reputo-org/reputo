@@ -1,3 +1,4 @@
+import { API_SNAPSHOT_ACTIVITIES_TASK_QUEUE } from '@reputo/contracts';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@temporalio/workflow', () => ({
@@ -15,22 +16,26 @@ vi.mock('@temporalio/workflow', () => ({
 }));
 
 describe('OrchestratorWorkflow module boundaries', () => {
-  it('does not import @reputo/database in workflow runtime module', async () => {
+  it('routes snapshot activities to the API task queue at module import time', async () => {
     vi.resetModules();
     const temporalWorkflow = await import('@temporalio/workflow');
-    vi.mocked(temporalWorkflow.proxyActivities).mockImplementation(
-      () =>
-        ({
-          getSnapshot: vi.fn(),
-          updateSnapshot: vi.fn(),
-          getAlgorithmDefinition: vi.fn(),
-        }) as never,
-    );
+    const proxyActivities = vi.mocked(temporalWorkflow.proxyActivities);
+    const recordedOptions: Array<Record<string, unknown>> = [];
+
+    proxyActivities.mockImplementation((opts) => {
+      recordedOptions.push(opts as Record<string, unknown>);
+      return {
+        getSnapshot: vi.fn(),
+        updateSnapshot: vi.fn(),
+        getAlgorithmDefinition: vi.fn(),
+      } as never;
+    });
 
     vi.doMock('@reputo/database', () => {
       throw new Error('Workflow module must not import @reputo/database at runtime');
     });
 
     await expect(import('../../../src/workflows/orchestrator.workflow.js')).resolves.toBeDefined();
+    expect(recordedOptions[0]).toMatchObject({ taskQueue: API_SNAPSHOT_ACTIVITIES_TASK_QUEUE });
   });
 });

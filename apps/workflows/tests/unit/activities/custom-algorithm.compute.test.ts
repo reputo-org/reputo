@@ -116,10 +116,10 @@ describe('computeCustomAlgorithm', () => {
         ],
       }),
     );
-    mockComputeVotingEngagement.mockImplementation(async (snapshot: { _id: string }) => ({
+    mockComputeVotingEngagement.mockImplementation(async (snapshot: { id: string }) => ({
       outputs: {
-        voting_engagement: `snapshots/${snapshot._id}/voting_engagement.csv`,
-        voting_engagement_details: `snapshots/${snapshot._id}/voting_engagement_details.json`,
+        voting_engagement: `snapshots/${snapshot.id}/voting_engagement.csv`,
+        voting_engagement_details: `snapshots/${snapshot.id}/voting_engagement_details.json`,
       },
     }));
   });
@@ -143,7 +143,7 @@ describe('computeCustomAlgorithm', () => {
 
     const result = await computeCustomAlgorithm(
       {
-        _id: 'snapshot-1',
+        id: 'snapshot-1',
         algorithmPresetFrozen: {
           key: 'custom_algorithm',
           version: '1.0.0',
@@ -183,7 +183,7 @@ describe('computeCustomAlgorithm', () => {
     expect(mockComputeVotingEngagement).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        _id: 'snapshot-1__custom_algorithm_child_1_voting_engagement',
+        id: 'snapshot-1__custom_algorithm_child_1_voting_engagement',
         algorithmPresetFrozen: {
           key: 'voting_engagement',
           version: '1.0.0',
@@ -198,7 +198,7 @@ describe('computeCustomAlgorithm', () => {
     expect(mockComputeVotingEngagement).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        _id: 'snapshot-1__custom_algorithm_child_2_voting_engagement',
+        id: 'snapshot-1__custom_algorithm_child_2_voting_engagement',
         algorithmPresetFrozen: {
           key: 'voting_engagement',
           version: '1.0.0',
@@ -352,7 +352,7 @@ describe('computeCustomAlgorithm', () => {
 
     await computeCustomAlgorithm(
       {
-        _id: 'snapshot-1',
+        id: 'snapshot-1',
         algorithmPresetFrozen: {
           key: 'custom_algorithm',
           version: '1.0.0',
@@ -463,7 +463,7 @@ describe('computeCustomAlgorithm', () => {
 
     await computeCustomAlgorithm(
       {
-        _id: 'snapshot-2',
+        id: 'snapshot-2',
         algorithmPresetFrozen: {
           key: 'custom_algorithm',
           version: '1.0.0',
@@ -540,7 +540,7 @@ describe('computeCustomAlgorithm', () => {
     await expect(
       computeCustomAlgorithm(
         {
-          _id: 'snapshot-3',
+          id: 'snapshot-3',
           algorithmPresetFrozen: {
             key: 'custom_algorithm',
             version: '1.0.0',

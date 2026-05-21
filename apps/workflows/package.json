@@ -19,8 +19,8 @@
   },
   "private": true,
   "scripts": {
-    "build:deps": "pnpm --filter @reputo/database --filter @reputo/deepfunding-portal-api --filter @reputo/onchain-data --filter @reputo/reputation-algorithms --filter @reputo/storage run build",
-    "dev:deps": "pnpm --filter @reputo/database --filter @reputo/deepfunding-portal-api --filter @reputo/onchain-data --filter @reputo/reputation-algorithms --filter @reputo/storage --parallel run dev",
+    "build:deps": "pnpm --filter @reputo/contracts --filter @reputo/deepfunding-portal-api --filter @reputo/onchain-data --filter @reputo/reputation-algorithms --filter @reputo/storage run build",
+    "dev:deps": "pnpm --filter @reputo/contracts --filter @reputo/deepfunding-portal-api --filter @reputo/onchain-data --filter @reputo/reputation-algorithms --filter @reputo/storage --parallel run dev",
     "build": "tsc",
     "start:orchestrator": "node dist/workers/typescript/orchestrator.worker.js",
     "start:algorithm-typescript": "node dist/workers/typescript/algorithm.worker.js",
@@ -44,7 +44,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "catalog:",
-    "@reputo/database": "workspace:*",
+    "@reputo/contracts": "workspace:*",
     "@reputo/deepfunding-portal-api": "workspace:*",
     "@reputo/onchain-data": "workspace:*",
     "@reputo/reputation-algorithms": "workspace:*",
@@ -56,7 +56,6 @@
     "csv-parse": "^5.6.0",
     "csv-stringify": "^6.5.2",
     "joi": "^17.13.3",
-    "mongoose": "catalog:",
     "pino": "catalog:",
     "pino-pretty": "catalog:"
   },
