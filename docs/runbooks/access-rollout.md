@@ -19,11 +19,10 @@ If `AUTH_MODE=oauth` and `OWNER_EMAIL` is missing, the API fails startup. If `OW
 
 This rollout must force every existing user to authenticate through the new allowlist gate. Run this once per affected environment after the new API code and env are deployed, before declaring the deploy complete.
 
-Connect to the environment MongoDB database and run:
+Connect to the API PostgreSQL database (`DATABASE_URL`) and run:
 
-```javascript
-db = db.getSiblingDB("<MONGODB_DB_NAME>");
-db.authsessions.deleteMany({});
+```sql
+DELETE FROM auth_session;
 ```
 
 Expected result: all existing browser sessions are invalidated. Users must sign in again; denied users are redirected to `/access-denied`.
@@ -31,7 +30,7 @@ Expected result: all existing browser sessions are invalidated. Users must sign 
 Include this deploy note in the PR description:
 
 ```text
-Required deploy step: run db.authsessions.deleteMany({}) once in each rolled-out environment after deploying the access-control code/env so all existing sessions re-authenticate through the allowlist gate.
+Required deploy step: run `DELETE FROM auth_session;` once in each rolled-out environment after deploying the access-control code/env so all existing sessions re-authenticate through the allowlist gate.
 ```
 
 ## Owner Handoff
@@ -40,78 +39,63 @@ There is no owner handoff endpoint by design. Change ownership with a manual DB 
 
 1. Pick the new owner email and normalize it to lowercase.
 2. Stage the environment update: `OWNER_EMAIL=<new-owner-email>`. Do not restart the API with the new env until the DB edit is complete.
-3. During the same maintenance window, update the allowlist row in MongoDB.
+3. During the same maintenance window, update the allowlist row in PostgreSQL.
 4. Deploy or restart the API with the new env and confirm it starts without an owner conflict.
-5. Run `db.authsessions.deleteMany({})` so old sessions reload their access role.
+5. Run `DELETE FROM auth_session;` so old sessions reload their access role.
 
-MongoDB handoff script:
+PostgreSQL handoff script (run as a single transaction):
 
-```javascript
-const provider = "deep-id";
-const targetEmail = "new-owner@example.com";
-const now = new Date();
+```sql
+BEGIN;
 
-const oldOwner = db.accessallowlists.findOne({
-  provider,
-  role: "owner",
-  revokedAt: null,
-});
+-- Promote the target email (or insert it) and demote the current owner. The
+-- (provider, email) unique index keeps both branches safe — the upsert and
+-- the demotion both target a single row.
 
-if (!oldOwner) {
-  throw new Error("No active owner row found.");
-}
+WITH old_owner AS (
+  SELECT id, email
+  FROM access_allowlist
+  WHERE provider = 'deep-id'
+    AND role = 'owner'
+    AND revoked_at IS NULL
+  LIMIT 1
+)
+INSERT INTO access_allowlist (id, provider, email, role, invited_at, created_at, updated_at)
+VALUES (
+  gen_random_uuid(),
+  'deep-id',
+  'new-owner@example.com',
+  'owner',
+  now(),
+  now(),
+  now()
+)
+ON CONFLICT (provider, email) DO UPDATE
+SET role = 'owner',
+    revoked_at = NULL,
+    revoked_by = NULL,
+    updated_at = now();
 
-const targetRow = db.accessallowlists.findOne({
-  provider,
-  email: targetEmail,
-});
+UPDATE access_allowlist
+SET role = 'admin',
+    revoked_at = now(),
+    updated_at = now()
+WHERE provider = 'deep-id'
+  AND role = 'owner'
+  AND revoked_at IS NULL
+  AND email <> 'new-owner@example.com';
 
-if (targetRow && !targetRow._id.equals(oldOwner._id)) {
-  db.accessallowlists.updateOne(
-    { _id: targetRow._id },
-    {
-      $set: {
-        role: "owner",
-        revokedAt: null,
-        revokedBy: null,
-        updatedAt: now,
-      },
-    }
-  );
-
-  db.accessallowlists.updateOne(
-    { _id: oldOwner._id },
-    {
-      $set: {
-        role: "admin",
-        revokedAt: now,
-        updatedAt: now,
-      },
-    }
-  );
-} else if (!targetRow) {
-  db.accessallowlists.updateOne(
-    { _id: oldOwner._id },
-    {
-      $set: {
-        email: targetEmail,
-        updatedAt: now,
-      },
-    }
-  );
-} else {
-  print("Target email is already the active owner.");
-}
+COMMIT;
 ```
 
 Verify exactly one active owner remains:
 
-```javascript
-db.accessallowlists.find({
-  provider: "deep-id",
-  role: "owner",
-  revokedAt: null,
-});
+```sql
+SELECT email
+FROM access_allowlist
+WHERE provider = 'deep-id'
+  AND role = 'owner'
+  AND revoked_at IS NULL;
 ```
 
 ## Add The First Admin

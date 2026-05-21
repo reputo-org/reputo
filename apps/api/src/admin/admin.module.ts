@@ -1,7 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
-import { AccessAllowlistSchema, MODEL_NAMES } from '@reputo/database';
 import { SessionsModule } from '../sessions';
 import { RolesGuard } from '../shared/guards/roles.guard';
 import { UsersModule } from '../users';
@@ -10,18 +8,10 @@ import { AdminService } from './admin.service';
 import { AdminAllowlistRepository } from './admin-allowlist.repository';
 import { AdminOwnerSeeder } from './admin-owner.seeder';
 
+// PrismaModule is registered globally in `src/persistence`, so feature
+// modules can depend on `PrismaService` directly without importing it here.
 @Module({
-  imports: [
-    ConfigModule,
-    UsersModule,
-    SessionsModule,
-    MongooseModule.forFeature([
-      {
-        name: MODEL_NAMES.ACCESS_ALLOWLIST,
-        schema: AccessAllowlistSchema,
-      },
-    ]),
-  ],
+  imports: [ConfigModule, UsersModule, SessionsModule],
   controllers: [AdminController],
   providers: [AdminAllowlistRepository, AdminService, AdminOwnerSeeder, RolesGuard],
   exports: [AdminService],
