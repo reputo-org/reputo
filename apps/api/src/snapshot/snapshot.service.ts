@@ -1,16 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { AlgorithmPresetFrozen, Snapshot, SnapshotWithId } from '@reputo/database';
-import { MODEL_NAMES } from '@reputo/database';
-import type { FilterQuery } from 'mongoose';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { AlgorithmPresetRepository } from '../algorithm-preset/algorithm-preset.repository';
 import { throwNotFoundError } from '../shared/exceptions';
-import { getAlgorithmDefinitionOrThrow, pick, validateAlgorithmInputs } from '../shared/utils';
+import { getAlgorithmDefinitionOrThrow, validateAlgorithmInputs } from '../shared/utils';
 import { StorageService } from '../storage/storage.service';
 import { TemporalService } from '../temporal';
 import type { CreateSnapshotDto, ListSnapshotsQueryDto } from './dto';
+import type { AlgorithmPresetFrozen, SnapshotCreateData, SnapshotOutputs, SnapshotRow } from './snapshot.repository';
 import { SnapshotRepository } from './snapshot.repository';
+
+const ALGORITHM_PRESET_ENTITY = 'AlgorithmPreset';
+const SNAPSHOT_ENTITY = 'Snapshot';
+
 @Injectable()
 export class SnapshotService {
   private readonly storageMaxSizeBytes: number;
@@ -32,7 +34,7 @@ export class SnapshotService {
   async create(createDto: CreateSnapshotDto) {
     const algorithmPreset = await this.algorithmPresetRepository.findById(createDto.algorithmPresetId);
     if (!algorithmPreset) {
-      throwNotFoundError(createDto.algorithmPresetId, MODEL_NAMES.ALGORITHM_PRESET);
+      throwNotFoundError(createDto.algorithmPresetId, ALGORITHM_PRESET_ENTITY);
     }
 
     const algorithmDefinition = getAlgorithmDefinitionOrThrow(algorithmPreset.key, algorithmPreset.version);
@@ -44,45 +46,52 @@ export class SnapshotService {
       storageContentTypeAllowlist: this.storageContentTypeAllowlist,
     });
 
-    const { algorithmPresetId: _, outputs, ...snapshotData } = createDto;
     const frozenAlgorithmPreset: AlgorithmPresetFrozen = {
-      ...(algorithmPreset as AlgorithmPresetFrozen),
+      key: algorithmPreset.key,
+      version: algorithmPreset.version,
       inputs: algorithmPreset.inputs.map((input) => ({ ...input })),
+      name: algorithmPreset.name,
+      description: algorithmPreset.description,
+      createdAt: algorithmPreset.createdAt,
+      updatedAt: algorithmPreset.updatedAt,
     };
 
-    const snapshot: Omit<Snapshot, 'createdAt' | 'updatedAt'> = {
+    const snapshot: SnapshotCreateData = {
       status: 'queued',
-      ...snapshotData,
       algorithmPreset: createDto.algorithmPresetId,
       algorithmPresetFrozen: frozenAlgorithmPreset,
-      outputs: outputs as Record<string, string | undefined> | undefined,
+      temporal: createDto.temporal,
+      outputs: createDto.outputs as SnapshotOutputs | undefined,
     };
 
     const createdSnapshot = await this.repository.create(snapshot);
 
-    this.logger.info({ snapshotId: createdSnapshot._id.toString() }, 'Starting snapshot workflow');
-    void this.temporalService.startSnapshotWorkflow(createdSnapshot._id.toString());
+    this.logger.info({ snapshotId: createdSnapshot._id }, 'Starting snapshot workflow');
+    void this.temporalService.startSnapshotWorkflow(createdSnapshot._id);
 
     return createdSnapshot;
   }
 
   list(queryDto: ListSnapshotsQueryDto) {
-    const filter: FilterQuery<Snapshot> = pick(queryDto, ['status', 'algorithmPreset']);
-    const paginateOptions = pick(queryDto, ['page', 'limit', 'sortBy', 'populate']);
-
-    const presetFilters: Record<string, string> = {};
-    if (queryDto.key) presetFilters['algorithmPresetFrozen.key'] = queryDto.key;
-    if (queryDto.version) presetFilters['algorithmPresetFrozen.version'] = queryDto.version;
-
-    Object.assign(filter, presetFilters);
-
-    return this.repository.findAll(filter, paginateOptions);
+    return this.repository.findAll(
+      {
+        status: queryDto.status,
+        algorithmPresetId: queryDto.algorithmPreset,
+        frozenKey: queryDto.key,
+        frozenVersion: queryDto.version,
+      },
+      {
+        page: queryDto.page,
+        limit: queryDto.limit,
+        sortBy: queryDto.sortBy,
+      },
+    );
   }
 
   async getById(id: string) {
     const snapshot = await this.repository.findById(id);
     if (!snapshot) {
-      throwNotFoundError(id, MODEL_NAMES.SNAPSHOT);
+      throwNotFoundError(id, SNAPSHOT_ENTITY);
     }
     return snapshot;
   }
@@ -90,7 +99,7 @@ export class SnapshotService {
   async deleteById(id: string) {
     const snapshot = await this.repository.findById(id);
     if (!snapshot) {
-      throwNotFoundError(id, MODEL_NAMES.SNAPSHOT);
+      throwNotFoundError(id, SNAPSHOT_ENTITY);
     }
 
     // Step 1: Terminate workflow and wait for it to fully stop
@@ -112,7 +121,7 @@ export class SnapshotService {
     await this.deleteS3Objects(snapshot);
   }
 
-  private async deleteS3Objects(snapshot: SnapshotWithId): Promise<void> {
+  private async deleteS3Objects(snapshot: SnapshotRow): Promise<void> {
     const keysToDelete: string[] = [];
 
     try {

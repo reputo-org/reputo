@@ -1,8 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import type { SnapshotStatus } from '@reputo/database';
-import { SNAPSHOT_STATUS } from '@reputo/database';
-import { IsEnum, IsMongoId, IsOptional, IsString } from 'class-validator';
+import type { SnapshotStatus } from '@prisma/client';
+import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { PaginationQueryDto } from '../../shared/dto';
+
+const SNAPSHOT_STATUS = ['queued', 'running', 'completed', 'failed', 'cancelled'] as const;
 
 export class ListSnapshotsQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
@@ -15,10 +16,10 @@ export class ListSnapshotsQueryDto extends PaginationQueryDto {
   status?: SnapshotStatus;
 
   @ApiPropertyOptional({
-    description: 'Filter by algorithm preset ID',
-    example: '66f9c9...',
+    description: 'Filter by algorithm preset ID (UUID v7)',
+    example: '01940000-0000-7000-8000-000000000000',
   })
-  @IsMongoId()
+  @IsUUID('7')
   @IsOptional()
   algorithmPreset?: string;
 

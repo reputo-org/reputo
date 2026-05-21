@@ -1,10 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SNAPSHOT_STATUS } from '@reputo/database';
+import type { SnapshotStatus } from '@prisma/client';
+
+const SNAPSHOT_STATUS = [
+  'queued',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+] as const satisfies readonly SnapshotStatus[];
 
 class SnapshotEventDataDto {
   @ApiProperty({
-    description: 'Snapshot unique identifier',
-    example: '6710be...',
+    description: 'Snapshot unique identifier (UUID v7)',
+    example: '01940000-0000-7000-8000-000000000000',
   })
   _id: string;
 
@@ -13,11 +21,11 @@ class SnapshotEventDataDto {
     enum: SNAPSHOT_STATUS,
     example: 'running',
   })
-  status: (typeof SNAPSHOT_STATUS)[number];
+  status: SnapshotStatus;
 
   @ApiPropertyOptional({
-    description: 'Reference to the associated AlgorithmPreset',
-    example: '66f9c9...',
+    description: 'Reference to the associated AlgorithmPreset (UUID v7)',
+    example: '01940000-0000-7000-8000-000000000000',
   })
   algorithmPreset?: string;
 

@@ -1,4 +1,16 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -13,7 +25,6 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { PaginationDto } from '../shared/dto';
-import { ParseObjectIdPipe } from '../shared/pipes';
 import { AlgorithmPresetService } from './algorithm-preset.service';
 import {
   AlgorithmPresetDto,
@@ -68,7 +79,7 @@ export class AlgorithmPresetController {
   @ApiParam({
     name: 'id',
     description: 'Algorithm preset unique identifier',
-    example: '66f9c9...',
+    example: '01940000-0000-7000-8000-000000000000',
   })
   @ApiOkResponse({
     description: 'Successfully retrieved algorithm preset',
@@ -80,7 +91,7 @@ export class AlgorithmPresetController {
   @ApiNotFoundResponse({
     description: 'Algorithm preset not found',
   })
-  getById(@Param('id', ParseObjectIdPipe) id: string) {
+  getById(@Param('id', new ParseUUIDPipe({ version: '7' })) id: string) {
     return this.algorithmPresetService.getById(id);
   }
 
@@ -93,7 +104,7 @@ export class AlgorithmPresetController {
   @ApiParam({
     name: 'id',
     description: 'Algorithm preset unique identifier',
-    example: '66f9c9...',
+    example: '01940000-0000-7000-8000-000000000000',
   })
   @ApiBody({ type: UpdateAlgorithmPresetDto })
   @ApiOkResponse({
@@ -107,7 +118,10 @@ export class AlgorithmPresetController {
   @ApiNotFoundResponse({
     description: 'Algorithm preset not found',
   })
-  updateById(@Param('id', ParseObjectIdPipe) id: string, @Body() updateDto: UpdateAlgorithmPresetDto) {
+  updateById(
+    @Param('id', new ParseUUIDPipe({ version: '7' })) id: string,
+    @Body() updateDto: UpdateAlgorithmPresetDto,
+  ) {
     return this.algorithmPresetService.updateById(id, updateDto);
   }
 
@@ -122,7 +136,7 @@ export class AlgorithmPresetController {
   @ApiParam({
     name: 'id',
     description: 'Algorithm preset unique identifier',
-    example: '66f9c9...',
+    example: '01940000-0000-7000-8000-000000000000',
   })
   @ApiNoContentResponse({
     description: 'Algorithm preset and all referencing snapshots successfully deleted',
@@ -133,7 +147,7 @@ export class AlgorithmPresetController {
   @ApiNotFoundResponse({
     description: 'Algorithm preset not found',
   })
-  deleteById(@Param('id', ParseObjectIdPipe) id: string) {
+  deleteById(@Param('id', new ParseUUIDPipe({ version: '7' })) id: string) {
     return this.algorithmPresetService.deleteById(id);
   }
 }

@@ -1,34 +1,112 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import type { AlgorithmPreset, AlgorithmPresetModel, PaginateOptions } from '@reputo/database';
-import { MODEL_NAMES } from '@reputo/database';
-import type { ClientSession, FilterQuery } from 'mongoose';
+import type { Prisma, AlgorithmPreset as PrismaAlgorithmPreset } from '@prisma/client';
+import { PrismaService } from '../persistence';
+import type { PaginateOptions, PaginateResult } from '../shared/persistence';
+import { paginate } from '../shared/persistence';
 import type { CreateAlgorithmPresetDto, UpdateAlgorithmPresetDto } from './dto';
+
+export interface AlgorithmPresetInput {
+  key: string;
+  value?: unknown;
+}
+
+// Domain shape used by the rest of the API. Matches the previous Mongoose
+// `lean()` payload — `_id` instead of Prisma's `id`, and `inputs` typed as
+// the structured pair list rather than `Prisma.JsonValue`.
+export interface AlgorithmPresetRow {
+  _id: string;
+  key: string;
+  version: string;
+  inputs: AlgorithmPresetInput[];
+  name?: string;
+  description?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AlgorithmPresetFilter {
+  key?: string;
+  version?: string;
+}
+
+export type PrismaClientLike = PrismaService | Prisma.TransactionClient;
+
+const isRecordNotFound = (err: unknown): boolean =>
+  typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025';
+
+export function mapAlgorithmPresetRow(row: PrismaAlgorithmPreset): AlgorithmPresetRow {
+  return {
+    _id: row.id,
+    key: row.key,
+    version: row.version,
+    inputs: (row.inputs as unknown as AlgorithmPresetInput[]) ?? [],
+    name: row.name ?? undefined,
+    description: row.description ?? undefined,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
 
 @Injectable()
 export class AlgorithmPresetRepository {
-  constructor(
-    @InjectModel(MODEL_NAMES.ALGORITHM_PRESET)
-    private readonly model: AlgorithmPresetModel,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  create(createDto: CreateAlgorithmPresetDto) {
-    return this.model.create(createDto);
+  async create(createDto: CreateAlgorithmPresetDto): Promise<AlgorithmPresetRow> {
+    const created = await this.prisma.algorithmPreset.create({
+      data: {
+        key: createDto.key,
+        version: createDto.version,
+        inputs: createDto.inputs as unknown as Prisma.InputJsonValue,
+        name: createDto.name ?? null,
+        description: createDto.description ?? null,
+      },
+    });
+    return mapAlgorithmPresetRow(created);
   }
 
-  findAll(filter: FilterQuery<AlgorithmPreset>, options: PaginateOptions) {
-    return this.model.paginate(filter, options);
+  findAll(filter: AlgorithmPresetFilter, options: PaginateOptions): Promise<PaginateResult<AlgorithmPresetRow>> {
+    const where: Prisma.AlgorithmPresetWhereInput = {};
+    if (filter.key !== undefined) where.key = filter.key;
+    if (filter.version !== undefined) where.version = filter.version;
+
+    return paginate({
+      model: this.prisma.algorithmPreset,
+      where,
+      options,
+      defaultOrderBy: { createdAt: 'desc' },
+      mapRow: mapAlgorithmPresetRow,
+    });
   }
 
-  findById(id: string) {
-    return this.model.findById(id).lean().exec();
+  async findById(id: string): Promise<AlgorithmPresetRow | null> {
+    const row = await this.prisma.algorithmPreset.findUnique({ where: { id } });
+    return row ? mapAlgorithmPresetRow(row) : null;
   }
 
-  updateById(id: string, updateDto: UpdateAlgorithmPresetDto) {
-    return this.model.findByIdAndUpdate(id, updateDto, { new: true }).lean().exec();
+  async updateById(id: string, updateDto: UpdateAlgorithmPresetDto): Promise<AlgorithmPresetRow | null> {
+    const data: Prisma.AlgorithmPresetUpdateInput = {};
+    if (updateDto.inputs !== undefined) {
+      data.inputs = updateDto.inputs as unknown as Prisma.InputJsonValue;
+    }
+    if (updateDto.name !== undefined) data.name = updateDto.name;
+    if (updateDto.description !== undefined) data.description = updateDto.description;
+
+    try {
+      const row = await this.prisma.algorithmPreset.update({ where: { id }, data });
+      return mapAlgorithmPresetRow(row);
+    } catch (err) {
+      if (isRecordNotFound(err)) return null;
+      throw err;
+    }
   }
 
-  deleteById(id: string, session?: ClientSession) {
-    return this.model.findByIdAndDelete(id, { session }).lean().exec();
+  async deleteById(id: string, client: PrismaClientLike = this.prisma): Promise<AlgorithmPresetRow | null> {
+    try {
+      const row = await client.algorithmPreset.delete({ where: { id } });
+      return mapAlgorithmPresetRow(row);
+    } catch (err) {
+      if (isRecordNotFound(err)) return null;
+      throw err;
+    }
   }
 }

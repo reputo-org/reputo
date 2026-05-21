@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SNAPSHOT_STATUS } from '@reputo/database';
+import type { SnapshotStatus } from '@prisma/client';
+
+const SNAPSHOT_STATUS = [
+  'queued',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+] as const satisfies readonly SnapshotStatus[];
 
 class AlgorithmPresetFrozenDto {
   @ApiProperty({
@@ -82,8 +90,8 @@ class SnapshotOutputsDto {
 
 export class SnapshotDto {
   @ApiProperty({
-    description: 'Unique identifier',
-    example: '6710be...',
+    description: 'Unique identifier (UUID v7)',
+    example: '01940000-0000-7000-8000-000000000000',
   })
   _id: string;
 
@@ -92,7 +100,7 @@ export class SnapshotDto {
     enum: SNAPSHOT_STATUS,
     example: 'completed',
   })
-  status: (typeof SNAPSHOT_STATUS)[number];
+  status: SnapshotStatus;
 
   @ApiPropertyOptional({
     description: 'Temporal workflow information',
@@ -101,8 +109,8 @@ export class SnapshotDto {
   temporal?: SnapshotTemporalDto;
 
   @ApiProperty({
-    description: 'Reference to the associated AlgorithmPreset',
-    example: '66f9c9...',
+    description: 'Reference to the associated AlgorithmPreset (UUID v7)',
+    example: '01940000-0000-7000-8000-000000000000',
   })
   algorithmPreset: string;
 
