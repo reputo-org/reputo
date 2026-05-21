@@ -55,9 +55,9 @@ pnpm test
 
 | Workspace | Purpose | Docs |
 | --- | --- | --- |
-| `@reputo/api` | NestJS HTTP API for algorithm presets, snapshots, storage, and health/docs endpoints. | [README](apps/api/README.md) |
+| `@reputo/api` | NestJS HTTP API. Owns the application PostgreSQL database (Prisma) and hosts a Temporal worker that exposes snapshot activities to the Workflows worker. | [README](apps/api/README.md) |
 | `@reputo/ui` | Next.js dashboard for browsing algorithms, creating presets, launching snapshots, and tracking execution. | [README](apps/ui/README.md) |
-| `@reputo/workflows` | Temporal workers for orchestration, TypeScript algorithm execution, and on-chain data tasks. | [README](apps/workflows/README.md) |
+| `@reputo/workflows` | Temporal workers for orchestration, TypeScript algorithm execution, and on-chain data tasks. Persistence is proxied to the API via Temporal activities; the worker holds no DB connection of its own. | [README](apps/workflows/README.md) |
 
 ### Packages
 
@@ -65,7 +65,7 @@ pnpm test
 | --- | --- | --- |
 | `@reputo/reputation-algorithms` | Versioned algorithm registry and discovery library. | [README](packages/reputation-algorithms/README.md) |
 | `@reputo/algorithm-validator` | Shared Zod validation for algorithm payloads and CSV content. | [README](packages/algorithm-validator/README.md) |
-| `@reputo/database` | Shared Mongoose connection utilities, schemas, and model exports. | [README](packages/database/README.md) |
+| `@reputo/contracts` | Cross-service DTOs, enums, and Temporal activity I/O shared between the API and Workflows. | [README](packages/contracts/README.md) |
 | `@reputo/storage` | Shared S3 storage abstraction and presigned URL helpers. | [README](packages/storage/README.md) |
 | `@reputo/onchain-data` | Token transfer sync pipeline backed by PostgreSQL. | [README](packages/onchain-data/README.md) |
 | `@reputo/deepfunding-portal-api` | DeepFunding Portal API client and SQLite ingest utilities. | [README](packages/deepfunding-portal-api/README.md) |

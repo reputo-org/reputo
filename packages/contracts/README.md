@@ -18,7 +18,7 @@ The package is intentionally narrow. It contains only:
 
 ## Boundary rules
 
-- No `@nestjs/*`, `mongoose`, or `@temporalio/*` runtime dependencies — this
+- No `@nestjs/*`, `@prisma/*`, or `@temporalio/*` runtime dependencies — this
   package is plain TypeScript so both apps can consume it without dragging in
   framework code.
 - The API owns persistence (Prisma). Persistence types do **not** belong here.
