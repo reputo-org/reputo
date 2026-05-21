@@ -63,10 +63,6 @@ configuration is provided by the Komodo-generated stack env file and wired into
 services with explicit `environment` entries. `docker/env/examples/*.env.example`
 remain local/emergency references only.
 
-The infra stack does not require a host-provisioned MongoDB keyfile. MongoDB
-generates its replica-set keyfile on first startup and persists it in the
-`mongodb_keyfile` Docker volume on the target host.
-
 Deploy the infra stack before the apps stack. The apps Compose file is valid as
 a standalone Komodo stack and therefore does not declare `depends_on`
 relationships to services owned by the infra stack.
@@ -115,7 +111,6 @@ non-secret variables:
 - `<ENV>_GRAFANA_ADMIN_USER`
 - `<ENV>_OWNER_EMAIL`
 - `<ENV>_APP_PUBLIC_URL`
-- `<ENV>_MONGODB_DB_NAME`
 - `<ENV>_DEEP_ID_ISSUER_URL`
 - `<ENV>_DEEP_ID_CLIENT_ID`
 - `<ENV>_DEEP_ID_AUTH_REDIRECT_URI`
@@ -140,8 +135,6 @@ For each environment prefix, `STAGING` and `PRODUCTION`, create these secrets:
 - `<ENV>_TRAEFIK_AUTH`
 - `<ENV>_CF_DNS_API_TOKEN`
 - `<ENV>_GRAFANA_AUTH`
-- `<ENV>_MONGODB_USER`
-- `<ENV>_MONGODB_PASSWORD`
 - `<ENV>_TEMPORAL_POSTGRES_USER`
 - `<ENV>_TEMPORAL_POSTGRES_PASSWORD`
 - `<ENV>_ONCHAIN_DATA_POSTGRES_USER`
@@ -167,9 +160,9 @@ environment variable.
 Recommended tags:
 
 - `env:staging` or `env:production`
-- `scope:cloudflare`, `scope:traefik`, `scope:grafana`, `scope:mongodb`,
-  `scope:postgres`, `scope:aws`, `scope:deep-id`, `scope:deepfunding`,
-  `scope:onchain`, or `scope:ghcr`
+- `scope:cloudflare`, `scope:traefik`, `scope:grafana`, `scope:postgres`,
+  `scope:aws`, `scope:deep-id`, `scope:deepfunding`, `scope:onchain`, or
+  `scope:ghcr`
 
 Cutover order for secrets and RBAC:
 

@@ -3,10 +3,6 @@ networks:
         external: true
 
 volumes:
-    mongodb_data:
-        driver: local
-    mongodb_keyfile:
-        driver: local
     temporal_elasticsearch_data:
         driver: local
     temporal_postgresql_data:
@@ -17,44 +13,6 @@ volumes:
         driver: local
 
 services:
-    mongodb:
-        container_name: mongodb
-        image: mongo:7.0.5
-        restart: unless-stopped
-        networks: [production]
-        user: '0:0'
-        entrypoint: >
-            /bin/bash -c '
-            set -euo pipefail;
-            keyfile=/etc/mongo-keyfile/keyfile.txt;
-            if [ ! -s "$$keyfile" ]; then
-                head -c 756 /dev/urandom | base64 | tr -d "\n" > "$$keyfile";
-            fi;
-            chown 999:999 "$$keyfile";
-            chmod 400 "$$keyfile";
-            exec docker-entrypoint.sh mongod
-            --replSet rs0
-            --keyFile "$$keyfile"
-            --bind_ip_all
-            '
-        ports:
-            - 27017:27017
-        environment:
-            MONGO_INITDB_ROOT_USERNAME: "${MONGO_INITDB_ROOT_USERNAME:?missing MONGO_INITDB_ROOT_USERNAME}"
-            MONGO_INITDB_ROOT_PASSWORD: "${MONGO_INITDB_ROOT_PASSWORD:?missing MONGO_INITDB_ROOT_PASSWORD}"
-            MONGO_INITDB_DATABASE: "${MONGODB_DB_NAME:?missing MONGODB_DB_NAME}"
-        volumes:
-            - ../config/mongo/init.js:/docker-entrypoint-initdb.d/init.js:ro
-            - ../config/mongo/healthcheck.js:/etc/mongo/healthcheck.js:ro
-            - mongodb_keyfile:/etc/mongo-keyfile
-            - mongodb_data:/data/db
-        healthcheck:
-            test: test $(echo $(mongosh -u $$MONGO_INITDB_ROOT_USERNAME -p $$MONGO_INITDB_ROOT_PASSWORD --quiet /etc/mongo/healthcheck.js)) -eq 1
-            interval: 60s
-            timeout: 60s
-            retries: 5
-            start_period: 40s
-
     traefik:
         image: traefik:v3.6
         container_name: traefik

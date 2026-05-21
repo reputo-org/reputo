@@ -93,11 +93,6 @@ description = "Public app URL the staging API advertises to clients."
 is_secret = false
 
 [[variable]]
-name = "STAGING_MONGODB_DB_NAME"
-description = "Staging app Mongo database name."
-is_secret = false
-
-[[variable]]
 name = "STAGING_DEEP_ID_ISSUER_URL"
 description = "Staging Deep ID OIDC issuer URL."
 is_secret = false
@@ -184,16 +179,6 @@ is_secret = true
 [[variable]]
 name = "STAGING_GRAFANA_AUTH"
 description = "Staging Grafana basic-auth htpasswd. Preserve doubled $$ escaping."
-is_secret = true
-
-[[variable]]
-name = "STAGING_MONGODB_USER"
-description = "Staging app Mongo user."
-is_secret = true
-
-[[variable]]
-name = "STAGING_MONGODB_PASSWORD"
-description = "Staging app Mongo password."
 is_secret = true
 
 [[variable]]
@@ -306,11 +291,6 @@ description = "Public app URL the production API advertises to clients."
 is_secret = false
 
 [[variable]]
-name = "PRODUCTION_MONGODB_DB_NAME"
-description = "Production app Mongo database name."
-is_secret = false
-
-[[variable]]
 name = "PRODUCTION_DEEP_ID_ISSUER_URL"
 description = "Production Deep ID OIDC issuer URL."
 is_secret = false
@@ -397,16 +377,6 @@ is_secret = true
 [[variable]]
 name = "PRODUCTION_GRAFANA_AUTH"
 description = "Production Grafana basic-auth htpasswd. Preserve doubled $$ escaping."
-is_secret = true
-
-[[variable]]
-name = "PRODUCTION_MONGODB_USER"
-description = "Production app Mongo user."
-is_secret = true
-
-[[variable]]
-name = "PRODUCTION_MONGODB_PASSWORD"
-description = "Production app Mongo password."
 is_secret = true
 
 [[variable]]

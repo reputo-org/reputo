@@ -10,11 +10,6 @@ x-api-environment: &api-environment
     # Required for AUTH_MODE=oauth; API startup fails if this is missing or conflicts with an active owner.
     OWNER_EMAIL: "${OWNER_EMAIL:?missing OWNER_EMAIL}"
     APP_PUBLIC_URL: "${APP_PUBLIC_URL:?missing APP_PUBLIC_URL}"
-    MONGODB_HOST: "${MONGODB_HOST:-mongodb}"
-    MONGODB_PORT: "${MONGODB_PORT:-27017}"
-    MONGODB_DB_NAME: "${MONGODB_DB_NAME:?missing MONGODB_DB_NAME}"
-    MONGODB_USER: "${MONGODB_USER:?missing MONGODB_USER}"
-    MONGODB_PASSWORD: "${MONGODB_PASSWORD:?missing MONGODB_PASSWORD}"
     DEEP_ID_ISSUER_URL: "${DEEP_ID_ISSUER_URL:?missing DEEP_ID_ISSUER_URL}"
     DEEP_ID_CLIENT_ID: "${DEEP_ID_CLIENT_ID:?missing DEEP_ID_CLIENT_ID}"
     DEEP_ID_CLIENT_SECRET: "${DEEP_ID_CLIENT_SECRET:?missing DEEP_ID_CLIENT_SECRET}"

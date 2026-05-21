@@ -1,6 +1,6 @@
 [[stack]]
 name = "reputo-infra-staging"
-description = "Staging infrastructure stack: MongoDB, Traefik, Temporal, Postgres, and observability."
+description = "Staging infrastructure stack: Traefik, Temporal, Postgres, and observability."
 tags = ["reputo", "env:staging", "infra"]
 deploy = false
 
@@ -26,9 +26,6 @@ GRAFANA_DOMAIN=[[STAGING_GRAFANA_DOMAIN]]
 GRAFANA_AUTH=[[STAGING_GRAFANA_AUTH]]
 OBSERVABILITY_ENV=staging
 ALLOWED_ORIGINS=[[STAGING_ALLOWED_ORIGINS]]
-MONGO_INITDB_ROOT_USERNAME=[[STAGING_MONGODB_USER]]
-MONGO_INITDB_ROOT_PASSWORD=[[STAGING_MONGODB_PASSWORD]]
-MONGODB_DB_NAME=[[STAGING_MONGODB_DB_NAME]]
 TEMPORAL_POSTGRES_USER=[[STAGING_TEMPORAL_POSTGRES_USER]]
 TEMPORAL_POSTGRES_PASSWORD=[[STAGING_TEMPORAL_POSTGRES_PASSWORD]]
 ONCHAIN_DATA_POSTGRES_USER=[[STAGING_ONCHAIN_DATA_POSTGRES_USER]]
@@ -53,7 +50,7 @@ webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[stack]]
 name = "reputo-infra-production"
-description = "Production infrastructure stack: MongoDB, Traefik, Temporal, Postgres, and observability."
+description = "Production infrastructure stack: Traefik, Temporal, Postgres, and observability."
 tags = ["reputo", "env:production", "infra"]
 deploy = false
 
@@ -79,9 +76,6 @@ GRAFANA_DOMAIN=[[PRODUCTION_GRAFANA_DOMAIN]]
 GRAFANA_AUTH=[[PRODUCTION_GRAFANA_AUTH]]
 OBSERVABILITY_ENV=production
 ALLOWED_ORIGINS=[[PRODUCTION_ALLOWED_ORIGINS]]
-MONGO_INITDB_ROOT_USERNAME=[[PRODUCTION_MONGODB_USER]]
-MONGO_INITDB_ROOT_PASSWORD=[[PRODUCTION_MONGODB_PASSWORD]]
-MONGODB_DB_NAME=[[PRODUCTION_MONGODB_DB_NAME]]
 TEMPORAL_POSTGRES_USER=[[PRODUCTION_TEMPORAL_POSTGRES_USER]]
 TEMPORAL_POSTGRES_PASSWORD=[[PRODUCTION_TEMPORAL_POSTGRES_PASSWORD]]
 ONCHAIN_DATA_POSTGRES_USER=[[PRODUCTION_ONCHAIN_DATA_POSTGRES_USER]]

@@ -2,10 +2,6 @@ networks:
     preview:
 
 volumes:
-    mongodb_data:
-        driver: local
-    mongodb_keyfile:
-        driver: local
     temporal_elasticsearch_data:
         driver: local
     temporal_postgresql_data:
@@ -27,44 +23,6 @@ services:
         depends_on:
             - ui
             - api
-    mongodb:
-        container_name: mongodb
-        image: mongo:7.0.5
-        restart: unless-stopped
-        networks: [preview]
-        user: '0:0'
-        entrypoint: >
-            /bin/bash -c '
-            set -euo pipefail;
-            keyfile=/etc/mongo-keyfile/keyfile.txt;
-            if [ ! -s "$$keyfile" ]; then
-                head -c 756 /dev/urandom | base64 | tr -d "\n" > "$$keyfile";
-            fi;
-            chown 999:999 "$$keyfile";
-            chmod 400 "$$keyfile";
-            exec docker-entrypoint.sh mongod
-            --replSet rs0
-            --keyFile "$$keyfile"
-            --bind_ip_all
-            '
-
-        environment:
-            - MONGO_INITDB_ROOT_USERNAME=admin
-            - MONGO_INITDB_ROOT_PASSWORD=preview_password
-            - MONGO_INITDB_DATABASE=reputo_preview
-
-        volumes:
-            - ../config/mongo/init.js:/docker-entrypoint-initdb.d/init.js:ro
-            - ../config/mongo/healthcheck.js:/etc/mongo/healthcheck.js:ro
-            - mongodb_keyfile:/etc/mongo-keyfile
-            - mongodb_data:/data/db
-
-        healthcheck:
-            test: test $(echo $(mongosh -u $$MONGO_INITDB_ROOT_USERNAME -p $$MONGO_INITDB_ROOT_PASSWORD --quiet /etc/mongo/healthcheck.js)) -eq 1
-            interval: 30s
-            timeout: 30s
-            retries: 5
-            start_period: 90s
 
     ui:
         image: ghcr.io/reputo-org/reputo/ui:${PREVIEW_IMAGE_TAG}
@@ -83,8 +41,6 @@ services:
                 'export AUTH_TOKEN_ENCRYPTION_KEY="$(node -e "process.stdout.write(require(''node:crypto'').randomBytes(32).toString(''hex''))")"; exec pnpm start',
             ]
         depends_on:
-            mongodb:
-                condition: service_healthy
             postgres:
                 condition: service_healthy
             temporal:
@@ -111,11 +67,6 @@ services:
             - VOTING_PORTAL_RETURN_URL=https://mock.invalid/voting
             - DEEP_ID_VOTING_PORTAL_SCOPES=api wallets
             - APP_PUBLIC_URL=https://mock.invalid
-            - MONGODB_HOST=mongodb
-            - MONGODB_PORT=27017
-            - MONGODB_DB_NAME=reputo_preview
-            - MONGODB_USER=admin
-            - MONGODB_PASSWORD=preview_password
             - API_POSTGRES_HOST=postgres
             - API_POSTGRES_PORT=5432
             - API_POSTGRES_DB_NAME=reputo_preview
@@ -254,8 +205,6 @@ services:
         container_name: orchestrator-worker
         image: ghcr.io/reputo-org/reputo/workflows:${PREVIEW_IMAGE_TAG}
         depends_on:
-            mongodb:
-                condition: service_healthy
             temporal:
                 condition: service_healthy
         command: ['pnpm', 'start:orchestrator']
@@ -270,11 +219,6 @@ services:
             - TEMPORAL_ALGORITHM_TYPESCRIPT_TASK_QUEUE=algorithm-typescript-worker
             - TEMPORAL_ALGORITHM_PYTHON_TASK_QUEUE=algorithm-python-worker
             - TEMPORAL_ONCHAIN_DATA_TASK_QUEUE=onchain-data-worker
-            - MONGODB_HOST=mongodb
-            - MONGODB_PORT=27017
-            - MONGODB_DB_NAME=reputo_preview
-            - MONGODB_USER=admin
-            - MONGODB_PASSWORD=preview_password
             - STORAGE_BUCKET=reputo-pullpreview
             - STORAGE_PRESIGN_PUT_TTL=120
             - STORAGE_PRESIGN_GET_TTL=300
@@ -311,11 +255,6 @@ services:
             - TEMPORAL_ALGORITHM_TYPESCRIPT_TASK_QUEUE=algorithm-typescript-worker
             - TEMPORAL_ALGORITHM_PYTHON_TASK_QUEUE=algorithm-python-worker
             - TEMPORAL_ONCHAIN_DATA_TASK_QUEUE=onchain-data-worker
-            - MONGODB_HOST=mongodb
-            - MONGODB_PORT=27017
-            - MONGODB_DB_NAME=reputo_preview
-            - MONGODB_USER=admin
-            - MONGODB_PASSWORD=preview_password
             - STORAGE_BUCKET=reputo-pullpreview
             - STORAGE_PRESIGN_PUT_TTL=120
             - STORAGE_PRESIGN_GET_TTL=300
@@ -352,11 +291,6 @@ services:
             - TEMPORAL_ALGORITHM_TYPESCRIPT_TASK_QUEUE=algorithm-typescript-worker
             - TEMPORAL_ALGORITHM_PYTHON_TASK_QUEUE=algorithm-python-worker
             - TEMPORAL_ONCHAIN_DATA_TASK_QUEUE=onchain-data-worker
-            - MONGODB_HOST=mongodb
-            - MONGODB_PORT=27017
-            - MONGODB_DB_NAME=reputo_preview
-            - MONGODB_USER=admin
-            - MONGODB_PASSWORD=preview_password
             - STORAGE_BUCKET=reputo-pullpreview
             - STORAGE_PRESIGN_PUT_TTL=120
             - STORAGE_PRESIGN_GET_TTL=300
