@@ -9,16 +9,6 @@ export interface GetSnapshotInput {
 }
 
 /**
- * Output of the `getSnapshot` activity.
- *
- * Envelope-shaped so workflow code can distinguish "not found" from a thrown
- * error without serializing exceptions across the activity boundary.
- */
-export type GetSnapshotOutput =
-  | { ok: true; snapshot: SnapshotDto }
-  | { ok: false; error: { code: 'NOT_FOUND'; message: string } };
-
-/**
  * Input to the `updateSnapshot` activity.
  *
  * No `seq` field: Temporal records activity completion in workflow history
@@ -41,8 +31,12 @@ export interface UpdateSnapshotInput {
  * `workflow.proxyActivities<ApiSnapshotActivities>({ taskQueue: ... })`. The
  * API's activity worker registers implementations whose function names match
  * the keys of this interface.
+ *
+ * Missing snapshots surface as a non-retryable `ApplicationFailure` of type
+ * `SnapshotNotFoundError` thrown from the activity. Workflows that need to
+ * handle that case explicitly should catch `ApplicationFailure`.
  */
 export interface ApiSnapshotActivities {
-  getSnapshot(input: GetSnapshotInput): Promise<GetSnapshotOutput>;
+  getSnapshot(input: GetSnapshotInput): Promise<SnapshotDto>;
   updateSnapshot(input: UpdateSnapshotInput): Promise<void>;
 }

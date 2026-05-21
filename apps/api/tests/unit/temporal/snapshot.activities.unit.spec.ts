@@ -45,20 +45,17 @@ describe('snapshot.activities factory', () => {
   });
 
   describe('getSnapshot', () => {
-    it('returns an envelope with the mapped DTO when the row exists', async () => {
+    it('returns the mapped DTO when the row exists', async () => {
       snapshotService.findByIdOrNull.mockResolvedValue(makeRow());
 
-      const result = await env.run(activities.getSnapshot, { snapshotId: SNAPSHOT_ID });
+      const snapshot = await env.run(activities.getSnapshot, { snapshotId: SNAPSHOT_ID });
 
       expect(snapshotService.findByIdOrNull).toHaveBeenCalledWith(SNAPSHOT_ID);
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        // Dates are serialised to ISO strings so the DTO round-trips through Temporal.
-        expect(result.snapshot.id).toBe(SNAPSHOT_ID);
-        expect(result.snapshot.algorithmPresetId).toBe(PRESET_ID);
-        expect(result.snapshot.createdAt).toBe(FIXED_NOW.toISOString());
-        expect(result.snapshot.algorithmPresetFrozen.createdAt).toBe(FIXED_NOW.toISOString());
-      }
+      // Dates are serialised to ISO strings so the DTO round-trips through Temporal.
+      expect(snapshot.id).toBe(SNAPSHOT_ID);
+      expect(snapshot.algorithmPresetId).toBe(PRESET_ID);
+      expect(snapshot.createdAt).toBe(FIXED_NOW.toISOString());
+      expect(snapshot.algorithmPresetFrozen.createdAt).toBe(FIXED_NOW.toISOString());
     });
 
     it('throws a non-retryable ApplicationFailure when the row is missing', async () => {

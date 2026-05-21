@@ -2,7 +2,6 @@ import type {
   AlgorithmPresetFrozenDto,
   ApiSnapshotActivities,
   GetSnapshotInput,
-  GetSnapshotOutput,
   SnapshotDto,
   UpdateSnapshotInput,
 } from '@reputo/contracts';
@@ -17,7 +16,7 @@ export type Snapshot = SnapshotDto;
 /** Wire-level frozen algorithm preset shape carried inside a snapshot. */
 export type AlgorithmPresetFrozen = AlgorithmPresetFrozenDto;
 
-export type { ApiSnapshotActivities, GetSnapshotInput, GetSnapshotOutput, UpdateSnapshotInput };
+export type { ApiSnapshotActivities, GetSnapshotInput, UpdateSnapshotInput };
 
 export interface GetAlgorithmDefinitionInput {
   key: string;

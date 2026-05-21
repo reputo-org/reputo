@@ -2,7 +2,6 @@ import type {
   AlgorithmPresetFrozenDto,
   ApiSnapshotActivities,
   GetSnapshotInput,
-  GetSnapshotOutput,
   SnapshotDto,
   UpdateSnapshotInput,
 } from '@reputo/contracts';
@@ -57,7 +56,7 @@ export function toSnapshotDto(row: SnapshotRow): SnapshotDto {
  */
 export function createSnapshotActivities(snapshotService: SnapshotService): ApiSnapshotActivities {
   return {
-    async getSnapshot(input: GetSnapshotInput): Promise<GetSnapshotOutput> {
+    async getSnapshot(input: GetSnapshotInput): Promise<SnapshotDto> {
       const logger = Context.current().log;
       logger.info('Fetching snapshot', { snapshotId: input.snapshotId });
 
@@ -71,7 +70,7 @@ export function createSnapshotActivities(snapshotService: SnapshotService): ApiS
         });
       }
 
-      return { ok: true, snapshot: toSnapshotDto(row) };
+      return toSnapshotDto(row);
     },
 
     async updateSnapshot(input: UpdateSnapshotInput): Promise<void> {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { type GetSnapshotOutput, type SnapshotDto, SnapshotStatus, type UpdateSnapshotInput } from '../../src/index.js';
+import { type SnapshotDto, SnapshotStatus, type UpdateSnapshotInput } from '../../src/index.js';
 
 const buildSnapshot = (): SnapshotDto => ({
   id: '0190a4d0-7b71-7c44-9bca-7f12c5c30001',
@@ -31,17 +31,6 @@ describe('@reputo/contracts snapshot wire DTOs', () => {
     const cloned = JSON.parse(JSON.stringify(original)) as SnapshotDto;
 
     expect(cloned).toEqual(original);
-  });
-
-  it('GetSnapshotOutput supports ok and not-found envelopes', () => {
-    const ok: GetSnapshotOutput = { ok: true, snapshot: buildSnapshot() };
-    const notFound: GetSnapshotOutput = { ok: false, error: { code: 'NOT_FOUND', message: 'no snapshot' } };
-
-    expect(ok.ok).toBe(true);
-    expect(notFound.ok).toBe(false);
-
-    const roundTrippedOk = JSON.parse(JSON.stringify(ok)) as GetSnapshotOutput;
-    expect(roundTrippedOk).toEqual(ok);
   });
 
   it('UpdateSnapshotInput has no seq field on the wire', () => {

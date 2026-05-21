@@ -102,12 +102,9 @@ describe('API snapshot activities (integration)', () => {
 
       const result = await env.run(activities.getSnapshot, { snapshotId: snapshot.id });
 
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.snapshot.id).toBe(snapshot.id);
-        expect(result.snapshot.status).toBe('queued');
-        expect(typeof result.snapshot.createdAt).toBe('string');
-      }
+      expect(result.id).toBe(snapshot.id);
+      expect(result.status).toBe('queued');
+      expect(typeof result.createdAt).toBe('string');
     });
 
     it('surfaces NOT_FOUND as a non-retryable ApplicationFailure', async () => {
@@ -194,10 +191,9 @@ describe('API snapshot activities (integration)', () => {
       const { snapshot } = await seedSnapshot();
       const received: string[] = [];
 
-      // Use a raw pg client because Prisma does not expose LISTEN; this is
-      // the same approach task 09 will use for the SSE side. We create a
-      // dedicated connection so the LISTEN registers before the activity
-      // commits.
+      // Use a raw pg client because Prisma does not expose LISTEN. A
+      // dedicated connection is required so the LISTEN registers before the
+      // activity commits and we don't miss the notification.
       const { Client: PgClient } = await import('pg');
       const pg = new PgClient({ connectionString: db.databaseUrl });
       await pg.connect();

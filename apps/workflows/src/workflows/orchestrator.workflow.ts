@@ -126,11 +126,7 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
     runId: workflowInfo.runId,
   });
 
-  const getSnapshotResult = await getSnapshot({ snapshotId });
-  if (!getSnapshotResult.ok) {
-    throw new Error(getSnapshotResult.error.message);
-  }
-  const snapshot = getSnapshotResult.snapshot;
+  const snapshot = await getSnapshot({ snapshotId });
 
   workflow.log.info('Snapshot fetched', {
     snapshotId,

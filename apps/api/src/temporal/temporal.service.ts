@@ -73,7 +73,7 @@ export class TemporalService implements OnModuleInit, OnModuleDestroy {
   /**
    * Starts the OrchestratorWorkflow for a given snapshot.
    *
-   * @param snapshotId - MongoDB ObjectId of the snapshot to execute
+   * @param snapshotId - UUID v7 of the snapshot to execute
    * @returns Promise that resolves when workflow is started
    * @throws Error if Temporal client is not available or workflow start fails
    */
