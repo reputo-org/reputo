@@ -32,11 +32,6 @@ export interface AuthSessionWithSecrets extends AuthSessionRow {
   codeVerifier: string;
 }
 
-// Backwards-compatible alias — Mongoose-era consumers asked for the full
-// row (including secrets). New code should pick AuthSessionRow or
-// AuthSessionWithSecrets explicitly.
-export type AuthSessionWithId = AuthSessionWithSecrets;
-
 export interface AuthSessionCreateInput {
   sessionId: string;
   provider: OAuthProvider;
@@ -122,9 +117,8 @@ export class AuthSessionRepository {
     return mapRowWithSecrets(created);
   }
 
-  // Overload: callers explicitly opt in to the privileged shape by passing
-  // `true`; everyone else gets the public projection. Mirrors the previous
-  // Mongoose `select('+accessTokenCiphertext ...')` toggle.
+  // Overload: callers explicitly opt in to the privileged shape (including
+  // secrets) by passing `true`; everyone else gets the public projection.
   findActiveBySessionId(sessionId: string): Promise<AuthSessionRow | null>;
   findActiveBySessionId(sessionId: string, includeSecrets: true): Promise<AuthSessionWithSecrets | null>;
   findActiveBySessionId(sessionId: string, includeSecrets: false): Promise<AuthSessionRow | null>;
@@ -169,10 +163,10 @@ export class AuthSessionRepository {
       });
       return mapRowWithSecrets(row);
     } catch (err) {
-      // The compound `where` (non-unique fields after the unique
-      // `sessionId`) emits P2025 when the row exists but no longer matches
-      // the active-session filter — preserve the Mongoose
-      // `findOneAndUpdate` semantics where that returns null.
+      // The compound `where` (non-unique fields after the unique `sessionId`)
+      // emits P2025 when the row exists but no longer matches the
+      // active-session filter — treat that as "no active session" and return
+      // null instead of bubbling the error up.
       if (isRecordNotFound(err)) return null;
       throw err;
     }
@@ -202,10 +196,9 @@ export class AuthSessionRepository {
     return result.count;
   }
 
-  // Returns Map<userId, { lastSignInAt, activeSessionCount }> with the same
-  // shape as the previous Mongo aggregation. Users with no sessions are
-  // omitted; users whose sessions are all revoked or expired appear with
-  // `activeSessionCount: 0`.
+  // Returns Map<userId, { lastSignInAt, activeSessionCount }>. Users with no
+  // sessions are omitted; users whose sessions are all revoked or expired
+  // appear with `activeSessionCount: 0`.
   async aggregateActivityByUserIds(
     userIds: ReadonlyArray<string>,
     now = new Date(),

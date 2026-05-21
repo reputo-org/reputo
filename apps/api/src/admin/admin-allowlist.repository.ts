@@ -5,9 +5,9 @@ import { PrismaService } from '../persistence';
 import { toPrismaProvider, toWireProvider } from '../shared/utils';
 import type { AdminAllowlistSortField, AdminAllowlistSortOrder, AdminAllowlistStatus } from './admin.constants';
 
-// Domain shape returned by the repository. Mirrors the former Mongoose
-// `lean()` payload — `_id` instead of Prisma `id` so callers above the
-// repository keep using `_id` and string-shaped invitedBy/revokedBy fields.
+// Domain shape returned by the repository. Uses `_id` (rather than Prisma's
+// `id`) so callers above the repository keep using `_id`, with
+// string-shaped invitedBy/revokedBy fields for the HTTP wire format.
 export interface AccessAllowlistRow {
   _id: string;
   provider: OAuthProvider;
@@ -48,9 +48,8 @@ function mapRow(row: PrismaAccessAllowlist): AccessAllowlistRow {
     role: row.role,
     invitedBy: row.invitedBy,
     invitedAt: row.invitedAt,
-    // Drop `revokedAt` from the row when null so the response shape matches
-    // the previous Mongoose `lean()` output (the field is omitted, not
-    // explicitly null).
+    // Drop `revokedAt` from the row when null so the JSON response omits the
+    // field rather than emitting `"revokedAt": null`.
     revokedAt: row.revokedAt ?? undefined,
     revokedBy: row.revokedBy,
     createdAt: row.createdAt,
@@ -143,9 +142,10 @@ export class AdminAllowlistRepository {
     const invitedAt = options.invitedAt ?? new Date();
     const role: AccessRole = options.role ?? ACCESS_ROLE_ADMIN;
 
-    // Two-step update preserves the Mongoose `findOneAndUpdate` semantics that
-    // returned null when the row existed but wasn't revoked. Prisma's compound
-    // `where` on `update` requires a single, all-or-nothing match.
+    // Two-step update: Prisma's compound `where` on `update` requires a
+    // single, all-or-nothing match, so we updateMany on the active-row filter
+    // and then re-fetch the (now-restored) row. Returns null when no
+    // currently-revoked row exists for this (provider, email).
     const result = await this.prisma.accessAllowlist.updateMany({
       where: { provider: toPrismaProvider(provider), email: normalizedEmail, revokedAt: { not: null } },
       data: { invitedBy: actorId, invitedAt, role, revokedAt: null, revokedBy: null },
@@ -195,8 +195,7 @@ export class AdminAllowlistRepository {
     return updated ? mapRow(updated) : null;
   }
 
-  // Prisma `P2002` is the unique-constraint violation, the direct
-  // counterpart of Mongo's `11000` duplicate-key error.
+  // P2002 is Prisma's unique-constraint violation code.
   isDuplicateKeyError(error: unknown): boolean {
     return (
       typeof error === 'object' && error !== null && 'code' in error && (error as { code: unknown }).code === 'P2002'
@@ -231,7 +230,7 @@ export class AdminAllowlistRepository {
       const trimmed = options.q.trim().toLowerCase();
       if (trimmed) {
         // Email is stored already-lowercased, so a case-sensitive prefix
-        // match is equivalent to the Mongo regex `^foo` ignore-case search.
+        // match here behaves as an ignore-case search.
         where.email = { startsWith: trimmed };
       }
     }

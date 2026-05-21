@@ -5,8 +5,6 @@ import { AuthSessionCleanupService } from './auth-session-cleanup.service';
 
 // PrismaModule is registered globally in `src/persistence`, so feature
 // modules can depend on `PrismaService` directly without importing it here.
-// The cleanup service is co-located here because it owns the PG-side
-// replacement for the Mongo TTL index on `auth_session.expiresAt`.
 @Module({
   imports: [ConfigModule],
   providers: [AuthSessionRepository, AuthSessionCleanupService],

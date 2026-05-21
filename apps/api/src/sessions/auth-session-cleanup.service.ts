@@ -2,9 +2,8 @@ import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@ne
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../persistence';
 
-// Replaces the Mongo TTL index on `expiresAt`: PG has no document-style TTL,
-// so we periodically delete expired sessions instead. The interval is
-// driven by `auth.sessionCleanupIntervalMs` and can be zeroed out in tests
+// Periodically deletes expired AuthSession rows. Interval is driven by
+// `auth.sessionCleanupIntervalMs` and can be set to 0 to disable in tests
 // or other no-cron environments (e.g. CI).
 @Injectable()
 export class AuthSessionCleanupService implements OnModuleInit, OnModuleDestroy {

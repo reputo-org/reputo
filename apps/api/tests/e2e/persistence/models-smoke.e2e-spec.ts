@@ -4,9 +4,8 @@ import { PrismaService } from '../../../src/persistence';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 
 // End-to-end smoke covering insert + read for every model defined in
-// `prisma/schema.prisma`. No consumers are wired yet (tasks 05–07 ship the
-// real repositories); this only proves the generated client, FKs, and
-// indexes line up with the source-of-truth Mongoose schemas.
+// `prisma/schema.prisma`. Proves the generated client, FKs, and indexes line
+// up with the schema independently of any feature-level repository.
 
 describe('Prisma models smoke', () => {
   let db: TestDatabase;

@@ -10,9 +10,9 @@ export interface AlgorithmPresetInput {
   value?: unknown;
 }
 
-// Domain shape used by the rest of the API. Matches the previous Mongoose
-// `lean()` payload — `_id` instead of Prisma's `id`, and `inputs` typed as
-// the structured pair list rather than `Prisma.JsonValue`.
+// Domain shape used by the rest of the API. `_id` (rather than Prisma's `id`)
+// matches the HTTP wire format, and `inputs` is typed as the structured pair
+// list rather than `Prisma.JsonValue`.
 export interface AlgorithmPresetRow {
   _id: string;
   key: string;

@@ -4,9 +4,8 @@ import type { OAuthProvider } from '@reputo/contracts';
 import { PrismaService } from '../persistence';
 import { toPrismaProvider, toWireProvider } from '../shared/utils';
 
-// Domain shape returned by the repository. Mirrors the former Mongoose
-// `lean()` payload — `_id` instead of Prisma `id` so callers above the
-// repository keep their existing field names.
+// Domain shape returned by the repository. Uses `_id` (rather than Prisma's
+// `id`) to match the field name callers above the repository expect.
 export interface OAuthConsentGrantRow {
   _id: string;
   provider: OAuthProvider;

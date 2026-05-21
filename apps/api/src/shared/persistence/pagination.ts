@@ -1,14 +1,11 @@
-// Prisma-side replacement for the Mongoose `paginate` plugin. Centralised so
-// every repository returns the same `{ results, page, limit, totalPages,
-// totalResults }` shape that the API DTOs (and existing e2e tests) expect.
+// Shared pagination helper. Every repository returns the same
+// `{ results, page, limit, totalPages, totalResults }` shape that the API
+// DTOs and e2e tests expect.
 
 export interface PaginateOptions {
   page?: number;
   limit?: number;
-  /**
-   * Comma-separated `field:dir` list, e.g. `createdAt:desc,key:asc`. Matches
-   * the format the Mongoose plugin accepted so query strings stay stable.
-   */
+  /** Comma-separated `field:dir` list, e.g. `createdAt:desc,key:asc`. */
   sortBy?: string;
 }
 

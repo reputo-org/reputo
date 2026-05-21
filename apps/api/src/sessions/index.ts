@@ -3,7 +3,6 @@ export {
   AuthSessionRepository,
   type AuthSessionRow,
   type AuthSessionUpdateAfterRefreshInput,
-  type AuthSessionWithId,
   type AuthSessionWithSecrets,
   type UserSessionActivity,
 } from './auth-session.repository';

@@ -2,9 +2,8 @@ import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@ne
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../persistence';
 
-// Replaces the Mongo TTL index on `expiresAt`: PG has no document-style TTL,
-// so we periodically delete expired consent grants instead. The interval is
-// driven by `consent.grantCleanupIntervalMs` and can be zeroed out in tests
+// Periodically deletes expired OAuthConsentGrant rows. Interval is driven by
+// `consent.grantCleanupIntervalMs` and can be set to 0 to disable in tests
 // or other no-cron environments (e.g. CI).
 @Injectable()
 export class OAuthConsentGrantCleanupService implements OnModuleInit, OnModuleDestroy {

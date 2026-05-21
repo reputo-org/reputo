@@ -4,10 +4,9 @@ import type { OAuthProvider } from '@reputo/contracts';
 import { PrismaService } from '../persistence';
 import { toPrismaProvider, toWireProvider } from '../shared/utils';
 
-// Domain shape returned by the repository. Mirrors the former Mongoose
-// `lean()` payload — `_id` instead of Prisma `id`, snake_case JWT-ish field
-// names (`auth_time`, `email_verified`) so SessionUserView / `/auth/me`
-// keep their existing JSON contract.
+// Domain shape returned by the repository. Uses `_id` (instead of Prisma's
+// `id`) and snake_case JWT-ish field names (`auth_time`, `email_verified`)
+// to match the SessionUserView / `/auth/me` HTTP contract.
 export interface OAuthUserRow {
   _id: string;
   provider: OAuthProvider;
@@ -24,9 +23,6 @@ export interface OAuthUserRow {
   createdAt: Date;
   updatedAt: Date;
 }
-
-// Backwards-compatible alias for consumers that still import the Mongoose-era name.
-export type OAuthUserWithId = OAuthUserRow;
 
 // Subset of OAuthUserRow that callers may upsert. `provider`/`sub` are the
 // upsert key and never appear here; timestamps are managed by Prisma.
@@ -47,9 +43,8 @@ function mapRow(row: PrismaOAuthUser): OAuthUserRow {
     _id: row.id,
     provider: toWireProvider(row.provider),
     sub: row.sub,
-    // The Mongo schema treated "no aud" as undefined; preserve that by
-    // collapsing the Prisma `String[] @default([])` empty array back to
-    // undefined so downstream JSON omits the field.
+    // Collapse the `String[] @default([])` empty array back to undefined so
+    // downstream JSON omits the field rather than emitting `"aud": []`.
     aud: row.aud.length > 0 ? row.aud : undefined,
     auth_time: row.authTime ?? undefined,
     email: row.email ?? undefined,
@@ -66,9 +61,8 @@ function mapRow(row: PrismaOAuthUser): OAuthUserRow {
 
 // Translate the snake_case domain keys present on the upsert input to Prisma
 // camelCase columns. Only keys that are own-enumerable on `input` are
-// touched — that preserves the Mongoose `$set`/`$unset` split where
-// callers omit a field to leave it unchanged but pass `undefined` to clear
-// it.
+// touched — callers omit a field to leave it unchanged, or pass `undefined`
+// to clear it.
 function buildUpdateData(input: OAuthUserUpsertInput): Prisma.OAuthUserUpdateInput {
   const data: Prisma.OAuthUserUpdateInput = {};
   for (const key of Object.keys(input) as (keyof OAuthUserUpsertInput)[]) {

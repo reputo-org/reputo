@@ -14,8 +14,8 @@ const MIGRATIONS_DIR = path.resolve(process.cwd(), 'prisma/migrations');
 
 async function runPrismaMigrateDeploy(databaseUrl: string): Promise<void> {
   if (!existsSync(MIGRATIONS_DIR)) {
-    // No migrations to apply yet (task 03 ships the bootstrap only).
-    // Subsequent tasks add `prisma/migrations` and this branch falls away.
+    // No migrations directory — nothing to apply. Allows the helper to be
+    // imported in bootstrap scenarios where the schema is still empty.
     return;
   }
 

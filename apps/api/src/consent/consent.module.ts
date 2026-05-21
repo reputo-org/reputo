@@ -8,8 +8,6 @@ import { OAuthConsentGrantCleanupService } from './oauth-consent-grant-cleanup.s
 
 // PrismaModule is registered globally in `src/persistence`, so feature
 // modules can depend on `PrismaService` directly without importing it here.
-// The cleanup service is co-located here because it owns the PG-side
-// replacement for the Mongo TTL index on `oauth_consent_grant.expiresAt`.
 @Module({
   imports: [ConfigModule],
   controllers: [ConsentController],
