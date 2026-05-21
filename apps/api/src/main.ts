@@ -12,6 +12,9 @@ import { HttpExceptionFilter } from './shared/filters/http-exception.filter';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.useLogger(app.get(Logger));
+  // Enable Nest shutdown hooks so OnApplicationShutdown providers (e.g. the
+  // API Temporal activity worker) drain cleanly on SIGINT/SIGTERM.
+  app.enableShutdownHooks();
   app.useGlobalInterceptors(new LoggerErrorInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalPipes(

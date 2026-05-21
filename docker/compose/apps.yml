@@ -40,6 +40,7 @@ x-api-environment: &api-environment
     TEMPORAL_ADDRESS: "${TEMPORAL_ADDRESS:-temporal:7233}"
     TEMPORAL_NAMESPACE: "${TEMPORAL_NAMESPACE:-default}"
     TEMPORAL_ORCHESTRATOR_TASK_QUEUE: "${TEMPORAL_ORCHESTRATOR_TASK_QUEUE:-orchestrator-worker}"
+    TEMPORAL_API_SNAPSHOT_ACTIVITIES_TASK_QUEUE: "${TEMPORAL_API_SNAPSHOT_ACTIVITIES_TASK_QUEUE:-api-snapshot-activities}"
 
 x-workflows-environment: &workflows-environment
     NODE_ENV: "${NODE_ENV:-production}"

@@ -12,6 +12,7 @@ import { ConsentModule } from './consent';
 import { PrismaModule } from './persistence';
 import { SnapshotModule } from './snapshot/snapshot.module';
 import { StorageModule } from './storage/storage.module';
+import { ApiWorkerModule } from './temporal';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { StorageModule } from './storage/storage.module';
     AlgorithmPresetModule,
     SnapshotModule,
     StorageModule,
+    ApiWorkerModule,
   ],
   controllers: [],
   providers: [],

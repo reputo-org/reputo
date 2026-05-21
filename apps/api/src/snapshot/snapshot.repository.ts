@@ -158,4 +158,24 @@ export class SnapshotRepository {
     const result = await client.snapshot.deleteMany({ where: buildWhere(filter) });
     return { deletedCount: result.count };
   }
+
+  /**
+   * Atomically applies an external update from the Temporal `updateSnapshot`
+   * activity. The update and the `pg_notify('snapshot_updates', <id>)` share
+   * one transaction so SSE listeners (task 09) only see committed rows.
+   *
+   * Returns the mapped row or `null` when no snapshot matches the id.
+   */
+  async applyExternalUpdate(id: string, data: Prisma.SnapshotUpdateInput): Promise<SnapshotRow | null> {
+    try {
+      const [updated] = await this.prisma.$transaction([
+        this.prisma.snapshot.update({ where: { id }, data }),
+        this.prisma.$executeRaw`SELECT pg_notify('snapshot_updates', ${id})`,
+      ]);
+      return mapSnapshotRow(updated);
+    } catch (err) {
+      if (isRecordNotFound(err)) return null;
+      throw err;
+    }
+  }
 }

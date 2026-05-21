@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { Prisma } from '@prisma/client';
+import type { UpdateSnapshotInput } from '@reputo/contracts';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { AlgorithmPresetRepository } from '../algorithm-preset/algorithm-preset.repository';
 import { throwNotFoundError } from '../shared/exceptions';
@@ -94,6 +96,63 @@ export class SnapshotService {
       throwNotFoundError(id, SNAPSHOT_ENTITY);
     }
     return snapshot;
+  }
+
+  findByIdOrNull(id: string): Promise<SnapshotRow | null> {
+    return this.repository.findById(id);
+  }
+
+  /**
+   * Applies an update originating from the Temporal `updateSnapshot` activity.
+   *
+   * Owns the status-transition side effects that used to live in the workflow:
+   *   - `status === 'running'` stamps `startedAt`
+   *   - `status` in {`completed`, `failed`, `cancelled`} stamps `completedAt`
+   *
+   * Persists the update and the SSE `pg_notify('snapshot_updates', <id>)` in
+   * the same transaction so listeners (task 09) only see committed rows.
+   *
+   * Returns `null` when the snapshot does not exist; the caller (activity)
+   * surfaces that as a non-retryable failure so the workflow stops retrying.
+   */
+  async applyExternalUpdate(input: UpdateSnapshotInput): Promise<SnapshotRow | null> {
+    const data: Prisma.SnapshotUpdateInput = {};
+
+    if (input.status !== undefined) {
+      data.status = input.status;
+      if (input.status === 'running') {
+        data.startedAt = new Date();
+      } else if (input.status === 'completed' || input.status === 'failed' || input.status === 'cancelled') {
+        data.completedAt = new Date();
+      }
+    }
+
+    if (input.temporal !== undefined) {
+      data.temporal = input.temporal as unknown as Prisma.InputJsonValue;
+    }
+
+    if (input.outputs !== undefined) {
+      data.outputs = input.outputs as unknown as Prisma.InputJsonValue;
+    }
+
+    if (input.error !== undefined) {
+      data.error = {
+        ...input.error,
+        timestamp: new Date().toISOString(),
+      } as unknown as Prisma.InputJsonValue;
+    }
+
+    const updated = await this.repository.applyExternalUpdate(input.snapshotId, data);
+    if (updated) {
+      this.logger.info(
+        { snapshotId: input.snapshotId, status: updated.status },
+        'Snapshot updated via Temporal activity',
+      );
+    } else {
+      this.logger.warn({ snapshotId: input.snapshotId }, 'Snapshot update skipped — row not found');
+    }
+
+    return updated;
   }
 
   async deleteById(id: string) {

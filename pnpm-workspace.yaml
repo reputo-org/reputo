@@ -17,10 +17,11 @@ catalog:
   '@swc/cli': ^0.6.0
   '@swc/core': ^1.12.7
   '@tanstack/react-table': ^8.21.3
-  '@temporalio/activity': ^1.11.3
-  '@temporalio/client': ^1.11.3
-  '@temporalio/worker': ^1.11.3
-  '@temporalio/workflow': ^1.11.3
+  '@temporalio/activity': ^1.16.0
+  '@temporalio/client': ^1.16.0
+  '@temporalio/testing': ^1.16.0
+  '@temporalio/worker': ^1.16.0
+  '@temporalio/workflow': ^1.16.0
   '@testcontainers/postgresql': ^11.8.1
   '@types/better-sqlite3': ^7.6.13
   '@types/js-yaml': ^4.0.9

@@ -59,6 +59,7 @@ describe('SnapshotService', () => {
       find: vi.fn(),
       deleteById: vi.fn(),
       deleteMany: vi.fn(),
+      applyExternalUpdate: vi.fn(),
     } as unknown as SnapshotRepository;
 
     mockAlgorithmPresetRepository = {
@@ -229,6 +230,108 @@ describe('SnapshotService', () => {
       mockSnapshotRepository.findById = vi.fn().mockResolvedValue(null);
 
       await expect(service.getById(SNAPSHOT_ID)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('findByIdOrNull', () => {
+    it('delegates to the repository and returns null when missing', async () => {
+      mockSnapshotRepository.findById = vi.fn().mockResolvedValue(null);
+
+      await expect(service.findByIdOrNull(SNAPSHOT_ID)).resolves.toBeNull();
+      expect(mockSnapshotRepository.findById).toHaveBeenCalledWith(SNAPSHOT_ID);
+    });
+
+    it('returns the row without throwing when found', async () => {
+      const row = { _id: SNAPSHOT_ID, status: 'queued' };
+      mockSnapshotRepository.findById = vi.fn().mockResolvedValue(row);
+
+      await expect(service.findByIdOrNull(SNAPSHOT_ID)).resolves.toBe(row);
+    });
+  });
+
+  describe('applyExternalUpdate', () => {
+    function captureApplyArgs(): Promise<{ id: string; data: Record<string, unknown> }> {
+      return new Promise((resolve) => {
+        mockSnapshotRepository.applyExternalUpdate = vi.fn().mockImplementation(async (id, data) => {
+          resolve({ id, data });
+          return { _id: id, status: data.status ?? 'queued' };
+        });
+      });
+    }
+
+    it('stamps startedAt when status transitions to running', async () => {
+      const applyArgs = captureApplyArgs();
+
+      await service.applyExternalUpdate({ snapshotId: SNAPSHOT_ID, status: 'running' });
+      const { id, data } = await applyArgs;
+
+      expect(id).toBe(SNAPSHOT_ID);
+      expect(data.status).toBe('running');
+      expect(data.startedAt).toBeInstanceOf(Date);
+      expect(data.completedAt).toBeUndefined();
+    });
+
+    it.each([
+      'completed',
+      'failed',
+      'cancelled',
+    ] as const)('stamps completedAt when status becomes %s', async (status) => {
+      const applyArgs = captureApplyArgs();
+
+      await service.applyExternalUpdate({ snapshotId: SNAPSHOT_ID, status });
+      const { data } = await applyArgs;
+
+      expect(data.status).toBe(status);
+      expect(data.completedAt).toBeInstanceOf(Date);
+      expect(data.startedAt).toBeUndefined();
+    });
+
+    it('forwards temporal/outputs/error payloads and adds an error timestamp', async () => {
+      const applyArgs = captureApplyArgs();
+
+      await service.applyExternalUpdate({
+        snapshotId: SNAPSHOT_ID,
+        temporal: { workflowId: 'wf-1' },
+        outputs: { csv: 'snapshots/x.csv' },
+        error: { message: 'boom' },
+      });
+      const { data } = await applyArgs;
+
+      expect(data.temporal).toEqual({ workflowId: 'wf-1' });
+      expect(data.outputs).toEqual({ csv: 'snapshots/x.csv' });
+      const errorPayload = data.error as { message: string; timestamp: string };
+      expect(errorPayload.message).toBe('boom');
+      expect(typeof errorPayload.timestamp).toBe('string');
+    });
+
+    it('returns null when the snapshot is missing (does not throw)', async () => {
+      mockSnapshotRepository.applyExternalUpdate = vi.fn().mockResolvedValue(null);
+
+      await expect(service.applyExternalUpdate({ snapshotId: SNAPSHOT_ID, status: 'completed' })).resolves.toBeNull();
+    });
+
+    it('is idempotent: same input twice produces the same persisted data shape', async () => {
+      const calls: Record<string, unknown>[] = [];
+      mockSnapshotRepository.applyExternalUpdate = vi.fn().mockImplementation(async (_id, data) => {
+        calls.push({ ...data });
+        return { _id: SNAPSHOT_ID, status: data.status ?? 'queued' };
+      });
+
+      const input = {
+        snapshotId: SNAPSHOT_ID,
+        status: 'completed' as const,
+        outputs: { csv: 'snapshots/out.csv' },
+      };
+      await service.applyExternalUpdate(input);
+      await service.applyExternalUpdate(input);
+
+      expect(calls).toHaveLength(2);
+      // Both invocations build the same field set; the timestamps differ in
+      // identity but persist the same status — `completed` is terminal so the
+      // workflow cannot diverge on retry.
+      expect(calls[0].status).toBe('completed');
+      expect(calls[1].status).toBe('completed');
+      expect(calls[0].outputs).toEqual(calls[1].outputs);
     });
   });
 

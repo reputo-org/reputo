@@ -31,10 +31,13 @@ describe('SnapshotRepository', () => {
       create: ReturnType<typeof vi.fn>;
       findUnique: ReturnType<typeof vi.fn>;
       findMany: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
       delete: ReturnType<typeof vi.fn>;
       deleteMany: ReturnType<typeof vi.fn>;
       count: ReturnType<typeof vi.fn>;
     };
+    $transaction: ReturnType<typeof vi.fn>;
+    $executeRaw: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -43,10 +46,13 @@ describe('SnapshotRepository', () => {
         create: vi.fn(),
         findUnique: vi.fn(),
         findMany: vi.fn(),
+        update: vi.fn(),
         delete: vi.fn(),
         deleteMany: vi.fn(),
         count: vi.fn(),
       },
+      $transaction: vi.fn(),
+      $executeRaw: vi.fn(),
     };
     repository = new SnapshotRepository(prismaMock as unknown as PrismaService);
   });
@@ -176,6 +182,41 @@ describe('SnapshotRepository', () => {
     it('translates Prisma P2025 (not found) into null', async () => {
       prismaMock.snapshot.delete.mockRejectedValue({ code: 'P2025' });
       await expect(repository.deleteById(SNAPSHOT_ID)).resolves.toBeNull();
+    });
+  });
+
+  describe('applyExternalUpdate', () => {
+    it('runs the update and pg_notify in a single $transaction batch', async () => {
+      const updatedRow = createRow({ status: 'running', startedAt: FIXED_NOW });
+      prismaMock.snapshot.update.mockReturnValue('update-call');
+      prismaMock.$executeRaw.mockReturnValue('notify-call');
+      prismaMock.$transaction.mockResolvedValue([updatedRow, 1]);
+
+      const result = await repository.applyExternalUpdate(SNAPSHOT_ID, { status: 'running', startedAt: FIXED_NOW });
+
+      expect(prismaMock.snapshot.update).toHaveBeenCalledWith({
+        where: { id: SNAPSHOT_ID },
+        data: { status: 'running', startedAt: FIXED_NOW },
+      });
+      expect(prismaMock.$transaction).toHaveBeenCalledWith(['update-call', 'notify-call']);
+      expect(result?._id).toBe(SNAPSHOT_ID);
+      expect(result?.status).toBe('running');
+    });
+
+    it('returns null when Prisma reports record-not-found (P2025)', async () => {
+      prismaMock.snapshot.update.mockReturnValue('update-call');
+      prismaMock.$executeRaw.mockReturnValue('notify-call');
+      prismaMock.$transaction.mockRejectedValue({ code: 'P2025' });
+
+      await expect(repository.applyExternalUpdate(SNAPSHOT_ID, { status: 'completed' })).resolves.toBeNull();
+    });
+
+    it('rethrows non-P2025 errors', async () => {
+      prismaMock.snapshot.update.mockReturnValue('update-call');
+      prismaMock.$executeRaw.mockReturnValue('notify-call');
+      prismaMock.$transaction.mockRejectedValue(new Error('boom'));
+
+      await expect(repository.applyExternalUpdate(SNAPSHOT_ID, { status: 'completed' })).rejects.toThrow('boom');
     });
   });
 
