@@ -1,16 +1,9 @@
 import { BadGatewayException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  ACCESS_ROLE_OWNER,
-  type AccessRole,
-  type AuthSessionWithId,
-  type OAuthProvider,
-  type OAuthUser,
-  type OAuthUserWithId,
-} from '@reputo/database';
+import { ACCESS_ROLE_OWNER, type AccessRole, type OAuthProvider } from '@reputo/database';
 import type { Request, Response } from 'express';
 import { AdminService } from '../admin';
-import { AuthSessionRepository } from '../sessions';
+import { AuthSessionRepository, type AuthSessionWithSecrets } from '../sessions';
 import { AUTH_MODE_MOCK, AUTH_MODE_OAUTH } from '../shared/constants';
 import {
   type AuthFlowState,
@@ -25,7 +18,7 @@ import {
   setAuthRequestContext,
 } from '../shared/types';
 import { createPkceChallenge, createRandomToken, decryptValue, encryptValue, redactEmail } from '../shared/utils';
-import { OAuthUserRepository } from '../users';
+import { OAuthUserRepository, type OAuthUserRow, type OAuthUserUpsertInput } from '../users';
 import { AuthCookieService } from './auth-cookie.service';
 import { OAuthAuthProviderService } from './oauth-auth-provider.service';
 
@@ -91,7 +84,7 @@ export class AuthService {
   private readonly refreshLeewaySeconds: number;
   private readonly authMode: string;
   private readonly appPublicUrl: string;
-  private readonly refreshInFlight = new Map<string, Promise<AuthSessionWithId | null>>();
+  private readonly refreshInFlight = new Map<string, Promise<AuthSessionWithSecrets | null>>();
 
   constructor(
     private readonly oauthAuthProviderService: OAuthAuthProviderService,
@@ -208,14 +201,14 @@ export class AuthService {
       throw new UnauthorizedException(AuthService.UNAUTHORIZED_MESSAGE);
     }
 
-    const activeSession = await this.refreshSessionIfNeeded(session);
+    const activeSession: AuthSessionWithSecrets | null = await this.refreshSessionIfNeeded(session);
 
     if (!activeSession) {
       this.authCookieService.clearSessionCookie(response);
       throw new UnauthorizedException(AuthService.UNAUTHORIZED_MESSAGE);
     }
 
-    const user = await this.oauthUserRepository.findById(String(activeSession.userId));
+    const user = await this.oauthUserRepository.findById(activeSession.userId);
 
     if (!user) {
       await this.authSessionRepository.revokeBySessionId(activeSession.sessionId);
@@ -247,7 +240,7 @@ export class AuthService {
     this.authCookieService.clearAuthFlowCookie(response);
   }
 
-  toCurrentSessionView(session: CurrentAuthSession, user: OAuthUserWithId, role: AccessRole): CurrentSessionView {
+  toCurrentSessionView(session: CurrentAuthSession, user: OAuthUserRow, role: AccessRole): CurrentSessionView {
     return {
       authenticated: true,
       provider: session.provider,
@@ -294,14 +287,14 @@ export class AuthService {
     return new URL(this.appPublicUrl).origin;
   }
 
-  private async syncUserFromUserInfo(provider: OAuthProvider, userInfo: OAuthUserInfo): Promise<OAuthUserWithId> {
+  private async syncUserFromUserInfo(provider: OAuthProvider, userInfo: OAuthUserInfo): Promise<OAuthUserRow> {
     if (typeof userInfo.sub !== 'string' || userInfo.sub.trim().length === 0) {
       throw new BadGatewayException(
         `OAuth provider ${provider} userinfo response is missing a stable subject identifier.`,
       );
     }
 
-    const update: Omit<OAuthUser, 'provider' | 'sub' | 'createdAt' | 'updatedAt'> = {
+    const update: OAuthUserUpsertInput = {
       aud: coerceAudience(userInfo.aud),
       auth_time:
         typeof userInfo.auth_time === 'number' && Number.isFinite(userInfo.auth_time) ? userInfo.auth_time : undefined,
@@ -358,10 +351,10 @@ export class AuthService {
   }
 
   private async createApplicationSession(
-    user: OAuthUserWithId,
+    user: OAuthUserRow,
     tokenResponse: OAuthTokenResponse,
     authFlow: AuthFlowState,
-  ): Promise<AuthSessionWithId> {
+  ): Promise<AuthSessionWithSecrets> {
     if (!tokenResponse.refresh_token) {
       throw new BadGatewayException(`OAuth provider ${authFlow.provider} token response is missing the refresh token.`);
     }
@@ -389,9 +382,9 @@ export class AuthService {
   }
 
   private async createMockApplicationSession(
-    user: OAuthUserWithId,
+    user: OAuthUserRow,
     provider: OAuthProvider,
-  ): Promise<AuthSessionWithId> {
+  ): Promise<AuthSessionWithSecrets> {
     const expiresAt = new Date(Date.now() + this.sessionTtlSeconds * 1000);
 
     return this.authSessionRepository.create({
@@ -409,7 +402,7 @@ export class AuthService {
     });
   }
 
-  private async refreshSessionIfNeeded(session: AuthSessionWithId): Promise<AuthSessionWithId | null> {
+  private async refreshSessionIfNeeded(session: AuthSessionWithSecrets): Promise<AuthSessionWithSecrets | null> {
     const refreshThreshold = Date.now() + this.refreshLeewaySeconds * 1000;
 
     if (session.accessTokenExpiresAt.getTime() > refreshThreshold) {
@@ -436,7 +429,7 @@ export class AuthService {
     return pending;
   }
 
-  private async performRefresh(session: AuthSessionWithId): Promise<AuthSessionWithId | null> {
+  private async performRefresh(session: AuthSessionWithSecrets): Promise<AuthSessionWithSecrets | null> {
     try {
       const refreshToken = decryptValue(this.tokenEncryptionKey, session.refreshTokenCiphertext);
       const tokenResponse = await this.oauthAuthProviderService.refreshTokens(session.provider, refreshToken);
@@ -486,7 +479,10 @@ export class AuthService {
     }
   }
 
-  private async handleRefreshFailure(session: AuthSessionWithId, error: unknown): Promise<AuthSessionWithId | null> {
+  private async handleRefreshFailure(
+    session: AuthSessionWithSecrets,
+    error: unknown,
+  ): Promise<AuthSessionWithSecrets | null> {
     // Only treat provider-rejection errors (invalid_grant / invalid_token) as
     // terminal — those mean the stored refresh token will never work again.
     // Everything else (network blips, 5xx, malformed responses) is transient
@@ -516,7 +512,7 @@ export class AuthService {
     return null;
   }
 
-  private async resolveSessionRole(provider: OAuthProvider, user: OAuthUserWithId): Promise<AccessRole | null> {
+  private async resolveSessionRole(provider: OAuthProvider, user: OAuthUserRow): Promise<AccessRole | null> {
     if (this.authMode === AUTH_MODE_MOCK) {
       return ACCESS_ROLE_OWNER;
     }
@@ -528,7 +524,7 @@ export class AuthService {
     return this.adminService.resolveRole(provider, user.email);
   }
 
-  private toCurrentAuthSession(session: AuthSessionWithId): CurrentAuthSession {
+  private toCurrentAuthSession(session: AuthSessionWithSecrets): CurrentAuthSession {
     const {
       accessTokenCiphertext: _accessTokenCiphertext,
       refreshTokenCiphertext: _refreshTokenCiphertext,
@@ -540,9 +536,9 @@ export class AuthService {
     return currentSession;
   }
 
-  private toSessionUserView(user: OAuthUserWithId, role: AccessRole): SessionUserView {
+  private toSessionUserView(user: OAuthUserRow, role: AccessRole): SessionUserView {
     return {
-      id: String(user._id),
+      id: user._id,
       provider: user.provider,
       role,
       sub: user.sub,

@@ -15,11 +15,10 @@ import {
   OAUTH_PROVIDERS,
   type OAuthProvider,
   OAuthProviderDeepId,
-  type OAuthUserWithId,
 } from '@reputo/database';
 import { isEmail } from 'class-validator';
 import { AuthSessionRepository, type UserSessionActivity } from '../sessions';
-import { OAuthUserRepository } from '../users';
+import { OAuthUserRepository, type OAuthUserRow } from '../users';
 import { AdminAllowlistRepository } from './admin-allowlist.repository';
 import type { AdminListResponseDto, AdminViewDto, ListAdminsQueryDto } from './dto';
 
@@ -91,7 +90,7 @@ export class AdminService {
   }
 
   async addAdmin(
-    actor: OAuthUserWithId,
+    actor: OAuthUserRow,
     input: { provider: OAuthProvider; email: string; role?: AccessRole },
   ): Promise<AdminViewDto> {
     const provider = this.requireProvider(input.provider);
@@ -124,7 +123,7 @@ export class AdminService {
     }
   }
 
-  async restoreAdmin(actor: OAuthUserWithId, input: { provider: OAuthProvider; email: string }): Promise<AdminViewDto> {
+  async restoreAdmin(actor: OAuthUserRow, input: { provider: OAuthProvider; email: string }): Promise<AdminViewDto> {
     const provider = this.requireProvider(input.provider);
     const targetEmail = this.normalizeEmailOrThrow(input.email);
 
@@ -141,7 +140,7 @@ export class AdminService {
   }
 
   async updateRole(
-    actor: OAuthUserWithId,
+    actor: OAuthUserRow,
     input: { provider: OAuthProvider; email: string; role: AccessRole },
   ): Promise<AdminViewDto> {
     const provider = this.requireProvider(input.provider);
@@ -186,7 +185,7 @@ export class AdminService {
     return this.toAdminView(updated, await this.resolveActorEmailMap(actor, updated), null);
   }
 
-  async removeAdmin(actor: OAuthUserWithId, input: { provider: OAuthProvider; email: string }): Promise<void> {
+  async removeAdmin(actor: OAuthUserRow, input: { provider: OAuthProvider; email: string }): Promise<void> {
     const provider = this.requireProvider(input.provider);
     const targetEmail = this.normalizeEmailOrThrow(input.email);
     const actorEmail = actor.email ? this.normalizeEmail(actor.email) : undefined;
@@ -286,7 +285,7 @@ export class AdminService {
   }
 
   /** Single-row variant used by mutation paths where a list lookup would be wasteful. */
-  private async resolveActorEmailMap(actor: OAuthUserWithId, row: AccessAllowlistWithId): Promise<Map<string, string>> {
+  private async resolveActorEmailMap(actor: OAuthUserRow, row: AccessAllowlistWithId): Promise<Map<string, string>> {
     const map = this.actorEmailMap(actor);
     const ids: string[] = [];
     const inviterId = this.toIdString(row.invitedBy);
@@ -303,7 +302,7 @@ export class AdminService {
     return map;
   }
 
-  private actorEmailMap(actor: OAuthUserWithId): Map<string, string> {
+  private actorEmailMap(actor: OAuthUserRow): Map<string, string> {
     const map = new Map<string, string>();
     if (actor.email) map.set(String(actor._id), this.normalizeEmail(actor.email));
     return map;
@@ -321,7 +320,7 @@ export class AdminService {
 
     const userByKey = new Map(
       userLookups
-        .filter((entry): entry is { key: string; user: OAuthUserWithId } => entry.user !== null)
+        .filter((entry): entry is { key: string; user: OAuthUserRow } => entry.user !== null)
         .map(({ key, user }) => [key, user]),
     );
 
@@ -392,7 +391,7 @@ export class AdminService {
     return String(value);
   }
 
-  private toLogActor(actor: OAuthUserWithId): { email?: string; id: string } {
+  private toLogActor(actor: OAuthUserRow): { email?: string; id: string } {
     return {
       id: String(actor._id),
       ...(actor.email ? { email: this.normalizeEmail(actor.email) } : {}),
@@ -400,7 +399,7 @@ export class AdminService {
   }
 
   private logMutation(
-    actor: OAuthUserWithId,
+    actor: OAuthUserRow,
     action: MutationAction,
     provider: OAuthProvider,
     targetEmail: string,

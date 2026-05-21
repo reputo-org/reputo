@@ -1,18 +1,10 @@
 import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { MODEL_NAMES, OAuthUserSchema } from '@reputo/database';
 import { OAuthUserRepository } from './oauth-user.repository';
 
+// PrismaModule is registered globally in `src/persistence`, so feature
+// modules can depend on `PrismaService` directly without importing it here.
 @Module({
-  imports: [
-    MongooseModule.forFeature([
-      {
-        name: MODEL_NAMES.OAUTH_USER,
-        schema: OAuthUserSchema,
-      },
-    ]),
-  ],
   providers: [OAuthUserRepository],
-  exports: [OAuthUserRepository, MongooseModule],
+  exports: [OAuthUserRepository],
 })
 export class UsersModule {}

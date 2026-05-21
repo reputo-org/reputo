@@ -26,15 +26,10 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import {
-  ACCESS_ROLE_ADMIN,
-  ACCESS_ROLE_OWNER,
-  OAUTH_PROVIDERS,
-  type OAuthProvider,
-  type OAuthUserWithId,
-} from '@reputo/database';
+import { ACCESS_ROLE_ADMIN, ACCESS_ROLE_OWNER, OAUTH_PROVIDERS, type OAuthProvider } from '@reputo/database';
 import { CurrentUser, Roles } from '../shared/decorators';
 import { RolesGuard } from '../shared/guards/roles.guard';
+import type { OAuthUserRow } from '../users';
 import { AdminService } from './admin.service';
 import { AdminListResponseDto, AdminViewDto, CreateAdminDto, ListAdminsQueryDto, UpdateAdminRoleDto } from './dto';
 
@@ -71,7 +66,7 @@ export class AdminController {
   @ApiBadRequestResponse({ description: 'Invalid request body.' })
   @ApiForbiddenResponse({ description: 'Owner role required.' })
   @ApiConflictResponse({ description: 'An allowlist row already exists for this provider and email.' })
-  add(@CurrentUser() actor: OAuthUserWithId, @Body() body: CreateAdminDto): Promise<AdminViewDto> {
+  add(@CurrentUser() actor: OAuthUserRow, @Body() body: CreateAdminDto): Promise<AdminViewDto> {
     return this.adminService.addAdmin(actor, body);
   }
 
@@ -89,7 +84,7 @@ export class AdminController {
   @ApiForbiddenResponse({ description: 'Owner role required, or rule blocked the change.' })
   @ApiNotFoundResponse({ description: 'No active allowlist row exists for this provider and email.' })
   updateRole(
-    @CurrentUser() actor: OAuthUserWithId,
+    @CurrentUser() actor: OAuthUserRow,
     @Param('provider') provider: string,
     @Param('email') email: string,
     @Body() body: UpdateAdminRoleDto,
@@ -115,7 +110,7 @@ export class AdminController {
   @ApiForbiddenResponse({ description: 'Owner role required.' })
   @ApiNotFoundResponse({ description: 'No revoked allowlist row exists for this provider and email.' })
   restore(
-    @CurrentUser() actor: OAuthUserWithId,
+    @CurrentUser() actor: OAuthUserRow,
     @Param('provider') provider: string,
     @Param('email') email: string,
   ): Promise<AdminViewDto> {
@@ -139,7 +134,7 @@ export class AdminController {
   @ApiForbiddenResponse({ description: 'Owner role required, or rule blocked the change.' })
   @ApiNotFoundResponse({ description: 'No active allowlist row exists for this provider and email.' })
   remove(
-    @CurrentUser() actor: OAuthUserWithId,
+    @CurrentUser() actor: OAuthUserRow,
     @Param('provider') provider: string,
     @Param('email') email: string,
   ): Promise<void> {

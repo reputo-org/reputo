@@ -1,18 +1,15 @@
 import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { AuthSessionSchema, MODEL_NAMES } from '@reputo/database';
+import { ConfigModule } from '@nestjs/config';
 import { AuthSessionRepository } from './auth-session.repository';
+import { AuthSessionCleanupService } from './auth-session-cleanup.service';
 
+// PrismaModule is registered globally in `src/persistence`, so feature
+// modules can depend on `PrismaService` directly without importing it here.
+// The cleanup service is co-located here because it owns the PG-side
+// replacement for the Mongo TTL index on `auth_session.expiresAt`.
 @Module({
-  imports: [
-    MongooseModule.forFeature([
-      {
-        name: MODEL_NAMES.AUTH_SESSION,
-        schema: AuthSessionSchema,
-      },
-    ]),
-  ],
-  providers: [AuthSessionRepository],
-  exports: [AuthSessionRepository, MongooseModule],
+  imports: [ConfigModule],
+  providers: [AuthSessionRepository, AuthSessionCleanupService],
+  exports: [AuthSessionRepository, AuthSessionCleanupService],
 })
 export class SessionsModule {}
