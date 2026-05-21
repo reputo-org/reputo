@@ -1,5 +1,6 @@
 import { faker } from '@faker-js/faker';
-import type { Document, Model } from 'mongoose';
+import type { AlgorithmPreset as PrismaAlgorithmPreset } from '@prisma/client';
+import type { PrismaService } from '../../src/persistence';
 
 export type AlgorithmPresetCreate = {
   key?: string;
@@ -22,13 +23,20 @@ export function makeAlgorithmPreset(overrides: AlgorithmPresetCreate = {}) {
   };
 }
 
-export async function insertAlgorithmPreset<T extends Document>(
-  model: Model<T>,
+export async function insertAlgorithmPreset(
+  prisma: PrismaService,
   overrides: AlgorithmPresetCreate = {},
-): Promise<T> {
+): Promise<PrismaAlgorithmPreset> {
   const dto = makeAlgorithmPreset(overrides);
-  const doc = await model.create(dto as any);
-  return doc;
+  return prisma.algorithmPreset.create({
+    data: {
+      key: dto.key,
+      version: dto.version,
+      inputs: dto.inputs,
+      name: dto.name ?? null,
+      description: dto.description ?? null,
+    },
+  });
 }
 
 export function randomAlgorithmPreset(): AlgorithmPresetCreate {

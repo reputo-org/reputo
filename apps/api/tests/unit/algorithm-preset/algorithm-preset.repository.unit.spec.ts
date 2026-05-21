@@ -1,229 +1,196 @@
-import type { AlgorithmPresetModel } from '@reputo/database';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AlgorithmPresetRepository } from '../../../src/algorithm-preset/algorithm-preset.repository';
 import type { CreateAlgorithmPresetDto, UpdateAlgorithmPresetDto } from '../../../src/algorithm-preset/dto';
+import type { PrismaService } from '../../../src/persistence';
+
+const FIXED_NOW = new Date('2026-05-21T00:00:00.000Z');
+const TEST_UUID = '01940000-0000-7000-8000-000000000000';
+
+function createRow(
+  overrides: Partial<{
+    id: string;
+    key: string;
+    version: string;
+    inputs: unknown;
+    name: string | null;
+    description: string | null;
+  }> = {},
+) {
+  return {
+    id: overrides.id ?? TEST_UUID,
+    key: overrides.key ?? 'test_key',
+    version: overrides.version ?? '1.0.0',
+    inputs: overrides.inputs ?? [],
+    name: overrides.name ?? null,
+    description: overrides.description ?? null,
+    createdAt: FIXED_NOW,
+    updatedAt: FIXED_NOW,
+  };
+}
 
 describe('AlgorithmPresetRepository', () => {
   let repository: AlgorithmPresetRepository;
-  let mockModel: AlgorithmPresetModel;
+  let prismaMock: {
+    algorithmPreset: {
+      create: ReturnType<typeof vi.fn>;
+      findUnique: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+      delete: ReturnType<typeof vi.fn>;
+      count: ReturnType<typeof vi.fn>;
+      findMany: ReturnType<typeof vi.fn>;
+    };
+  };
 
   beforeEach(() => {
-    vi.clearAllMocks();
-
-    mockModel = {
-      create: vi.fn(),
-      paginate: vi.fn(),
-      findById: vi.fn().mockReturnValue({
-        lean: vi.fn().mockReturnValue({
-          exec: vi.fn(),
-        }),
-      }),
-      findByIdAndUpdate: vi.fn().mockReturnValue({
-        lean: vi.fn().mockReturnValue({
-          exec: vi.fn(),
-        }),
-      }),
-      findByIdAndDelete: vi.fn().mockReturnValue({
-        lean: vi.fn().mockReturnValue({
-          exec: vi.fn(),
-        }),
-      }),
-    } as unknown as AlgorithmPresetModel;
-
-    repository = new AlgorithmPresetRepository(mockModel);
+    prismaMock = {
+      algorithmPreset: {
+        create: vi.fn(),
+        findUnique: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
+        count: vi.fn(),
+        findMany: vi.fn(),
+      },
+    };
+    repository = new AlgorithmPresetRepository(prismaMock as unknown as PrismaService);
   });
 
   describe('create', () => {
-    it('should call model.create with the provided DTO', async () => {
+    it('passes the DTO through and maps the Prisma row to `_id`', async () => {
       const createDto: CreateAlgorithmPresetDto = {
         key: 'test_key',
         version: '1.0.0',
         inputs: [{ key: 'input1', value: 'value1' }],
+        name: 'Test',
+        description: 'A description longer than ten chars',
       };
-
-      const mockCreatedPreset = {
-        _id: '507f1f77bcf86cd799439011',
-        ...createDto,
-      };
-      mockModel.create = vi.fn().mockResolvedValue(mockCreatedPreset);
+      const row = createRow({ ...createDto });
+      prismaMock.algorithmPreset.create.mockResolvedValue(row);
 
       const result = await repository.create(createDto);
 
-      expect(mockModel.create).toHaveBeenCalledOnce();
-      expect(mockModel.create).toHaveBeenCalledWith(createDto);
-      expect(result).toBe(mockCreatedPreset);
+      expect(prismaMock.algorithmPreset.create).toHaveBeenCalledWith({
+        data: {
+          key: createDto.key,
+          version: createDto.version,
+          inputs: createDto.inputs,
+          name: createDto.name,
+          description: createDto.description,
+        },
+      });
+      expect(result._id).toBe(TEST_UUID);
+      expect(result.key).toBe('test_key');
     });
 
-    it('should handle create errors', async () => {
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'test_key',
-        version: '1.0.0',
-        inputs: [],
-      };
+    it('coerces null name/description from Prisma into undefined', async () => {
+      const dto: CreateAlgorithmPresetDto = { key: 'k', version: '1', inputs: [] };
+      prismaMock.algorithmPreset.create.mockResolvedValue(createRow({}));
 
-      const mockError = new Error('Database error');
-      mockModel.create = vi.fn().mockRejectedValue(mockError);
+      const result = await repository.create(dto);
 
-      await expect(repository.create(createDto)).rejects.toThrow('Database error');
+      expect(result.name).toBeUndefined();
+      expect(result.description).toBeUndefined();
     });
   });
 
   describe('findAll', () => {
-    it('should call model.paginate with filter and options', async () => {
-      const filter = { key: 'test_key' };
-      const options = { page: 1, limit: 10, sortBy: 'createdAt:desc' };
+    it('returns the paginated PaginateResult shape', async () => {
+      const row = createRow({ id: TEST_UUID });
+      prismaMock.algorithmPreset.count.mockResolvedValue(1);
+      prismaMock.algorithmPreset.findMany.mockResolvedValue([row]);
 
-      const mockPaginatedResult = {
-        results: [],
-        totalResults: 0,
-        page: 1,
-        limit: 10,
-        totalPages: 0,
-      };
-      mockModel.paginate = vi.fn().mockResolvedValue(mockPaginatedResult);
+      const result = await repository.findAll({ key: 'test_key' }, { page: 1, limit: 10 });
 
-      const result = await repository.findAll(filter, options);
-
-      expect(mockModel.paginate).toHaveBeenCalledOnce();
-      expect(mockModel.paginate).toHaveBeenCalledWith(filter, options);
-      expect(result).toBe(mockPaginatedResult);
+      expect(prismaMock.algorithmPreset.count).toHaveBeenCalledWith({ where: { key: 'test_key' } });
+      expect(prismaMock.algorithmPreset.findMany).toHaveBeenCalledWith({
+        where: { key: 'test_key' },
+        orderBy: [{ createdAt: 'desc' }],
+        skip: 0,
+        take: 10,
+      });
+      expect(result.results[0]._id).toBe(TEST_UUID);
+      expect(result.totalResults).toBe(1);
+      expect(result.totalPages).toBe(1);
+      expect(result.page).toBe(1);
+      expect(result.limit).toBe(10);
     });
 
-    it('should handle empty filter and default pagination options', async () => {
-      const filter = {};
-      const options = {};
+    it('parses sortBy into Prisma orderBy', async () => {
+      prismaMock.algorithmPreset.count.mockResolvedValue(0);
+      prismaMock.algorithmPreset.findMany.mockResolvedValue([]);
 
-      const mockPaginatedResult = {
-        results: [],
-        totalResults: 0,
-        page: 1,
-        limit: 10,
-        totalPages: 0,
-      };
-      mockModel.paginate = vi.fn().mockResolvedValue(mockPaginatedResult);
+      await repository.findAll({}, { sortBy: 'key:asc,version:desc' });
 
-      const result = await repository.findAll(filter, options);
-
-      expect(mockModel.paginate).toHaveBeenCalledOnce();
-      expect(result).toBe(mockPaginatedResult);
+      expect(prismaMock.algorithmPreset.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ key: 'asc' }, { version: 'desc' }],
+        }),
+      );
     });
   });
 
   describe('findById', () => {
-    it('should call model.findById with id and return lean result', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const mockPreset = {
-        _id: id,
-        key: 'test_key',
-        version: '1.0.0',
-      };
+    it('returns the row when present', async () => {
+      prismaMock.algorithmPreset.findUnique.mockResolvedValue(createRow({}));
 
-      const mockExec = vi.fn().mockResolvedValue(mockPreset);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findById = vi.fn().mockReturnValue({ lean: mockLean });
+      const result = await repository.findById(TEST_UUID);
 
-      const result = await repository.findById(id);
-
-      expect(mockModel.findById).toHaveBeenCalledOnce();
-      expect(mockModel.findById).toHaveBeenCalledWith(id);
-      expect(mockLean).toHaveBeenCalledOnce();
-      expect(mockExec).toHaveBeenCalledOnce();
-      expect(result).toBe(mockPreset);
+      expect(prismaMock.algorithmPreset.findUnique).toHaveBeenCalledWith({ where: { id: TEST_UUID } });
+      expect(result?._id).toBe(TEST_UUID);
     });
 
-    it('should return null when preset not found', async () => {
-      const id = '507f1f77bcf86cd799439011';
-
-      const mockExec = vi.fn().mockResolvedValue(null);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findById = vi.fn().mockReturnValue({ lean: mockLean });
-
-      const result = await repository.findById(id);
-
-      expect(result).toBeNull();
+    it('returns null when not found', async () => {
+      prismaMock.algorithmPreset.findUnique.mockResolvedValue(null);
+      await expect(repository.findById(TEST_UUID)).resolves.toBeNull();
     });
   });
 
   describe('updateById', () => {
-    it('should call model.findByIdAndUpdate with id and updateDto', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const updateDto: UpdateAlgorithmPresetDto = {
-        name: 'Updated Name',
-        description: 'Updated description',
-      };
+    it('only forwards defined fields to Prisma', async () => {
+      const updateDto: UpdateAlgorithmPresetDto = { name: 'New Name' };
+      prismaMock.algorithmPreset.update.mockResolvedValue(createRow({ name: 'New Name' }));
 
-      const mockUpdatedPreset = { _id: id, ...updateDto };
-      const mockExec = vi.fn().mockResolvedValue(mockUpdatedPreset);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findByIdAndUpdate = vi.fn().mockReturnValue({ lean: mockLean });
+      const result = await repository.updateById(TEST_UUID, updateDto);
 
-      const result = await repository.updateById(id, updateDto);
-
-      expect(mockModel.findByIdAndUpdate).toHaveBeenCalledOnce();
-      expect(mockModel.findByIdAndUpdate).toHaveBeenCalledWith(id, updateDto, { new: true });
-      expect(result).toBe(mockUpdatedPreset);
+      expect(prismaMock.algorithmPreset.update).toHaveBeenCalledWith({
+        where: { id: TEST_UUID },
+        data: { name: 'New Name' },
+      });
+      expect(result?.name).toBe('New Name');
     });
 
-    it('should return null when preset not found', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const updateDto: UpdateAlgorithmPresetDto = { name: 'Updated' };
+    it('translates Prisma P2025 (not found) into null', async () => {
+      prismaMock.algorithmPreset.update.mockRejectedValue({ code: 'P2025' });
 
-      const mockExec = vi.fn().mockResolvedValue(null);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findByIdAndUpdate = vi.fn().mockReturnValue({ lean: mockLean });
-
-      const result = await repository.updateById(id, updateDto);
-
-      expect(result).toBeNull();
+      await expect(repository.updateById(TEST_UUID, { name: 'x' })).resolves.toBeNull();
     });
   });
 
   describe('deleteById', () => {
-    it('should call model.findByIdAndDelete with id and session option', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const mockDeletedPreset = { _id: id };
+    it('delegates to the default Prisma client when no transaction is passed', async () => {
+      prismaMock.algorithmPreset.delete.mockResolvedValue(createRow({}));
 
-      const mockExec = vi.fn().mockResolvedValue(mockDeletedPreset);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findByIdAndDelete = vi.fn().mockReturnValue({ lean: mockLean });
+      const result = await repository.deleteById(TEST_UUID);
 
-      const result = await repository.deleteById(id);
-
-      expect(mockModel.findByIdAndDelete).toHaveBeenCalledOnce();
-      expect(mockModel.findByIdAndDelete).toHaveBeenCalledWith(id, {
-        session: undefined,
-      });
-      expect(result).toBe(mockDeletedPreset);
+      expect(prismaMock.algorithmPreset.delete).toHaveBeenCalledWith({ where: { id: TEST_UUID } });
+      expect(result?._id).toBe(TEST_UUID);
     });
 
-    it('should pass session when provided', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const mockDeletedPreset = { _id: id };
-      const mockSession = { id: 'session-123' };
+    it('uses the provided transactional client when supplied', async () => {
+      const tx = {
+        algorithmPreset: { delete: vi.fn().mockResolvedValue(createRow({})) },
+      };
 
-      const mockExec = vi.fn().mockResolvedValue(mockDeletedPreset);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findByIdAndDelete = vi.fn().mockReturnValue({ lean: mockLean });
+      await repository.deleteById(TEST_UUID, tx as unknown as PrismaService);
 
-      const result = await repository.deleteById(id, mockSession as any);
-
-      expect(mockModel.findByIdAndDelete).toHaveBeenCalledOnce();
-      expect(mockModel.findByIdAndDelete).toHaveBeenCalledWith(id, {
-        session: mockSession,
-      });
-      expect(result).toBe(mockDeletedPreset);
+      expect(tx.algorithmPreset.delete).toHaveBeenCalledWith({ where: { id: TEST_UUID } });
+      expect(prismaMock.algorithmPreset.delete).not.toHaveBeenCalled();
     });
 
-    it('should return null when preset not found', async () => {
-      const id = '507f1f77bcf86cd799439011';
+    it('translates Prisma P2025 (not found) into null', async () => {
+      prismaMock.algorithmPreset.delete.mockRejectedValue({ code: 'P2025' });
 
-      const mockExec = vi.fn().mockResolvedValue(null);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findByIdAndDelete = vi.fn().mockReturnValue({ lean: mockLean });
-
-      const result = await repository.deleteById(id);
-
-      expect(result).toBeNull();
+      await expect(repository.deleteById(TEST_UUID)).resolves.toBeNull();
     });
   });
 });

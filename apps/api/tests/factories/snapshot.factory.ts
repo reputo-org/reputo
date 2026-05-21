@@ -1,5 +1,6 @@
 import { faker } from '@faker-js/faker';
-import type { Document, Model } from 'mongoose';
+import type { Snapshot as PrismaSnapshot, SnapshotStatus } from '@prisma/client';
+import type { PrismaService } from '../../src/persistence';
 
 type AlgorithmPresetFrozen = {
   key: string;
@@ -7,11 +8,14 @@ type AlgorithmPresetFrozen = {
   inputs: Array<{ key: string; value?: unknown }>;
   name?: string;
   description?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 };
 
 export type SnapshotCreate = {
   algorithmPreset: string;
   algorithmPresetFrozen: AlgorithmPresetFrozen;
+  status?: SnapshotStatus;
   temporal?: {
     workflowId?: string;
     runId?: string;
@@ -38,6 +42,7 @@ export function makeSnapshot(
   return {
     algorithmPreset,
     algorithmPresetFrozen,
+    status: overrides.status,
     temporal: overrides.temporal,
     outputs: overrides.outputs,
   };
@@ -54,20 +59,30 @@ export function makeSnapshotDto(
   };
 }
 
-export async function insertSnapshot<T extends Document>(
-  model: Model<T>,
-  algorithmPreset: string,
+export async function insertSnapshot(
+  prisma: PrismaService,
+  algorithmPresetId: string,
   algorithmPresetFrozen: AlgorithmPresetFrozen,
   overrides: Partial<Omit<SnapshotCreate, 'algorithmPreset' | 'algorithmPresetFrozen'>> = {},
-): Promise<T> {
-  const dto = makeSnapshot(algorithmPreset, algorithmPresetFrozen, overrides);
-  const doc = await model.create(dto as any);
-  return doc;
+): Promise<PrismaSnapshot> {
+  const dto = makeSnapshot(algorithmPresetId, algorithmPresetFrozen, overrides);
+  return prisma.snapshot.create({
+    data: {
+      status: dto.status ?? 'queued',
+      algorithmPresetId,
+      algorithmPresetFrozen: dto.algorithmPresetFrozen,
+      temporal: dto.temporal ?? undefined,
+      outputs: (dto.outputs as Record<string, unknown> | undefined) ?? undefined,
+    },
+  });
 }
 
-export function randomSnapshot(algorithmPreset: string, algorithmPresetFrozen: AlgorithmPresetFrozen): SnapshotCreate {
+export function randomSnapshot(
+  algorithmPresetId: string,
+  algorithmPresetFrozen: AlgorithmPresetFrozen,
+): SnapshotCreate {
   const maybe = <T>(val: T) => (faker.datatype.boolean() ? val : undefined);
-  return makeSnapshot(algorithmPreset, algorithmPresetFrozen, {
+  return makeSnapshot(algorithmPresetId, algorithmPresetFrozen, {
     temporal: maybe({
       workflowId: faker.string.alphanumeric(20),
       runId: faker.string.alphanumeric(10),
