@@ -30,9 +30,7 @@ export interface AlgorithmPresetFrozen {
   name?: string;
   description?: string;
   // JSON-stored, so reads round-trip these as ISO strings; the type stays
-  // `Date` for symmetry with writes (the service freezes Prisma `Date`s) and
-  // mirrors the @reputo/database `AlgorithmPresetFrozen` shape the
-  // TemporalService input still expects.
+  // `Date` for symmetry with writes (the service freezes Prisma `Date`s).
   createdAt?: Date;
   updatedAt?: Date;
 }

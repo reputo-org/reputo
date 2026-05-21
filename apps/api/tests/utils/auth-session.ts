@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { TestingModule } from '@nestjs/testing';
-import type { AccessRole } from '@reputo/database';
+import type { AccessRole } from '@reputo/contracts';
 import { PrismaService } from '../../src/persistence';
 import { encryptValue } from '../../src/shared/utils';
 

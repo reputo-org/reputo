@@ -1,7 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
 import { LoggerModule } from 'nestjs-pino';
 import supertest from 'supertest';
@@ -11,7 +10,6 @@ import { configModules } from '../../../src/config';
 import { PrismaModule, PrismaService } from '../../../src/persistence';
 import { HttpExceptionFilter } from '../../../src/shared/filters/http-exception.filter';
 import { AUTH_TEST_ENV, applyAuthTestEnv } from '../../utils/auth-session';
-import { startMongo, stopMongo } from '../../utils/mongo-memory-server';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { base } from '../../utils/request';
 
@@ -31,7 +29,6 @@ describe('Deep ID auth e2e (mock mode)', () => {
       APP_PUBLIC_URL: 'https://mock.invalid',
     });
 
-    const mongoUri = await startMongo();
     db = await startTestDatabase();
     process.env.DATABASE_URL = db.databaseUrl;
 
@@ -47,7 +44,6 @@ describe('Deep ID auth e2e (mock mode)', () => {
             level: 'silent',
           },
         }),
-        MongooseModule.forRoot(mongoUri),
         PrismaModule,
         AuthModule,
       ],
@@ -81,7 +77,6 @@ describe('Deep ID auth e2e (mock mode)', () => {
 
   afterAll(async () => {
     await app.close();
-    await stopMongo();
     await db?.stop();
   });
 

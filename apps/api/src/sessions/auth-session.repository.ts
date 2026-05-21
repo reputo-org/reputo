@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { AuthSession as PrismaAuthSession } from '@prisma/client';
 import { Prisma } from '@prisma/client';
-import type { OAuthProvider } from '@reputo/database';
+import type { OAuthProvider } from '@reputo/contracts';
 import { PrismaService } from '../persistence';
 import { toPrismaProvider, toWireProvider } from '../shared/utils';
 

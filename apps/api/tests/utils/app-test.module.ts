@@ -1,6 +1,5 @@
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
 import { LoggerModule } from 'nestjs-pino';
 import { AlgorithmPresetModule } from '../../src/algorithm-preset/algorithm-preset.module';
@@ -18,7 +17,6 @@ import { AUTH_TEST_ENV, applyAuthTestEnv } from './auth-session';
 export interface TestAppOptions {
   authEnv?: Partial<Record<keyof typeof AUTH_TEST_ENV, string>>;
   includeSwagger?: boolean;
-  mongoUri: string;
   oauthProviderService?: Pick<
     OAuthAuthProviderService,
     | 'buildAuthorizationUrl'
@@ -124,7 +122,6 @@ export async function createTestApp(options: TestAppOptions) {
           level: 'silent',
         },
       }),
-      MongooseModule.forRoot(options.mongoUri),
       PrismaModule,
       AuthModule,
       AlgorithmPresetModule,

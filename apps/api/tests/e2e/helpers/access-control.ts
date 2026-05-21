@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import type { AccessRole, OAuthProvider } from '@reputo/database';
+import type { AccessRole, OAuthProvider } from '@reputo/contracts';
 import supertest from 'supertest';
 import { vi } from 'vitest';
 import type { OAuthAuthProviderService } from '../../../src/auth/oauth-auth-provider.service';

@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { AccessRole } from '@reputo/database';
+import type { AccessRole } from '@reputo/contracts';
 import type { Request } from 'express';
 import { IS_ROLES_ROUTE } from '../decorators/roles.decorator';
 import { getAuthRequestContext } from '../types';

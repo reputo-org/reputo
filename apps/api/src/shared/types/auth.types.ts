@@ -1,4 +1,4 @@
-import type { AccessRole, OAuthProvider } from '@reputo/database';
+import type { AccessRole, OAuthProvider } from '@reputo/contracts';
 
 export interface OAuthDiscoveryDocument {
   issuer: string;

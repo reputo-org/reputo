@@ -5,7 +5,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaService } from '../../../src/persistence';
 import { createTestApp } from '../../utils/app-test.module';
 import { AUTH_TEST_ENV } from '../../utils/auth-session';
-import { startMongo, stopMongo } from '../../utils/mongo-memory-server';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { base } from '../../utils/request';
 import {
@@ -23,11 +22,9 @@ describe('Admin access-control e2e', () => {
   const oauthProvider = createMockOAuthProviderDouble();
 
   beforeAll(async () => {
-    const mongoUri = await startMongo();
     db = await startTestDatabase();
     process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({
-      mongoUri,
       oauthProviderService: oauthProvider.service,
     });
 
@@ -45,7 +42,6 @@ describe('Admin access-control e2e', () => {
 
   afterAll(async () => {
     await app.close();
-    await stopMongo();
     await db?.stop();
   });
 
@@ -320,7 +316,6 @@ describe('Admin access-control e2e (mock mode)', () => {
   let db: TestDatabase;
 
   beforeAll(async () => {
-    const mongoUri = await startMongo();
     db = await startTestDatabase();
     process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({
@@ -333,7 +328,6 @@ describe('Admin access-control e2e (mock mode)', () => {
         DEEP_ID_AUTH_REDIRECT_URI: 'https://mock.invalid/callback',
         APP_PUBLIC_URL: 'https://mock.invalid',
       },
-      mongoUri,
     });
 
     app = boot.app;
@@ -349,7 +343,6 @@ describe('Admin access-control e2e (mock mode)', () => {
 
   afterAll(async () => {
     await app.close();
-    await stopMongo();
     await db?.stop();
   });
 

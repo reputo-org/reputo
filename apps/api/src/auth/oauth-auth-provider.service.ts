@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { OAuthProvider } from '@reputo/database';
+import type { OAuthProvider } from '@reputo/contracts';
 import type { OAuthProviderAuthConfig } from '../config/auth.config';
 import { OAuthProviderClient } from '../shared/oauth';
 import {

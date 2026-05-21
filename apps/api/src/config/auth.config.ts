@@ -1,5 +1,5 @@
 import { registerAs } from '@nestjs/config';
-import { OAUTH_PROVIDERS, type OAuthProvider, OAuthProviderDeepId } from '@reputo/database';
+import { OAUTH_PROVIDERS, type OAuthProvider, OAuthProviderDeepId } from '@reputo/contracts';
 import * as Joi from 'joi';
 import { AUTH_MODE_MOCK, AUTH_MODE_OAUTH } from '../shared/constants';
 

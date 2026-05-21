@@ -5,7 +5,6 @@ import { insertAlgorithmPreset } from '../../factories/algorithmPreset.factory';
 import { makeSnapshotDto } from '../../factories/snapshot.factory';
 import { createTestApp } from '../../utils/app-test.module';
 import { createAuthenticatedSession } from '../../utils/auth-session';
-import { startMongo, stopMongo } from '../../utils/mongo-memory-server';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { api } from '../../utils/request';
 import { randomUUIDv7 } from '../../utils/uuid';
@@ -17,10 +16,9 @@ describe('POST /api/v1/snapshots', () => {
   let db: TestDatabase;
 
   beforeAll(async () => {
-    const uri = await startMongo();
     db = await startTestDatabase();
     process.env.DATABASE_URL = db.databaseUrl;
-    const boot = await createTestApp({ mongoUri: uri });
+    const boot = await createTestApp({});
     app = boot.app;
     prisma = boot.moduleRef.get(PrismaService);
     authCookie = (await createAuthenticatedSession(boot.moduleRef)).cookie;
@@ -33,7 +31,6 @@ describe('POST /api/v1/snapshots', () => {
 
   afterAll(async () => {
     await app.close();
-    await stopMongo();
     await db?.stop();
   });
 

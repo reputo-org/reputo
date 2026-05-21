@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ACCESS_ROLES, type AccessRole, OAUTH_PROVIDERS, type OAuthProvider } from '@reputo/database';
+import { ACCESS_ROLES, type AccessRole, OAUTH_PROVIDERS, type OAuthProvider } from '@reputo/contracts';
 
 export class AdminViewDto {
   @ApiProperty({

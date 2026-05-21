@@ -5,7 +5,7 @@ import {
   type AccessRole,
   OAUTH_PROVIDERS,
   type OAuthProvider,
-} from '@reputo/database';
+} from '@reputo/contracts';
 import { Transform } from 'class-transformer';
 import { IsEmail, IsIn, IsOptional, IsString } from 'class-validator';
 

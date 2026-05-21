@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
 import { LoggerModule } from 'nestjs-pino';
 
 import { AdminModule } from './admin';
@@ -25,13 +24,6 @@ import { ApiWorkerModule } from './temporal';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: pinoConfig,
-    }),
-    MongooseModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        uri: configService.get<string>('mongoDB.uri'),
-      }),
     }),
     PrismaModule,
     AuthModule,

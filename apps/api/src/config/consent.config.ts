@@ -1,5 +1,5 @@
 import { registerAs } from '@nestjs/config';
-import { type OAuthProvider, OAuthProviderDeepId } from '@reputo/database';
+import { type OAuthProvider, OAuthProviderDeepId } from '@reputo/contracts';
 import * as Joi from 'joi';
 
 export interface ConsentSourceConfig {

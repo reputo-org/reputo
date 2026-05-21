@@ -1,6 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { LoggerModule } from 'nestjs-pino';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -9,16 +8,13 @@ import { AuthModule } from '../../../src/auth';
 import { configModules } from '../../../src/config';
 import { PrismaModule, PrismaService } from '../../../src/persistence';
 import { applyAuthTestEnv } from '../../utils/auth-session';
-import { startMongo, stopMongo } from '../../utils/mongo-memory-server';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 
 describe('Admin owner bootstrap conflict e2e', () => {
-  let mongoUri: string;
   let db: TestDatabase;
   let prisma: PrismaService;
 
   beforeAll(async () => {
-    mongoUri = await startMongo();
     db = await startTestDatabase();
     process.env.DATABASE_URL = db.databaseUrl;
     prisma = new PrismaService();
@@ -31,7 +27,6 @@ describe('Admin owner bootstrap conflict e2e', () => {
 
   afterAll(async () => {
     await prisma.$disconnect();
-    await stopMongo();
     await db?.stop();
   });
 
@@ -65,7 +60,6 @@ describe('Admin owner bootstrap conflict e2e', () => {
               level: 'silent',
             },
           }),
-          MongooseModule.forRoot(mongoUri),
           PrismaModule,
           AuthModule,
         ],
@@ -109,7 +103,6 @@ describe('Admin owner bootstrap conflict e2e', () => {
               level: 'silent',
             },
           }),
-          MongooseModule.forRoot(mongoUri),
           PrismaModule,
           AuthModule,
         ],

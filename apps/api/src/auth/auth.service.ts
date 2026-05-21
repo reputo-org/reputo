@@ -1,6 +1,6 @@
 import { BadGatewayException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ACCESS_ROLE_OWNER, type AccessRole, type OAuthProvider } from '@reputo/database';
+import { ACCESS_ROLE_OWNER, type AccessRole, type OAuthProvider } from '@reputo/contracts';
 import type { Request, Response } from 'express';
 import { AdminService } from '../admin';
 import { AuthSessionRepository, type AuthSessionWithSecrets } from '../sessions';

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ACCESS_ROLES, type AccessRole } from '@reputo/database';
+import { ACCESS_ROLES, type AccessRole } from '@reputo/contracts';
 import { IsIn } from 'class-validator';
 
 export class UpdateAdminRoleDto {

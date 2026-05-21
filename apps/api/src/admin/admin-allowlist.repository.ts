@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, type AccessAllowlist as PrismaAccessAllowlist } from '@prisma/client';
-import { ACCESS_ROLE_ADMIN, type AccessRole, type OAuthProvider } from '@reputo/database';
+import { ACCESS_ROLE_ADMIN, type AccessRole, type OAuthProvider } from '@reputo/contracts';
 import { PrismaService } from '../persistence';
 import { toPrismaProvider, toWireProvider } from '../shared/utils';
 import type { AdminAllowlistSortField, AdminAllowlistSortOrder, AdminAllowlistStatus } from './admin.constants';

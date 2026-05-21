@@ -26,7 +26,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { ACCESS_ROLE_ADMIN, ACCESS_ROLE_OWNER, OAUTH_PROVIDERS, type OAuthProvider } from '@reputo/database';
+import { ACCESS_ROLE_ADMIN, ACCESS_ROLE_OWNER, OAUTH_PROVIDERS, type OAuthProvider } from '@reputo/contracts';
 import { CurrentUser, Roles } from '../shared/decorators';
 import { RolesGuard } from '../shared/guards/roles.guard';
 import type { OAuthUserRow } from '../users';

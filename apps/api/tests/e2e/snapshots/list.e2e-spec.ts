@@ -6,7 +6,6 @@ import { insertAlgorithmPreset, randomAlgorithmPreset } from '../../factories/al
 import { insertSnapshot } from '../../factories/snapshot.factory';
 import { createTestApp } from '../../utils/app-test.module';
 import { createAuthenticatedSession } from '../../utils/auth-session';
-import { startMongo, stopMongo } from '../../utils/mongo-memory-server';
 import { assertPaginationStructure } from '../../utils/pagination';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { api } from '../../utils/request';
@@ -46,10 +45,9 @@ describe('GET /api/v1/snapshots', () => {
   let db: TestDatabase;
 
   beforeAll(async () => {
-    const uri = await startMongo();
     db = await startTestDatabase();
     process.env.DATABASE_URL = db.databaseUrl;
-    const boot = await createTestApp({ mongoUri: uri });
+    const boot = await createTestApp({});
     app = boot.app;
     prisma = boot.moduleRef.get(PrismaService);
     authCookie = (await createAuthenticatedSession(boot.moduleRef)).cookie;
@@ -62,7 +60,6 @@ describe('GET /api/v1/snapshots', () => {
 
   afterAll(async () => {
     await app.close();
-    await stopMongo();
     await db?.stop();
   });
 

@@ -108,14 +108,13 @@ function generateComputeScaffold(algorithmKey: string): string {
     const pascalName = toPascalCase(algorithmKey)
     const functionName = `compute${pascalName}`
 
-    return `import type { Snapshot } from '@reputo/database'
-import { generateKey, type Storage } from '@reputo/storage'
+    return `import { generateKey, type Storage } from '@reputo/storage'
 import { Context } from '@temporalio/activity'
 import { parse } from 'csv-parse/sync'
 import { stringify } from 'csv-stringify/sync'
 
 import config from '../../../../config/index.js'
-import type { AlgorithmResult } from '../../../../shared/types/index.js'
+import type { AlgorithmResult, Snapshot } from '../../../../shared/types/index.js'
 import { getInputValue } from '../../../../shared/utils/algorithm-input.utils.js'
 
 /**

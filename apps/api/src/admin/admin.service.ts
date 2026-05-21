@@ -14,7 +14,7 @@ import {
   OAUTH_PROVIDERS,
   type OAuthProvider,
   OAuthProviderDeepId,
-} from '@reputo/database';
+} from '@reputo/contracts';
 import { isEmail } from 'class-validator';
 import { AuthSessionRepository, type UserSessionActivity } from '../sessions';
 import { OAuthUserRepository, type OAuthUserRow } from '../users';

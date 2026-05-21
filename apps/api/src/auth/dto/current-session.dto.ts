@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ACCESS_ROLES } from '@reputo/database';
+import { ACCESS_ROLES } from '@reputo/contracts';
 
 export class CurrentSessionUserDto {
   @ApiProperty()

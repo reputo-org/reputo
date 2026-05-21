@@ -1,4 +1,4 @@
-import type { AccessRole } from '@reputo/database';
+import type { AccessRole } from '@reputo/contracts';
 import type { Request } from 'express';
 import type { AuthSessionRow } from '../../sessions';
 import type { OAuthUserRow } from '../../users';

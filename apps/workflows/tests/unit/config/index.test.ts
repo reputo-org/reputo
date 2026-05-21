@@ -38,7 +38,6 @@ describe('workflows config', () => {
 
     expect(configModule.default.temporal.onchainDataTaskQueue).toBe('onchain-data-worker');
     expect(configModule.default.storage.bucket).toBe('reputo-test');
-    expect(configModule.default).not.toHaveProperty('mongoDB');
     expect(configModule.default.onchainData).toEqual({
       host: 'localhost',
       port: '5432',
