@@ -14,7 +14,6 @@ x-dev-volumes: &dev-volumes
     - apps_ui_node_modules:/workspace/apps/ui/node_modules
     - apps_workflows_node_modules:/workspace/apps/workflows/node_modules
     - packages_algorithm_validator_node_modules:/workspace/packages/algorithm-validator/node_modules
-    - packages_database_node_modules:/workspace/packages/database/node_modules
     - packages_deepfunding_portal_api_node_modules:/workspace/packages/deepfunding-portal-api/node_modules
     - packages_onchain_data_node_modules:/workspace/packages/onchain-data/node_modules
     - packages_reputation_algorithms_node_modules:/workspace/packages/reputation-algorithms/node_modules
@@ -46,8 +45,6 @@ volumes:
     apps_workflows_node_modules:
         driver: local
     packages_algorithm_validator_node_modules:
-        driver: local
-    packages_database_node_modules:
         driver: local
     packages_deepfunding_portal_api_node_modules:
         driver: local
