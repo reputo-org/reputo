@@ -9,6 +9,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestApp } from '../../utils/app-test.module';
 import { AUTH_TEST_ENV } from '../../utils/auth-session';
 import { startMongo, stopMongo } from '../../utils/mongo-memory-server';
+import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { base } from '../../utils/request';
 import {
   createMockOAuthProviderDouble,
@@ -23,10 +24,13 @@ describe('Admin access-control e2e', () => {
   let accessAllowlistModel: Model<AccessAllowlist>;
   let authSessionModel: Model<AuthSession>;
   let oauthUserModel: Model<OAuthUser>;
+  let db: TestDatabase;
   const oauthProvider = createMockOAuthProviderDouble();
 
   beforeAll(async () => {
     const mongoUri = await startMongo();
+    db = await startTestDatabase();
+    process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({
       mongoUri,
       oauthProviderService: oauthProvider.service,
@@ -51,6 +55,7 @@ describe('Admin access-control e2e', () => {
   afterAll(async () => {
     await app.close();
     await stopMongo();
+    await db?.stop();
   });
 
   it('allows an allowlisted verified-email login and returns the resolved role from /me', async () => {
@@ -317,9 +322,12 @@ describe('Admin access-control e2e (mock mode)', () => {
   let accessAllowlistModel: Model<AccessAllowlist>;
   let authSessionModel: Model<AuthSession>;
   let oauthUserModel: Model<OAuthUser>;
+  let db: TestDatabase;
 
   beforeAll(async () => {
     const mongoUri = await startMongo();
+    db = await startTestDatabase();
+    process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({
       authEnv: {
         AUTH_MODE: 'mock',
@@ -351,6 +359,7 @@ describe('Admin access-control e2e (mock mode)', () => {
   afterAll(async () => {
     await app.close();
     await stopMongo();
+    await db?.stop();
   });
 
   it('treats the mock preview user as owner without an allowlist row', async () => {

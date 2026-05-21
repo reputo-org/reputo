@@ -8,6 +8,7 @@ import { AuthModule, AuthService } from '../../src/auth';
 import { OAuthAuthProviderService } from '../../src/auth/oauth-auth-provider.service';
 import { configModules } from '../../src/config';
 import { setupSwagger } from '../../src/docs';
+import { PrismaModule } from '../../src/persistence';
 import { HttpExceptionFilter } from '../../src/shared/filters/http-exception.filter';
 import { SnapshotModule } from '../../src/snapshot/snapshot.module';
 import { StorageService } from '../../src/storage/storage.service';
@@ -124,6 +125,7 @@ export async function createTestApp(options: TestAppOptions) {
         },
       }),
       MongooseModule.forRoot(options.mongoUri),
+      PrismaModule,
       AuthModule,
       AlgorithmPresetModule,
       SnapshotModule,

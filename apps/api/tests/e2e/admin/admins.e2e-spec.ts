@@ -11,6 +11,7 @@ import { encryptValue } from '../../../src/shared/utils';
 import { createTestApp } from '../../utils/app-test.module';
 import { AUTH_TEST_ENV, createAuthenticatedSession } from '../../utils/auth-session';
 import { startMongo, stopMongo } from '../../utils/mongo-memory-server';
+import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { api, base } from '../../utils/request';
 
 describe('Admin access management e2e', () => {
@@ -19,9 +20,12 @@ describe('Admin access management e2e', () => {
   let accessAllowlistModel: Model<AccessAllowlist>;
   let authSessionModel: Model<AuthSession>;
   let oauthUserModel: Model<OAuthUser>;
+  let db: TestDatabase;
 
   beforeAll(async () => {
     const mongoUri = await startMongo();
+    db = await startTestDatabase();
+    process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({ mongoUri });
 
     app = boot.app;
@@ -42,6 +46,7 @@ describe('Admin access management e2e', () => {
   afterAll(async () => {
     await app.close();
     await stopMongo();
+    await db?.stop();
   });
 
   async function createSession(email: string, role: 'admin' | 'owner' = 'admin') {

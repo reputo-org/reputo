@@ -4,14 +4,18 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestApp } from '../../utils/app-test.module';
 import { createAuthenticatedSession } from '../../utils/auth-session';
 import { startMongo, stopMongo } from '../../utils/mongo-memory-server';
+import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { base } from '../../utils/request';
 
 describe('Protected API and docs surface', () => {
   let app: INestApplication;
   let authCookie: string;
+  let db: TestDatabase;
 
   beforeAll(async () => {
     const mongoUri = await startMongo();
+    db = await startTestDatabase();
+    process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({
       includeSwagger: true,
       mongoUri,
@@ -24,6 +28,7 @@ describe('Protected API and docs surface', () => {
   afterAll(async () => {
     await app.close();
     await stopMongo();
+    await db?.stop();
   });
 
   it('rejects the protected inventory without a valid session', async () => {
