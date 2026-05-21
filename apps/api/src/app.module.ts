@@ -9,6 +9,7 @@ import { AuthModule } from './auth';
 import { configModules, configValidationSchema } from './config';
 import { pinoConfig } from './config/pino.config';
 import { ConsentModule } from './consent';
+import { PrismaModule } from './persistence';
 import { SnapshotModule } from './snapshot/snapshot.module';
 import { StorageModule } from './storage/storage.module';
 
@@ -31,6 +32,7 @@ import { StorageModule } from './storage/storage.module';
         uri: configService.get<string>('mongoDB.uri'),
       }),
     }),
+    PrismaModule,
     AuthModule,
     AdminModule,
     ConsentModule,

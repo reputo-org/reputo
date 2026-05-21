@@ -13,6 +13,10 @@ MONGODB_USER=admin
 MONGODB_PASSWORD=password
 MONGODB_DB_NAME=reputo_dev
 
+# PostgreSQL connection URL for the API application database (consumed by Prisma).
+# Points at the API-owned PG instance (port 5434 in docker/compose/infra.yml).
+DATABASE_URL=postgresql://reputo_app:reputo_app@localhost:5434/reputo_app
+
 DEEP_ID_ISSUER_URL=https://identity.deep-id.ai
 DEEP_ID_CLIENT_ID=your-deep-id-client-id
 DEEP_ID_CLIENT_SECRET=your-deep-id-client-secret

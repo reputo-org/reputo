@@ -1,0 +1,13 @@
+// Reputo API application database.
+// Models land in subsequent migration tasks (04+); this file currently
+// holds only the datasource and generator so that `prisma generate`
+// produces a usable client and `prisma migrate deploy` runs cleanly.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
