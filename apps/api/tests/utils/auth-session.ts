@@ -1,9 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { getModelToken } from '@nestjs/mongoose';
 import type { TestingModule } from '@nestjs/testing';
-import type { AccessAllowlist, AccessRole } from '@reputo/database';
-import { MODEL_NAMES } from '@reputo/database';
-import type { Model } from 'mongoose';
+import type { AccessRole } from '@reputo/database';
 import { PrismaService } from '../../src/persistence';
 import { encryptValue } from '../../src/shared/utils';
 
@@ -18,6 +15,10 @@ export const AUTH_TEST_ENV = {
   DEEP_ID_AUTH_SCOPES: 'openid profile email offline_access',
   DEEP_ID_CONSENT_REDIRECT_URI: 'http://localhost:3000/api/v1/oauth/consent/deep-id/callback',
   DEEP_ID_CONSENT_GRANT_TTL_SECONDS: '600',
+  // 0 disables the periodic consent cleanup cron so tests never get a stray
+  // tick mid-assertion. Suites that exercise the cleanup path call `runOnce`
+  // directly.
+  DEEP_ID_CONSENT_CLEANUP_INTERVAL_MS: '0',
   VOTING_PORTAL_RETURN_URL: 'http://localhost:3001/voting',
   DEEP_ID_VOTING_PORTAL_SCOPES: 'api wallets',
   AUTH_COOKIE_NAME: 'reputo_test_session',
@@ -49,15 +50,14 @@ export function applyAuthTestEnv(overrides: Partial<Record<keyof typeof AUTH_TES
   }
 }
 
-// Seeds an authenticated session for an integration test. OAuthUser and
-// AuthSession are persisted in Postgres (Prisma) per task 06; AccessAllowlist
-// still lives in Mongo until task 07, so it's written via the Mongoose model.
+// Seeds an authenticated session for an integration test. OAuthUser,
+// AuthSession, and AccessAllowlist are persisted in Postgres (Prisma) per
+// tasks 06 and 07.
 export async function createAuthenticatedSession(
   moduleRef: TestingModule,
   options: CreateAuthenticatedSessionOptions = {},
 ) {
   const prisma = moduleRef.get(PrismaService);
-  const accessAllowlistModel = moduleRef.get<Model<AccessAllowlist>>(getModelToken(MODEL_NAMES.ACCESS_ALLOWLIST));
   const subSuffix = randomUUID();
   const now = Date.now();
   const email = options.email ?? `${subSuffix}@example.com`;
@@ -74,28 +74,22 @@ export async function createAuthenticatedSession(
   });
   const sessionId = randomUUID();
 
-  await accessAllowlistModel.updateOne(
-    {
-      provider: 'deep-id',
+  await prisma.accessAllowlist.upsert({
+    where: { provider_email: { provider: 'deep_id', email: normalizedEmail } },
+    create: {
+      provider: 'deep_id',
       email: normalizedEmail,
+      role,
+      invitedBy: null,
+      invitedAt: new Date(now),
     },
-    {
-      $set: {
-        provider: 'deep-id',
-        email: normalizedEmail,
-        role,
-        invitedBy: null,
-      },
-      $setOnInsert: {
-        invitedAt: new Date(now),
-      },
-      $unset: {
-        revokedAt: '',
-        revokedBy: '',
-      },
+    update: {
+      role,
+      invitedBy: null,
+      revokedAt: null,
+      revokedBy: null,
     },
-    { upsert: true },
-  );
+  });
 
   await prisma.authSession.create({
     data: {

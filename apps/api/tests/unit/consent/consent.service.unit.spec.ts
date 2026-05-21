@@ -1,13 +1,15 @@
 import { BadRequestException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
-import type { OAuthConsentGrantWithId } from '@reputo/database';
-import { Types } from 'mongoose';
 import type { PinoLogger } from 'nestjs-pino';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConsentService, InvalidConsentStateException } from '../../../src/consent';
-import type { OAuthConsentGrantRepository } from '../../../src/consent/oauth-consent-grant.repository';
+import type {
+  OAuthConsentGrantRepository,
+  OAuthConsentGrantRow,
+} from '../../../src/consent/oauth-consent-grant.repository';
 import type { OAuthProviderClient } from '../../../src/shared/oauth';
 import { createPkceChallenge } from '../../../src/shared/utils';
+import { randomUUIDv7 } from '../../utils/uuid';
 
 describe('ConsentService', () => {
   const now = new Date('2026-05-06T12:00:00.000Z');
@@ -43,8 +45,8 @@ describe('ConsentService', () => {
   };
   let service: ConsentService;
 
-  const grant: OAuthConsentGrantWithId = {
-    _id: new Types.ObjectId(),
+  const grant: OAuthConsentGrantRow = {
+    _id: randomUUIDv7(),
     provider: 'deep-id',
     source: 'voting-portal',
     state: 'state-12345678',

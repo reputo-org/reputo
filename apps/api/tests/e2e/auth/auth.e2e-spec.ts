@@ -1,11 +1,9 @@
 import type { INestApplication } from '@nestjs/common';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { getModelToken, MongooseModule } from '@nestjs/mongoose';
+import { MongooseModule } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
-import type { AccessAllowlist, AccessRole } from '@reputo/database';
-import { MODEL_NAMES } from '@reputo/database';
-import type { Model } from 'mongoose';
+import type { AccessRole } from '@reputo/database';
 import { LoggerModule } from 'nestjs-pino';
 import supertest from 'supertest';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -21,7 +19,6 @@ import { base } from '../../utils/request';
 
 describe('OAuth auth e2e', () => {
   let app: INestApplication;
-  let accessAllowlistModel: Model<AccessAllowlist>;
   let prisma: PrismaService;
   let db: TestDatabase;
 
@@ -67,7 +64,6 @@ describe('OAuth auth e2e', () => {
       .compile();
 
     prisma = moduleRef.get(PrismaService);
-    accessAllowlistModel = moduleRef.get(getModelToken(MODEL_NAMES.ACCESS_ALLOWLIST));
     app = moduleRef.createNestApplication();
 
     app.useGlobalFilters(new HttpExceptionFilter());
@@ -95,29 +91,23 @@ describe('OAuth auth e2e', () => {
     // intent obvious.
     await prisma.authSession.deleteMany({});
     await prisma.oAuthUser.deleteMany({});
-    await accessAllowlistModel.deleteMany({ email: { $ne: AUTH_TEST_ENV.OWNER_EMAIL } });
-    await accessAllowlistModel.updateOne(
-      {
-        provider: 'deep-id',
+    await prisma.accessAllowlist.deleteMany({ where: { email: { not: AUTH_TEST_ENV.OWNER_EMAIL } } });
+    await prisma.accessAllowlist.upsert({
+      where: { provider_email: { provider: 'deep_id', email: AUTH_TEST_ENV.OWNER_EMAIL } },
+      create: {
+        provider: 'deep_id',
         email: AUTH_TEST_ENV.OWNER_EMAIL,
+        role: 'owner',
+        invitedBy: null,
+        invitedAt: new Date(),
       },
-      {
-        $set: {
-          provider: 'deep-id',
-          email: AUTH_TEST_ENV.OWNER_EMAIL,
-          role: 'owner',
-          invitedBy: null,
-        },
-        $setOnInsert: {
-          invitedAt: new Date(),
-        },
-        $unset: {
-          revokedAt: '',
-          revokedBy: '',
-        },
+      update: {
+        role: 'owner',
+        invitedBy: null,
+        revokedAt: null,
+        revokedBy: null,
       },
-      { upsert: true },
-    );
+    });
   });
 
   afterAll(async () => {
@@ -129,28 +119,22 @@ describe('OAuth auth e2e', () => {
   async function allowlistEmail(email: string, role: AccessRole = 'admin'): Promise<void> {
     const normalizedEmail = email.trim().toLowerCase();
 
-    await accessAllowlistModel.updateOne(
-      {
-        provider: 'deep-id',
+    await prisma.accessAllowlist.upsert({
+      where: { provider_email: { provider: 'deep_id', email: normalizedEmail } },
+      create: {
+        provider: 'deep_id',
         email: normalizedEmail,
+        role,
+        invitedBy: null,
+        invitedAt: new Date(),
       },
-      {
-        $set: {
-          provider: 'deep-id',
-          email: normalizedEmail,
-          role,
-          invitedBy: null,
-        },
-        $setOnInsert: {
-          invitedAt: new Date(),
-        },
-        $unset: {
-          revokedAt: '',
-          revokedBy: '',
-        },
+      update: {
+        role,
+        invitedBy: null,
+        revokedAt: null,
+        revokedBy: null,
       },
-      { upsert: true },
-    );
+    });
   }
 
   it('starts the login flow and redirects to Deep ID', async () => {
@@ -339,13 +323,15 @@ describe('OAuth auth e2e', () => {
   it('treats a revoked allowlist row as not allowlisted during callback', async () => {
     const agent = supertest.agent(app.getHttpServer());
 
-    await accessAllowlistModel.create({
-      provider: 'deep-id',
-      email: 'revoked@example.com',
-      role: 'admin',
-      invitedBy: null,
-      invitedAt: new Date('2026-04-01T00:00:00.000Z'),
-      revokedAt: new Date('2026-04-02T00:00:00.000Z'),
+    await prisma.accessAllowlist.create({
+      data: {
+        provider: 'deep_id',
+        email: 'revoked@example.com',
+        role: 'admin',
+        invitedBy: null,
+        invitedAt: new Date('2026-04-01T00:00:00.000Z'),
+        revokedAt: new Date('2026-04-02T00:00:00.000Z'),
+      },
     });
     mockOAuthService.exchangeCodeForTokens.mockResolvedValue({
       access_token: 'provider-access-token',

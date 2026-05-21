@@ -1,10 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
-import { getModelToken } from '@nestjs/mongoose';
 import type { TestingModule } from '@nestjs/testing';
-import type { AccessAllowlist } from '@reputo/database';
-import { MODEL_NAMES } from '@reputo/database';
-import type { Model } from 'mongoose';
 import supertest from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaService } from '../../../src/persistence';
@@ -18,7 +14,6 @@ import { api, base } from '../../utils/request';
 describe('Admin access management e2e', () => {
   let app: INestApplication;
   let moduleRef: TestingModule;
-  let accessAllowlistModel: Model<AccessAllowlist>;
   let prisma: PrismaService;
   let db: TestDatabase;
 
@@ -30,12 +25,11 @@ describe('Admin access management e2e', () => {
 
     app = boot.app;
     moduleRef = boot.moduleRef;
-    accessAllowlistModel = moduleRef.get(getModelToken(MODEL_NAMES.ACCESS_ALLOWLIST));
     prisma = moduleRef.get(PrismaService);
   });
 
   beforeEach(async () => {
-    await accessAllowlistModel.deleteMany({});
+    await prisma.accessAllowlist.deleteMany({});
     await prisma.authSession.deleteMany({});
     await prisma.oAuthUser.deleteMany({});
   });
@@ -96,14 +90,16 @@ describe('Admin access management e2e', () => {
 
     it('filters by status=revoked and surfaces revokedAt/By', async () => {
       const owner = await createSession('owner@example.com', 'owner');
-      await accessAllowlistModel.create({
-        provider: 'deep-id',
-        email: 'gone@example.com',
-        role: 'admin',
-        invitedBy: null,
-        invitedAt: new Date('2026-04-01T00:00:00.000Z'),
-        revokedAt: new Date('2026-04-15T00:00:00.000Z'),
-        revokedBy: owner.userId,
+      await prisma.accessAllowlist.create({
+        data: {
+          provider: 'deep_id',
+          email: 'gone@example.com',
+          role: 'admin',
+          invitedBy: null,
+          invitedAt: new Date('2026-04-01T00:00:00.000Z'),
+          revokedAt: new Date('2026-04-15T00:00:00.000Z'),
+          revokedBy: owner.userId,
+        },
       });
 
       const response = await api(app, owner.cookie).get('/admins?status=revoked').expect(200);
@@ -201,12 +197,14 @@ describe('Admin access management e2e', () => {
 
     it('returns 409 instructing restore when a revoked row exists', async () => {
       const owner = await createSession('owner@example.com', 'owner');
-      await accessAllowlistModel.create({
-        provider: 'deep-id',
-        email: 'revoked@example.com',
-        role: 'admin',
-        invitedAt: new Date(),
-        revokedAt: new Date(),
+      await prisma.accessAllowlist.create({
+        data: {
+          provider: 'deep_id',
+          email: 'revoked@example.com',
+          role: 'admin',
+          invitedAt: new Date(),
+          revokedAt: new Date(),
+        },
       });
 
       await api(app, owner.cookie)
@@ -231,12 +229,14 @@ describe('Admin access management e2e', () => {
   describe('POST /admins/:provider/:email/restore', () => {
     it('restores a revoked row to admin role', async () => {
       const owner = await createSession('owner@example.com', 'owner');
-      await accessAllowlistModel.create({
-        provider: 'deep-id',
-        email: 'restore@example.com',
-        role: 'admin',
-        invitedAt: new Date('2026-01-01T00:00:00.000Z'),
-        revokedAt: new Date('2026-02-01T00:00:00.000Z'),
+      await prisma.accessAllowlist.create({
+        data: {
+          provider: 'deep_id',
+          email: 'restore@example.com',
+          role: 'admin',
+          invitedAt: new Date('2026-01-01T00:00:00.000Z'),
+          revokedAt: new Date('2026-02-01T00:00:00.000Z'),
+        },
       });
 
       const response = await api(app, owner.cookie)
@@ -249,9 +249,11 @@ describe('Admin access management e2e', () => {
         invitedByEmail: 'owner@example.com',
       });
 
-      const row = await accessAllowlistModel.findOne({ email: 'restore@example.com' }).lean();
-      expect(row?.revokedAt).toBeUndefined();
-      expect(row?.revokedBy).toBeUndefined();
+      const row = await prisma.accessAllowlist.findUnique({
+        where: { provider_email: { provider: 'deep_id', email: 'restore@example.com' } },
+      });
+      expect(row?.revokedAt).toBeNull();
+      expect(row?.revokedBy).toBeNull();
     });
 
     it('returns 404 when there is no revoked row', async () => {
@@ -345,11 +347,13 @@ describe('Admin access management e2e', () => {
         .delete(`/admins/deep-id/${encodeURIComponent('target@example.com')}`)
         .expect(204);
 
-      const row = await accessAllowlistModel.findOne({ email: 'target@example.com' }).lean();
+      const row = await prisma.accessAllowlist.findUnique({
+        where: { provider_email: { provider: 'deep_id', email: 'target@example.com' } },
+      });
       const sessions = await prisma.authSession.findMany({ where: { userId: admin.userId } });
 
       expect(row?.revokedAt).toBeTruthy();
-      expect(String(row?.revokedBy)).toBe(owner.userId);
+      expect(row?.revokedBy).toBe(owner.userId);
       expect(sessions).toHaveLength(2);
       expect(sessions.every((session) => session.revokedAt)).toBe(true);
 
@@ -395,8 +399,10 @@ describe('Admin access management e2e', () => {
         .delete(`/admins/deep-id/${encodeURIComponent('owner@example.com')}`)
         .expect(403);
 
-      const row = await accessAllowlistModel.findOne({ email: 'owner@example.com' }).lean();
-      expect(row?.revokedAt).toBeUndefined();
+      const row = await prisma.accessAllowlist.findUnique({
+        where: { provider_email: { provider: 'deep_id', email: 'owner@example.com' } },
+      });
+      expect(row?.revokedAt).toBeNull();
       expect(owner.cookie).toBeTruthy();
     });
   });

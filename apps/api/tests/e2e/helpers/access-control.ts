@@ -1,16 +1,16 @@
 import type { INestApplication } from '@nestjs/common';
-import type { AccessAllowlist, AccessRole, OAuthProvider } from '@reputo/database';
-import { OAuthProviderDeepId } from '@reputo/database';
-import type { Model, Types } from 'mongoose';
+import type { AccessRole, OAuthProvider } from '@reputo/database';
 import supertest from 'supertest';
 import { vi } from 'vitest';
 import type { OAuthAuthProviderService } from '../../../src/auth/oauth-auth-provider.service';
+import type { PrismaService } from '../../../src/persistence';
 import type {
   AuthFlowState,
   OAuthDiscoveryDocument,
   OAuthTokenResponse,
   OAuthUserInfo,
 } from '../../../src/shared/types';
+import { toPrismaProvider } from '../../../src/shared/utils';
 import { AUTH_TEST_ENV } from '../../utils/auth-session';
 import { base } from '../../utils/request';
 
@@ -40,10 +40,10 @@ export interface MockOAuthProviderDouble {
 
 export interface SeedAllowlistOptions {
   invitedAt?: Date;
-  invitedBy?: Types.ObjectId | string | null;
+  invitedBy?: string | null;
   provider?: OAuthProvider;
   revokedAt?: Date;
-  revokedBy?: Types.ObjectId | string | null;
+  revokedBy?: string | null;
 }
 
 export interface LoginAsMockedProviderOptions extends MockOAuthUserInfoInput {
@@ -147,33 +147,34 @@ export function createMockOAuthProviderDouble(): MockOAuthProviderDouble {
 }
 
 export async function seedAllowlist(
-  accessAllowlistModel: Model<AccessAllowlist>,
+  prisma: PrismaService,
   role: AccessRole,
   email: string,
   options: SeedAllowlistOptions = {},
 ): Promise<void> {
-  const provider = options.provider ?? OAuthProviderDeepId;
+  const provider = options.provider ?? 'deep-id';
   const normalizedEmail = email.trim().toLowerCase();
-  const update = {
-    $set: {
-      provider,
+  const prismaProvider = toPrismaProvider(provider);
+
+  await prisma.accessAllowlist.upsert({
+    where: { provider_email: { provider: prismaProvider, email: normalizedEmail } },
+    create: {
+      provider: prismaProvider,
       email: normalizedEmail,
       role,
       invitedBy: options.invitedBy ?? null,
       invitedAt: options.invitedAt ?? new Date(),
-      ...(options.revokedAt ? { revokedAt: options.revokedAt, revokedBy: options.revokedBy ?? null } : {}),
+      revokedAt: options.revokedAt ?? null,
+      revokedBy: options.revokedAt ? (options.revokedBy ?? null) : null,
     },
-    ...(options.revokedAt ? {} : { $unset: { revokedAt: '', revokedBy: '' } }),
-  };
-
-  await accessAllowlistModel.updateOne(
-    {
-      provider,
-      email: normalizedEmail,
+    update: {
+      role,
+      invitedBy: options.invitedBy ?? null,
+      invitedAt: options.invitedAt ?? new Date(),
+      revokedAt: options.revokedAt ?? null,
+      revokedBy: options.revokedAt ? (options.revokedBy ?? null) : null,
     },
-    update,
-    { upsert: true },
-  );
+  });
 }
 
 export async function loginAsMockedProvider(

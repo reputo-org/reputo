@@ -1,26 +1,28 @@
-import type { OAuthConsentGrantModel, OAuthConsentGrantWithId } from '@reputo/database';
-import { Types } from 'mongoose';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OAuthConsentGrantRepository } from '../../../src/consent/oauth-consent-grant.repository';
+import type { PrismaService } from '../../../src/persistence';
+import { randomUUIDv7 } from '../../utils/uuid';
 
 describe('OAuthConsentGrantRepository', () => {
-  let model: {
+  let oauthConsentGrant: {
     create: ReturnType<typeof vi.fn>;
-    findOne: ReturnType<typeof vi.fn>;
-    deleteOne: ReturnType<typeof vi.fn>;
+    findFirst: ReturnType<typeof vi.fn>;
+    deleteMany: ReturnType<typeof vi.fn>;
   };
+  let prisma: { oAuthConsentGrant: typeof oauthConsentGrant };
   let repository: OAuthConsentGrantRepository;
 
   beforeEach(() => {
-    model = {
+    oauthConsentGrant = {
       create: vi.fn(async () => ({})),
-      findOne: vi.fn(),
-      deleteOne: vi.fn(),
+      findFirst: vi.fn(),
+      deleteMany: vi.fn(),
     };
-    repository = new OAuthConsentGrantRepository(model as unknown as OAuthConsentGrantModel);
+    prisma = { oAuthConsentGrant: oauthConsentGrant };
+    repository = new OAuthConsentGrantRepository(prisma as unknown as PrismaService);
   });
 
-  it('creates a grant document', async () => {
+  it('translates the wire provider to the Prisma enum on create', async () => {
     const data = {
       provider: 'deep-id' as const,
       source: 'voting-portal',
@@ -31,48 +33,68 @@ describe('OAuthConsentGrantRepository', () => {
 
     await repository.create(data);
 
-    expect(model.create).toHaveBeenCalledWith(data);
+    expect(oauthConsentGrant.create).toHaveBeenCalledWith({
+      data: {
+        provider: 'deep_id',
+        source: 'voting-portal',
+        state: 'state',
+        codeVerifier: 'verifier',
+        expiresAt: data.expiresAt,
+      },
+    });
   });
 
-  it('finds an active grant by provider and state with codeVerifier selected', async () => {
-    const grant: OAuthConsentGrantWithId = {
-      _id: new Types.ObjectId(),
-      provider: 'deep-id',
+  it('finds an active grant by provider and state filtering on expiresAt', async () => {
+    const row = {
+      id: randomUUIDv7(),
+      provider: 'deep_id',
       source: 'voting-portal',
       state: 'state',
       codeVerifier: 'verifier',
       expiresAt: new Date('2026-05-06T12:10:00.000Z'),
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
-    const exec = vi.fn(async () => grant);
-    const lean = vi.fn(() => ({ exec }));
-    const select = vi.fn(() => ({ lean }));
+    oauthConsentGrant.findFirst.mockResolvedValue(row);
 
-    model.findOne.mockReturnValue({ select });
+    const result = await repository.findActiveByProviderAndState('deep-id', 'state');
 
-    await expect(repository.findActiveByProviderAndState('deep-id', 'state')).resolves.toBe(grant);
-
-    expect(model.findOne).toHaveBeenCalledWith({
+    expect(result).toMatchObject({
+      _id: row.id,
       provider: 'deep-id',
+      source: 'voting-portal',
       state: 'state',
-      expiresAt: { $gt: expect.any(Date) },
+      codeVerifier: 'verifier',
+      expiresAt: row.expiresAt,
     });
-    expect(select).toHaveBeenCalledWith('+codeVerifier');
-    expect(lean).toHaveBeenCalled();
-    expect(exec).toHaveBeenCalled();
+    const [args] = oauthConsentGrant.findFirst.mock.calls[0];
+    expect(args).toMatchObject({
+      where: {
+        provider: 'deep_id',
+        state: 'state',
+        expiresAt: { gt: expect.any(Date) },
+      },
+    });
+  });
+
+  it('returns null when no active grant is found', async () => {
+    oauthConsentGrant.findFirst.mockResolvedValue(null);
+
+    await expect(repository.findActiveByProviderAndState('deep-id', 'missing')).resolves.toBeNull();
   });
 
   it('returns false when deleting a missing grant', async () => {
-    const exec = vi.fn(async () => ({ deletedCount: 0 }));
-    model.deleteOne.mockReturnValue({ exec });
+    oauthConsentGrant.deleteMany.mockResolvedValue({ count: 0 });
 
     await expect(repository.deleteByProviderAndState('deep-id', 'missing-state')).resolves.toBe(false);
 
-    expect(model.deleteOne).toHaveBeenCalledWith({ provider: 'deep-id', state: 'missing-state' });
+    expect(oauthConsentGrant.deleteMany).toHaveBeenCalledWith({
+      where: { provider: 'deep_id', state: 'missing-state' },
+    });
   });
 
   it('returns true when deleting an existing grant', async () => {
-    const exec = vi.fn(async () => ({ deletedCount: 1 }));
-    model.deleteOne.mockReturnValue({ exec });
+    oauthConsentGrant.deleteMany.mockResolvedValue({ count: 1 });
 
     await expect(repository.deleteByProviderAndState('deep-id', 'state')).resolves.toBe(true);
   });

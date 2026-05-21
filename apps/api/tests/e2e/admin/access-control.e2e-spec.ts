@@ -1,9 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import { getModelToken } from '@nestjs/mongoose';
 import type { TestingModule } from '@nestjs/testing';
-import type { AccessAllowlist } from '@reputo/database';
-import { MODEL_NAMES } from '@reputo/database';
-import type { Model } from 'mongoose';
 import supertest from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaService } from '../../../src/persistence';
@@ -22,7 +18,6 @@ import {
 describe('Admin access-control e2e', () => {
   let app: INestApplication;
   let moduleRef: TestingModule;
-  let accessAllowlistModel: Model<AccessAllowlist>;
   let prisma: PrismaService;
   let db: TestDatabase;
   const oauthProvider = createMockOAuthProviderDouble();
@@ -38,13 +33,12 @@ describe('Admin access-control e2e', () => {
 
     app = boot.app;
     moduleRef = boot.moduleRef;
-    accessAllowlistModel = moduleRef.get(getModelToken(MODEL_NAMES.ACCESS_ALLOWLIST));
     prisma = moduleRef.get(PrismaService);
   });
 
   beforeEach(async () => {
     oauthProvider.reset();
-    await accessAllowlistModel.deleteMany({});
+    await prisma.accessAllowlist.deleteMany({});
     await prisma.authSession.deleteMany({});
     await prisma.oAuthUser.deleteMany({});
   });
@@ -56,7 +50,7 @@ describe('Admin access-control e2e', () => {
   });
 
   it('allows an allowlisted verified-email login and returns the resolved role from /me', async () => {
-    await seedAllowlist(accessAllowlistModel, 'admin', 'allowed@example.com');
+    await seedAllowlist(prisma, 'admin', 'allowed@example.com');
 
     const login = await loginAsMockedProvider({
       app,
@@ -104,7 +98,7 @@ describe('Admin access-control e2e', () => {
   });
 
   it('redirects an unverified callback email before user or session rows are created', async () => {
-    await seedAllowlist(accessAllowlistModel, 'admin', 'unverified@example.com');
+    await seedAllowlist(prisma, 'admin', 'unverified@example.com');
 
     const login = await loginAsMockedProvider({
       app,
@@ -123,10 +117,10 @@ describe('Admin access-control e2e', () => {
   });
 
   it('lists owner and active admins for an authenticated admin', async () => {
-    await seedAllowlist(accessAllowlistModel, 'owner', 'owner@example.com');
-    await seedAllowlist(accessAllowlistModel, 'admin', 'admin@example.com');
-    await seedAllowlist(accessAllowlistModel, 'admin', 'z-admin@example.com');
-    await seedAllowlist(accessAllowlistModel, 'admin', 'revoked@example.com', {
+    await seedAllowlist(prisma, 'owner', 'owner@example.com');
+    await seedAllowlist(prisma, 'admin', 'admin@example.com');
+    await seedAllowlist(prisma, 'admin', 'z-admin@example.com');
+    await seedAllowlist(prisma, 'admin', 'revoked@example.com', {
       revokedAt: new Date('2026-04-02T00:00:00.000Z'),
     });
 
@@ -149,7 +143,7 @@ describe('Admin access-control e2e', () => {
   });
 
   it('rejects admin callers from adding admins', async () => {
-    await seedAllowlist(accessAllowlistModel, 'admin', 'admin@example.com');
+    await seedAllowlist(prisma, 'admin', 'admin@example.com');
 
     const login = await loginAsMockedProvider({
       app,
@@ -166,7 +160,7 @@ describe('Admin access-control e2e', () => {
   });
 
   it('creates a new admin as owner and shows the row in GET /admins', async () => {
-    await seedAllowlist(accessAllowlistModel, 'owner', 'owner@example.com');
+    await seedAllowlist(prisma, 'owner', 'owner@example.com');
 
     const owner = await loginAsMockedProvider({
       app,
@@ -197,8 +191,8 @@ describe('Admin access-control e2e', () => {
   });
 
   it('restores a previously revoked admin as owner via the restore route', async () => {
-    await seedAllowlist(accessAllowlistModel, 'owner', 'owner@example.com');
-    await seedAllowlist(accessAllowlistModel, 'admin', 'restore@example.com', {
+    await seedAllowlist(prisma, 'owner', 'owner@example.com');
+    await seedAllowlist(prisma, 'admin', 'restore@example.com', {
       invitedAt: new Date('2026-01-01T00:00:00.000Z'),
       revokedAt: new Date('2026-02-01T00:00:00.000Z'),
     });
@@ -225,19 +219,21 @@ describe('Admin access-control e2e', () => {
       invitedByEmail: 'owner@example.com',
     });
 
-    const row = await accessAllowlistModel.findOne({ email: 'restore@example.com' }).lean();
+    const row = await prisma.accessAllowlist.findUnique({
+      where: { provider_email: { provider: 'deep_id', email: 'restore@example.com' } },
+    });
     const list = await requestAs(app, ownerCookie, 'get', '/admins').expect(200);
 
-    expect(row?.revokedAt).toBeUndefined();
-    expect(row?.revokedBy).toBeUndefined();
+    expect(row?.revokedAt).toBeNull();
+    expect(row?.revokedBy).toBeNull();
     expect(list.body.results).toEqual(
       expect.arrayContaining([expect.objectContaining({ email: 'restore@example.com', role: 'admin' })]),
     );
   });
 
   it('returns 409 when owner adds an already active email', async () => {
-    await seedAllowlist(accessAllowlistModel, 'owner', 'owner@example.com');
-    await seedAllowlist(accessAllowlistModel, 'admin', 'active@example.com');
+    await seedAllowlist(prisma, 'owner', 'owner@example.com');
+    await seedAllowlist(prisma, 'admin', 'active@example.com');
 
     const owner = await loginAsMockedProvider({
       app,
@@ -254,7 +250,7 @@ describe('Admin access-control e2e', () => {
   });
 
   it('rejects owner self-removal', async () => {
-    await seedAllowlist(accessAllowlistModel, 'owner', 'owner@example.com');
+    await seedAllowlist(prisma, 'owner', 'owner@example.com');
 
     const owner = await loginAsMockedProvider({
       app,
@@ -271,14 +267,16 @@ describe('Admin access-control e2e', () => {
       `/admins/deep-id/${encodeURIComponent('owner@example.com')}`,
     ).expect(403);
 
-    const row = await accessAllowlistModel.findOne({ email: 'owner@example.com' }).lean();
+    const row = await prisma.accessAllowlist.findUnique({
+      where: { provider_email: { provider: 'deep_id', email: 'owner@example.com' } },
+    });
 
-    expect(row?.revokedAt).toBeUndefined();
+    expect(row?.revokedAt).toBeNull();
   });
 
   it('revokes an admin as owner and forces the removed admin cookie to log out on the next request', async () => {
-    await seedAllowlist(accessAllowlistModel, 'owner', 'owner@example.com');
-    await seedAllowlist(accessAllowlistModel, 'admin', 'target@example.com');
+    await seedAllowlist(prisma, 'owner', 'owner@example.com');
+    await seedAllowlist(prisma, 'admin', 'target@example.com');
 
     const owner = await loginAsMockedProvider({
       app,
@@ -303,7 +301,9 @@ describe('Admin access-control e2e', () => {
       `/admins/deep-id/${encodeURIComponent('target@example.com')}`,
     ).expect(204);
 
-    const revokedRow = await accessAllowlistModel.findOne({ email: 'target@example.com' }).lean();
+    const revokedRow = await prisma.accessAllowlist.findUnique({
+      where: { provider_email: { provider: 'deep_id', email: 'target@example.com' } },
+    });
     const nextRequest = await requestAs(app, targetCookie, 'get', '/auth/me').expect(401);
 
     expect(revokedRow?.revokedAt).toBeTruthy();
@@ -316,7 +316,6 @@ describe('Admin access-control e2e', () => {
 describe('Admin access-control e2e (mock mode)', () => {
   let app: INestApplication;
   let moduleRef: TestingModule;
-  let accessAllowlistModel: Model<AccessAllowlist>;
   let prisma: PrismaService;
   let db: TestDatabase;
 
@@ -339,12 +338,11 @@ describe('Admin access-control e2e (mock mode)', () => {
 
     app = boot.app;
     moduleRef = boot.moduleRef;
-    accessAllowlistModel = moduleRef.get(getModelToken(MODEL_NAMES.ACCESS_ALLOWLIST));
     prisma = moduleRef.get(PrismaService);
   });
 
   beforeEach(async () => {
-    await accessAllowlistModel.deleteMany({});
+    await prisma.accessAllowlist.deleteMany({});
     await prisma.authSession.deleteMany({});
     await prisma.oAuthUser.deleteMany({});
   });
@@ -371,7 +369,7 @@ describe('Admin access-control e2e (mock mode)', () => {
 
     const currentSession = await agent.get(base('/auth/me')).expect(200);
 
-    expect(await accessAllowlistModel.countDocuments()).toBe(0);
+    expect(await prisma.accessAllowlist.count()).toBe(0);
     expect(currentSession.body).toMatchObject({
       authenticated: true,
       provider: 'deep-id',

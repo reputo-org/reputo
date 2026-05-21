@@ -2,14 +2,12 @@ import type { INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { type AccessAllowlist, AccessAllowlistSchema, MODEL_NAMES, OAuthProviderDeepId } from '@reputo/database';
-import mongoose from 'mongoose';
 import { LoggerModule } from 'nestjs-pino';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { OwnerEmailConflictError } from '../../../src/admin';
 import { AuthModule } from '../../../src/auth';
 import { configModules } from '../../../src/config';
-import { PrismaModule } from '../../../src/persistence';
+import { PrismaModule, PrismaService } from '../../../src/persistence';
 import { applyAuthTestEnv } from '../../utils/auth-session';
 import { startMongo, stopMongo } from '../../utils/mongo-memory-server';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
@@ -17,14 +15,22 @@ import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testc
 describe('Admin owner bootstrap conflict e2e', () => {
   let mongoUri: string;
   let db: TestDatabase;
+  let prisma: PrismaService;
 
   beforeAll(async () => {
     mongoUri = await startMongo();
     db = await startTestDatabase();
     process.env.DATABASE_URL = db.databaseUrl;
+    prisma = new PrismaService();
+    await prisma.$connect();
+  });
+
+  beforeEach(async () => {
+    await prisma.accessAllowlist.deleteMany({});
   });
 
   afterAll(async () => {
+    await prisma.$disconnect();
     await stopMongo();
     await db?.stop();
   });
@@ -33,9 +39,14 @@ describe('Admin owner bootstrap conflict e2e', () => {
     applyAuthTestEnv({
       OWNER_EMAIL: 'configured-owner@example.com',
     });
-    await seedExistingRow(mongoUri, {
-      email: 'configured-owner@example.com',
-      role: 'admin',
+    await prisma.accessAllowlist.create({
+      data: {
+        provider: 'deep_id',
+        email: 'configured-owner@example.com',
+        role: 'admin',
+        invitedBy: null,
+        invitedAt: new Date('2026-04-01T00:00:00.000Z'),
+      },
     });
 
     let app: INestApplication | undefined;
@@ -72,9 +83,14 @@ describe('Admin owner bootstrap conflict e2e', () => {
     applyAuthTestEnv({
       OWNER_EMAIL: 'configured-owner@example.com',
     });
-    await seedExistingRow(mongoUri, {
-      email: 'another-owner@example.com',
-      role: 'owner',
+    await prisma.accessAllowlist.create({
+      data: {
+        provider: 'deep_id',
+        email: 'another-owner@example.com',
+        role: 'owner',
+        invitedBy: null,
+        invitedAt: new Date('2026-04-01T00:00:00.000Z'),
+      },
     });
 
     let app: INestApplication | undefined;
@@ -107,22 +123,3 @@ describe('Admin owner bootstrap conflict e2e', () => {
     }
   });
 });
-
-async function seedExistingRow(mongoUri: string, options: { email: string; role: 'owner' | 'admin' }): Promise<void> {
-  const connection = await mongoose.createConnection(mongoUri).asPromise();
-
-  try {
-    const accessAllowlistModel = connection.model<AccessAllowlist>(MODEL_NAMES.ACCESS_ALLOWLIST, AccessAllowlistSchema);
-
-    await accessAllowlistModel.deleteMany({});
-    await accessAllowlistModel.create({
-      provider: OAuthProviderDeepId,
-      email: options.email,
-      role: options.role,
-      invitedBy: null,
-      invitedAt: new Date('2026-04-01T00:00:00.000Z'),
-    });
-  } finally {
-    await connection.close();
-  }
-}
