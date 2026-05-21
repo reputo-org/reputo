@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { Snapshot as PrismaSnapshot, SnapshotStatus } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import type { AlgorithmPresetInput, PrismaClientLike } from '../algorithm-preset/algorithm-preset.repository';
-import { PrismaService } from '../persistence';
+import { PrismaService, SNAPSHOT_UPDATES_CHANNEL } from '../persistence';
 import type { PaginateOptions, PaginateResult } from '../shared/persistence';
 import { paginate } from '../shared/persistence';
 
@@ -35,9 +35,9 @@ export interface AlgorithmPresetFrozen {
   updatedAt?: Date;
 }
 
-// Domain shape returned by the repository. `_id` and `algorithmPreset` mirror
-// the previous Mongoose `lean()` payload so HTTP responses and downstream
-// consumers (TemporalService, S3 cleanup) remain unchanged.
+// Domain shape returned by the repository. `_id` and `algorithmPreset` are
+// the field names HTTP responses and downstream consumers (TemporalService,
+// S3 cleanup) expect — diverges from Prisma's `id` / `algorithmPresetId`.
 export interface SnapshotRow {
   _id: string;
   status: SnapshotStatus;
@@ -159,8 +159,8 @@ export class SnapshotRepository {
 
   /**
    * Atomically applies an external update from the Temporal `updateSnapshot`
-   * activity. The update and the `pg_notify('snapshot_updates', <id>)` share
-   * one transaction so SSE listeners (task 09) only see committed rows.
+   * activity. The update and the `pg_notify(snapshot_updates, <id>)` share
+   * one transaction so SSE listeners only see committed rows.
    *
    * Returns the mapped row or `null` when no snapshot matches the id.
    */
@@ -168,7 +168,7 @@ export class SnapshotRepository {
     try {
       const [updated] = await this.prisma.$transaction([
         this.prisma.snapshot.update({ where: { id }, data }),
-        this.prisma.$executeRaw`SELECT pg_notify('snapshot_updates', ${id})`,
+        this.prisma.$executeRaw`SELECT pg_notify(${SNAPSHOT_UPDATES_CHANNEL}, ${id})`,
       ]);
       return mapSnapshotRow(updated);
     } catch (err) {

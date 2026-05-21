@@ -105,12 +105,12 @@ export class SnapshotService {
   /**
    * Applies an update originating from the Temporal `updateSnapshot` activity.
    *
-   * Owns the status-transition side effects that used to live in the workflow:
+   * Owns the status-transition side effects:
    *   - `status === 'running'` stamps `startedAt`
    *   - `status` in {`completed`, `failed`, `cancelled`} stamps `completedAt`
    *
-   * Persists the update and the SSE `pg_notify('snapshot_updates', <id>)` in
-   * the same transaction so listeners (task 09) only see committed rows.
+   * The repository persists the update and the SSE `pg_notify` in the same
+   * transaction so listeners only see committed rows.
    *
    * Returns `null` when the snapshot does not exist; the caller (activity)
    * surfaces that as a non-retryable failure so the workflow stops retrying.
