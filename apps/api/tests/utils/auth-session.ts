@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { getModelToken } from '@nestjs/mongoose';
 import type { TestingModule } from '@nestjs/testing';
-import type { AccessAllowlist, AccessRole, AuthSession, OAuthUser } from '@reputo/database';
+import type { AccessAllowlist, AccessRole } from '@reputo/database';
 import { MODEL_NAMES } from '@reputo/database';
 import type { Model } from 'mongoose';
+import { PrismaService } from '../../src/persistence';
 import { encryptValue } from '../../src/shared/utils';
 
 export const AUTH_TEST_ENV = {
@@ -25,6 +26,10 @@ export const AUTH_TEST_ENV = {
   AUTH_COOKIE_SAME_SITE: 'lax',
   AUTH_SESSION_TTL_SECONDS: '3600',
   AUTH_REFRESH_LEEWAY_SECONDS: '60',
+  // 0 disables the periodic cleanup cron so tests never get a stray tick
+  // mid-assertion. Suites that exercise the cleanup path call `runOnce`
+  // directly.
+  AUTH_SESSION_CLEANUP_INTERVAL_MS: '0',
   AUTH_TOKEN_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef',
   APP_PUBLIC_URL: 'http://localhost:5173',
 } as const;
@@ -44,35 +49,40 @@ export function applyAuthTestEnv(overrides: Partial<Record<keyof typeof AUTH_TES
   }
 }
 
+// Seeds an authenticated session for an integration test. OAuthUser and
+// AuthSession are persisted in Postgres (Prisma) per task 06; AccessAllowlist
+// still lives in Mongo until task 07, so it's written via the Mongoose model.
 export async function createAuthenticatedSession(
   moduleRef: TestingModule,
   options: CreateAuthenticatedSessionOptions = {},
 ) {
-  const authSessionModel = moduleRef.get<Model<AuthSession>>(getModelToken(MODEL_NAMES.AUTH_SESSION));
-  const oauthUserModel = moduleRef.get<Model<OAuthUser>>(getModelToken(MODEL_NAMES.OAUTH_USER));
+  const prisma = moduleRef.get(PrismaService);
   const accessAllowlistModel = moduleRef.get<Model<AccessAllowlist>>(getModelToken(MODEL_NAMES.ACCESS_ALLOWLIST));
   const subSuffix = randomUUID();
   const now = Date.now();
   const email = options.email ?? `${subSuffix}@example.com`;
+  const normalizedEmail = email.trim().toLowerCase();
   const role = options.role ?? 'admin';
-  const user = await oauthUserModel.create({
-    provider: 'deep-id',
-    sub: `did:deep-id:${subSuffix}`,
-    email,
-    email_verified: true,
-    username: `user-${subSuffix}`,
+  const user = await prisma.oAuthUser.create({
+    data: {
+      provider: 'deep_id',
+      sub: `did:deep-id:${subSuffix}`,
+      email: normalizedEmail,
+      emailVerified: true,
+      username: `user-${subSuffix}`,
+    },
   });
   const sessionId = randomUUID();
 
   await accessAllowlistModel.updateOne(
     {
       provider: 'deep-id',
-      email: email.trim().toLowerCase(),
+      email: normalizedEmail,
     },
     {
       $set: {
         provider: 'deep-id',
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         role,
         invitedBy: null,
       },
@@ -87,23 +97,25 @@ export async function createAuthenticatedSession(
     { upsert: true },
   );
 
-  await authSessionModel.create({
-    sessionId,
-    provider: 'deep-id',
-    userId: user._id,
-    accessTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-access-token'),
-    refreshTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-refresh-token'),
-    accessTokenExpiresAt: options.accessTokenExpiresAt ?? new Date(now + 10 * 60 * 1000),
-    refreshTokenExpiresAt: options.refreshTokenExpiresAt ?? new Date(now + 30 * 60 * 1000),
-    scope: options.scope ?? ['openid', 'profile', 'email', 'offline_access'],
-    state: `state-${subSuffix}`,
-    codeVerifier: `verifier-${subSuffix}`,
-    expiresAt: options.expiresAt ?? new Date(now + 30 * 60 * 1000),
+  await prisma.authSession.create({
+    data: {
+      sessionId,
+      provider: 'deep_id',
+      userId: user.id,
+      accessTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-access-token'),
+      refreshTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-refresh-token'),
+      accessTokenExpiresAt: options.accessTokenExpiresAt ?? new Date(now + 10 * 60 * 1000),
+      refreshTokenExpiresAt: options.refreshTokenExpiresAt ?? new Date(now + 30 * 60 * 1000),
+      scope: options.scope ?? ['openid', 'profile', 'email', 'offline_access'],
+      state: `state-${subSuffix}`,
+      codeVerifier: `verifier-${subSuffix}`,
+      expiresAt: options.expiresAt ?? new Date(now + 30 * 60 * 1000),
+    },
   });
 
   return {
     cookie: `${AUTH_TEST_ENV.AUTH_COOKIE_NAME}=${encodeURIComponent(sessionId)}`,
     sessionId,
-    userId: user._id.toString(),
+    userId: user.id,
   };
 }

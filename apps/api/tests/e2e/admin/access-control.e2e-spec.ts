@@ -1,11 +1,12 @@
 import type { INestApplication } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import type { TestingModule } from '@nestjs/testing';
-import type { AccessAllowlist, AuthSession, OAuthUser } from '@reputo/database';
+import type { AccessAllowlist } from '@reputo/database';
 import { MODEL_NAMES } from '@reputo/database';
 import type { Model } from 'mongoose';
 import supertest from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { PrismaService } from '../../../src/persistence';
 import { createTestApp } from '../../utils/app-test.module';
 import { AUTH_TEST_ENV } from '../../utils/auth-session';
 import { startMongo, stopMongo } from '../../utils/mongo-memory-server';
@@ -22,8 +23,7 @@ describe('Admin access-control e2e', () => {
   let app: INestApplication;
   let moduleRef: TestingModule;
   let accessAllowlistModel: Model<AccessAllowlist>;
-  let authSessionModel: Model<AuthSession>;
-  let oauthUserModel: Model<OAuthUser>;
+  let prisma: PrismaService;
   let db: TestDatabase;
   const oauthProvider = createMockOAuthProviderDouble();
 
@@ -39,17 +39,14 @@ describe('Admin access-control e2e', () => {
     app = boot.app;
     moduleRef = boot.moduleRef;
     accessAllowlistModel = moduleRef.get(getModelToken(MODEL_NAMES.ACCESS_ALLOWLIST));
-    authSessionModel = moduleRef.get(getModelToken(MODEL_NAMES.AUTH_SESSION));
-    oauthUserModel = moduleRef.get(getModelToken(MODEL_NAMES.OAUTH_USER));
+    prisma = moduleRef.get(PrismaService);
   });
 
   beforeEach(async () => {
     oauthProvider.reset();
-    await Promise.all([
-      accessAllowlistModel.deleteMany({}),
-      authSessionModel.deleteMany({}),
-      oauthUserModel.deleteMany({}),
-    ]);
+    await accessAllowlistModel.deleteMany({});
+    await prisma.authSession.deleteMany({});
+    await prisma.oAuthUser.deleteMany({});
   });
 
   afterAll(async () => {
@@ -102,8 +99,8 @@ describe('Admin access-control e2e', () => {
       `${AUTH_TEST_ENV.APP_PUBLIC_URL}/access-denied?reason=not_allowlisted`,
     );
     expect(login.cookie).toBeUndefined();
-    expect(await oauthUserModel.countDocuments()).toBe(0);
-    expect(await authSessionModel.countDocuments()).toBe(0);
+    expect(await prisma.oAuthUser.count()).toBe(0);
+    expect(await prisma.authSession.count()).toBe(0);
   });
 
   it('redirects an unverified callback email before user or session rows are created', async () => {
@@ -121,8 +118,8 @@ describe('Admin access-control e2e', () => {
       `${AUTH_TEST_ENV.APP_PUBLIC_URL}/access-denied?reason=email_unverified`,
     );
     expect(login.cookie).toBeUndefined();
-    expect(await oauthUserModel.countDocuments()).toBe(0);
-    expect(await authSessionModel.countDocuments()).toBe(0);
+    expect(await prisma.oAuthUser.count()).toBe(0);
+    expect(await prisma.authSession.count()).toBe(0);
   });
 
   it('lists owner and active admins for an authenticated admin', async () => {
@@ -320,8 +317,7 @@ describe('Admin access-control e2e (mock mode)', () => {
   let app: INestApplication;
   let moduleRef: TestingModule;
   let accessAllowlistModel: Model<AccessAllowlist>;
-  let authSessionModel: Model<AuthSession>;
-  let oauthUserModel: Model<OAuthUser>;
+  let prisma: PrismaService;
   let db: TestDatabase;
 
   beforeAll(async () => {
@@ -344,16 +340,13 @@ describe('Admin access-control e2e (mock mode)', () => {
     app = boot.app;
     moduleRef = boot.moduleRef;
     accessAllowlistModel = moduleRef.get(getModelToken(MODEL_NAMES.ACCESS_ALLOWLIST));
-    authSessionModel = moduleRef.get(getModelToken(MODEL_NAMES.AUTH_SESSION));
-    oauthUserModel = moduleRef.get(getModelToken(MODEL_NAMES.OAUTH_USER));
+    prisma = moduleRef.get(PrismaService);
   });
 
   beforeEach(async () => {
-    await Promise.all([
-      accessAllowlistModel.deleteMany({}),
-      authSessionModel.deleteMany({}),
-      oauthUserModel.deleteMany({}),
-    ]);
+    await accessAllowlistModel.deleteMany({});
+    await prisma.authSession.deleteMany({});
+    await prisma.oAuthUser.deleteMany({});
   });
 
   afterAll(async () => {

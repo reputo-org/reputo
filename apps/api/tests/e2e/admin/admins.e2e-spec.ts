@@ -2,11 +2,12 @@ import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import type { TestingModule } from '@nestjs/testing';
-import type { AccessAllowlist, AuthSession, OAuthUser } from '@reputo/database';
+import type { AccessAllowlist } from '@reputo/database';
 import { MODEL_NAMES } from '@reputo/database';
-import type { Model, Types } from 'mongoose';
+import type { Model } from 'mongoose';
 import supertest from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { PrismaService } from '../../../src/persistence';
 import { encryptValue } from '../../../src/shared/utils';
 import { createTestApp } from '../../utils/app-test.module';
 import { AUTH_TEST_ENV, createAuthenticatedSession } from '../../utils/auth-session';
@@ -18,8 +19,7 @@ describe('Admin access management e2e', () => {
   let app: INestApplication;
   let moduleRef: TestingModule;
   let accessAllowlistModel: Model<AccessAllowlist>;
-  let authSessionModel: Model<AuthSession>;
-  let oauthUserModel: Model<OAuthUser>;
+  let prisma: PrismaService;
   let db: TestDatabase;
 
   beforeAll(async () => {
@@ -31,16 +31,13 @@ describe('Admin access management e2e', () => {
     app = boot.app;
     moduleRef = boot.moduleRef;
     accessAllowlistModel = moduleRef.get(getModelToken(MODEL_NAMES.ACCESS_ALLOWLIST));
-    authSessionModel = moduleRef.get(getModelToken(MODEL_NAMES.AUTH_SESSION));
-    oauthUserModel = moduleRef.get(getModelToken(MODEL_NAMES.OAUTH_USER));
+    prisma = moduleRef.get(PrismaService);
   });
 
   beforeEach(async () => {
-    await Promise.all([
-      accessAllowlistModel.deleteMany({}),
-      authSessionModel.deleteMany({}),
-      oauthUserModel.deleteMany({}),
-    ]);
+    await accessAllowlistModel.deleteMany({});
+    await prisma.authSession.deleteMany({});
+    await prisma.oAuthUser.deleteMany({});
   });
 
   afterAll(async () => {
@@ -53,22 +50,24 @@ describe('Admin access management e2e', () => {
     return createAuthenticatedSession(moduleRef, { email, role });
   }
 
-  async function createExtraSessionForUser(userId: string | Types.ObjectId): Promise<string> {
+  async function createExtraSessionForUser(userId: string): Promise<string> {
     const sessionId = randomUUID();
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
-    await authSessionModel.create({
-      sessionId,
-      provider: 'deep-id',
-      userId,
-      accessTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-access-token'),
-      refreshTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-refresh-token'),
-      accessTokenExpiresAt: expiresAt,
-      refreshTokenExpiresAt: expiresAt,
-      scope: ['openid', 'profile', 'email', 'offline_access'],
-      state: `state-${sessionId}`,
-      codeVerifier: `verifier-${sessionId}`,
-      expiresAt,
+    await prisma.authSession.create({
+      data: {
+        sessionId,
+        provider: 'deep_id',
+        userId,
+        accessTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-access-token'),
+        refreshTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-refresh-token'),
+        accessTokenExpiresAt: expiresAt,
+        refreshTokenExpiresAt: expiresAt,
+        scope: ['openid', 'profile', 'email', 'offline_access'],
+        state: `state-${sessionId}`,
+        codeVerifier: `verifier-${sessionId}`,
+        expiresAt,
+      },
     });
 
     return sessionId;
@@ -347,7 +346,7 @@ describe('Admin access management e2e', () => {
         .expect(204);
 
       const row = await accessAllowlistModel.findOne({ email: 'target@example.com' }).lean();
-      const sessions = await authSessionModel.find({ userId: admin.userId }).lean();
+      const sessions = await prisma.authSession.findMany({ where: { userId: admin.userId } });
 
       expect(row?.revokedAt).toBeTruthy();
       expect(String(row?.revokedBy)).toBe(owner.userId);

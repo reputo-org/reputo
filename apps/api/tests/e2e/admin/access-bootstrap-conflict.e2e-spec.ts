@@ -9,18 +9,24 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { OwnerEmailConflictError } from '../../../src/admin';
 import { AuthModule } from '../../../src/auth';
 import { configModules } from '../../../src/config';
+import { PrismaModule } from '../../../src/persistence';
 import { applyAuthTestEnv } from '../../utils/auth-session';
 import { startMongo, stopMongo } from '../../utils/mongo-memory-server';
+import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 
 describe('Admin owner bootstrap conflict e2e', () => {
   let mongoUri: string;
+  let db: TestDatabase;
 
   beforeAll(async () => {
     mongoUri = await startMongo();
+    db = await startTestDatabase();
+    process.env.DATABASE_URL = db.databaseUrl;
   });
 
   afterAll(async () => {
     await stopMongo();
+    await db?.stop();
   });
 
   it('fails app startup when OWNER_EMAIL is held by an active non-owner allowlist row', async () => {
@@ -49,6 +55,7 @@ describe('Admin owner bootstrap conflict e2e', () => {
             },
           }),
           MongooseModule.forRoot(mongoUri),
+          PrismaModule,
           AuthModule,
         ],
       }).compile();
@@ -87,6 +94,7 @@ describe('Admin owner bootstrap conflict e2e', () => {
             },
           }),
           MongooseModule.forRoot(mongoUri),
+          PrismaModule,
           AuthModule,
         ],
       }).compile();

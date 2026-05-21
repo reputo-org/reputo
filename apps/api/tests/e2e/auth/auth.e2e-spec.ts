@@ -3,7 +3,7 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { getModelToken, MongooseModule } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
-import type { AccessAllowlist, AccessRole, AuthSession, OAuthUser } from '@reputo/database';
+import type { AccessAllowlist, AccessRole } from '@reputo/database';
 import { MODEL_NAMES } from '@reputo/database';
 import type { Model } from 'mongoose';
 import { LoggerModule } from 'nestjs-pino';
@@ -12,16 +12,18 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { AuthModule } from '../../../src/auth';
 import { OAuthAuthProviderService } from '../../../src/auth/oauth-auth-provider.service';
 import { configModules } from '../../../src/config';
+import { PrismaModule, PrismaService } from '../../../src/persistence';
 import { HttpExceptionFilter } from '../../../src/shared/filters/http-exception.filter';
 import { AUTH_TEST_ENV, applyAuthTestEnv } from '../../utils/auth-session';
 import { startMongo, stopMongo } from '../../utils/mongo-memory-server';
+import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { base } from '../../utils/request';
 
 describe('OAuth auth e2e', () => {
   let app: INestApplication;
   let accessAllowlistModel: Model<AccessAllowlist>;
-  let authSessionModel: Model<AuthSession>;
-  let oauthUserModel: Model<OAuthUser>;
+  let prisma: PrismaService;
+  let db: TestDatabase;
 
   const mockOAuthService = {
     getScopes: vi.fn(() => ['openid', 'profile', 'email', 'offline_access']),
@@ -40,6 +42,8 @@ describe('OAuth auth e2e', () => {
     applyAuthTestEnv();
 
     const mongoUri = await startMongo();
+    db = await startTestDatabase();
+    process.env.DATABASE_URL = db.databaseUrl;
 
     const moduleRef = await Test.createTestingModule({
       imports: [
@@ -54,6 +58,7 @@ describe('OAuth auth e2e', () => {
           },
         }),
         MongooseModule.forRoot(mongoUri),
+        PrismaModule,
         AuthModule,
       ],
     })
@@ -61,8 +66,7 @@ describe('OAuth auth e2e', () => {
       .useValue(mockOAuthService)
       .compile();
 
-    authSessionModel = moduleRef.get(getModelToken(MODEL_NAMES.AUTH_SESSION));
-    oauthUserModel = moduleRef.get(getModelToken(MODEL_NAMES.OAUTH_USER));
+    prisma = moduleRef.get(PrismaService);
     accessAllowlistModel = moduleRef.get(getModelToken(MODEL_NAMES.ACCESS_ALLOWLIST));
     app = moduleRef.createNestApplication();
 
@@ -86,38 +90,40 @@ describe('OAuth auth e2e', () => {
 
   afterEach(async () => {
     vi.clearAllMocks();
-    await Promise.all([
-      authSessionModel.deleteMany({}),
-      oauthUserModel.deleteMany({}),
-      accessAllowlistModel.deleteMany({ email: { $ne: AUTH_TEST_ENV.OWNER_EMAIL } }),
-      accessAllowlistModel.updateOne(
-        {
+    // AuthSession FK → OAuthUser cascade clears sessions when their parent
+    // user goes away; deleting sessions first is still cheap and keeps the
+    // intent obvious.
+    await prisma.authSession.deleteMany({});
+    await prisma.oAuthUser.deleteMany({});
+    await accessAllowlistModel.deleteMany({ email: { $ne: AUTH_TEST_ENV.OWNER_EMAIL } });
+    await accessAllowlistModel.updateOne(
+      {
+        provider: 'deep-id',
+        email: AUTH_TEST_ENV.OWNER_EMAIL,
+      },
+      {
+        $set: {
           provider: 'deep-id',
           email: AUTH_TEST_ENV.OWNER_EMAIL,
+          role: 'owner',
+          invitedBy: null,
         },
-        {
-          $set: {
-            provider: 'deep-id',
-            email: AUTH_TEST_ENV.OWNER_EMAIL,
-            role: 'owner',
-            invitedBy: null,
-          },
-          $setOnInsert: {
-            invitedAt: new Date(),
-          },
-          $unset: {
-            revokedAt: '',
-            revokedBy: '',
-          },
+        $setOnInsert: {
+          invitedAt: new Date(),
         },
-        { upsert: true },
-      ),
-    ]);
+        $unset: {
+          revokedAt: '',
+          revokedBy: '',
+        },
+      },
+      { upsert: true },
+    );
   });
 
   afterAll(async () => {
     await app.close();
     await stopMongo();
+    await db?.stop();
   });
 
   async function allowlistEmail(email: string, role: AccessRole = 'admin'): Promise<void> {
@@ -215,19 +221,16 @@ describe('OAuth auth e2e', () => {
       expect.arrayContaining([expect.stringContaining(`${AUTH_TEST_ENV.AUTH_COOKIE_NAME}=`)]),
     );
 
-    const storedUser = await oauthUserModel.findOne({ sub: 'did:plc:pwtlzekayxk67odbhen6v2bb' }).lean();
-    const storedSession = await authSessionModel
-      .findOne({})
-      .select('+accessTokenCiphertext +refreshTokenCiphertext +state +codeVerifier')
-      .lean();
+    const storedUser = await prisma.oAuthUser.findFirst({ where: { sub: 'did:plc:pwtlzekayxk67odbhen6v2bb' } });
+    const storedSession = await prisma.authSession.findFirst({});
 
     expect(storedUser).toMatchObject({
-      provider: 'deep-id',
+      provider: 'deep_id',
       sub: 'did:plc:pwtlzekayxk67odbhen6v2bb',
       aud: ['9cad9abe-1dc6-4c66-acac-f747026c3beb'],
-      auth_time: 1775166617,
+      authTime: 1775166617,
       email: 'behzad.rabiei.77@gmail.com',
-      email_verified: true,
+      emailVerified: true,
       iat: 1775166619,
       iss: 'https://identity.staging.deep-id.ai',
       picture:
@@ -235,13 +238,11 @@ describe('OAuth auth e2e', () => {
       rat: 1775166617,
       username: 'behzad',
     });
-    expect(storedUser).not.toHaveProperty('did');
     expect(storedSession).toBeTruthy();
     expect(storedSession?.accessTokenCiphertext).not.toBe('provider-access-token');
     expect(storedSession?.refreshTokenCiphertext).not.toBe('provider-refresh-token');
     expect(storedSession?.state).toBe(state);
     expect(storedSession?.codeVerifier).toBeTruthy();
-    expect(storedSession).not.toHaveProperty('nonce');
 
     const currentSession = await agent.get(base('/auth/me')).expect(200);
 
@@ -275,7 +276,7 @@ describe('OAuth auth e2e', () => {
 
     await agent.get(base('/auth/deep-id/callback?code=code-123&state=wrong-state')).expect(401);
 
-    expect(await authSessionModel.countDocuments()).toBe(0);
+    expect(await prisma.authSession.count()).toBe(0);
   });
 
   it('redirects to access-denied with consent_denied when the provider returns access_denied', async () => {
@@ -297,8 +298,8 @@ describe('OAuth auth e2e', () => {
     expect(callbackResponse.headers['set-cookie']).toEqual(
       expect.arrayContaining([expect.stringContaining(`${AUTH_TEST_ENV.AUTH_COOKIE_NAME}.flow=;`)]),
     );
-    expect(await oauthUserModel.countDocuments()).toBe(0);
-    expect(await authSessionModel.countDocuments()).toBe(0);
+    expect(await prisma.oAuthUser.count()).toBe(0);
+    expect(await prisma.authSession.count()).toBe(0);
   });
 
   it('redirects unverified callback email to access denied without creating a user or session', async () => {
@@ -331,8 +332,8 @@ describe('OAuth auth e2e', () => {
     expect(callbackResponse.headers['set-cookie']).toEqual(
       expect.arrayContaining([expect.stringContaining(`${AUTH_TEST_ENV.AUTH_COOKIE_NAME}.flow=;`)]),
     );
-    expect(await oauthUserModel.countDocuments()).toBe(0);
-    expect(await authSessionModel.countDocuments()).toBe(0);
+    expect(await prisma.oAuthUser.count()).toBe(0);
+    expect(await prisma.authSession.count()).toBe(0);
   });
 
   it('treats a revoked allowlist row as not allowlisted during callback', async () => {
@@ -370,8 +371,8 @@ describe('OAuth auth e2e', () => {
     expect(callbackResponse.headers.location).toBe(
       `${AUTH_TEST_ENV.APP_PUBLIC_URL}/access-denied?reason=not_allowlisted`,
     );
-    expect(await oauthUserModel.countDocuments()).toBe(0);
-    expect(await authSessionModel.countDocuments()).toBe(0);
+    expect(await prisma.oAuthUser.count()).toBe(0);
+    expect(await prisma.authSession.count()).toBe(0);
   });
 
   it('refreshes provider tokens during /me when the stored access token is close to expiry', async () => {
@@ -405,15 +406,13 @@ describe('OAuth auth e2e', () => {
 
     await agent.get(base(`/auth/deep-id/callback?code=code-refresh&state=${state}`)).expect(302);
 
-    const storedSession = await authSessionModel.findOne({}).lean();
+    const storedSession = await prisma.authSession.findFirst({});
     expect(storedSession).toBeTruthy();
 
-    await authSessionModel.updateOne(
-      { _id: storedSession?._id },
-      {
-        accessTokenExpiresAt: new Date(Date.now() - 1_000),
-      },
-    );
+    await prisma.authSession.update({
+      where: { id: storedSession?.id },
+      data: { accessTokenExpiresAt: new Date(Date.now() - 1_000) },
+    });
 
     mockOAuthService.refreshTokens.mockResolvedValue({
       access_token: 'fresh-access-token',
@@ -425,10 +424,7 @@ describe('OAuth auth e2e', () => {
     });
 
     const response = await agent.get(base('/auth/me')).expect(200);
-    const refreshedSession = await authSessionModel
-      .findOne({})
-      .select('+accessTokenCiphertext +refreshTokenCiphertext')
-      .lean();
+    const refreshedSession = await prisma.authSession.findFirst({});
 
     expect(response.body.authenticated).toBe(true);
     expect(response.body.user).toMatchObject({
@@ -471,7 +467,7 @@ describe('OAuth auth e2e', () => {
 
     await agent.get(base(`/auth/deep-id/callback?code=code-logout&state=${state}`)).expect(302);
 
-    const activeSession = await authSessionModel.findOne({}).lean();
+    const activeSession = await prisma.authSession.findFirst({});
 
     expect(activeSession).toBeTruthy();
 
@@ -481,7 +477,7 @@ describe('OAuth auth e2e', () => {
       expect.arrayContaining([expect.stringContaining(`${AUTH_TEST_ENV.AUTH_COOKIE_NAME}=;`)]),
     );
 
-    const revokedSession = await authSessionModel.findById(activeSession?._id).lean();
+    const revokedSession = await prisma.authSession.findUnique({ where: { id: activeSession?.id ?? '' } });
     const currentSession = await agent.get(base('/auth/me')).expect(401);
 
     expect(revokedSession?.revokedAt).toBeTruthy();

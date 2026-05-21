@@ -3,7 +3,7 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { getModelToken, MongooseModule } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
-import type { AuthSession, OAuthConsentGrant, OAuthUser } from '@reputo/database';
+import type { OAuthConsentGrant } from '@reputo/database';
 import { MODEL_NAMES } from '@reputo/database';
 import type { Model } from 'mongoose';
 import { LoggerModule } from 'nestjs-pino';
@@ -12,10 +12,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { AuthModule } from '../../../src/auth';
 import { configModules } from '../../../src/config';
 import { ConsentModule } from '../../../src/consent';
+import { PrismaModule, PrismaService } from '../../../src/persistence';
 import { HttpExceptionFilter } from '../../../src/shared/filters/http-exception.filter';
 import { createPkceChallenge } from '../../../src/shared/utils';
 import { applyAuthTestEnv } from '../../utils/auth-session';
 import { startMongo, stopMongo } from '../../utils/mongo-memory-server';
+import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { base } from '../../utils/request';
 
 const DISCOVERY_DOCUMENT = {
@@ -52,8 +54,8 @@ function getFetchUrl(input: RequestInfo | URL): string {
 describe('OAuth consent e2e', () => {
   let app: INestApplication;
   let oauthConsentGrantModel: Model<OAuthConsentGrant>;
-  let authSessionModel: Model<AuthSession>;
-  let oauthUserModel: Model<OAuthUser>;
+  let prisma: PrismaService;
+  let db: TestDatabase;
   let tokenRequests: FetchRequest[] = [];
   let userinfoRequests: FetchRequest[] = [];
   let tokenStatus = 200;
@@ -109,6 +111,8 @@ describe('OAuth consent e2e', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const mongoUri = await startMongo();
+    db = await startTestDatabase();
+    process.env.DATABASE_URL = db.databaseUrl;
     const moduleRef = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({
@@ -122,14 +126,14 @@ describe('OAuth consent e2e', () => {
           },
         }),
         MongooseModule.forRoot(mongoUri),
+        PrismaModule,
         AuthModule,
         ConsentModule,
       ],
     }).compile();
 
     oauthConsentGrantModel = moduleRef.get(getModelToken(MODEL_NAMES.OAUTH_CONSENT_GRANT));
-    authSessionModel = moduleRef.get(getModelToken(MODEL_NAMES.AUTH_SESSION));
-    oauthUserModel = moduleRef.get(getModelToken(MODEL_NAMES.OAUTH_USER));
+    prisma = moduleRef.get(PrismaService);
     app = moduleRef.createNestApplication();
 
     app.useGlobalFilters(new HttpExceptionFilter());
@@ -152,8 +156,8 @@ describe('OAuth consent e2e', () => {
 
   afterEach(async () => {
     expect(userinfoRequests).toHaveLength(0);
-    expect(await authSessionModel.countDocuments()).toBe(0);
-    expect(await oauthUserModel.countDocuments()).toBe(0);
+    expect(await prisma.authSession.count()).toBe(0);
+    expect(await prisma.oAuthUser.count()).toBe(0);
 
     tokenRequests = [];
     userinfoRequests = [];
@@ -166,11 +170,9 @@ describe('OAuth consent e2e', () => {
     };
     fetchMock.mockClear();
 
-    await Promise.all([
-      oauthConsentGrantModel.deleteMany({}),
-      authSessionModel.deleteMany({}),
-      oauthUserModel.deleteMany({}),
-    ]);
+    await oauthConsentGrantModel.deleteMany({});
+    await prisma.authSession.deleteMany({});
+    await prisma.oAuthUser.deleteMany({});
   });
 
   afterAll(async () => {
@@ -179,6 +181,7 @@ describe('OAuth consent e2e', () => {
       await app.close();
     }
     await stopMongo();
+    await db?.stop();
   });
 
   it('rejects missing and unknown sources without redirecting', async () => {

@@ -1,15 +1,15 @@
 import { type INestApplication, UnauthorizedException, VersioningType } from '@nestjs/common';
 import { APP_GUARD, Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
-import { Types } from 'mongoose';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthController } from '../../../src/auth/auth.controller';
 import { AuthService } from '../../../src/auth/auth.service';
 import { SessionAuthGuard } from '../../../src/shared/guards/session-auth.guard';
 import { setAuthRequestContext } from '../../../src/shared/types';
+import { randomUUIDv7 } from '../../utils/uuid';
 
-const userId = new Types.ObjectId();
+const userId = randomUUIDv7();
 
 const MOCK_SESSION_VIEW = {
   authenticated: true,
@@ -18,7 +18,7 @@ const MOCK_SESSION_VIEW = {
   expiresAt: '2026-05-02T10:00:00.000Z',
   scope: ['openid', 'profile', 'email', 'offline_access'],
   user: {
-    id: userId.toString(),
+    id: userId,
     provider: 'deep-id' as const,
     role: 'owner' as const,
     sub: 'did:deep-id:123',
@@ -30,7 +30,7 @@ const MOCK_SESSION_VIEW = {
 const MOCK_AUTH_CONTEXT = {
   role: 'owner' as const,
   session: {
-    _id: new Types.ObjectId(),
+    _id: randomUUIDv7(),
     sessionId: 'session-123',
     provider: 'deep-id' as const,
     userId,
