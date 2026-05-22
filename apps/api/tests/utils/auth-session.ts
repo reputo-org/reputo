@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import type { AccessRole } from '@reputo/contracts';
-import { PrismaService } from '../../src/persistence';
+import type { Repository } from 'typeorm';
+import { AccessAllowlistEntity, AuthSessionEntity, OAuthUserEntity } from '../../src/persistence';
 import { encryptValue } from '../../src/shared/utils';
 
 export const AUTH_TEST_ENV = {
@@ -51,50 +53,59 @@ export function applyAuthTestEnv(overrides: Partial<Record<keyof typeof AUTH_TES
 }
 
 // Seeds an authenticated session for an integration test. OAuthUser,
-// AuthSession, and AccessAllowlist are persisted in Postgres (Prisma) per
-// tasks 06 and 07.
+// AuthSession, and AccessAllowlist are persisted in Postgres (TypeORM) per
+// tasks 06, 07 and the Phase 6 ORM rewrite.
 export async function createAuthenticatedSession(
   moduleRef: TestingModule,
   options: CreateAuthenticatedSessionOptions = {},
 ) {
-  const prisma = moduleRef.get(PrismaService);
+  const userRepo = moduleRef.get<Repository<OAuthUserEntity>>(getRepositoryToken(OAuthUserEntity));
+  const allowlistRepo = moduleRef.get<Repository<AccessAllowlistEntity>>(getRepositoryToken(AccessAllowlistEntity));
+  const sessionRepo = moduleRef.get<Repository<AuthSessionEntity>>(getRepositoryToken(AuthSessionEntity));
+
   const subSuffix = randomUUID();
   const now = Date.now();
   const email = options.email ?? `${subSuffix}@example.com`;
   const normalizedEmail = email.trim().toLowerCase();
   const role = options.role ?? 'admin';
-  const user = await prisma.oAuthUser.create({
-    data: {
-      provider: 'deep_id',
+
+  const user = await userRepo.save(
+    userRepo.create({
+      provider: 'deep-id',
       sub: `did:deep-id:${subSuffix}`,
       email: normalizedEmail,
       emailVerified: true,
       username: `user-${subSuffix}`,
-    },
-  });
+      aud: [],
+    }),
+  );
+
+  const existingEntry = await allowlistRepo.findOne({ where: { provider: 'deep-id', email: normalizedEmail } });
+  if (existingEntry) {
+    existingEntry.role = role;
+    existingEntry.invitedByUserId = null;
+    existingEntry.revokedAt = null;
+    existingEntry.revokedByUserId = null;
+    await allowlistRepo.save(existingEntry);
+  } else {
+    await allowlistRepo.save(
+      allowlistRepo.create({
+        provider: 'deep-id',
+        email: normalizedEmail,
+        role,
+        invitedByUserId: null,
+        invitedAt: new Date(now),
+        revokedAt: null,
+        revokedByUserId: null,
+      }),
+    );
+  }
+
   const sessionId = randomUUID();
-
-  await prisma.accessAllowlist.upsert({
-    where: { provider_email: { provider: 'deep_id', email: normalizedEmail } },
-    create: {
-      provider: 'deep_id',
-      email: normalizedEmail,
-      role,
-      invitedBy: null,
-      invitedAt: new Date(now),
-    },
-    update: {
-      role,
-      invitedBy: null,
-      revokedAt: null,
-      revokedBy: null,
-    },
-  });
-
-  await prisma.authSession.create({
-    data: {
+  await sessionRepo.save(
+    sessionRepo.create({
       sessionId,
-      provider: 'deep_id',
+      provider: 'deep-id',
       userId: user.id,
       accessTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-access-token'),
       refreshTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-refresh-token'),
@@ -104,8 +115,10 @@ export async function createAuthenticatedSession(
       state: `state-${subSuffix}`,
       codeVerifier: `verifier-${subSuffix}`,
       expiresAt: options.expiresAt ?? new Date(now + 30 * 60 * 1000),
-    },
-  });
+      lastRefreshedAt: null,
+      revokedAt: null,
+    }),
+  );
 
   return {
     cookie: `${AUTH_TEST_ENV.AUTH_COOKIE_NAME}=${encodeURIComponent(sessionId)}`,

@@ -3,6 +3,7 @@ import type { ConfigService } from '@nestjs/config';
 import { validateAlgorithmPreset } from '@reputo/algorithm-validator';
 import { getAlgorithmDefinition } from '@reputo/reputation-algorithms';
 import type { StorageMetadata } from '@reputo/storage';
+import type { DataSource } from 'typeorm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AlgorithmPresetRepository } from '../../../src/algorithm-preset/algorithm-preset.repository';
 import { AlgorithmPresetService } from '../../../src/algorithm-preset/algorithm-preset.service';
@@ -11,7 +12,6 @@ import type {
   ListAlgorithmPresetsQueryDto,
   UpdateAlgorithmPresetDto,
 } from '../../../src/algorithm-preset/dto';
-import type { PrismaService } from '../../../src/persistence';
 import { StorageInputValidationException } from '../../../src/shared/exceptions';
 import type { SnapshotRepository } from '../../../src/snapshot/snapshot.repository';
 import type { StorageService } from '../../../src/storage/storage.service';
@@ -42,7 +42,7 @@ describe('AlgorithmPresetService', () => {
   let mockConfigService: ConfigService;
   let mockSnapshotRepository: SnapshotRepository;
   let mockTemporalService: TemporalService;
-  let mockPrisma: PrismaService;
+  let mockDataSource: DataSource;
   const mockLogger = {
     info: vi.fn(),
     error: vi.fn(),
@@ -126,11 +126,14 @@ describe('AlgorithmPresetService', () => {
       terminateSnapshotWorkflows: vi.fn().mockResolvedValue(undefined),
     } as unknown as TemporalService;
 
-    // $transaction immediately invokes the callback with a no-op proxy that
-    // re-uses the service's existing repository mocks via passthrough.
-    mockPrisma = {
-      $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb({})),
-    } as unknown as PrismaService;
+    // `dataSource.transaction(cb)` immediately invokes the callback with an
+    // empty proxy that re-uses the service's existing repository mocks via
+    // passthrough — the same pattern as the old `prisma.$transaction` test
+    // double, just now keyed off the TypeORM EntityManager rather than the
+    // PrismaClient.
+    mockDataSource = {
+      transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb({})),
+    } as unknown as DataSource;
 
     vi.mocked(getAlgorithmDefinition).mockReturnValue(JSON.stringify(mockAlgorithmDefinition));
     vi.mocked(validateAlgorithmPreset).mockImplementation(async (args) => {
@@ -170,7 +173,7 @@ describe('AlgorithmPresetService', () => {
       mockStorageService,
       mockSnapshotRepository,
       mockTemporalService,
-      mockPrisma,
+      mockDataSource,
       mockConfigService,
     );
   });
@@ -279,7 +282,7 @@ describe('AlgorithmPresetService', () => {
   });
 
   describe('deleteById', () => {
-    it('runs the snapshot deleteMany + preset deleteById inside `prisma.$transaction`', async () => {
+    it('runs the snapshot deleteMany + preset deleteById inside `dataSource.transaction`', async () => {
       const preset = { _id: PRESET_ID, key: 'k', version: '1', inputs: [] };
       const snapshots = [{ _id: 's1', status: 'completed', algorithmPresetFrozen: { inputs: [] } }];
 
@@ -292,7 +295,7 @@ describe('AlgorithmPresetService', () => {
 
       expect(mockSnapshotRepository.find).toHaveBeenCalledWith({ algorithmPresetId: PRESET_ID });
       expect(mockTemporalService.terminateSnapshotWorkflows).toHaveBeenCalledWith(snapshots, true);
-      expect(mockPrisma.$transaction).toHaveBeenCalledOnce();
+      expect(mockDataSource.transaction).toHaveBeenCalledOnce();
       expect(mockSnapshotRepository.deleteMany).toHaveBeenCalledWith(
         { algorithmPresetId: PRESET_ID },
         expect.anything(),

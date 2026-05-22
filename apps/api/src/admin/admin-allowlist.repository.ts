@@ -1,11 +1,20 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, type AccessAllowlist as PrismaAccessAllowlist } from '@prisma/client';
+import { InjectRepository } from '@nestjs/typeorm';
 import { ACCESS_ROLE_ADMIN, type AccessRole, type OAuthProvider } from '@reputo/contracts';
-import { PrismaService } from '../persistence';
-import { toPrismaProvider, toWireProvider } from '../shared/utils';
+import {
+  type FindOptionsOrder,
+  type FindOptionsWhere,
+  ILike,
+  In,
+  IsNull,
+  Not,
+  QueryFailedError,
+  Repository,
+} from 'typeorm';
+import { AccessAllowlistEntity } from '../persistence';
 import type { AdminAllowlistSortField, AdminAllowlistSortOrder, AdminAllowlistStatus } from './admin.constants';
 
-// Domain shape returned by the repository. Uses `_id` (rather than Prisma's
+// Domain shape returned by the repository. Uses `_id` (rather than TypeORM's
 // `id`) so callers above the repository keep using `_id`, with
 // string-shaped invitedBy/revokedBy fields for the HTTP wire format.
 export interface AccessAllowlistRow {
@@ -40,51 +49,52 @@ export interface AdminAllowlistListResult {
   total: number;
 }
 
-function mapRow(row: PrismaAccessAllowlist): AccessAllowlistRow {
+function mapRow(entity: AccessAllowlistEntity): AccessAllowlistRow {
   return {
-    _id: row.id,
-    provider: toWireProvider(row.provider),
-    email: row.email,
-    role: row.role,
-    invitedBy: row.invitedBy,
-    invitedAt: row.invitedAt,
+    _id: entity.id,
+    provider: entity.provider,
+    email: entity.email,
+    role: entity.role,
+    invitedBy: entity.invitedByUserId,
+    invitedAt: entity.invitedAt,
     // Drop `revokedAt` from the row when null so the JSON response omits the
     // field rather than emitting `"revokedAt": null`.
-    revokedAt: row.revokedAt ?? undefined,
-    revokedBy: row.revokedBy,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
+    revokedAt: entity.revokedAt ?? undefined,
+    revokedBy: entity.revokedByUserId,
+    createdAt: entity.createdAt,
+    updatedAt: entity.updatedAt,
   };
 }
 
 @Injectable()
 export class AdminAllowlistRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(AccessAllowlistEntity)
+    private readonly repo: Repository<AccessAllowlistEntity>,
+  ) {}
 
   async findActiveByProviderEmail(provider: OAuthProvider, email: string): Promise<AccessAllowlistRow | null> {
     const normalizedEmail = this.normalizeEmail(email);
     if (!normalizedEmail) return null;
 
-    const row = await this.prisma.accessAllowlist.findFirst({
-      where: { provider: toPrismaProvider(provider), email: normalizedEmail, revokedAt: null },
+    const entity = await this.repo.findOne({
+      where: { provider, email: normalizedEmail, revokedAt: IsNull() },
     });
-    return row ? mapRow(row) : null;
+    return entity ? mapRow(entity) : null;
   }
 
   async findByProviderEmail(provider: OAuthProvider, email: string): Promise<AccessAllowlistRow | null> {
     const normalizedEmail = this.normalizeEmail(email);
     if (!normalizedEmail) return null;
 
-    const row = await this.prisma.accessAllowlist.findUnique({
-      where: { provider_email: { provider: toPrismaProvider(provider), email: normalizedEmail } },
+    const entity = await this.repo.findOne({
+      where: { provider, email: normalizedEmail },
     });
-    return row ? mapRow(row) : null;
+    return entity ? mapRow(entity) : null;
   }
 
   async countActiveOwners(provider: OAuthProvider): Promise<number> {
-    return this.prisma.accessAllowlist.count({
-      where: { provider: toPrismaProvider(provider), role: 'owner', revokedAt: null },
-    });
+    return this.repo.count({ where: { provider, role: 'owner', revokedAt: IsNull() } });
   }
 
   async list(options: AdminAllowlistListOptions): Promise<AdminAllowlistListResult> {
@@ -93,20 +103,15 @@ export class AdminAllowlistRepository {
     const page = Math.max(Number(options.page ?? 1), 1);
     const skip = (page - 1) * limit;
     const sortField: AdminAllowlistSortField = options.sortField ?? 'email';
-    const sortOrder: 'asc' | 'desc' = options.sortOrder === 'desc' ? 'desc' : 'asc';
+    const sortOrder: 'ASC' | 'DESC' = options.sortOrder === 'desc' ? 'DESC' : 'ASC';
     const sortFallback: AdminAllowlistSortField = 'email';
-    const orderBy: Prisma.AccessAllowlistOrderByWithRelationInput[] =
-      sortField === sortFallback
-        ? [{ [sortField]: sortOrder } as Prisma.AccessAllowlistOrderByWithRelationInput]
-        : [
-            { [sortField]: sortOrder } as Prisma.AccessAllowlistOrderByWithRelationInput,
-            { [sortFallback]: 'asc' } as Prisma.AccessAllowlistOrderByWithRelationInput,
-          ];
 
-    const [rows, total] = await Promise.all([
-      this.prisma.accessAllowlist.findMany({ where, orderBy, skip, take: limit }),
-      this.prisma.accessAllowlist.count({ where }),
-    ]);
+    const order: FindOptionsOrder<AccessAllowlistEntity> = { [sortField]: sortOrder };
+    if (sortField !== sortFallback) {
+      order[sortFallback] = 'ASC';
+    }
+
+    const [rows, total] = await this.repo.findAndCount({ where, order, skip, take: limit });
 
     return { results: rows.map(mapRow), total };
   }
@@ -118,16 +123,17 @@ export class AdminAllowlistRepository {
     actorId: string | null,
     invitedAt = new Date(),
   ): Promise<AccessAllowlistRow> {
-    const created = await this.prisma.accessAllowlist.create({
-      data: {
-        provider: toPrismaProvider(provider),
-        email: this.normalizeEmail(email),
-        role,
-        invitedBy: actorId,
-        invitedAt,
-      },
+    const entity = this.repo.create({
+      provider,
+      email: this.normalizeEmail(email),
+      role,
+      invitedByUserId: actorId,
+      invitedAt,
+      revokedAt: null,
+      revokedByUserId: null,
     });
-    return mapRow(created);
+    const saved = await this.repo.save(entity);
+    return mapRow(saved);
   }
 
   async restore(
@@ -142,19 +148,17 @@ export class AdminAllowlistRepository {
     const invitedAt = options.invitedAt ?? new Date();
     const role: AccessRole = options.role ?? ACCESS_ROLE_ADMIN;
 
-    // Two-step update: Prisma's compound `where` on `update` requires a
-    // single, all-or-nothing match, so we updateMany on the active-row filter
-    // and then re-fetch the (now-restored) row. Returns null when no
-    // currently-revoked row exists for this (provider, email).
-    const result = await this.prisma.accessAllowlist.updateMany({
-      where: { provider: toPrismaProvider(provider), email: normalizedEmail, revokedAt: { not: null } },
-      data: { invitedBy: actorId, invitedAt, role, revokedAt: null, revokedBy: null },
-    });
-    if (result.count === 0) return null;
+    // Two-step update: TypeORM's `update(criteria, partial)` returns row
+    // counts only, so we updateMany on the revoked-row filter and then
+    // re-fetch. Returns null when no currently-revoked row exists for this
+    // (provider, email).
+    const result = await this.repo.update(
+      { provider, email: normalizedEmail, revokedAt: Not(IsNull()) },
+      { invitedByUserId: actorId, invitedAt, role, revokedAt: null, revokedByUserId: null },
+    );
+    if (!result.affected) return null;
 
-    const updated = await this.prisma.accessAllowlist.findUnique({
-      where: { provider_email: { provider: toPrismaProvider(provider), email: normalizedEmail } },
-    });
+    const updated = await this.repo.findOne({ where: { provider, email: normalizedEmail } });
     return updated ? mapRow(updated) : null;
   }
 
@@ -162,15 +166,10 @@ export class AdminAllowlistRepository {
     const normalizedEmail = this.normalizeEmail(email);
     if (!normalizedEmail) return null;
 
-    const result = await this.prisma.accessAllowlist.updateMany({
-      where: { provider: toPrismaProvider(provider), email: normalizedEmail, revokedAt: null },
-      data: { role },
-    });
-    if (result.count === 0) return null;
+    const result = await this.repo.update({ provider, email: normalizedEmail, revokedAt: IsNull() }, { role });
+    if (!result.affected) return null;
 
-    const updated = await this.prisma.accessAllowlist.findUnique({
-      where: { provider_email: { provider: toPrismaProvider(provider), email: normalizedEmail } },
-    });
+    const updated = await this.repo.findOne({ where: { provider, email: normalizedEmail } });
     return updated ? mapRow(updated) : null;
   }
 
@@ -183,55 +182,54 @@ export class AdminAllowlistRepository {
     const normalizedEmail = this.normalizeEmail(email);
     if (!normalizedEmail) return null;
 
-    const result = await this.prisma.accessAllowlist.updateMany({
-      where: { provider: toPrismaProvider(provider), email: normalizedEmail, revokedAt: null },
-      data: { revokedAt, revokedBy: actorId },
-    });
-    if (result.count === 0) return null;
+    const result = await this.repo.update(
+      { provider, email: normalizedEmail, revokedAt: IsNull() },
+      { revokedAt, revokedByUserId: actorId },
+    );
+    if (!result.affected) return null;
 
-    const updated = await this.prisma.accessAllowlist.findUnique({
-      where: { provider_email: { provider: toPrismaProvider(provider), email: normalizedEmail } },
-    });
+    const updated = await this.repo.findOne({ where: { provider, email: normalizedEmail } });
     return updated ? mapRow(updated) : null;
   }
 
-  // P2002 is Prisma's unique-constraint violation code.
+  // P23505 is Postgres' unique-violation SQLSTATE; TypeORM surfaces it via
+  // `QueryFailedError.driverError.code` for the `pg` driver.
   isDuplicateKeyError(error: unknown): boolean {
-    return (
-      typeof error === 'object' && error !== null && 'code' in error && (error as { code: unknown }).code === 'P2002'
-    );
+    if (error instanceof QueryFailedError) {
+      const code = (error.driverError as { code?: string })?.code;
+      return code === '23505';
+    }
+    return false;
   }
 
   private normalizeEmail(email: string): string {
     return email.trim().toLowerCase();
   }
 
-  private buildWhere(options: AdminAllowlistListFilters): Prisma.AccessAllowlistWhereInput {
-    const where: Prisma.AccessAllowlistWhereInput = {};
+  private buildWhere(options: AdminAllowlistListFilters): FindOptionsWhere<AccessAllowlistEntity> {
+    const where: FindOptionsWhere<AccessAllowlistEntity> = {};
 
     if (options.provider) {
-      where.provider = Array.isArray(options.provider)
-        ? { in: options.provider.map(toPrismaProvider) }
-        : toPrismaProvider(options.provider);
+      where.provider = Array.isArray(options.provider) ? In(options.provider) : options.provider;
     }
 
     if (options.role) {
-      where.role = Array.isArray(options.role) ? { in: options.role } : options.role;
+      where.role = Array.isArray(options.role) ? In(options.role) : options.role;
     }
 
     const status: AdminAllowlistStatus = options.status ?? 'active';
     if (status === 'active') {
-      where.revokedAt = null;
+      where.revokedAt = IsNull();
     } else if (status === 'revoked') {
-      where.revokedAt = { not: null };
+      where.revokedAt = Not(IsNull());
     }
 
     if (options.q) {
       const trimmed = options.q.trim().toLowerCase();
       if (trimmed) {
-        // Email is stored already-lowercased, so a case-sensitive prefix
-        // match here behaves as an ignore-case search.
-        where.email = { startsWith: trimmed };
+        // Email is stored already-lowercased, so a case-insensitive prefix
+        // match here behaves as an ignore-case search via PG ILIKE.
+        where.email = ILike(`${trimmed}%`);
       }
     }
 

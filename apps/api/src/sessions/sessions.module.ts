@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthSessionEntity } from '../persistence';
 import { AuthSessionRepository } from './auth-session.repository';
 import { AuthSessionCleanupService } from './auth-session-cleanup.service';
 
-// PrismaModule is registered globally in `src/persistence`, so feature
-// modules can depend on `PrismaService` directly without importing it here.
+// `PersistenceModule` is registered globally in `src/persistence`; feature
+// modules use `TypeOrmModule.forFeature(...)` to bind their entity repos.
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, TypeOrmModule.forFeature([AuthSessionEntity])],
   providers: [AuthSessionRepository, AuthSessionCleanupService],
   exports: [AuthSessionRepository, AuthSessionCleanupService],
 })

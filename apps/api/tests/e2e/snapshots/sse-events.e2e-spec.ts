@@ -1,11 +1,15 @@
 import type { ConfigService } from '@nestjs/config';
+import { SnapshotStatus } from '@reputo/contracts';
 import { firstValueFrom, lastValueFrom, take, timeout, toArray } from 'rxjs';
+import { DataSource } from 'typeorm';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PrismaService, SnapshotListenerService } from '../../../src/persistence';
+import { ENTITIES, SnapshotEntity, SnapshotListenerService, SnapshotOutputEntity } from '../../../src/persistence';
 import type { SnapshotEventDto } from '../../../src/snapshot/dto';
 import { SnapshotRepository } from '../../../src/snapshot/snapshot.repository';
 import { SnapshotEventsService } from '../../../src/snapshot/snapshot-events.service';
 import { insertAlgorithmPreset } from '../../factories/algorithmPreset.factory';
+import { truncateAllTables } from '../../utils/db';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 
 // Exercises the SSE pipeline against a real Postgres:
@@ -25,41 +29,57 @@ function makeConfigService(databaseUrl: string): ConfigService {
 
 describe('Snapshot SSE via PostgreSQL LISTEN/NOTIFY', () => {
   let db: TestDatabase;
-  let prisma: PrismaService;
+  let dataSource: DataSource;
   let repository: SnapshotRepository;
 
   beforeAll(async () => {
     db = await startTestDatabase();
     process.env.DATABASE_URL = db.databaseUrl;
-    prisma = new PrismaService();
-    await prisma.onModuleInit();
-    repository = new SnapshotRepository(prisma);
+    dataSource = new DataSource({
+      type: 'postgres',
+      url: db.databaseUrl,
+      entities: [...ENTITIES],
+      namingStrategy: new SnakeNamingStrategy(),
+      synchronize: false,
+      logging: false,
+    });
+    await dataSource.initialize();
+    repository = new SnapshotRepository(
+      dataSource.getRepository(SnapshotEntity),
+      dataSource.getRepository(SnapshotOutputEntity),
+    );
   }, 120_000);
 
   beforeEach(async () => {
-    await prisma.snapshot.deleteMany({});
-    await prisma.algorithmPreset.deleteMany({});
+    await truncateAllTables(dataSource);
   });
 
   afterAll(async () => {
-    await prisma?.onModuleDestroy();
+    if (dataSource?.isInitialized) {
+      await dataSource.destroy();
+    }
     await db?.stop();
   });
 
   async function seedSnapshot() {
-    const preset = await insertAlgorithmPreset(prisma);
+    const preset = await insertAlgorithmPreset(dataSource);
     const frozen = {
       key: preset.key,
       version: preset.version,
-      inputs: preset.inputs as Array<{ key: string; value?: unknown }>,
+      inputs: preset.inputs.map((input) => ({ key: input.key, value: input.value })),
       name: preset.name ?? undefined,
       description: preset.description ?? undefined,
       createdAt: preset.createdAt.toISOString(),
       updatedAt: preset.updatedAt.toISOString(),
     };
-    const snapshot = await prisma.snapshot.create({
-      data: { status: 'queued', algorithmPresetId: preset.id, algorithmPresetFrozen: frozen },
-    });
+    const snapshotRepo = dataSource.getRepository(SnapshotEntity);
+    const snapshot = await snapshotRepo.save(
+      snapshotRepo.create({
+        status: SnapshotStatus.queued,
+        algorithmPresetId: preset.id,
+        algorithmPresetFrozen: frozen as unknown,
+      }),
+    );
     return { preset, snapshot };
   }
 
@@ -74,7 +94,7 @@ describe('Snapshot SSE via PostgreSQL LISTEN/NOTIFY', () => {
 
       const received = firstValueFrom(events.subscribe().pipe(timeout({ first: 5_000 }), take(1)));
 
-      await repository.applyExternalUpdate(snapshot.id, { status: 'running', startedAt: new Date() });
+      await repository.applyExternalUpdate(snapshot.id, { status: SnapshotStatus.running, startedAt: new Date() });
 
       const event = (await received) as SnapshotEventDto;
       expect(event.type).toBe('snapshot:updated');
@@ -102,10 +122,13 @@ describe('Snapshot SSE via PostgreSQL LISTEN/NOTIFY', () => {
       const received = firstValueFrom(eventsA.subscribe().pipe(timeout({ first: 5_000 }), take(1)));
 
       // "Replica B" performs the write; "Replica A" must observe it via PG.
-      await repository.applyExternalUpdate(snapshot.id, { status: 'completed', completedAt: new Date() });
+      await repository.applyExternalUpdate(snapshot.id, {
+        status: SnapshotStatus.completed,
+        completedAt: new Date(),
+      });
       // Touch eventsB to verify both replicas receive the same NOTIFY.
       const receivedB = firstValueFrom(eventsB.subscribe().pipe(timeout({ first: 1_000 }), take(1)));
-      await repository.applyExternalUpdate(snapshot.id, { status: 'failed', completedAt: new Date() });
+      await repository.applyExternalUpdate(snapshot.id, { status: SnapshotStatus.failed, completedAt: new Date() });
 
       const eventA = (await received) as SnapshotEventDto;
       expect(eventA.data._id).toBe(snapshot.id);
@@ -137,8 +160,14 @@ describe('Snapshot SSE via PostgreSQL LISTEN/NOTIFY', () => {
 
       // First update fires NOTIFY for preset A → should be filtered out by the
       // subscriber. The second NOTIFY (preset B) is the one we should capture.
-      await repository.applyExternalUpdate(a.snapshot.id, { status: 'running', startedAt: new Date() });
-      await repository.applyExternalUpdate(b.snapshot.id, { status: 'running', startedAt: new Date() });
+      await repository.applyExternalUpdate(a.snapshot.id, {
+        status: SnapshotStatus.running,
+        startedAt: new Date(),
+      });
+      await repository.applyExternalUpdate(b.snapshot.id, {
+        status: SnapshotStatus.running,
+        startedAt: new Date(),
+      });
 
       const captured = (await collected) as SnapshotEventDto[];
       expect(captured).toHaveLength(1);

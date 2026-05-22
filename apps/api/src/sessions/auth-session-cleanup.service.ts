@@ -1,6 +1,6 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../persistence';
+import { AuthSessionRepository } from './auth-session.repository';
 
 // Periodically deletes expired AuthSession rows. Interval is driven by
 // `auth.sessionCleanupIntervalMs` and can be set to 0 to disable in tests
@@ -13,7 +13,7 @@ export class AuthSessionCleanupService implements OnModuleInit, OnModuleDestroy 
   private running = false;
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly authSessionRepository: AuthSessionRepository,
     configService: ConfigService,
   ) {
     this.intervalMs = Number(configService.get<number>('auth.sessionCleanupIntervalMs') ?? 60 * 60 * 1000);
@@ -36,13 +36,11 @@ export class AuthSessionCleanupService implements OnModuleInit, OnModuleDestroy 
   // Exposed for unit tests and the soft preference of being callable on
   // demand. Deletes every AuthSession row whose `expiresAt` has passed.
   async runOnce(now: Date = new Date()): Promise<{ deletedCount: number }> {
-    const result = await this.prisma.authSession.deleteMany({
-      where: { expiresAt: { lt: now } },
-    });
-    if (result.count > 0) {
-      this.logger.log({ msg: 'Expired auth sessions cleaned up.', deletedCount: result.count });
+    const result = await this.authSessionRepository.deleteExpired(now);
+    if (result.deletedCount > 0) {
+      this.logger.log({ msg: 'Expired auth sessions cleaned up.', deletedCount: result.deletedCount });
     }
-    return { deletedCount: result.count };
+    return result;
   }
 
   private scheduleNext(): void {

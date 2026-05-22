@@ -1,12 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import type {
-  Snapshot as PrismaSnapshot,
-  SnapshotOutput as PrismaSnapshotOutput,
-  SnapshotStatus,
-} from '@prisma/client';
-import { Prisma } from '@prisma/client';
-import type { AlgorithmPresetInput, PrismaClientLike } from '../algorithm-preset/algorithm-preset.repository';
-import { PrismaService, SNAPSHOT_UPDATES_CHANNEL } from '../persistence';
+import { InjectRepository } from '@nestjs/typeorm';
+import { SnapshotStatus } from '@reputo/contracts';
+import { type EntityManager, type FindOptionsWhere, Raw, Repository } from 'typeorm';
+import type { AlgorithmPresetInput } from '../algorithm-preset/algorithm-preset.repository';
+import { SNAPSHOT_UPDATES_CHANNEL, SnapshotEntity, SnapshotOutputEntity } from '../persistence';
 import type { PaginateOptions, PaginateResult } from '../shared/persistence';
 import { paginate } from '../shared/persistence';
 
@@ -34,14 +31,14 @@ export interface AlgorithmPresetFrozen {
   name?: string;
   description?: string;
   // JSON-stored, so reads round-trip these as ISO strings; the type stays
-  // `Date` for symmetry with writes (the service freezes Prisma `Date`s).
+  // `Date` for symmetry with writes (the service freezes the entity `Date`s).
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 // Domain shape returned by the repository. `_id` and `algorithmPreset` are
 // the field names HTTP responses and downstream consumers (TemporalService,
-// S3 cleanup) expect — diverges from Prisma's `id` / `algorithmPresetId`.
+// S3 cleanup) expect — diverges from the entity's `id` / `algorithmPresetId`.
 export interface SnapshotRow {
   _id: string;
   status: SnapshotStatus;
@@ -71,8 +68,8 @@ export interface SnapshotFilter {
   frozenVersion?: string;
 }
 
-// Domain shape for `applyExternalUpdate`. Hides the Prisma/relational layout
-// so the service does not have to know that outputs live in a child table.
+// Domain shape for `applyExternalUpdate`. Hides the relational layout so the
+// service does not have to know that outputs live in a child table.
 export interface SnapshotApplyExternalUpdate {
   status?: SnapshotStatus;
   startedAt?: Date;
@@ -82,20 +79,7 @@ export interface SnapshotApplyExternalUpdate {
   error?: SnapshotError;
 }
 
-const isRecordNotFound = (err: unknown): boolean =>
-  typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025';
-
-type PrismaSnapshotWithOutputs = PrismaSnapshot & {
-  outputs: PrismaSnapshotOutput[];
-};
-
-// Always include the relational outputs so callers receive a fully-materialised
-// `SnapshotRow` without re-querying the child table.
-const includeOutputs = {
-  outputs: true,
-} as const satisfies Prisma.SnapshotInclude;
-
-function mapOutputs(outputs: PrismaSnapshotOutput[]): SnapshotOutputs | undefined {
+function mapOutputs(outputs: SnapshotOutputEntity[]): SnapshotOutputs | undefined {
   if (outputs.length === 0) return undefined;
   const result: SnapshotOutputs = {};
   for (const output of outputs) {
@@ -104,45 +88,60 @@ function mapOutputs(outputs: PrismaSnapshotOutput[]): SnapshotOutputs | undefine
   return result;
 }
 
-function buildOutputCreateRows(outputs: SnapshotOutputs): Prisma.SnapshotOutputCreateWithoutSnapshotInput[] {
-  const rows: Prisma.SnapshotOutputCreateWithoutSnapshotInput[] = [];
+function buildOutputRows(snapshotId: string, outputs: SnapshotOutputs): SnapshotOutputEntity[] {
+  const rows: SnapshotOutputEntity[] = [];
   for (const [key, value] of Object.entries(outputs)) {
     if (value === undefined) continue;
-    rows.push({ key, value });
+    const row = new SnapshotOutputEntity();
+    row.snapshotId = snapshotId;
+    row.key = key;
+    row.value = value;
+    rows.push(row);
   }
   return rows;
 }
 
-export function mapSnapshotRow(row: PrismaSnapshotWithOutputs): SnapshotRow {
+export function mapSnapshotRow(entity: SnapshotEntity): SnapshotRow {
   return {
-    _id: row.id,
-    status: row.status,
-    algorithmPreset: row.algorithmPresetId,
-    algorithmPresetFrozen: row.algorithmPresetFrozen as unknown as AlgorithmPresetFrozen,
-    temporal: (row.temporal as unknown as SnapshotTemporal | null) ?? undefined,
-    outputs: mapOutputs(row.outputs),
-    error: (row.error as unknown as SnapshotError | null) ?? undefined,
-    startedAt: row.startedAt ?? undefined,
-    completedAt: row.completedAt ?? undefined,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
+    _id: entity.id,
+    status: entity.status,
+    algorithmPreset: entity.algorithmPresetId,
+    algorithmPresetFrozen: entity.algorithmPresetFrozen as AlgorithmPresetFrozen,
+    temporal: (entity.temporal as SnapshotTemporal | null) ?? undefined,
+    outputs: mapOutputs(entity.outputs ?? []),
+    error: (entity.error as SnapshotError | null) ?? undefined,
+    startedAt: entity.startedAt ?? undefined,
+    completedAt: entity.completedAt ?? undefined,
+    createdAt: entity.createdAt,
+    updatedAt: entity.updatedAt,
   };
 }
 
-function buildWhere(filter: SnapshotFilter): Prisma.SnapshotWhereInput {
-  const where: Prisma.SnapshotWhereInput = {};
+function buildWhere(filter: SnapshotFilter): FindOptionsWhere<SnapshotEntity> {
+  const where: FindOptionsWhere<SnapshotEntity> = {};
   if (filter.status !== undefined) where.status = filter.status;
   if (filter.algorithmPresetId !== undefined) where.algorithmPresetId = filter.algorithmPresetId;
 
-  const frozenFilters: Prisma.SnapshotWhereInput[] = [];
+  // `algorithmPresetFrozen` is JSONB; filter via PG's `->>` text accessor so
+  // the value is compared as text (the JSON keys are always strings). The
+  // functional index declared in the init migration covers this lookup.
   if (filter.frozenKey !== undefined) {
-    frozenFilters.push({ algorithmPresetFrozen: { path: ['key'], equals: filter.frozenKey } });
+    where.algorithmPresetFrozen = Raw((alias) => `${alias} ->> 'key' = :frozenKey`, { frozenKey: filter.frozenKey });
   }
   if (filter.frozenVersion !== undefined) {
-    frozenFilters.push({ algorithmPresetFrozen: { path: ['version'], equals: filter.frozenVersion } });
-  }
-  if (frozenFilters.length > 0) {
-    where.AND = frozenFilters;
+    // Compose with the previous Raw expression if both filters are present so
+    // both conditions apply to the same column.
+    const previous = where.algorithmPresetFrozen;
+    if (previous !== undefined) {
+      where.algorithmPresetFrozen = Raw(
+        (alias) => `${alias} ->> 'key' = :frozenKey AND ${alias} ->> 'version' = :frozenVersion`,
+        { frozenKey: filter.frozenKey, frozenVersion: filter.frozenVersion },
+      );
+    } else {
+      where.algorithmPresetFrozen = Raw((alias) => `${alias} ->> 'version' = :frozenVersion`, {
+        frozenVersion: filter.frozenVersion,
+      });
+    }
   }
 
   return where;
@@ -150,60 +149,81 @@ function buildWhere(filter: SnapshotFilter): Prisma.SnapshotWhereInput {
 
 @Injectable()
 export class SnapshotRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(SnapshotEntity)
+    private readonly snapshots: Repository<SnapshotEntity>,
+    @InjectRepository(SnapshotOutputEntity)
+    private readonly outputs: Repository<SnapshotOutputEntity>,
+  ) {}
 
   async create(createData: SnapshotCreateData): Promise<SnapshotRow> {
-    const outputs = createData.outputs;
-    const created = await this.prisma.snapshot.create({
-      data: {
-        status: createData.status ?? 'queued',
+    const created = await this.snapshots.manager.transaction(async (manager) => {
+      const snapshotRepo = manager.getRepository(SnapshotEntity);
+      const outputRepo = manager.getRepository(SnapshotOutputEntity);
+
+      const entity = snapshotRepo.create({
+        status: createData.status ?? SnapshotStatus.queued,
         algorithmPresetId: createData.algorithmPreset,
-        algorithmPresetFrozen: createData.algorithmPresetFrozen as unknown as Prisma.InputJsonValue,
-        temporal: createData.temporal ? (createData.temporal as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
-        ...(outputs ? { outputs: { create: buildOutputCreateRows(outputs) } } : {}),
-      },
-      include: includeOutputs,
+        algorithmPresetFrozen: createData.algorithmPresetFrozen as unknown,
+        temporal: (createData.temporal ?? null) as unknown,
+        error: null,
+        startedAt: null,
+        completedAt: null,
+      });
+      const saved = await snapshotRepo.save(entity);
+
+      if (createData.outputs) {
+        const outputRows = buildOutputRows(saved.id, createData.outputs);
+        if (outputRows.length > 0) {
+          await outputRepo.save(outputRows);
+        }
+      }
+
+      return manager.getRepository(SnapshotEntity).findOne({ where: { id: saved.id }, relations: { outputs: true } });
     });
+    if (!created) {
+      throw new Error('Snapshot disappeared mid-create');
+    }
     return mapSnapshotRow(created);
   }
 
   findAll(filter: SnapshotFilter, options: PaginateOptions): Promise<PaginateResult<SnapshotRow>> {
-    return paginate({
-      model: {
-        count: (args) => this.prisma.snapshot.count(args),
-        findMany: (args) =>
-          this.prisma.snapshot.findMany({ ...args, include: includeOutputs }) as Promise<PrismaSnapshotWithOutputs[]>,
-      },
+    return paginate<SnapshotEntity, SnapshotRow>({
+      repository: this.snapshots,
       where: buildWhere(filter),
       options,
-      defaultOrderBy: { createdAt: 'desc' },
+      defaultOrderBy: { createdAt: 'DESC' },
+      extra: { relations: { outputs: true } },
       mapRow: mapSnapshotRow,
     });
   }
 
   async findById(id: string): Promise<SnapshotRow | null> {
-    const row = await this.prisma.snapshot.findUnique({ where: { id }, include: includeOutputs });
-    return row ? mapSnapshotRow(row) : null;
+    const entity = await this.snapshots.findOne({ where: { id }, relations: { outputs: true } });
+    return entity ? mapSnapshotRow(entity) : null;
   }
 
   async find(filter: SnapshotFilter): Promise<SnapshotRow[]> {
-    const rows = await this.prisma.snapshot.findMany({ where: buildWhere(filter), include: includeOutputs });
+    const rows = await this.snapshots.find({ where: buildWhere(filter), relations: { outputs: true } });
     return rows.map(mapSnapshotRow);
   }
 
-  async deleteById(id: string, client: PrismaClientLike = this.prisma): Promise<SnapshotRow | null> {
-    try {
-      const row = await client.snapshot.delete({ where: { id }, include: includeOutputs });
-      return mapSnapshotRow(row);
-    } catch (err) {
-      if (isRecordNotFound(err)) return null;
-      throw err;
-    }
+  async deleteById(id: string, client: EntityManager = this.snapshots.manager): Promise<SnapshotRow | null> {
+    const repo = client.getRepository(SnapshotEntity);
+    const entity = await repo.findOne({ where: { id }, relations: { outputs: true } });
+    if (!entity) return null;
+    const result = await repo.delete({ id });
+    if (!result.affected) return null;
+    return mapSnapshotRow(entity);
   }
 
-  async deleteMany(filter: SnapshotFilter, client: PrismaClientLike = this.prisma): Promise<{ deletedCount: number }> {
-    const result = await client.snapshot.deleteMany({ where: buildWhere(filter) });
-    return { deletedCount: result.count };
+  async deleteMany(
+    filter: SnapshotFilter,
+    client: EntityManager = this.snapshots.manager,
+  ): Promise<{ deletedCount: number }> {
+    const repo = client.getRepository(SnapshotEntity);
+    const result = await repo.delete(buildWhere(filter));
+    return { deletedCount: result.affected ?? 0 };
   }
 
   /**
@@ -212,34 +232,66 @@ export class SnapshotRepository {
    * outputs are provided, and the `pg_notify(snapshot_updates, <id>)` all
    * share one transaction so SSE listeners only see committed rows.
    *
-   * Output writes use `deleteMany + create` for full-replacement idempotency:
+   * Output writes use `delete + save` for full-replacement idempotency:
    * re-applying the same input yields the same final row set.
    *
    * Returns the mapped row or `null` when no snapshot matches the id.
    */
   async applyExternalUpdate(id: string, data: SnapshotApplyExternalUpdate): Promise<SnapshotRow | null> {
-    const updateData: Prisma.SnapshotUpdateInput = {};
-    if (data.status !== undefined) updateData.status = data.status;
-    if (data.startedAt !== undefined) updateData.startedAt = data.startedAt;
-    if (data.completedAt !== undefined) updateData.completedAt = data.completedAt;
-    if (data.temporal !== undefined) updateData.temporal = data.temporal as unknown as Prisma.InputJsonValue;
-    if (data.error !== undefined) updateData.error = data.error as unknown as Prisma.InputJsonValue;
-    if (data.outputs !== undefined) {
-      updateData.outputs = {
-        deleteMany: {},
-        create: buildOutputCreateRows(data.outputs),
-      };
-    }
+    return this.snapshots.manager.transaction(async (manager) => {
+      const snapshotRepo = manager.getRepository(SnapshotEntity);
+      const outputRepo = manager.getRepository(SnapshotOutputEntity);
 
-    try {
-      const [updated] = await this.prisma.$transaction([
-        this.prisma.snapshot.update({ where: { id }, data: updateData, include: includeOutputs }),
-        this.prisma.$executeRaw`SELECT pg_notify(${SNAPSHOT_UPDATES_CHANNEL}, ${id})`,
-      ]);
-      return mapSnapshotRow(updated);
-    } catch (err) {
-      if (isRecordNotFound(err)) return null;
-      throw err;
-    }
+      // Load the snapshot row WITHOUT the `outputs` relation. We replace the
+      // child rows with delete + insert below, and pulling them in here would
+      // make TypeORM try to cascade-save the in-memory copies on
+      // `snapshotRepo.save(entity)` — which would conflict with the new rows
+      // we just inserted (FK violation / dup PK depending on state).
+      const entity = await snapshotRepo.findOne({ where: { id } });
+      if (!entity) return null;
+
+      let touched = false;
+      if (data.status !== undefined) {
+        entity.status = data.status;
+        touched = true;
+      }
+      if (data.startedAt !== undefined) {
+        entity.startedAt = data.startedAt;
+        touched = true;
+      }
+      if (data.completedAt !== undefined) {
+        entity.completedAt = data.completedAt;
+        touched = true;
+      }
+      if (data.temporal !== undefined) {
+        entity.temporal = data.temporal as unknown;
+        touched = true;
+      }
+      if (data.error !== undefined) {
+        entity.error = data.error as unknown;
+        touched = true;
+      }
+
+      if (touched) {
+        entity.updatedAt = new Date();
+      }
+      await snapshotRepo.save(entity);
+
+      if (data.outputs !== undefined) {
+        await outputRepo.delete({ snapshotId: id });
+        const rows = buildOutputRows(id, data.outputs);
+        if (rows.length > 0) {
+          await outputRepo.save(rows);
+        }
+      }
+
+      // Use `pg_notify(channel, payload)` rather than `NOTIFY` so the channel
+      // name is bound as a parameter (the literal `NOTIFY` statement can't
+      // take placeholders).
+      await manager.query('SELECT pg_notify($1, $2)', [SNAPSHOT_UPDATES_CHANNEL, id]);
+
+      const refreshed = await snapshotRepo.findOne({ where: { id }, relations: { outputs: true } });
+      return refreshed ? mapSnapshotRow(refreshed) : null;
+    });
   }
 }

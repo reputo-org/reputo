@@ -1,9 +1,10 @@
 import type { INestApplication } from '@nestjs/common';
+import type { DataSource } from 'typeorm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { PrismaService } from '../../../src/persistence';
 import { insertAlgorithmPreset } from '../../factories/algorithmPreset.factory';
 import { createTestApp } from '../../utils/app-test.module';
 import { createAuthenticatedSession } from '../../utils/auth-session';
+import { getTestDataSource, truncateBusinessTables } from '../../utils/db';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { api } from '../../utils/request';
 import { randomUUIDv7 } from '../../utils/uuid';
@@ -11,7 +12,7 @@ import { randomUUIDv7 } from '../../utils/uuid';
 describe('PATCH /api/v1/algorithm-presets/:id', () => {
   let app: INestApplication;
   let authCookie: string;
-  let prisma: PrismaService;
+  let dataSource: DataSource;
   let db: TestDatabase;
 
   beforeAll(async () => {
@@ -19,13 +20,12 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
     process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({});
     app = boot.app;
-    prisma = boot.moduleRef.get(PrismaService);
+    dataSource = getTestDataSource(boot.moduleRef);
     authCookie = (await createAuthenticatedSession(boot.moduleRef)).cookie;
   });
 
   afterEach(async () => {
-    await prisma.snapshot.deleteMany({});
-    await prisma.algorithmPreset.deleteMany({});
+    await truncateBusinessTables(dataSource);
   });
 
   afterAll(async () => {
@@ -34,7 +34,7 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
   });
 
   it('should update inputs/name/description (200) and bump updatedAt', async () => {
-    const preset = await insertAlgorithmPreset(prisma, {
+    const preset = await insertAlgorithmPreset(dataSource, {
       name: 'Original Name',
       description: 'Original description text',
     });
@@ -74,13 +74,13 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
   });
 
   it('should reject name shorter than 3 chars (400)', async () => {
-    const preset = await insertAlgorithmPreset(prisma);
+    const preset = await insertAlgorithmPreset(dataSource);
 
     await api(app, authCookie).patch(`/algorithm-presets/${preset.id}`).send({ name: 'ab' }).expect(400);
   });
 
   it('should reject name longer than 100 chars (400)', async () => {
-    const preset = await insertAlgorithmPreset(prisma);
+    const preset = await insertAlgorithmPreset(dataSource);
 
     await api(app, authCookie)
       .patch(`/algorithm-presets/${preset.id}`)
@@ -89,13 +89,13 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
   });
 
   it('should reject description shorter than 10 chars (400)', async () => {
-    const preset = await insertAlgorithmPreset(prisma);
+    const preset = await insertAlgorithmPreset(dataSource);
 
     await api(app, authCookie).patch(`/algorithm-presets/${preset.id}`).send({ description: 'short' }).expect(400);
   });
 
   it('should reject description longer than 500 chars (400)', async () => {
-    const preset = await insertAlgorithmPreset(prisma);
+    const preset = await insertAlgorithmPreset(dataSource);
 
     await api(app, authCookie)
       .patch(`/algorithm-presets/${preset.id}`)
@@ -104,7 +104,7 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
   });
 
   it('should reject attempts to update key (400)', async () => {
-    const preset = await insertAlgorithmPreset(prisma, { key: 'original_key' });
+    const preset = await insertAlgorithmPreset(dataSource, { key: 'original_key' });
 
     const res = await api(app, authCookie).patch(`/algorithm-presets/${preset.id}`).send({ key: 'new_key' });
 
@@ -116,7 +116,7 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
   });
 
   it('should reject attempts to update version (400)', async () => {
-    const preset = await insertAlgorithmPreset(prisma, { version: '1.0.0' });
+    const preset = await insertAlgorithmPreset(dataSource, { version: '1.0.0' });
 
     const res = await api(app, authCookie).patch(`/algorithm-presets/${preset.id}`).send({ version: '2.0.0' });
 
@@ -128,7 +128,7 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
   });
 
   it('should reject inputs items without key (400)', async () => {
-    const preset = await insertAlgorithmPreset(prisma);
+    const preset = await insertAlgorithmPreset(dataSource);
 
     await api(app, authCookie)
       .patch(`/algorithm-presets/${preset.id}`)
@@ -140,7 +140,7 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
 
   it('preserves caller-supplied input order across update + read round-trip', async () => {
     // Seed in `sub_ids, votes` order — the order the factory uses.
-    const preset = await insertAlgorithmPreset(prisma, {
+    const preset = await insertAlgorithmPreset(dataSource, {
       inputs: [
         { key: 'sub_ids', value: 'uploads/sub_ids.json' },
         { key: 'votes', value: 'uploads/votes.csv' },

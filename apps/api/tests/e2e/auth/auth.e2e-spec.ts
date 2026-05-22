@@ -1,23 +1,28 @@
 import type { INestApplication } from '@nestjs/common';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import { TypeOrmModule, type TypeOrmModuleOptions } from '@nestjs/typeorm';
 import type { AccessRole } from '@reputo/contracts';
 import { LoggerModule } from 'nestjs-pino';
 import supertest from 'supertest';
+import { type DataSource, type Repository } from 'typeorm';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AuthModule } from '../../../src/auth';
 import { OAuthAuthProviderService } from '../../../src/auth/oauth-auth-provider.service';
 import { configModules } from '../../../src/config';
-import { PrismaModule, PrismaService } from '../../../src/persistence';
+import { AccessAllowlistEntity, AuthSessionEntity, ENTITIES, OAuthUserEntity } from '../../../src/persistence';
+import { MIGRATIONS } from '../../../src/persistence/migrations';
 import { HttpExceptionFilter } from '../../../src/shared/filters/http-exception.filter';
 import { AUTH_TEST_ENV, applyAuthTestEnv } from '../../utils/auth-session';
+import { getTestDataSource } from '../../utils/db';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { base } from '../../utils/request';
 
 describe('OAuth auth e2e', () => {
   let app: INestApplication;
-  let prisma: PrismaService;
+  let dataSource: DataSource;
   let db: TestDatabase;
 
   const mockOAuthService = {
@@ -32,6 +37,30 @@ describe('OAuth auth e2e', () => {
     fetchUserInfo: vi.fn(),
     getDiscoveryDocument: vi.fn(),
   };
+
+  async function upsertAllowlist(repo: Repository<AccessAllowlistEntity>, email: string, role: AccessRole) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const existing = await repo.findOne({ where: { provider: 'deep-id', email: normalizedEmail } });
+    if (existing) {
+      existing.role = role;
+      existing.invitedByUserId = null;
+      existing.revokedAt = null;
+      existing.revokedByUserId = null;
+      await repo.save(existing);
+    } else {
+      await repo.save(
+        repo.create({
+          provider: 'deep-id',
+          email: normalizedEmail,
+          role,
+          invitedByUserId: null,
+          invitedAt: new Date(),
+          revokedAt: null,
+          revokedByUserId: null,
+        }),
+      );
+    }
+  }
 
   beforeAll(async () => {
     applyAuthTestEnv();
@@ -51,7 +80,20 @@ describe('OAuth auth e2e', () => {
             level: 'silent',
           },
         }),
-        PrismaModule,
+        TypeOrmModule.forRootAsync({
+          inject: [ConfigService],
+          useFactory: (config: ConfigService): TypeOrmModuleOptions => ({
+            type: 'postgres',
+            url: config.get<string>('database.url'),
+            entities: [...ENTITIES],
+            migrations: [...MIGRATIONS],
+            namingStrategy: new SnakeNamingStrategy(),
+            synchronize: false,
+            migrationsRun: false,
+            autoLoadEntities: false,
+            logging: false,
+          }),
+        }),
         AuthModule,
       ],
     })
@@ -59,7 +101,7 @@ describe('OAuth auth e2e', () => {
       .useValue(mockOAuthService)
       .compile();
 
-    prisma = moduleRef.get(PrismaService);
+    dataSource = getTestDataSource(moduleRef);
     app = moduleRef.createNestApplication();
 
     app.useGlobalFilters(new HttpExceptionFilter());
@@ -82,28 +124,20 @@ describe('OAuth auth e2e', () => {
 
   afterEach(async () => {
     vi.clearAllMocks();
+    const userRepo = dataSource.getRepository(OAuthUserEntity);
+    const sessionRepo = dataSource.getRepository(AuthSessionEntity);
+    const allowlistRepo = dataSource.getRepository(AccessAllowlistEntity);
     // AuthSession FK → OAuthUser cascade clears sessions when their parent
     // user goes away; deleting sessions first is still cheap and keeps the
     // intent obvious.
-    await prisma.authSession.deleteMany({});
-    await prisma.oAuthUser.deleteMany({});
-    await prisma.accessAllowlist.deleteMany({ where: { email: { not: AUTH_TEST_ENV.OWNER_EMAIL } } });
-    await prisma.accessAllowlist.upsert({
-      where: { provider_email: { provider: 'deep_id', email: AUTH_TEST_ENV.OWNER_EMAIL } },
-      create: {
-        provider: 'deep_id',
-        email: AUTH_TEST_ENV.OWNER_EMAIL,
-        role: 'owner',
-        invitedBy: null,
-        invitedAt: new Date(),
-      },
-      update: {
-        role: 'owner',
-        invitedBy: null,
-        revokedAt: null,
-        revokedBy: null,
-      },
-    });
+    await sessionRepo.createQueryBuilder().delete().where('1=1').execute();
+    await userRepo.createQueryBuilder().delete().where('1=1').execute();
+    await allowlistRepo
+      .createQueryBuilder()
+      .delete()
+      .where('email <> :owner', { owner: AUTH_TEST_ENV.OWNER_EMAIL })
+      .execute();
+    await upsertAllowlist(allowlistRepo, AUTH_TEST_ENV.OWNER_EMAIL, 'owner');
   });
 
   afterAll(async () => {
@@ -112,24 +146,8 @@ describe('OAuth auth e2e', () => {
   });
 
   async function allowlistEmail(email: string, role: AccessRole = 'admin'): Promise<void> {
-    const normalizedEmail = email.trim().toLowerCase();
-
-    await prisma.accessAllowlist.upsert({
-      where: { provider_email: { provider: 'deep_id', email: normalizedEmail } },
-      create: {
-        provider: 'deep_id',
-        email: normalizedEmail,
-        role,
-        invitedBy: null,
-        invitedAt: new Date(),
-      },
-      update: {
-        role,
-        invitedBy: null,
-        revokedAt: null,
-        revokedBy: null,
-      },
-    });
+    const allowlistRepo = dataSource.getRepository(AccessAllowlistEntity);
+    await upsertAllowlist(allowlistRepo, email, role);
   }
 
   it('starts the login flow and redirects to Deep ID', async () => {
@@ -200,11 +218,13 @@ describe('OAuth auth e2e', () => {
       expect.arrayContaining([expect.stringContaining(`${AUTH_TEST_ENV.AUTH_COOKIE_NAME}=`)]),
     );
 
-    const storedUser = await prisma.oAuthUser.findFirst({ where: { sub: 'did:plc:pwtlzekayxk67odbhen6v2bb' } });
-    const storedSession = await prisma.authSession.findFirst({});
+    const userRepo = dataSource.getRepository(OAuthUserEntity);
+    const sessionRepo = dataSource.getRepository(AuthSessionEntity);
+    const storedUser = await userRepo.findOne({ where: { sub: 'did:plc:pwtlzekayxk67odbhen6v2bb' } });
+    const storedSession = await sessionRepo.findOne({ where: {} });
 
     expect(storedUser).toMatchObject({
-      provider: 'deep_id',
+      provider: 'deep-id',
       sub: 'did:plc:pwtlzekayxk67odbhen6v2bb',
       aud: ['9cad9abe-1dc6-4c66-acac-f747026c3beb'],
       authTime: 1775166617,
@@ -255,7 +275,7 @@ describe('OAuth auth e2e', () => {
 
     await agent.get(base('/auth/deep-id/callback?code=code-123&state=wrong-state')).expect(401);
 
-    expect(await prisma.authSession.count()).toBe(0);
+    expect(await dataSource.getRepository(AuthSessionEntity).count()).toBe(0);
   });
 
   it('redirects to access-denied with consent_denied when the provider returns access_denied', async () => {
@@ -277,8 +297,8 @@ describe('OAuth auth e2e', () => {
     expect(callbackResponse.headers['set-cookie']).toEqual(
       expect.arrayContaining([expect.stringContaining(`${AUTH_TEST_ENV.AUTH_COOKIE_NAME}.flow=;`)]),
     );
-    expect(await prisma.oAuthUser.count()).toBe(0);
-    expect(await prisma.authSession.count()).toBe(0);
+    expect(await dataSource.getRepository(OAuthUserEntity).count()).toBe(0);
+    expect(await dataSource.getRepository(AuthSessionEntity).count()).toBe(0);
   });
 
   it('redirects unverified callback email to access denied without creating a user or session', async () => {
@@ -311,23 +331,25 @@ describe('OAuth auth e2e', () => {
     expect(callbackResponse.headers['set-cookie']).toEqual(
       expect.arrayContaining([expect.stringContaining(`${AUTH_TEST_ENV.AUTH_COOKIE_NAME}.flow=;`)]),
     );
-    expect(await prisma.oAuthUser.count()).toBe(0);
-    expect(await prisma.authSession.count()).toBe(0);
+    expect(await dataSource.getRepository(OAuthUserEntity).count()).toBe(0);
+    expect(await dataSource.getRepository(AuthSessionEntity).count()).toBe(0);
   });
 
   it('treats a revoked allowlist row as not allowlisted during callback', async () => {
     const agent = supertest.agent(app.getHttpServer());
 
-    await prisma.accessAllowlist.create({
-      data: {
-        provider: 'deep_id',
+    const allowlistRepo = dataSource.getRepository(AccessAllowlistEntity);
+    await allowlistRepo.save(
+      allowlistRepo.create({
+        provider: 'deep-id',
         email: 'revoked@example.com',
         role: 'admin',
-        invitedBy: null,
+        invitedByUserId: null,
         invitedAt: new Date('2026-04-01T00:00:00.000Z'),
         revokedAt: new Date('2026-04-02T00:00:00.000Z'),
-      },
-    });
+        revokedByUserId: null,
+      }),
+    );
     mockOAuthService.exchangeCodeForTokens.mockResolvedValue({
       access_token: 'provider-access-token',
       refresh_token: 'provider-refresh-token',
@@ -352,8 +374,8 @@ describe('OAuth auth e2e', () => {
     expect(callbackResponse.headers.location).toBe(
       `${AUTH_TEST_ENV.APP_PUBLIC_URL}/access-denied?reason=not_allowlisted`,
     );
-    expect(await prisma.oAuthUser.count()).toBe(0);
-    expect(await prisma.authSession.count()).toBe(0);
+    expect(await dataSource.getRepository(OAuthUserEntity).count()).toBe(0);
+    expect(await dataSource.getRepository(AuthSessionEntity).count()).toBe(0);
   });
 
   it('refreshes provider tokens during /me when the stored access token is close to expiry', async () => {
@@ -387,13 +409,11 @@ describe('OAuth auth e2e', () => {
 
     await agent.get(base(`/auth/deep-id/callback?code=code-refresh&state=${state}`)).expect(302);
 
-    const storedSession = await prisma.authSession.findFirst({});
+    const sessionRepo = dataSource.getRepository(AuthSessionEntity);
+    const storedSession = await sessionRepo.findOne({ where: {} });
     expect(storedSession).toBeTruthy();
 
-    await prisma.authSession.update({
-      where: { id: storedSession?.id },
-      data: { accessTokenExpiresAt: new Date(Date.now() - 1_000) },
-    });
+    await sessionRepo.update({ id: storedSession?.id }, { accessTokenExpiresAt: new Date(Date.now() - 1_000) });
 
     mockOAuthService.refreshTokens.mockResolvedValue({
       access_token: 'fresh-access-token',
@@ -405,7 +425,7 @@ describe('OAuth auth e2e', () => {
     });
 
     const response = await agent.get(base('/auth/me')).expect(200);
-    const refreshedSession = await prisma.authSession.findFirst({});
+    const refreshedSession = await sessionRepo.findOne({ where: {} });
 
     expect(response.body.authenticated).toBe(true);
     expect(response.body.user).toMatchObject({
@@ -448,8 +468,8 @@ describe('OAuth auth e2e', () => {
 
     await agent.get(base(`/auth/deep-id/callback?code=code-logout&state=${state}`)).expect(302);
 
-    const activeSession = await prisma.authSession.findFirst({});
-
+    const sessionRepo = dataSource.getRepository(AuthSessionEntity);
+    const activeSession = await sessionRepo.findOne({ where: {} });
     expect(activeSession).toBeTruthy();
 
     const logoutResponse = await agent.post(base('/auth/logout')).expect(204);
@@ -458,7 +478,7 @@ describe('OAuth auth e2e', () => {
       expect.arrayContaining([expect.stringContaining(`${AUTH_TEST_ENV.AUTH_COOKIE_NAME}=;`)]),
     );
 
-    const revokedSession = await prisma.authSession.findUnique({ where: { id: activeSession?.id ?? '' } });
+    const revokedSession = await sessionRepo.findOne({ where: { id: activeSession?.id ?? '' } });
     const currentSession = await agent.get(base('/auth/me')).expect(401);
 
     expect(revokedSession?.revokedAt).toBeTruthy();

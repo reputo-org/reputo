@@ -1,6 +1,9 @@
+import type { FindManyOptions, FindOptionsOrder, FindOptionsWhere, ObjectLiteral, Repository } from 'typeorm';
+
 // Shared pagination helper. Every repository returns the same
 // `{ results, page, limit, totalPages, totalResults }` shape that the API
-// DTOs and e2e tests expect.
+// DTOs and e2e tests expect — TypeORM's `findAndCount()` is mapped to that
+// envelope here so callers don't have to repeat the math.
 
 export interface PaginateOptions {
   page?: number;
@@ -17,53 +20,55 @@ export interface PaginateResult<T> {
   totalResults: number;
 }
 
-export interface PrismaPaginateModel<TWhere, TOrderBy, TRow> {
-  count(args: { where?: TWhere }): Promise<number>;
-  findMany(args: { where?: TWhere; orderBy?: TOrderBy | TOrderBy[]; skip?: number; take?: number }): Promise<TRow[]>;
-}
-
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 10;
 
-export function parseSortBy<TOrderBy extends Record<string, 'asc' | 'desc'>>(
+/**
+ * Parses a `field:dir` comma list into a single TypeORM `FindOptionsOrder`
+ * object. When `sortBy` is missing or empty, the fallback order is returned.
+ */
+export function parseSortBy<TEntity extends ObjectLiteral>(
   sortBy: string | undefined,
-  fallback: TOrderBy,
-): TOrderBy[] {
+  fallback: FindOptionsOrder<TEntity>,
+): FindOptionsOrder<TEntity> {
   if (!sortBy) {
-    return [fallback];
+    return fallback;
   }
 
-  const orderBy: TOrderBy[] = [];
+  const orderBy: Record<string, 'ASC' | 'DESC'> = {};
   for (const fragment of sortBy.split(',')) {
     const [field, dir] = fragment.trim().split(':');
     if (!field) continue;
-    const direction = dir?.toLowerCase() === 'asc' ? 'asc' : 'desc';
-    orderBy.push({ [field]: direction } as TOrderBy);
+    orderBy[field] = dir?.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
   }
 
-  return orderBy.length > 0 ? orderBy : [fallback];
+  return (Object.keys(orderBy).length > 0 ? orderBy : fallback) as FindOptionsOrder<TEntity>;
 }
 
-export async function paginate<TWhere, TOrderBy extends Record<string, 'asc' | 'desc'>, TRow, TResult>(args: {
-  model: PrismaPaginateModel<TWhere, TOrderBy, TRow>;
-  where?: TWhere;
+export interface PaginateArgs<TEntity extends ObjectLiteral, TResult> {
+  repository: Repository<TEntity>;
+  where?: FindOptionsWhere<TEntity> | FindOptionsWhere<TEntity>[];
   options: PaginateOptions;
-  defaultOrderBy: TOrderBy;
-  mapRow: (row: TRow) => TResult;
-}): Promise<PaginateResult<TResult>> {
+  defaultOrderBy: FindOptionsOrder<TEntity>;
+  /** Extra `find` options (relations, select, …) layered on top of paging. */
+  extra?: Omit<FindManyOptions<TEntity>, 'where' | 'order' | 'skip' | 'take'>;
+  mapRow: (row: TEntity) => TResult;
+}
+
+export async function paginate<TEntity extends ObjectLiteral, TResult>(
+  args: PaginateArgs<TEntity, TResult>,
+): Promise<PaginateResult<TResult>> {
   const page = Math.max(1, args.options.page ?? DEFAULT_PAGE);
   const limit = Math.max(1, args.options.limit ?? DEFAULT_LIMIT);
-  const orderBy = parseSortBy<TOrderBy>(args.options.sortBy, args.defaultOrderBy);
+  const order = parseSortBy<TEntity>(args.options.sortBy, args.defaultOrderBy);
 
-  const [totalResults, rows] = await Promise.all([
-    args.model.count({ where: args.where }),
-    args.model.findMany({
-      where: args.where,
-      orderBy,
-      skip: (page - 1) * limit,
-      take: limit,
-    }),
-  ]);
+  const [rows, totalResults] = await args.repository.findAndCount({
+    ...(args.extra ?? {}),
+    where: args.where,
+    order,
+    skip: (page - 1) * limit,
+    take: limit,
+  });
 
   return {
     results: rows.map(args.mapRow),

@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import type {
-  Prisma,
-  AlgorithmPreset as PrismaAlgorithmPreset,
-  AlgorithmPresetInput as PrismaAlgorithmPresetInput,
-} from '@prisma/client';
-import { PrismaService } from '../persistence';
+import { InjectRepository } from '@nestjs/typeorm';
+import { type EntityManager, type FindOptionsWhere, QueryFailedError, Repository } from 'typeorm';
+import { AlgorithmPresetEntity, AlgorithmPresetInputEntity } from '../persistence';
 import type { PaginateOptions, PaginateResult } from '../shared/persistence';
 import { paginate } from '../shared/persistence';
 import type { CreateAlgorithmPresetDto, UpdateAlgorithmPresetDto } from './dto';
@@ -14,9 +11,9 @@ export interface AlgorithmPresetInput {
   value?: unknown;
 }
 
-// Domain shape used by the rest of the API. `_id` (rather than Prisma's `id`)
+// Domain shape used by the rest of the API. `_id` (rather than TypeORM's `id`)
 // matches the HTTP wire format, and `inputs` is typed as the structured pair
-// list rather than `Prisma.JsonValue`.
+// list rather than the entity row shape.
 export interface AlgorithmPresetRow {
   _id: string;
   key: string;
@@ -33,133 +30,136 @@ export interface AlgorithmPresetFilter {
   version?: string;
 }
 
-export type PrismaClientLike = PrismaService | Prisma.TransactionClient;
+// Re-exported for callers that want to pass a transactional manager through.
+export type TransactionClient = EntityManager;
 
-type PrismaAlgorithmPresetWithInputs = PrismaAlgorithmPreset & {
-  inputs: PrismaAlgorithmPresetInput[];
-};
+const sortInputs = (inputs: AlgorithmPresetInputEntity[]): AlgorithmPresetInputEntity[] =>
+  [...inputs].sort((a, b) => a.position - b.position);
 
-// Always include the relational inputs ordered by `position` so callers receive
-// the rows in the same order they were written.
-const includeOrderedInputs = {
-  inputs: { orderBy: { position: 'asc' } },
-} as const satisfies Prisma.AlgorithmPresetInclude;
-
-const isRecordNotFound = (err: unknown): boolean =>
-  typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025';
-
-export function mapAlgorithmPresetRow(row: PrismaAlgorithmPresetWithInputs): AlgorithmPresetRow {
+export function mapAlgorithmPresetRow(entity: AlgorithmPresetEntity): AlgorithmPresetRow {
   return {
-    _id: row.id,
-    key: row.key,
-    version: row.version,
-    inputs: row.inputs.map((input) => ({ key: input.key, value: input.value as unknown })),
-    name: row.name ?? undefined,
-    description: row.description ?? undefined,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
+    _id: entity.id,
+    key: entity.key,
+    version: entity.version,
+    inputs: sortInputs(entity.inputs ?? []).map((input) => ({ key: input.key, value: input.value })),
+    name: entity.name ?? undefined,
+    description: entity.description ?? undefined,
+    createdAt: entity.createdAt,
+    updatedAt: entity.updatedAt,
   };
 }
 
-function buildInputCreateRows(
+function buildInputRows(
+  algorithmPresetId: string,
   inputs: ReadonlyArray<AlgorithmPresetInput>,
-): Prisma.AlgorithmPresetInputCreateWithoutAlgorithmPresetInput[] {
-  return inputs.map((input, position) => ({
-    key: input.key,
-    value: input.value as Prisma.InputJsonValue,
-    position,
-  }));
+): AlgorithmPresetInputEntity[] {
+  return inputs.map((input, position) => {
+    const row = new AlgorithmPresetInputEntity();
+    row.algorithmPresetId = algorithmPresetId;
+    row.key = input.key;
+    row.value = input.value;
+    row.position = position;
+    return row;
+  });
 }
 
 @Injectable()
 export class AlgorithmPresetRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(AlgorithmPresetEntity)
+    private readonly presets: Repository<AlgorithmPresetEntity>,
+    @InjectRepository(AlgorithmPresetInputEntity)
+    private readonly inputs: Repository<AlgorithmPresetInputEntity>,
+  ) {}
 
   async create(createDto: CreateAlgorithmPresetDto): Promise<AlgorithmPresetRow> {
-    const created = await this.prisma.algorithmPreset.create({
-      data: {
+    const created = await this.presets.manager.transaction(async (manager) => {
+      const presetRepo = manager.getRepository(AlgorithmPresetEntity);
+      const inputRepo = manager.getRepository(AlgorithmPresetInputEntity);
+
+      const entity = presetRepo.create({
         key: createDto.key,
         version: createDto.version,
         name: createDto.name ?? null,
         description: createDto.description ?? null,
-        inputs: { create: buildInputCreateRows(createDto.inputs) },
-      },
-      include: includeOrderedInputs,
+      });
+      const saved = await presetRepo.save(entity);
+      const inputRows = buildInputRows(saved.id, createDto.inputs);
+      if (inputRows.length > 0) {
+        await inputRepo.save(inputRows);
+      }
+      return this.findByIdWithManager(manager, saved.id);
     });
+    if (!created) {
+      throw new Error('AlgorithmPreset disappeared mid-create');
+    }
     return mapAlgorithmPresetRow(created);
   }
 
   findAll(filter: AlgorithmPresetFilter, options: PaginateOptions): Promise<PaginateResult<AlgorithmPresetRow>> {
-    const where: Prisma.AlgorithmPresetWhereInput = {};
+    const where: FindOptionsWhere<AlgorithmPresetEntity> = {};
     if (filter.key !== undefined) where.key = filter.key;
     if (filter.version !== undefined) where.version = filter.version;
 
-    return paginate({
-      model: {
-        count: (args) => this.prisma.algorithmPreset.count(args),
-        findMany: (args) =>
-          this.prisma.algorithmPreset.findMany({ ...args, include: includeOrderedInputs }) as Promise<
-            PrismaAlgorithmPresetWithInputs[]
-          >,
-      },
+    return paginate<AlgorithmPresetEntity, AlgorithmPresetRow>({
+      repository: this.presets,
       where,
       options,
-      defaultOrderBy: { createdAt: 'desc' },
+      defaultOrderBy: { createdAt: 'DESC' },
+      extra: { relations: { inputs: true } },
       mapRow: mapAlgorithmPresetRow,
     });
   }
 
   async findById(id: string): Promise<AlgorithmPresetRow | null> {
-    const row = await this.prisma.algorithmPreset.findUnique({
-      where: { id },
-      include: includeOrderedInputs,
-    });
-    return row ? mapAlgorithmPresetRow(row) : null;
+    const entity = await this.presets.findOne({ where: { id }, relations: { inputs: true } });
+    return entity ? mapAlgorithmPresetRow(entity) : null;
   }
 
   async updateById(id: string, updateDto: UpdateAlgorithmPresetDto): Promise<AlgorithmPresetRow | null> {
-    const data: Prisma.AlgorithmPresetUpdateInput = {};
-    if (updateDto.name !== undefined) data.name = updateDto.name;
-    if (updateDto.description !== undefined) data.description = updateDto.description;
+    const updated = await this.presets.manager.transaction(async (manager) => {
+      const presetRepo = manager.getRepository(AlgorithmPresetEntity);
+      const inputRepo = manager.getRepository(AlgorithmPresetInputEntity);
 
-    // Full-replacement semantics for inputs: drop existing rows and recreate
-    // them, preserving the caller-supplied order via the `position` column.
-    // The nested write runs in Prisma's implicit transaction, so the preset's
-    // children are never observed in a half-updated state.
-    if (updateDto.inputs !== undefined) {
-      data.inputs = {
-        deleteMany: {},
-        create: buildInputCreateRows(updateDto.inputs),
-      };
-      // `@updatedAt` does not fire when only nested relations change, so bump
-      // it explicitly to keep the wire contract (clients rely on updatedAt
-      // changing whenever a write touches the preset).
-      data.updatedAt = new Date();
-    }
+      const entity = await presetRepo.findOne({ where: { id } });
+      if (!entity) return null;
 
-    try {
-      const row = await this.prisma.algorithmPreset.update({
-        where: { id },
-        data,
-        include: includeOrderedInputs,
-      });
-      return mapAlgorithmPresetRow(row);
-    } catch (err) {
-      if (isRecordNotFound(err)) return null;
-      throw err;
-    }
+      if (updateDto.name !== undefined) entity.name = updateDto.name ?? null;
+      if (updateDto.description !== undefined) entity.description = updateDto.description ?? null;
+
+      if (updateDto.inputs !== undefined) {
+        // `@UpdateDateColumn` does not fire when only nested relations change;
+        // bump it explicitly so callers see `updatedAt` move whenever a
+        // write touches the preset.
+        entity.updatedAt = new Date();
+        await inputRepo.delete({ algorithmPresetId: id });
+        const inputRows = buildInputRows(id, updateDto.inputs);
+        if (inputRows.length > 0) {
+          await inputRepo.save(inputRows);
+        }
+      }
+
+      await presetRepo.save(entity);
+      return this.findByIdWithManager(manager, id);
+    });
+    return updated ? mapAlgorithmPresetRow(updated) : null;
   }
 
-  async deleteById(id: string, client: PrismaClientLike = this.prisma): Promise<AlgorithmPresetRow | null> {
-    try {
-      const row = await client.algorithmPreset.delete({
-        where: { id },
-        include: includeOrderedInputs,
-      });
-      return mapAlgorithmPresetRow(row);
-    } catch (err) {
-      if (isRecordNotFound(err)) return null;
-      throw err;
-    }
+  async deleteById(id: string, client: EntityManager = this.presets.manager): Promise<AlgorithmPresetRow | null> {
+    const entity = await this.findByIdWithManager(client, id);
+    if (!entity) return null;
+    const result = await client.getRepository(AlgorithmPresetEntity).delete({ id });
+    if (!result.affected) return null;
+    return mapAlgorithmPresetRow(entity);
+  }
+
+  // P23505 is Postgres' unique-violation SQLSTATE; surfaced by TypeORM via
+  // QueryFailedError.driverError.code for the `pg` driver.
+  isDuplicateKeyError(error: unknown): boolean {
+    return error instanceof QueryFailedError && (error.driverError as { code?: string })?.code === '23505';
+  }
+
+  private async findByIdWithManager(manager: EntityManager, id: string): Promise<AlgorithmPresetEntity | null> {
+    return manager.getRepository(AlgorithmPresetEntity).findOne({ where: { id }, relations: { inputs: true } });
   }
 }

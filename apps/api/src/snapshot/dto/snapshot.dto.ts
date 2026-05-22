@@ -1,13 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import type { SnapshotStatus } from '@prisma/client';
-
-const SNAPSHOT_STATUS = [
-  'queued',
-  'running',
-  'completed',
-  'failed',
-  'cancelled',
-] as const satisfies readonly SnapshotStatus[];
+import { SNAPSHOT_STATUS, type SnapshotStatus } from '@reputo/contracts';
 
 class AlgorithmPresetFrozenDto {
   @ApiProperty({

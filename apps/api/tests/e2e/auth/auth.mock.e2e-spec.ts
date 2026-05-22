@@ -1,21 +1,26 @@
 import type { INestApplication } from '@nestjs/common';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import { TypeOrmModule, type TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { LoggerModule } from 'nestjs-pino';
 import supertest from 'supertest';
+import { type DataSource } from 'typeorm';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { AuthModule } from '../../../src/auth';
 import { configModules } from '../../../src/config';
-import { PrismaModule, PrismaService } from '../../../src/persistence';
+import { AuthSessionEntity, ENTITIES, OAuthUserEntity } from '../../../src/persistence';
+import { MIGRATIONS } from '../../../src/persistence/migrations';
 import { HttpExceptionFilter } from '../../../src/shared/filters/http-exception.filter';
 import { AUTH_TEST_ENV, applyAuthTestEnv } from '../../utils/auth-session';
+import { getTestDataSource } from '../../utils/db';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { base } from '../../utils/request';
 
 describe('Deep ID auth e2e (mock mode)', () => {
   let app: INestApplication;
-  let prisma: PrismaService;
+  let dataSource: DataSource;
   let db: TestDatabase;
 
   beforeAll(async () => {
@@ -44,12 +49,25 @@ describe('Deep ID auth e2e (mock mode)', () => {
             level: 'silent',
           },
         }),
-        PrismaModule,
+        TypeOrmModule.forRootAsync({
+          inject: [ConfigService],
+          useFactory: (config: ConfigService): TypeOrmModuleOptions => ({
+            type: 'postgres',
+            url: config.get<string>('database.url'),
+            entities: [...ENTITIES],
+            migrations: [...MIGRATIONS],
+            namingStrategy: new SnakeNamingStrategy(),
+            synchronize: false,
+            migrationsRun: false,
+            autoLoadEntities: false,
+            logging: false,
+          }),
+        }),
         AuthModule,
       ],
     }).compile();
 
-    prisma = moduleRef.get(PrismaService);
+    dataSource = getTestDataSource(moduleRef);
     app = moduleRef.createNestApplication();
 
     app.useGlobalFilters(new HttpExceptionFilter());
@@ -71,8 +89,8 @@ describe('Deep ID auth e2e (mock mode)', () => {
   });
 
   afterEach(async () => {
-    await prisma.authSession.deleteMany({});
-    await prisma.oAuthUser.deleteMany({});
+    await dataSource.getRepository(AuthSessionEntity).createQueryBuilder().delete().where('1=1').execute();
+    await dataSource.getRepository(OAuthUserEntity).createQueryBuilder().delete().where('1=1').execute();
   });
 
   afterAll(async () => {
@@ -98,12 +116,14 @@ describe('Deep ID auth e2e (mock mode)', () => {
     );
 
     const currentSession = await agent.get(base('/auth/me')).expect(200);
-    const storedSession = await prisma.authSession.findFirst({});
-    const storedUser = await prisma.oAuthUser.findFirst({ where: { sub: 'did:deep-id:mock-preview-user' } });
+    const storedSession = await dataSource.getRepository(AuthSessionEntity).findOne({ where: {} });
+    const storedUser = await dataSource
+      .getRepository(OAuthUserEntity)
+      .findOne({ where: { sub: 'did:deep-id:mock-preview-user' } });
 
     expect(storedSession).toBeTruthy();
     expect(storedUser).toMatchObject({
-      provider: 'deep_id',
+      provider: 'deep-id',
       sub: 'did:deep-id:mock-preview-user',
       email: 'preview@reputo.local',
       emailVerified: true,
@@ -157,7 +177,8 @@ describe('Deep ID auth e2e (mock mode)', () => {
       .set('x-forwarded-host', 'preview.reputo.dev')
       .expect(302);
 
-    const activeSession = await prisma.authSession.findFirst({});
+    const sessionRepo = dataSource.getRepository(AuthSessionEntity);
+    const activeSession = await sessionRepo.findOne({ where: {} });
 
     expect(activeSession).toBeTruthy();
 
@@ -167,7 +188,7 @@ describe('Deep ID auth e2e (mock mode)', () => {
       expect.arrayContaining([expect.stringContaining(`${AUTH_TEST_ENV.AUTH_COOKIE_NAME}=;`)]),
     );
 
-    const revokedSession = await prisma.authSession.findUnique({ where: { id: activeSession?.id ?? '' } });
+    const revokedSession = await sessionRepo.findOne({ where: { id: activeSession?.id ?? '' } });
     const currentSession = await agent.get(base('/auth/me')).expect(401);
 
     expect(revokedSession?.revokedAt).toBeTruthy();

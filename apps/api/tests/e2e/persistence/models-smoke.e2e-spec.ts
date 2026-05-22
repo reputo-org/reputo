@@ -1,73 +1,97 @@
+import { DataSource } from 'typeorm';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-
-import { PrismaService } from '../../../src/persistence';
+import {
+  AccessAllowlistEntity,
+  AlgorithmPresetEntity,
+  AlgorithmPresetInputEntity,
+  AuthSessionEntity,
+  ENTITIES,
+  OAuthConsentGrantEntity,
+  OAuthUserEntity,
+  SnapshotEntity,
+  SnapshotOutputEntity,
+} from '../../../src/persistence/entities';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 
-// End-to-end smoke covering insert + read for every model defined in
-// `prisma/schema.prisma`. Proves the generated client, FKs, and indexes line
-// up with the schema independently of any feature-level repository.
-
-describe('Prisma models smoke', () => {
+// End-to-end smoke covering insert + read for every entity defined under
+// `src/persistence/entities`. Proves the DataSource, FKs, and indexes line
+// up with the migration independently of any feature-level repository.
+describe('TypeORM entities smoke', () => {
   let db: TestDatabase;
-  let prisma: PrismaService;
+  let dataSource: DataSource;
 
   beforeAll(async () => {
     db = await startTestDatabase();
-    process.env.DATABASE_URL = db.databaseUrl;
-    prisma = new PrismaService();
-    await prisma.onModuleInit();
+    dataSource = new DataSource({
+      type: 'postgres',
+      url: db.databaseUrl,
+      entities: [...ENTITIES],
+      namingStrategy: new SnakeNamingStrategy(),
+      synchronize: false,
+      logging: false,
+    });
+    await dataSource.initialize();
   });
 
   afterAll(async () => {
-    await prisma?.onModuleDestroy();
+    if (dataSource?.isInitialized) {
+      await dataSource.destroy();
+    }
     await db?.stop();
   });
 
   it('round-trips an AlgorithmPreset with relational inputs ordered by position', async () => {
-    const created = await prisma.algorithmPreset.create({
-      data: {
+    const presets = dataSource.getRepository(AlgorithmPresetEntity);
+    const inputs = dataSource.getRepository(AlgorithmPresetInputEntity);
+
+    const preset = await presets.save(
+      presets.create({
         key: 'voting_engagement',
         version: '1.0.0',
         name: 'Default voting engagement',
         description: 'Baseline configuration used in regression tests.',
-        inputs: {
-          create: [
-            { key: 'window_days', value: 30, position: 0 },
-            { key: 'min_votes', value: 5, position: 1 },
-          ],
-        },
-      },
-      include: { inputs: { orderBy: { position: 'asc' } } },
+      }),
+    );
+    await inputs.save([
+      inputs.create({ algorithmPresetId: preset.id, key: 'window_days', value: 30, position: 0 }),
+      inputs.create({ algorithmPresetId: preset.id, key: 'min_votes', value: 5, position: 1 }),
+    ]);
+
+    const fetched = await presets.findOneOrFail({
+      where: { id: preset.id },
+      relations: { inputs: true },
     });
 
-    expect(created.id).toMatch(/^[0-9a-f-]{36}$/);
-    expect(created.inputs.map((input) => ({ key: input.key, value: input.value }))).toEqual([
+    expect(fetched.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(fetched.key).toBe('voting_engagement');
+    expect(fetched.version).toBe('1.0.0');
+    expect(
+      [...fetched.inputs]
+        .sort((a, b) => a.position - b.position)
+        .map((input) => ({ key: input.key, value: input.value })),
+    ).toEqual([
       { key: 'window_days', value: 30 },
       { key: 'min_votes', value: 5 },
     ]);
-
-    const fetched = await prisma.algorithmPreset.findUniqueOrThrow({ where: { id: created.id } });
-    expect(fetched.key).toBe('voting_engagement');
-    expect(fetched.version).toBe('1.0.0');
   });
 
   it('round-trips a Snapshot with frozen/temporal JSON, relational outputs, and the AlgorithmPreset FK', async () => {
-    const preset = await prisma.algorithmPreset.create({
-      data: {
-        key: 'token_holdings',
-        version: '2.1.0',
-        inputs: { create: [{ key: 'chain', value: 'cardano', position: 0 }] },
-      },
-      include: { inputs: { orderBy: { position: 'asc' } } },
-    });
+    const presets = dataSource.getRepository(AlgorithmPresetEntity);
+    const inputs = dataSource.getRepository(AlgorithmPresetInputEntity);
+    const snapshots = dataSource.getRepository(SnapshotEntity);
+    const outputs = dataSource.getRepository(SnapshotOutputEntity);
 
-    const snapshot = await prisma.snapshot.create({
-      data: {
+    const preset = await presets.save(presets.create({ key: 'token_holdings', version: '2.1.0' }));
+    await inputs.save(inputs.create({ algorithmPresetId: preset.id, key: 'chain', value: 'cardano', position: 0 }));
+
+    const snapshot = await snapshots.save(
+      snapshots.create({
         algorithmPresetId: preset.id,
         algorithmPresetFrozen: {
           key: preset.key,
           version: preset.version,
-          inputs: preset.inputs.map((input) => ({ key: input.key, value: input.value })),
+          inputs: [{ key: 'chain', value: 'cardano' }],
         },
         temporal: {
           workflowId: 'wf-123',
@@ -75,60 +99,54 @@ describe('Prisma models smoke', () => {
           taskQueue: 'orchestrator-worker',
           algorithmTaskQueue: 'algo-runner',
         },
-        outputs: { create: [{ key: 'csv', value: 's3://bucket/out.csv' }] },
         startedAt: new Date(),
-      },
-      include: { outputs: true },
-    });
+      }),
+    );
+    await outputs.save(outputs.create({ snapshotId: snapshot.id, key: 'csv', value: 's3://bucket/out.csv' }));
 
-    expect(snapshot.status).toBe('queued');
-    expect(snapshot.algorithmPresetId).toBe(preset.id);
-    expect(snapshot.outputs.map((o) => ({ key: o.key, value: o.value }))).toEqual([
-      { key: 'csv', value: 's3://bucket/out.csv' },
-    ]);
-
-    const refetched = await prisma.snapshot.findUniqueOrThrow({
+    const refetched = await snapshots.findOneOrFail({
       where: { id: snapshot.id },
-      include: { algorithmPreset: true, outputs: true },
+      relations: { algorithmPreset: true, outputs: true },
     });
+    expect(refetched.status).toBe('queued');
+    expect(refetched.algorithmPresetId).toBe(preset.id);
     expect(refetched.algorithmPreset.id).toBe(preset.id);
     expect((refetched.algorithmPresetFrozen as { key: string }).key).toBe('token_holdings');
-    expect(refetched.outputs).toHaveLength(1);
+    expect(refetched.outputs.map((o) => ({ key: o.key, value: o.value }))).toEqual([
+      { key: 'csv', value: 's3://bucket/out.csv' },
+    ]);
   });
 
   it('cascades snapshot deletion to the child snapshot_outputs rows', async () => {
-    const preset = await prisma.algorithmPreset.create({
-      data: {
-        key: 'cascade_check',
-        version: '1.0.0',
-        inputs: { create: [{ key: 'arg', value: 'v', position: 0 }] },
-      },
-    });
+    const presets = dataSource.getRepository(AlgorithmPresetEntity);
+    const snapshots = dataSource.getRepository(SnapshotEntity);
+    const outputs = dataSource.getRepository(SnapshotOutputEntity);
 
-    const snapshot = await prisma.snapshot.create({
-      data: {
+    const preset = await presets.save(presets.create({ key: 'cascade_check', version: '1.0.0' }));
+    const snapshot = await snapshots.save(
+      snapshots.create({
         algorithmPresetId: preset.id,
         algorithmPresetFrozen: { key: preset.key, version: preset.version, inputs: [] },
-        outputs: {
-          create: [
-            { key: 'csv', value: 's3://bucket/a.csv' },
-            { key: 'json', value: 's3://bucket/a.json' },
-          ],
-        },
-      },
-    });
+      }),
+    );
+    await outputs.save([
+      outputs.create({ snapshotId: snapshot.id, key: 'csv', value: 's3://bucket/a.csv' }),
+      outputs.create({ snapshotId: snapshot.id, key: 'json', value: 's3://bucket/a.json' }),
+    ]);
 
-    expect(await prisma.snapshotOutput.count({ where: { snapshotId: snapshot.id } })).toBe(2);
+    expect(await outputs.count({ where: { snapshotId: snapshot.id } })).toBe(2);
 
-    await prisma.snapshot.delete({ where: { id: snapshot.id } });
+    await snapshots.delete({ id: snapshot.id });
 
-    expect(await prisma.snapshotOutput.count({ where: { snapshotId: snapshot.id } })).toBe(0);
+    expect(await outputs.count({ where: { snapshotId: snapshot.id } })).toBe(0);
   });
 
   it('round-trips an OAuthUser and rejects duplicate (provider, sub)', async () => {
-    const user = await prisma.oAuthUser.create({
-      data: {
-        provider: 'deep_id',
+    const users = dataSource.getRepository(OAuthUserEntity);
+
+    const user = await users.save(
+      users.create({
+        provider: 'deep-id',
         sub: 'sub-1',
         aud: ['reputo-api'],
         authTime: 1_700_000_000,
@@ -139,28 +157,24 @@ describe('Prisma models smoke', () => {
         picture: 'https://cdn.example.com/u.png',
         rat: 1_700_000_000,
         username: 'user',
-      },
-    });
+      }),
+    );
 
     expect(user.aud).toEqual(['reputo-api']);
     expect(user.emailVerified).toBe(true);
 
-    await expect(
-      prisma.oAuthUser.create({
-        data: { provider: 'deep_id', sub: 'sub-1' },
-      }),
-    ).rejects.toThrow();
+    await expect(users.save(users.create({ provider: 'deep-id', sub: 'sub-1', aud: [] }))).rejects.toThrow();
   });
 
   it('round-trips an AuthSession and cascades when its OAuthUser is deleted', async () => {
-    const user = await prisma.oAuthUser.create({
-      data: { provider: 'deep_id', sub: 'sub-session' },
-    });
+    const users = dataSource.getRepository(OAuthUserEntity);
+    const sessions = dataSource.getRepository(AuthSessionEntity);
 
-    const session = await prisma.authSession.create({
-      data: {
+    const user = await users.save(users.create({ provider: 'deep-id', sub: 'sub-session', aud: [] }));
+    const session = await sessions.save(
+      sessions.create({
         sessionId: 'session-1',
-        provider: 'deep_id',
+        provider: 'deep-id',
         userId: user.id,
         accessTokenCiphertext: 'ct-access',
         refreshTokenCiphertext: 'ct-refresh',
@@ -170,70 +184,71 @@ describe('Prisma models smoke', () => {
         state: 'state-1',
         codeVerifier: 'verifier-1',
         expiresAt: new Date(Date.now() + 3_600_000),
-      },
-    });
+      }),
+    );
 
-    const fetched = await prisma.authSession.findUniqueOrThrow({ where: { sessionId: 'session-1' } });
+    const fetched = await sessions.findOneOrFail({ where: { sessionId: 'session-1' } });
     expect(fetched.id).toBe(session.id);
     expect(fetched.scope).toEqual(['openid', 'profile']);
 
-    await prisma.oAuthUser.delete({ where: { id: user.id } });
-    const cascaded = await prisma.authSession.findUnique({ where: { id: session.id } });
+    await users.delete({ id: user.id });
+    const cascaded = await sessions.findOne({ where: { id: session.id } });
     expect(cascaded).toBeNull();
   });
 
   it('round-trips an OAuthConsentGrant with unique state', async () => {
-    const grant = await prisma.oAuthConsentGrant.create({
-      data: {
-        provider: 'deep_id',
+    const consents = dataSource.getRepository(OAuthConsentGrantEntity);
+
+    const grant = await consents.save(
+      consents.create({
+        provider: 'deep-id',
         source: 'voting-portal',
         state: 'consent-state-1',
         codeVerifier: 'consent-verifier-1',
         expiresAt: new Date(Date.now() + 600_000),
-      },
-    });
+      }),
+    );
 
     expect(grant.id).toMatch(/^[0-9a-f-]{36}$/);
 
     await expect(
-      prisma.oAuthConsentGrant.create({
-        data: {
-          provider: 'deep_id',
+      consents.save(
+        consents.create({
+          provider: 'deep-id',
           source: 'voting-portal',
           state: 'consent-state-1',
           codeVerifier: 'other-verifier',
           expiresAt: new Date(Date.now() + 600_000),
-        },
-      }),
+        }),
+      ),
     ).rejects.toThrow();
   });
 
   it('round-trips an AccessAllowlist row and nulls invitedBy/revokedBy on user delete', async () => {
-    const inviter = await prisma.oAuthUser.create({
-      data: { provider: 'deep_id', sub: 'sub-inviter' },
-    });
-    const revoker = await prisma.oAuthUser.create({
-      data: { provider: 'deep_id', sub: 'sub-revoker' },
-    });
+    const users = dataSource.getRepository(OAuthUserEntity);
+    const allowlist = dataSource.getRepository(AccessAllowlistEntity);
 
-    const entry = await prisma.accessAllowlist.create({
-      data: {
-        provider: 'deep_id',
+    const inviter = await users.save(users.create({ provider: 'deep-id', sub: 'sub-inviter', aud: [] }));
+    const revoker = await users.save(users.create({ provider: 'deep-id', sub: 'sub-revoker', aud: [] }));
+
+    const entry = await allowlist.save(
+      allowlist.create({
+        provider: 'deep-id',
         email: 'allowed@example.com',
         role: 'admin',
-        invitedBy: inviter.id,
+        invitedByUserId: inviter.id,
         revokedAt: new Date(),
-        revokedBy: revoker.id,
-      },
-    });
+        revokedByUserId: revoker.id,
+      }),
+    );
 
     expect(entry.role).toBe('admin');
 
-    await prisma.oAuthUser.delete({ where: { id: inviter.id } });
-    await prisma.oAuthUser.delete({ where: { id: revoker.id } });
+    await users.delete({ id: inviter.id });
+    await users.delete({ id: revoker.id });
 
-    const stillThere = await prisma.accessAllowlist.findUniqueOrThrow({ where: { id: entry.id } });
-    expect(stillThere.invitedBy).toBeNull();
-    expect(stillThere.revokedBy).toBeNull();
+    const stillThere = await allowlist.findOneOrFail({ where: { id: entry.id } });
+    expect(stillThere.invitedByUserId).toBeNull();
+    expect(stillThere.revokedByUserId).toBeNull();
   });
 });

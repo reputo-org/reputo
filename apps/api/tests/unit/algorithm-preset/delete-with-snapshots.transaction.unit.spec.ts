@@ -1,16 +1,16 @@
+import type { DataSource } from 'typeorm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AlgorithmPresetRepository } from '../../../src/algorithm-preset/algorithm-preset.repository';
 import { AlgorithmPresetService } from '../../../src/algorithm-preset/algorithm-preset.service';
-import type { PrismaService } from '../../../src/persistence';
 import { SnapshotRepository } from '../../../src/snapshot/snapshot.repository';
 import type { StorageService } from '../../../src/storage/storage.service';
 import type { TemporalService } from '../../../src/temporal';
 
 // Focused unit test for `AlgorithmPresetService.deletePresetWithSnapshots`.
-// Verifies that snapshot `deleteMany` and preset `delete` are executed inside
-// the same `prisma.$transaction` and that the snapshot deletion happens before
-// the preset deletion (the FK in `snapshot.algorithm_preset_id` is `Restrict`
-// so reversing the order would fail at the DB level).
+// Verifies that snapshot `deleteMany` and preset `deleteById` are executed
+// inside the same `dataSource.transaction` and that the snapshot deletion
+// happens before the preset deletion (the FK in `snapshot.algorithm_preset_id`
+// is `RESTRICT`, so reversing the order would fail at the DB level).
 
 const PRESET_ID = '01940000-0000-7000-8000-000000000000';
 
@@ -18,8 +18,8 @@ describe('AlgorithmPresetService.deletePresetWithSnapshots (transaction)', () =>
   let service: AlgorithmPresetService;
   let mockSnapshotRepository: SnapshotRepository;
   let mockPresetRepository: AlgorithmPresetRepository;
-  let mockPrisma: PrismaService;
-  let transactionCallback: ((tx: unknown) => Promise<unknown>) | null = null;
+  let mockDataSource: DataSource;
+  let transactionCallback: ((manager: unknown) => Promise<unknown>) | null = null;
   let callOrder: string[];
 
   const mockLogger = {
@@ -52,13 +52,17 @@ describe('AlgorithmPresetService.deletePresetWithSnapshots (transaction)', () =>
       }),
     } as unknown as AlgorithmPresetRepository;
 
-    const sentinelTx = { __isTransactionClient: true };
-    mockPrisma = {
-      $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
+    // Sentinel object stands in for the TypeORM `EntityManager`. We don't
+    // need a real one; the service only forwards it into the repository
+    // methods we already mocked, and we want to assert that the same object
+    // ends up at both stops.
+    const sentinelManager = { __isTransactionalManager: true };
+    mockDataSource = {
+      transaction: vi.fn(async (cb: (manager: unknown) => Promise<unknown>) => {
         transactionCallback = cb;
-        return cb(sentinelTx);
+        return cb(sentinelManager);
       }),
-    } as unknown as PrismaService;
+    } as unknown as DataSource;
 
     const mockStorage = {
       listObjectsByPrefix: vi.fn().mockResolvedValue([]),
@@ -79,29 +83,29 @@ describe('AlgorithmPresetService.deletePresetWithSnapshots (transaction)', () =>
       mockStorage,
       mockSnapshotRepository,
       mockTemporal,
-      mockPrisma,
+      mockDataSource,
       mockConfig,
     );
   });
 
-  it('executes snapshot.deleteMany and algorithmPreset.delete inside a single $transaction', async () => {
+  it('executes snapshot.deleteMany and algorithmPreset.delete inside a single transaction', async () => {
     await service.deleteById(PRESET_ID);
 
-    expect(mockPrisma.$transaction).toHaveBeenCalledOnce();
+    expect(mockDataSource.transaction).toHaveBeenCalledOnce();
     expect(transactionCallback).toBeTypeOf('function');
     expect(callOrder).toEqual(['snapshot.deleteMany', 'algorithmPreset.deleteById']);
   });
 
-  it('passes the transactional client through to both repositories', async () => {
+  it('passes the transactional manager through to both repositories', async () => {
     await service.deleteById(PRESET_ID);
 
     expect(mockSnapshotRepository.deleteMany).toHaveBeenCalledWith(
       { algorithmPresetId: PRESET_ID },
-      expect.objectContaining({ __isTransactionClient: true }),
+      expect.objectContaining({ __isTransactionalManager: true }),
     );
     expect(mockPresetRepository.deleteById).toHaveBeenCalledWith(
       PRESET_ID,
-      expect.objectContaining({ __isTransactionClient: true }),
+      expect.objectContaining({ __isTransactionalManager: true }),
     );
   });
 

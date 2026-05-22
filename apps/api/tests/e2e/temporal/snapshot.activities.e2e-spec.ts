@@ -1,12 +1,15 @@
-import type { ApiSnapshotActivities, UpdateSnapshotInput } from '@reputo/contracts';
+import { type ApiSnapshotActivities, SnapshotStatus, type UpdateSnapshotInput } from '@reputo/contracts';
 import { ApplicationFailure } from '@temporalio/activity';
 import { MockActivityEnvironment } from '@temporalio/testing';
+import { DataSource } from 'typeorm';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PrismaService } from '../../../src/persistence';
+import { ENTITIES, SnapshotEntity, SnapshotOutputEntity } from '../../../src/persistence';
 import { SnapshotRepository } from '../../../src/snapshot/snapshot.repository';
 import { SnapshotService } from '../../../src/snapshot/snapshot.service';
 import { createSnapshotActivities } from '../../../src/temporal/snapshot.activities';
 import { insertAlgorithmPreset } from '../../factories/algorithmPreset.factory';
+import { truncateAllTables } from '../../utils/db';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { randomUUIDv7 } from '../../utils/uuid';
 
@@ -25,7 +28,7 @@ const logger = {
 
 describe('API snapshot activities (integration)', () => {
   let db: TestDatabase;
-  let prisma: PrismaService;
+  let dataSource: DataSource;
   let service: SnapshotService;
   let activities: ApiSnapshotActivities;
   let env: MockActivityEnvironment;
@@ -34,10 +37,20 @@ describe('API snapshot activities (integration)', () => {
     db = await startTestDatabase();
     process.env.DATABASE_URL = db.databaseUrl;
 
-    prisma = new PrismaService();
-    await prisma.onModuleInit();
+    dataSource = new DataSource({
+      type: 'postgres',
+      url: db.databaseUrl,
+      entities: [...ENTITIES],
+      namingStrategy: new SnakeNamingStrategy(),
+      synchronize: false,
+      logging: false,
+    });
+    await dataSource.initialize();
 
-    const repository = new SnapshotRepository(prisma);
+    const repository = new SnapshotRepository(
+      dataSource.getRepository(SnapshotEntity),
+      dataSource.getRepository(SnapshotOutputEntity),
+    );
     const algorithmPresetRepository = { findById: vi.fn() } as unknown as ConstructorParameters<
       typeof SnapshotService
     >[2];
@@ -66,33 +79,35 @@ describe('API snapshot activities (integration)', () => {
 
   beforeEach(async () => {
     env = new MockActivityEnvironment();
-    await prisma.snapshot.deleteMany({});
-    await prisma.algorithmPreset.deleteMany({});
+    await truncateAllTables(dataSource);
   });
 
   afterAll(async () => {
-    await prisma?.onModuleDestroy();
+    if (dataSource?.isInitialized) {
+      await dataSource.destroy();
+    }
     await db?.stop();
   });
 
   async function seedSnapshot() {
-    const preset = await insertAlgorithmPreset(prisma);
+    const preset = await insertAlgorithmPreset(dataSource);
     const frozen = {
       key: preset.key,
       version: preset.version,
-      inputs: preset.inputs as Array<{ key: string; value?: unknown }>,
+      inputs: preset.inputs.map((input) => ({ key: input.key, value: input.value })),
       name: preset.name ?? undefined,
       description: preset.description ?? undefined,
       createdAt: preset.createdAt.toISOString(),
       updatedAt: preset.updatedAt.toISOString(),
     };
-    const snapshot = await prisma.snapshot.create({
-      data: {
-        status: 'queued',
+    const snapshotRepo = dataSource.getRepository(SnapshotEntity);
+    const snapshot = await snapshotRepo.save(
+      snapshotRepo.create({
+        status: SnapshotStatus.queued,
         algorithmPresetId: preset.id,
-        algorithmPresetFrozen: frozen,
-      },
-    });
+        algorithmPresetFrozen: frozen as unknown,
+      }),
+    );
     return { preset, snapshot };
   }
 
@@ -122,20 +137,24 @@ describe('API snapshot activities (integration)', () => {
     it('stamps startedAt on transition to running', async () => {
       const { snapshot } = await seedSnapshot();
 
-      await env.run(activities.updateSnapshot, { snapshotId: snapshot.id, status: 'running' });
+      await env.run(activities.updateSnapshot, { snapshotId: snapshot.id, status: SnapshotStatus.running });
 
-      const persisted = await prisma.snapshot.findUnique({ where: { id: snapshot.id } });
-      expect(persisted?.status).toBe('running');
+      const persisted = await dataSource.getRepository(SnapshotEntity).findOne({ where: { id: snapshot.id } });
+      expect(persisted?.status).toBe(SnapshotStatus.running);
       expect(persisted?.startedAt).not.toBeNull();
       expect(persisted?.completedAt).toBeNull();
     });
 
-    it.each(['completed', 'failed', 'cancelled'] as const)('stamps completedAt on transition to %s', async (status) => {
+    it.each([
+      SnapshotStatus.completed,
+      SnapshotStatus.failed,
+      SnapshotStatus.cancelled,
+    ])('stamps completedAt on transition to %s', async (status) => {
       const { snapshot } = await seedSnapshot();
 
       await env.run(activities.updateSnapshot, { snapshotId: snapshot.id, status });
 
-      const persisted = await prisma.snapshot.findUnique({ where: { id: snapshot.id } });
+      const persisted = await dataSource.getRepository(SnapshotEntity).findOne({ where: { id: snapshot.id } });
       expect(persisted?.status).toBe(status);
       expect(persisted?.completedAt).not.toBeNull();
     });
@@ -150,9 +169,9 @@ describe('API snapshot activities (integration)', () => {
         error: { message: 'boom' },
       } satisfies UpdateSnapshotInput);
 
-      const persisted = await prisma.snapshot.findUnique({
+      const persisted = await dataSource.getRepository(SnapshotEntity).findOne({
         where: { id: snapshot.id },
-        include: { outputs: true },
+        relations: { outputs: true },
       });
       expect(persisted?.temporal).toEqual({ workflowId: 'wf-1', taskQueue: 'orchestrator' });
       expect(persisted?.outputs.map((o) => ({ key: o.key, value: o.value }))).toEqual([
@@ -167,23 +186,18 @@ describe('API snapshot activities (integration)', () => {
 
       const input = {
         snapshotId: snapshot.id,
-        status: 'completed' as const,
+        status: SnapshotStatus.completed,
         outputs: { csv: 'snapshots/result.csv' },
-      };
+      } satisfies UpdateSnapshotInput;
 
       await env.run(activities.updateSnapshot, input);
-      const after1 = await prisma.snapshot.findUnique({
-        where: { id: snapshot.id },
-        include: { outputs: true },
-      });
+      const snapshotRepo = dataSource.getRepository(SnapshotEntity);
+      const after1 = await snapshotRepo.findOne({ where: { id: snapshot.id }, relations: { outputs: true } });
       await env.run(activities.updateSnapshot, input);
-      const after2 = await prisma.snapshot.findUnique({
-        where: { id: snapshot.id },
-        include: { outputs: true },
-      });
+      const after2 = await snapshotRepo.findOne({ where: { id: snapshot.id }, relations: { outputs: true } });
 
-      expect(after1?.status).toBe('completed');
-      expect(after2?.status).toBe('completed');
+      expect(after1?.status).toBe(SnapshotStatus.completed);
+      expect(after2?.status).toBe(SnapshotStatus.completed);
       // Replay keeps exactly one row per (snapshot, key); no duplicates accumulate.
       expect(after2?.outputs).toHaveLength(1);
       expect(after2?.outputs.map((o) => ({ key: o.key, value: o.value }))).toEqual(
@@ -195,7 +209,7 @@ describe('API snapshot activities (integration)', () => {
       const missingId = randomUUIDv7();
 
       const error = await env
-        .run(activities.updateSnapshot, { snapshotId: missingId, status: 'running' })
+        .run(activities.updateSnapshot, { snapshotId: missingId, status: SnapshotStatus.running })
         .catch((e) => e);
 
       expect(error).toBeInstanceOf(ApplicationFailure);
@@ -206,7 +220,7 @@ describe('API snapshot activities (integration)', () => {
       const { snapshot } = await seedSnapshot();
       const received: string[] = [];
 
-      // Use a raw pg client because Prisma does not expose LISTEN. A
+      // Use a raw pg client because TypeORM does not expose LISTEN. A
       // dedicated connection is required so the LISTEN registers before the
       // activity commits and we don't miss the notification.
       const { Client: PgClient } = await import('pg');
@@ -220,7 +234,7 @@ describe('API snapshot activities (integration)', () => {
       await pg.query('LISTEN snapshot_updates');
 
       try {
-        await env.run(activities.updateSnapshot, { snapshotId: snapshot.id, status: 'running' });
+        await env.run(activities.updateSnapshot, { snapshotId: snapshot.id, status: SnapshotStatus.running });
         // pg emits notifications asynchronously after the writer commits; give
         // the client a tick to drain.
         await new Promise((r) => setTimeout(r, 250));

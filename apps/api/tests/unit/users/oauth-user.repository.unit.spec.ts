@@ -1,14 +1,16 @@
+import type { EntityManager, Repository } from 'typeorm';
+import { In } from 'typeorm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PrismaService } from '../../../src/persistence';
+import type { OAuthUserEntity } from '../../../src/persistence';
 import { OAuthUserRepository } from '../../../src/users/oauth-user.repository';
 
 const FIXED_NOW = new Date('2026-05-21T00:00:00.000Z');
 const TEST_UUID = '01940000-0000-7000-8000-000000000000';
 
-function createPrismaRow(overrides: Record<string, unknown> = {}) {
+function createEntity(overrides: Record<string, unknown> = {}) {
   return {
     id: TEST_UUID,
-    provider: 'deep_id',
+    provider: 'deep-id',
     sub: 'did:deep-id:abc',
     aud: [],
     authTime: null,
@@ -26,39 +28,49 @@ function createPrismaRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('OAuthUserRepository', () => {
-  let prismaMock: {
-    oAuthUser: {
-      upsert: ReturnType<typeof vi.fn>;
-      findUnique: ReturnType<typeof vi.fn>;
-      findMany: ReturnType<typeof vi.fn>;
-      findFirst: ReturnType<typeof vi.fn>;
-    };
+  let repoMock: Repository<OAuthUserEntity> & {
+    findOne: ReturnType<typeof vi.fn>;
+    find: ReturnType<typeof vi.fn>;
+    save: ReturnType<typeof vi.fn>;
   };
+  // Repository accessed via the transaction manager — same set of methods as
+  // the outer mock, but we need both so we can drive the upsert paths and
+  // assert calls on the right one.
+  let txRepo: typeof repoMock;
   let repository: OAuthUserRepository;
 
   beforeEach(() => {
-    prismaMock = {
-      oAuthUser: {
-        upsert: vi.fn(),
-        findUnique: vi.fn(),
-        findMany: vi.fn(),
-        findFirst: vi.fn(),
+    txRepo = {
+      findOne: vi.fn(),
+      save: vi.fn(async (entity) => entity),
+    } as unknown as typeof repoMock;
+
+    const txManager = {
+      getRepository: vi.fn(() => txRepo),
+    } as unknown as EntityManager;
+
+    repoMock = {
+      findOne: vi.fn(),
+      find: vi.fn(),
+      save: vi.fn(async (entity) => entity),
+      manager: {
+        transaction: vi.fn(async (cb: (m: EntityManager) => unknown) => cb(txManager)),
+        getRepository: vi.fn(() => txRepo),
       },
-    };
-    repository = new OAuthUserRepository(prismaMock as unknown as PrismaService);
+    } as unknown as typeof repoMock;
+
+    repository = new OAuthUserRepository(repoMock as unknown as Repository<OAuthUserEntity>);
   });
 
   describe('upsertBySub', () => {
-    it('translates the hyphenated wire provider to the Prisma enum and writes camelCase columns', async () => {
-      prismaMock.oAuthUser.upsert.mockResolvedValue(
-        createPrismaRow({
-          email: 'jane@example.com',
-          emailVerified: true,
-          username: 'jane',
-          aud: ['deep-id-test-client'],
-          authTime: 1775166617,
-        }),
-      );
+    it('inserts a new row when none exists and maps the wire shape', async () => {
+      txRepo.findOne.mockResolvedValue(null);
+      txRepo.save.mockImplementation(async (entity) => ({
+        ...entity,
+        id: TEST_UUID,
+        createdAt: FIXED_NOW,
+        updatedAt: FIXED_NOW,
+      }));
 
       const row = await repository.upsertBySub('deep-id', 'did:deep-id:abc', {
         aud: ['deep-id-test-client'],
@@ -68,34 +80,62 @@ describe('OAuthUserRepository', () => {
         username: 'jane',
       });
 
-      expect(prismaMock.oAuthUser.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { provider_sub: { provider: 'deep_id', sub: 'did:deep-id:abc' } },
-          update: expect.objectContaining({
-            aud: { set: ['deep-id-test-client'] },
-            authTime: 1775166617,
-            email: 'jane@example.com',
-            emailVerified: true,
-            username: 'jane',
-          }),
-          create: expect.objectContaining({
-            provider: 'deep_id',
-            sub: 'did:deep-id:abc',
-            aud: ['deep-id-test-client'],
-            authTime: 1775166617,
-            email: 'jane@example.com',
-            emailVerified: true,
-            username: 'jane',
-          }),
-        }),
-      );
+      expect(txRepo.findOne).toHaveBeenCalledWith({ where: { provider: 'deep-id', sub: 'did:deep-id:abc' } });
+      // A brand-new entity is saved with the camelCased columns expected by
+      // the DB.
+      const saved = txRepo.save.mock.calls[0][0] as Record<string, unknown>;
+      expect(saved).toMatchObject({
+        provider: 'deep-id',
+        sub: 'did:deep-id:abc',
+        aud: ['deep-id-test-client'],
+        authTime: 1775166617,
+        email: 'jane@example.com',
+        emailVerified: true,
+        username: 'jane',
+      });
       expect(row._id).toBe(TEST_UUID);
       expect(row.provider).toBe('deep-id');
       expect(row.email).toBe('jane@example.com');
     });
 
+    it('updates an existing row by mutating it in place before save', async () => {
+      const existing = createEntity({
+        email: 'old@example.com',
+        emailVerified: false,
+        username: 'old',
+        aud: ['old-aud'],
+      });
+      txRepo.findOne.mockResolvedValue(existing);
+      txRepo.save.mockImplementation(async (entity) => entity);
+
+      await repository.upsertBySub('deep-id', 'did:deep-id:abc', {
+        email: 'mock@example.com',
+        email_verified: true,
+        username: 'mock',
+      });
+
+      // Only the explicitly-set fields move; everything else is untouched.
+      expect(existing.email).toBe('mock@example.com');
+      expect(existing.emailVerified).toBe(true);
+      expect(existing.username).toBe('mock');
+      // `aud` was not mentioned so it should remain unchanged.
+      expect(existing.aud).toEqual(['old-aud']);
+    });
+
     it('clears explicitly-undefined fields with null (matching the prior $unset semantics)', async () => {
-      prismaMock.oAuthUser.upsert.mockResolvedValue(createPrismaRow());
+      const existing = createEntity({
+        aud: ['x'],
+        authTime: 1,
+        email: 'x',
+        emailVerified: true,
+        iat: 1,
+        iss: 'iss',
+        picture: 'p',
+        rat: 1,
+        username: 'u',
+      });
+      txRepo.findOne.mockResolvedValue(existing);
+      txRepo.save.mockImplementation(async (entity) => entity);
 
       await repository.upsertBySub('deep-id', 'did:deep-id:abc', {
         aud: undefined,
@@ -109,22 +149,21 @@ describe('OAuthUserRepository', () => {
         username: undefined,
       });
 
-      const update = prismaMock.oAuthUser.upsert.mock.calls[0][0].update;
-      expect(update).toEqual({
-        aud: { set: [] },
-        authTime: null,
-        email: null,
-        emailVerified: null,
-        iat: null,
-        iss: null,
-        picture: null,
-        rat: null,
-        username: null,
-      });
+      expect(existing.aud).toEqual([]);
+      expect(existing.authTime).toBeNull();
+      expect(existing.email).toBeNull();
+      expect(existing.emailVerified).toBeNull();
+      expect(existing.iat).toBeNull();
+      expect(existing.iss).toBeNull();
+      expect(existing.picture).toBeNull();
+      expect(existing.rat).toBeNull();
+      expect(existing.username).toBeNull();
     });
 
     it('omits unmentioned fields so they remain unchanged (mock-login case)', async () => {
-      prismaMock.oAuthUser.upsert.mockResolvedValue(createPrismaRow());
+      const existing = createEntity({ email: 'old@example.com', emailVerified: false, username: 'old' });
+      txRepo.findOne.mockResolvedValue(existing);
+      txRepo.save.mockImplementation(async (entity) => entity);
 
       await repository.upsertBySub('deep-id', 'did:deep-id:abc', {
         email: 'mock@example.com',
@@ -132,12 +171,23 @@ describe('OAuthUserRepository', () => {
         username: 'mock',
       });
 
-      const update = prismaMock.oAuthUser.upsert.mock.calls[0][0].update;
-      expect(Object.keys(update).sort()).toEqual(['email', 'emailVerified', 'username']);
+      // Things we touched.
+      expect(existing.email).toBe('mock@example.com');
+      expect(existing.emailVerified).toBe(true);
+      expect(existing.username).toBe('mock');
+      // Things we didn't.
+      expect(existing.aud).toEqual([]);
+      expect(existing.authTime).toBeNull();
     });
 
-    it('maps an empty Prisma aud array back to undefined for downstream JSON', async () => {
-      prismaMock.oAuthUser.upsert.mockResolvedValue(createPrismaRow());
+    it('maps an empty entity aud array back to undefined for downstream JSON', async () => {
+      txRepo.findOne.mockResolvedValue(null);
+      txRepo.save.mockImplementation(async (entity) => ({
+        ...entity,
+        id: TEST_UUID,
+        createdAt: FIXED_NOW,
+        updatedAt: FIXED_NOW,
+      }));
 
       const row = await repository.upsertBySub('deep-id', 'did:deep-id:abc', {});
 
@@ -147,49 +197,49 @@ describe('OAuthUserRepository', () => {
 
   describe('findById', () => {
     it('returns the row when present', async () => {
-      prismaMock.oAuthUser.findUnique.mockResolvedValue(createPrismaRow({ email: 'jane@example.com' }));
+      repoMock.findOne.mockResolvedValue(createEntity({ email: 'jane@example.com' }));
 
       const row = await repository.findById(TEST_UUID);
 
-      expect(prismaMock.oAuthUser.findUnique).toHaveBeenCalledWith({ where: { id: TEST_UUID } });
+      expect(repoMock.findOne).toHaveBeenCalledWith({ where: { id: TEST_UUID } });
       expect(row?._id).toBe(TEST_UUID);
       expect(row?.email).toBe('jane@example.com');
     });
 
     it('returns null when not found', async () => {
-      prismaMock.oAuthUser.findUnique.mockResolvedValue(null);
+      repoMock.findOne.mockResolvedValue(null);
       await expect(repository.findById(TEST_UUID)).resolves.toBeNull();
     });
   });
 
   describe('findByIds', () => {
-    it('returns an empty array without hitting Prisma when the input is empty', async () => {
+    it('returns an empty array without hitting the DB when the input is empty', async () => {
       await expect(repository.findByIds([])).resolves.toEqual([]);
-      expect(prismaMock.oAuthUser.findMany).not.toHaveBeenCalled();
+      expect(repoMock.find).not.toHaveBeenCalled();
     });
 
-    it('passes the id list to Prisma findMany', async () => {
-      prismaMock.oAuthUser.findMany.mockResolvedValue([createPrismaRow()]);
+    it('passes the id list to TypeORM find via In()', async () => {
+      repoMock.find.mockResolvedValue([createEntity()]);
       await repository.findByIds([TEST_UUID]);
-      expect(prismaMock.oAuthUser.findMany).toHaveBeenCalledWith({ where: { id: { in: [TEST_UUID] } } });
+      expect(repoMock.find).toHaveBeenCalledWith({ where: { id: In([TEST_UUID]) } });
     });
   });
 
   describe('findByProviderEmail', () => {
     it('normalizes the email before querying', async () => {
-      prismaMock.oAuthUser.findFirst.mockResolvedValue(null);
+      repoMock.findOne.mockResolvedValue(null);
 
       await repository.findByProviderEmail('deep-id', '  Jane@Example.COM  ');
 
-      expect(prismaMock.oAuthUser.findFirst).toHaveBeenCalledWith({
-        where: { provider: 'deep_id', email: 'jane@example.com' },
-        orderBy: { updatedAt: 'desc' },
+      expect(repoMock.findOne).toHaveBeenCalledWith({
+        where: { provider: 'deep-id', email: 'jane@example.com' },
+        order: { updatedAt: 'DESC' },
       });
     });
 
     it('returns null when the email is blank', async () => {
       await expect(repository.findByProviderEmail('deep-id', '   ')).resolves.toBeNull();
-      expect(prismaMock.oAuthUser.findFirst).not.toHaveBeenCalled();
+      expect(repoMock.findOne).not.toHaveBeenCalled();
     });
   });
 });

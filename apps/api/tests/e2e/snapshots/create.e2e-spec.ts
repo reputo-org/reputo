@@ -1,10 +1,11 @@
 import type { INestApplication } from '@nestjs/common';
+import type { DataSource } from 'typeorm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { PrismaService } from '../../../src/persistence';
 import { insertAlgorithmPreset } from '../../factories/algorithmPreset.factory';
 import { makeSnapshotDto } from '../../factories/snapshot.factory';
 import { createTestApp } from '../../utils/app-test.module';
 import { createAuthenticatedSession } from '../../utils/auth-session';
+import { getTestDataSource, truncateBusinessTables } from '../../utils/db';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { api } from '../../utils/request';
 import { randomUUIDv7 } from '../../utils/uuid';
@@ -12,7 +13,7 @@ import { randomUUIDv7 } from '../../utils/uuid';
 describe('POST /api/v1/snapshots', () => {
   let app: INestApplication;
   let authCookie: string;
-  let prisma: PrismaService;
+  let dataSource: DataSource;
   let db: TestDatabase;
 
   beforeAll(async () => {
@@ -20,13 +21,12 @@ describe('POST /api/v1/snapshots', () => {
     process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({});
     app = boot.app;
-    prisma = boot.moduleRef.get(PrismaService);
+    dataSource = getTestDataSource(boot.moduleRef);
     authCookie = (await createAuthenticatedSession(boot.moduleRef)).cookie;
   });
 
   afterEach(async () => {
-    await prisma.snapshot.deleteMany({});
-    await prisma.algorithmPreset.deleteMany({});
+    await truncateBusinessTables(dataSource);
   });
 
   afterAll(async () => {
@@ -35,7 +35,7 @@ describe('POST /api/v1/snapshots', () => {
   });
 
   it('should create snapshot (201) with frozen preset and status defaulting to "queued"', async () => {
-    const preset = await insertAlgorithmPreset(prisma);
+    const preset = await insertAlgorithmPreset(dataSource);
     const dto = makeSnapshotDto(preset.id);
 
     const res = await api(app, authCookie).post('/snapshots').send(dto).expect(201);

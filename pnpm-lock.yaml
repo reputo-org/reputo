@@ -28,9 +28,9 @@ catalogs:
     '@commitlint/config-conventional':
       specifier: ^19.8.1
       version: 19.8.1
-    '@prisma/client':
-      specifier: ^6.7.0
-      version: 6.19.3
+    '@nestjs/typeorm':
+      specifier: ^11.0.0
+      version: 11.0.1
     '@semantic-release/commit-analyzer':
       specifier: ^13.0.1
       version: 13.0.1
@@ -82,6 +82,9 @@ catalogs:
     '@types/supertest':
       specifier: ^6.0.3
       version: 6.0.3
+    '@types/uuid':
+      specifier: ^11.0.0
+      version: 11.0.0
     '@vitest/coverage-v8':
       specifier: 3.2.4
       version: 3.2.4
@@ -121,9 +124,6 @@ catalogs:
     pino-pretty:
       specifier: ^13.1.2
       version: 13.1.2
-    prisma:
-      specifier: ^6.7.0
-      version: 6.19.3
     semantic-release:
       specifier: ^25.0.3
       version: 24.2.9
@@ -151,12 +151,18 @@ catalogs:
     typeorm:
       specifier: ^0.3.28
       version: 0.3.28
+    typeorm-naming-strategies:
+      specifier: ^4.1.0
+      version: 4.1.0
     typescript:
       specifier: 5.9.2
       version: 5.9.2
     undici:
       specifier: ^7.10.0
       version: 7.16.0
+    uuid:
+      specifier: ^11.1.0
+      version: 11.1.0
     vitest:
       specifier: 3.2.4
       version: 3.2.4
@@ -252,9 +258,9 @@ importers:
       '@nestjs/swagger':
         specifier: ^11.2.1
         version: 11.2.3(@nestjs/common@11.0.1(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.0.1)(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)
-      '@prisma/client':
+      '@nestjs/typeorm':
         specifier: 'catalog:'
-        version: 6.19.3(prisma@6.19.3(magicast@0.3.5)(typescript@5.9.2))(typescript@5.9.2)
+        version: 11.0.1(@nestjs/common@11.0.1(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.0.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(typeorm@0.3.28(better-sqlite3@11.10.0)(mongodb@6.21.0)(pg@8.20.0)(ts-node@10.9.2(@swc/core@1.15.2)(@types/node@22.19.1)(typescript@5.9.2)))
       '@reputo/algorithm-validator':
         specifier: workspace:*
         version: link:../../packages/algorithm-validator
@@ -306,6 +312,15 @@ importers:
       rxjs:
         specifier: 7.8.2
         version: 7.8.2
+      typeorm:
+        specifier: 'catalog:'
+        version: 0.3.28(better-sqlite3@11.10.0)(mongodb@6.21.0)(pg@8.20.0)(ts-node@10.9.2(@swc/core@1.15.2)(@types/node@22.19.1)(typescript@5.9.2))
+      typeorm-naming-strategies:
+        specifier: 'catalog:'
+        version: 4.1.0(typeorm@0.3.28(better-sqlite3@11.10.0)(mongodb@6.21.0)(pg@8.20.0)(ts-node@10.9.2(@swc/core@1.15.2)(@types/node@22.19.1)(typescript@5.9.2)))
+      uuid:
+        specifier: 'catalog:'
+        version: 11.1.0
       zod:
         specifier: 'catalog:'
         version: 4.1.12
@@ -346,6 +361,9 @@ importers:
       '@types/supertest':
         specifier: 'catalog:'
         version: 6.0.3
+      '@types/uuid':
+        specifier: 'catalog:'
+        version: 11.0.0
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 3.2.4(vitest@3.2.4)
@@ -355,9 +373,6 @@ importers:
       concurrently:
         specifier: 'catalog:'
         version: 9.2.1
-      prisma:
-        specifier: 'catalog:'
-        version: 6.19.3(magicast@0.3.5)(typescript@5.9.2)
       supertest:
         specifier: 'catalog:'
         version: 7.1.4
@@ -2325,6 +2340,15 @@ packages:
       '@nestjs/platform-express':
         optional: true
 
+  '@nestjs/typeorm@11.0.1':
+    resolution: {integrity: sha512-8rw/nKT0S+L+MkzgE9F2/mox7mAgsPlwfzmW9gsESN1lmQtIrVEfiiBwC2O8+guS1jBfQehJIdcdUj2OAp4VUQ==}
+    peerDependencies:
+      '@nestjs/common': ^10.0.0 || ^11.0.0
+      '@nestjs/core': ^10.0.0 || ^11.0.0
+      reflect-metadata: ^0.1.13 || ^0.2.0
+      rxjs: ^7.2.0
+      typeorm: ^0.3.0 || ^1.0.0-dev
+
   '@next/env@15.5.6':
     resolution: {integrity: sha512-3qBGRW+sCGzgbpc5TS1a0p7eNxnOarGVQhZxfvTdnV0gFI61lX7QNtQ4V1TSREctXzYn5NetbUsLvyqwLFJM6Q==}
 
@@ -4155,6 +4179,10 @@ packages:
 
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
+
+  '@types/uuid@11.0.0':
+    resolution: {integrity: sha512-HVyk8nj2m+jcFRNazzqyVKiZezyhDKrGUA3jlEcg/nZ6Ms+qHwocba1Y/AaVaznJTAM9xpdFSh+ptbNrhOGvZA==}
+    deprecated: This is a stub types definition. uuid provides its own type definitions, so you do not need this installed.
 
   '@types/validator@13.15.10':
     resolution: {integrity: sha512-T8L6i7wCuyoK8A/ZeLYt1+q0ty3Zb9+qbSSvrIVitzT3YjZqkTZ40IbRsPanlB4h1QB3JVL1SYCdR6ngtFYcuA==}
@@ -9770,6 +9798,11 @@ packages:
     peerDependencies:
       typescript: 5.0.x || 5.1.x || 5.2.x || 5.3.x || 5.4.x || 5.5.x || 5.6.x || 5.7.x || 5.8.x || 5.9.x
 
+  typeorm-naming-strategies@4.1.0:
+    resolution: {integrity: sha512-vPekJXzZOTZrdDvTl1YoM+w+sUIfQHG4kZTpbFYoTsufyv9NIBRe4Q+PdzhEAFA2std3D9LZHEb1EjE9zhRpiQ==}
+    peerDependencies:
+      typeorm: ^0.2.0 || ^0.3.0
+
   typeorm@0.3.28:
     resolution: {integrity: sha512-6GH7wXhtfq2D33ZuRXYwIsl/qM5685WZcODZb7noOOcRMteM9KF2x2ap3H0EBjnSV0VO4gNAfJT5Ukp0PkOlvg==}
     engines: {node: '>=16.13.0'}
@@ -9992,6 +10025,7 @@ packages:
 
   uuid@10.0.0:
     resolution: {integrity: sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   uuid@11.1.0:
@@ -12187,6 +12221,14 @@ snapshots:
     optionalDependencies:
       '@nestjs/platform-express': 11.0.1(@nestjs/common@11.0.1(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.0.1)
 
+  '@nestjs/typeorm@11.0.1(@nestjs/common@11.0.1(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.0.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(typeorm@0.3.28(better-sqlite3@11.10.0)(mongodb@6.21.0)(pg@8.20.0)(ts-node@10.9.2(@swc/core@1.15.2)(@types/node@22.19.1)(typescript@5.9.2)))':
+    dependencies:
+      '@nestjs/common': 11.0.1(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core': 11.0.1(@nestjs/common@11.0.1(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.0.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      reflect-metadata: 0.2.2
+      rxjs: 7.8.2
+      typeorm: 0.3.28(better-sqlite3@11.10.0)(mongodb@6.21.0)(pg@8.20.0)(ts-node@10.9.2(@swc/core@1.15.2)(@types/node@22.19.1)(typescript@5.9.2))
+
   '@next/env@15.5.6': {}
 
   '@next/swc-darwin-arm64@15.5.6':
@@ -12325,6 +12367,7 @@ snapshots:
     optionalDependencies:
       prisma: 6.19.3(magicast@0.3.5)(typescript@5.9.2)
       typescript: 5.9.2
+    optional: true
 
   '@prisma/config@6.19.3(magicast@0.3.5)':
     dependencies:
@@ -12334,10 +12377,13 @@ snapshots:
       empathic: 2.0.0
     transitivePeerDependencies:
       - magicast
+    optional: true
 
-  '@prisma/debug@6.19.3': {}
+  '@prisma/debug@6.19.3':
+    optional: true
 
-  '@prisma/engines-version@7.1.1-3.c2990dca591cba766e3b7ef5d9e8a84796e47ab7': {}
+  '@prisma/engines-version@7.1.1-3.c2990dca591cba766e3b7ef5d9e8a84796e47ab7':
+    optional: true
 
   '@prisma/engines@6.19.3':
     dependencies:
@@ -12345,16 +12391,19 @@ snapshots:
       '@prisma/engines-version': 7.1.1-3.c2990dca591cba766e3b7ef5d9e8a84796e47ab7
       '@prisma/fetch-engine': 6.19.3
       '@prisma/get-platform': 6.19.3
+    optional: true
 
   '@prisma/fetch-engine@6.19.3':
     dependencies:
       '@prisma/debug': 6.19.3
       '@prisma/engines-version': 7.1.1-3.c2990dca591cba766e3b7ef5d9e8a84796e47ab7
       '@prisma/get-platform': 6.19.3
+    optional: true
 
   '@prisma/get-platform@6.19.3':
     dependencies:
       '@prisma/debug': 6.19.3
+    optional: true
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -14254,6 +14303,10 @@ snapshots:
 
   '@types/unist@3.0.3': {}
 
+  '@types/uuid@11.0.0':
+    dependencies:
+      uuid: 11.1.0
+
   '@types/validator@13.15.10': {}
 
   '@types/webidl-conversions@7.0.3':
@@ -15131,6 +15184,7 @@ snapshots:
       rc9: 2.1.2
     optionalDependencies:
       magicast: 0.3.5
+    optional: true
 
   cac@6.7.14: {}
 
@@ -15257,8 +15311,10 @@ snapshots:
   citty@0.1.6:
     dependencies:
       consola: 3.4.2
+    optional: true
 
-  citty@0.2.2: {}
+  citty@0.2.2:
+    optional: true
 
   cjs-module-lexer@1.4.3: {}
 
@@ -15434,7 +15490,8 @@ snapshots:
       tree-kill: 1.2.2
       yargs: 17.7.2
 
-  confbox@0.2.4: {}
+  confbox@0.2.4:
+    optional: true
 
   config-chain@1.1.13:
     dependencies:
@@ -15710,7 +15767,8 @@ snapshots:
 
   deep-is@0.1.4: {}
 
-  deepmerge-ts@7.1.5: {}
+  deepmerge-ts@7.1.5:
+    optional: true
 
   deepmerge@4.3.1: {}
 
@@ -15738,7 +15796,8 @@ snapshots:
       has-property-descriptors: 1.0.2
       object-keys: 1.1.1
 
-  defu@6.1.7: {}
+  defu@6.1.7:
+    optional: true
 
   delayed-stream@1.0.0: {}
 
@@ -15746,7 +15805,8 @@ snapshots:
 
   dequal@2.0.3: {}
 
-  destr@2.0.5: {}
+  destr@2.0.5:
+    optional: true
 
   destroy@1.2.0: {}
 
@@ -15863,6 +15923,7 @@ snapshots:
     dependencies:
       '@standard-schema/spec': 1.0.0
       fast-check: 3.23.2
+    optional: true
 
   electron-to-chromium@1.5.255: {}
 
@@ -15890,7 +15951,8 @@ snapshots:
 
   emojilib@2.4.0: {}
 
-  empathic@2.0.0: {}
+  empathic@2.0.0:
+    optional: true
 
   encodeurl@2.0.0: {}
 
@@ -16455,7 +16517,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  exsolve@1.0.8: {}
+  exsolve@1.0.8:
+    optional: true
 
   ext-list@2.2.2:
     dependencies:
@@ -16477,6 +16540,7 @@ snapshots:
   fast-check@3.23.2:
     dependencies:
       pure-rand: 6.1.0
+    optional: true
 
   fast-content-type-parse@3.0.0: {}
 
@@ -16804,6 +16868,7 @@ snapshots:
       node-fetch-native: 1.6.7
       nypm: 0.6.6
       pathe: 2.0.3
+    optional: true
 
   git-log-parser@1.2.1:
     dependencies:
@@ -18619,7 +18684,8 @@ snapshots:
       object.entries: 1.1.9
       semver: 6.3.1
 
-  node-fetch-native@1.6.7: {}
+  node-fetch-native@1.6.7:
+    optional: true
 
   node-int64@0.4.0: {}
 
@@ -18679,6 +18745,7 @@ snapshots:
       citty: 0.2.2
       pathe: 2.0.3
       tinyexec: 1.1.2
+    optional: true
 
   obj-props@1.4.0: {}
 
@@ -18724,7 +18791,8 @@ snapshots:
       define-properties: 1.2.1
       es-object-atoms: 1.1.1
 
-  ohash@2.0.11: {}
+  ohash@2.0.11:
+    optional: true
 
   on-exit-leak-free@2.1.2: {}
 
@@ -18934,7 +19002,8 @@ snapshots:
 
   pend@1.2.0: {}
 
-  perfect-debounce@1.0.0: {}
+  perfect-debounce@1.0.0:
+    optional: true
 
   pg-cloudflare@1.3.0:
     optional: true
@@ -19052,6 +19121,7 @@ snapshots:
       confbox: 0.2.4
       exsolve: 1.0.8
       pathe: 2.0.3
+    optional: true
 
   plur@5.1.0:
     dependencies:
@@ -19129,6 +19199,7 @@ snapshots:
       typescript: 5.9.2
     transitivePeerDependencies:
       - magicast
+    optional: true
 
   process-nextick-args@2.0.1: {}
 
@@ -19243,6 +19314,7 @@ snapshots:
     dependencies:
       defu: 6.1.7
       destr: 2.0.5
+    optional: true
 
   rc@1.2.8:
     dependencies:
@@ -20358,7 +20430,8 @@ snapshots:
 
   tinyexec@1.0.2: {}
 
-  tinyexec@1.1.2: {}
+  tinyexec@1.1.2:
+    optional: true
 
   tinyglobby@0.2.15:
     dependencies:
@@ -20579,6 +20652,10 @@ snapshots:
       minimatch: 9.0.5
       typescript: 5.9.2
       yaml: 2.8.1
+
+  typeorm-naming-strategies@4.1.0(typeorm@0.3.28(better-sqlite3@11.10.0)(mongodb@6.21.0)(pg@8.20.0)(ts-node@10.9.2(@swc/core@1.15.2)(@types/node@22.19.1)(typescript@5.9.2))):
+    dependencies:
+      typeorm: 0.3.28(better-sqlite3@11.10.0)(mongodb@6.21.0)(pg@8.20.0)(ts-node@10.9.2(@swc/core@1.15.2)(@types/node@22.19.1)(typescript@5.9.2))
 
   typeorm@0.3.28(better-sqlite3@11.10.0)(mongodb@6.21.0)(pg@8.20.0)(ts-node@10.9.2(@swc/core@1.15.2)(@types/node@22.19.1)(typescript@5.9.2)):
     dependencies:

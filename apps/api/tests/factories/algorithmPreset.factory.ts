@@ -1,10 +1,6 @@
 import { faker } from '@faker-js/faker';
-import type {
-  Prisma,
-  AlgorithmPreset as PrismaAlgorithmPreset,
-  AlgorithmPresetInput as PrismaAlgorithmPresetInput,
-} from '@prisma/client';
-import type { PrismaService } from '../../src/persistence';
+import type { DataSource, EntityManager } from 'typeorm';
+import { AlgorithmPresetEntity, AlgorithmPresetInputEntity } from '../../src/persistence';
 
 export type AlgorithmPresetCreate = {
   key?: string;
@@ -17,8 +13,8 @@ export type AlgorithmPresetCreate = {
 // `inputs` is materialised from the relational `algorithm_preset_inputs` table
 // so callers (snapshot factories, e2e suites) can build frozen-preset payloads
 // without re-querying the child table themselves.
-export type AlgorithmPresetWithInputs = PrismaAlgorithmPreset & {
-  inputs: Array<Pick<PrismaAlgorithmPresetInput, 'key' | 'value' | 'position'>>;
+export type AlgorithmPresetWithInputs = AlgorithmPresetEntity & {
+  inputs: Array<Pick<AlgorithmPresetInputEntity, 'key' | 'value' | 'position'>>;
 };
 
 export function makeAlgorithmPreset(overrides: AlgorithmPresetCreate = {}) {
@@ -35,27 +31,36 @@ export function makeAlgorithmPreset(overrides: AlgorithmPresetCreate = {}) {
 }
 
 export async function insertAlgorithmPreset(
-  prisma: PrismaService,
+  source: DataSource | EntityManager,
   overrides: AlgorithmPresetCreate = {},
 ): Promise<AlgorithmPresetWithInputs> {
+  const manager = 'manager' in source ? source.manager : source;
   const dto = makeAlgorithmPreset(overrides);
-  const created = await prisma.algorithmPreset.create({
-    data: {
-      key: dto.key,
-      version: dto.version,
-      name: dto.name ?? null,
-      description: dto.description ?? null,
-      inputs: {
-        create: dto.inputs.map((input, position) => ({
-          key: input.key,
-          value: input.value as Prisma.InputJsonValue,
-          position,
-        })),
-      },
-    },
-    include: { inputs: { orderBy: { position: 'asc' } } },
+  return manager.transaction(async (tx) => {
+    const presetRepo = tx.getRepository(AlgorithmPresetEntity);
+    const inputRepo = tx.getRepository(AlgorithmPresetInputEntity);
+    const saved = await presetRepo.save(
+      presetRepo.create({
+        key: dto.key,
+        version: dto.version,
+        name: dto.name ?? null,
+        description: dto.description ?? null,
+      }),
+    );
+    const inputs = dto.inputs.map((input, position) =>
+      inputRepo.create({
+        algorithmPresetId: saved.id,
+        key: input.key,
+        value: input.value,
+        position,
+      }),
+    );
+    if (inputs.length > 0) {
+      await inputRepo.save(inputs);
+    }
+    const refreshed = await presetRepo.findOne({ where: { id: saved.id }, relations: { inputs: true } });
+    return refreshed as AlgorithmPresetWithInputs;
   });
-  return created;
 }
 
 export function randomAlgorithmPreset(): AlgorithmPresetCreate {

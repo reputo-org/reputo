@@ -1,7 +1,8 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectDataSource } from '@nestjs/typeorm';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { PrismaService } from '../persistence';
+import { DataSource } from 'typeorm';
 import { throwNotFoundError } from '../shared/exceptions';
 import { getAlgorithmDefinitionOrThrow, validateAlgorithmInputs } from '../shared/utils';
 import type { SnapshotRow } from '../snapshot/snapshot.repository';
@@ -27,7 +28,8 @@ export class AlgorithmPresetService {
     @Inject(forwardRef(() => SnapshotRepository))
     private readonly snapshotRepository: SnapshotRepository,
     private readonly temporalService: TemporalService,
-    private readonly prisma: PrismaService,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     configService: ConfigService,
   ) {
     this.storageMaxSizeBytes = configService.get<number>('storage.maxSizeBytes') as number;
@@ -119,12 +121,12 @@ export class AlgorithmPresetService {
   }
 
   private async deletePresetWithSnapshots(presetId: string, snapshotCount: number): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+    await this.dataSource.transaction(async (manager) => {
       if (snapshotCount > 0) {
-        await this.snapshotRepository.deleteMany({ algorithmPresetId: presetId }, tx);
+        await this.snapshotRepository.deleteMany({ algorithmPresetId: presetId }, manager);
         this.logger.info(`Deleted ${snapshotCount} snapshots for algorithm preset ${presetId}`);
       }
-      await this.repository.deleteById(presetId, tx);
+      await this.repository.deleteById(presetId, manager);
       this.logger.info(`Deleted algorithm preset ${presetId}`);
     });
   }

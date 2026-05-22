@@ -1,17 +1,22 @@
 import type { INestApplication } from '@nestjs/common';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import { TypeOrmModule, type TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { LoggerModule } from 'nestjs-pino';
 import supertest from 'supertest';
+import { type DataSource } from 'typeorm';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AuthModule } from '../../../src/auth';
 import { configModules } from '../../../src/config';
 import { ConsentModule, OAuthConsentGrantCleanupService } from '../../../src/consent';
-import { PrismaModule, PrismaService } from '../../../src/persistence';
+import { AuthSessionEntity, ENTITIES, OAuthConsentGrantEntity, OAuthUserEntity } from '../../../src/persistence';
+import { MIGRATIONS } from '../../../src/persistence/migrations';
 import { HttpExceptionFilter } from '../../../src/shared/filters/http-exception.filter';
 import { createPkceChallenge } from '../../../src/shared/utils';
 import { applyAuthTestEnv } from '../../utils/auth-session';
+import { getTestDataSource } from '../../utils/db';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { base } from '../../utils/request';
 
@@ -48,7 +53,7 @@ function getFetchUrl(input: RequestInfo | URL): string {
 
 describe('OAuth consent e2e', () => {
   let app: INestApplication;
-  let prisma: PrismaService;
+  let dataSource: DataSource;
   let cleanupService: OAuthConsentGrantCleanupService;
   let db: TestDatabase;
   let tokenRequests: FetchRequest[] = [];
@@ -119,13 +124,26 @@ describe('OAuth consent e2e', () => {
             level: 'silent',
           },
         }),
-        PrismaModule,
+        TypeOrmModule.forRootAsync({
+          inject: [ConfigService],
+          useFactory: (config: ConfigService): TypeOrmModuleOptions => ({
+            type: 'postgres',
+            url: config.get<string>('database.url'),
+            entities: [...ENTITIES],
+            migrations: [...MIGRATIONS],
+            namingStrategy: new SnakeNamingStrategy(),
+            synchronize: false,
+            migrationsRun: false,
+            autoLoadEntities: false,
+            logging: false,
+          }),
+        }),
         AuthModule,
         ConsentModule,
       ],
     }).compile();
 
-    prisma = moduleRef.get(PrismaService);
+    dataSource = getTestDataSource(moduleRef);
     cleanupService = moduleRef.get(OAuthConsentGrantCleanupService);
     app = moduleRef.createNestApplication();
 
@@ -149,8 +167,8 @@ describe('OAuth consent e2e', () => {
 
   afterEach(async () => {
     expect(userinfoRequests).toHaveLength(0);
-    expect(await prisma.authSession.count()).toBe(0);
-    expect(await prisma.oAuthUser.count()).toBe(0);
+    expect(await dataSource.getRepository(AuthSessionEntity).count()).toBe(0);
+    expect(await dataSource.getRepository(OAuthUserEntity).count()).toBe(0);
 
     tokenRequests = [];
     userinfoRequests = [];
@@ -163,9 +181,9 @@ describe('OAuth consent e2e', () => {
     };
     fetchMock.mockClear();
 
-    await prisma.oAuthConsentGrant.deleteMany({});
-    await prisma.authSession.deleteMany({});
-    await prisma.oAuthUser.deleteMany({});
+    await dataSource.getRepository(OAuthConsentGrantEntity).createQueryBuilder().delete().where('1=1').execute();
+    await dataSource.getRepository(AuthSessionEntity).createQueryBuilder().delete().where('1=1').execute();
+    await dataSource.getRepository(OAuthUserEntity).createQueryBuilder().delete().where('1=1').execute();
   });
 
   afterAll(async () => {
@@ -184,7 +202,7 @@ describe('OAuth consent e2e', () => {
       .expect(400);
 
     expect(tokenRequests).toHaveLength(0);
-    expect(await prisma.oAuthConsentGrant.count()).toBe(0);
+    expect(await dataSource.getRepository(OAuthConsentGrantEntity).count()).toBe(0);
   });
 
   it('starts the consent flow and persists a transient OAuthConsentGrant', async () => {
@@ -201,10 +219,10 @@ describe('OAuth consent e2e', () => {
     expect(redirectUrl.searchParams.get('state')).toBe(state);
     expect(redirectUrl.searchParams.get('code_challenge_method')).toBe('S256');
 
-    const storedGrant = await prisma.oAuthConsentGrant.findUnique({ where: { state } });
+    const storedGrant = await dataSource.getRepository(OAuthConsentGrantEntity).findOne({ where: { state } });
 
     expect(storedGrant).toMatchObject({
-      provider: 'deep_id',
+      provider: 'deep-id',
       source: 'voting-portal',
       state,
     });
@@ -237,7 +255,7 @@ describe('OAuth consent e2e', () => {
     expect(body.get('code')).toBe('authorization-code');
     expect(body.get('redirect_uri')).toBe('http://localhost:3000/api/v1/oauth/consent/deep-id/callback');
     expect(body.get('code_verifier')).toBeTruthy();
-    expect(await prisma.oAuthConsentGrant.count()).toBe(0);
+    expect(await dataSource.getRepository(OAuthConsentGrantEntity).count()).toBe(0);
 
     await supertest(app.getHttpServer())
       .get(base('/oauth/consent/deep-id/callback'))
@@ -258,7 +276,7 @@ describe('OAuth consent e2e', () => {
       'http://localhost:3001/voting?reputo_connected=error&reason=denied_consent',
     );
     expect(tokenRequests).toHaveLength(0);
-    expect(await prisma.oAuthConsentGrant.count()).toBe(0);
+    expect(await dataSource.getRepository(OAuthConsentGrantEntity).count()).toBe(0);
   });
 
   it('maps token endpoint failures to provider_error and deletes the grant', async () => {
@@ -275,7 +293,7 @@ describe('OAuth consent e2e', () => {
       'http://localhost:3001/voting?reputo_connected=error&reason=provider_error',
     );
     expect(tokenRequests).toHaveLength(1);
-    expect(await prisma.oAuthConsentGrant.count()).toBe(0);
+    expect(await dataSource.getRepository(OAuthConsentGrantEntity).count()).toBe(0);
   });
 
   it('returns 400 HTML for unknown and expired states without redirecting', async () => {
@@ -287,15 +305,16 @@ describe('OAuth consent e2e', () => {
 
     expect(unknownResponse.headers.location).toBeUndefined();
 
-    await prisma.oAuthConsentGrant.create({
-      data: {
-        provider: 'deep_id',
+    const grantRepo = dataSource.getRepository(OAuthConsentGrantEntity);
+    await grantRepo.save(
+      grantRepo.create({
+        provider: 'deep-id',
         source: 'voting-portal',
         state: 'expired-state',
         codeVerifier: 'expired-verifier',
         expiresAt: new Date(Date.now() - 1_000),
-      },
-    });
+      }),
+    );
 
     const expiredResponse = await supertest(app.getHttpServer())
       .get(base('/oauth/consent/deep-id/callback'))
@@ -304,36 +323,37 @@ describe('OAuth consent e2e', () => {
       .expect('Content-Type', /html/u);
 
     expect(expiredResponse.headers.location).toBeUndefined();
-    expect(await prisma.oAuthConsentGrant.count()).toBe(0);
+    expect(await dataSource.getRepository(OAuthConsentGrantEntity).count()).toBe(0);
   });
 
   it('cleanup service deletes expired consent grants within one tick', async () => {
-    await prisma.oAuthConsentGrant.create({
-      data: {
-        provider: 'deep_id',
+    const grantRepo = dataSource.getRepository(OAuthConsentGrantEntity);
+    await grantRepo.save(
+      grantRepo.create({
+        provider: 'deep-id',
         source: 'voting-portal',
         state: 'cleanup-expired',
         codeVerifier: 'cleanup-verifier',
         expiresAt: new Date(Date.now() - 1_000),
-      },
-    });
-    await prisma.oAuthConsentGrant.create({
-      data: {
-        provider: 'deep_id',
+      }),
+    );
+    await grantRepo.save(
+      grantRepo.create({
+        provider: 'deep-id',
         source: 'voting-portal',
         state: 'cleanup-active',
         codeVerifier: 'cleanup-verifier-active',
         expiresAt: new Date(Date.now() + 60_000),
-      },
-    });
+      }),
+    );
 
     const result = await cleanupService.runOnce();
 
     expect(result.deletedCount).toBe(1);
-    expect(await prisma.oAuthConsentGrant.count()).toBe(1);
-    const remaining = await prisma.oAuthConsentGrant.findFirst();
+    expect(await grantRepo.count()).toBe(1);
+    const remaining = await grantRepo.findOne({ where: {} });
     expect(remaining?.state).toBe('cleanup-active');
 
-    await prisma.oAuthConsentGrant.deleteMany({});
+    await grantRepo.createQueryBuilder().delete().where('1=1').execute();
   });
 });

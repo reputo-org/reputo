@@ -1,16 +1,16 @@
 import type { INestApplication } from '@nestjs/common';
 import type { AccessRole, OAuthProvider } from '@reputo/contracts';
 import supertest from 'supertest';
+import type { Repository } from 'typeorm';
 import { vi } from 'vitest';
 import type { OAuthAuthProviderService } from '../../../src/auth/oauth-auth-provider.service';
-import type { PrismaService } from '../../../src/persistence';
+import type { AccessAllowlistEntity } from '../../../src/persistence';
 import type {
   AuthFlowState,
   OAuthDiscoveryDocument,
   OAuthTokenResponse,
   OAuthUserInfo,
 } from '../../../src/shared/types';
-import { toPrismaProvider } from '../../../src/shared/utils';
 import { AUTH_TEST_ENV } from '../../utils/auth-session';
 import { base } from '../../utils/request';
 
@@ -147,34 +147,29 @@ export function createMockOAuthProviderDouble(): MockOAuthProviderDouble {
 }
 
 export async function seedAllowlist(
-  prisma: PrismaService,
+  allowlistRepo: Repository<AccessAllowlistEntity>,
   role: AccessRole,
   email: string,
   options: SeedAllowlistOptions = {},
 ): Promise<void> {
   const provider = options.provider ?? 'deep-id';
   const normalizedEmail = email.trim().toLowerCase();
-  const prismaProvider = toPrismaProvider(provider);
-
-  await prisma.accessAllowlist.upsert({
-    where: { provider_email: { provider: prismaProvider, email: normalizedEmail } },
-    create: {
-      provider: prismaProvider,
-      email: normalizedEmail,
-      role,
-      invitedBy: options.invitedBy ?? null,
-      invitedAt: options.invitedAt ?? new Date(),
-      revokedAt: options.revokedAt ?? null,
-      revokedBy: options.revokedAt ? (options.revokedBy ?? null) : null,
-    },
-    update: {
-      role,
-      invitedBy: options.invitedBy ?? null,
-      invitedAt: options.invitedAt ?? new Date(),
-      revokedAt: options.revokedAt ?? null,
-      revokedBy: options.revokedAt ? (options.revokedBy ?? null) : null,
-    },
-  });
+  const existing = await allowlistRepo.findOne({ where: { provider, email: normalizedEmail } });
+  const payload = {
+    provider,
+    email: normalizedEmail,
+    role,
+    invitedByUserId: options.invitedBy ?? null,
+    invitedAt: options.invitedAt ?? new Date(),
+    revokedAt: options.revokedAt ?? null,
+    revokedByUserId: options.revokedAt ? (options.revokedBy ?? null) : null,
+  };
+  if (existing) {
+    Object.assign(existing, payload);
+    await allowlistRepo.save(existing);
+  } else {
+    await allowlistRepo.save(allowlistRepo.create(payload));
+  }
 }
 
 export async function loginAsMockedProvider(

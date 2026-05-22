@@ -1,8 +1,10 @@
-import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { DataSource } from 'typeorm';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+import { ENTITIES } from '../../src/persistence/entities';
+import { MIGRATIONS } from '../../src/persistence/migrations';
 
 export interface TestDatabase {
   databaseUrl: string;
@@ -13,34 +15,31 @@ export interface TestDatabase {
 // Resolve paths relative to this file so the helper works regardless of which
 // directory `vitest` was invoked from (e.g. repo root vs. `apps/api`).
 const API_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const SCHEMA_PATH = path.join(API_ROOT, 'prisma/schema.prisma');
-const MIGRATIONS_DIR = path.join(API_ROOT, 'prisma/migrations');
+// Re-exported for callers that want to introspect or extend the bootstrap.
+export { API_ROOT };
 
-async function runPrismaMigrateDeploy(databaseUrl: string): Promise<void> {
-  if (!existsSync(MIGRATIONS_DIR)) {
-    // No migrations directory — nothing to apply. Allows the helper to be
-    // imported in bootstrap scenarios where the schema is still empty.
-    return;
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn('pnpm', ['exec', 'prisma', 'migrate', 'deploy', '--schema', SCHEMA_PATH], {
-      // `cwd` pins pnpm to the api workspace so it can resolve the local
-      // `prisma` bin even when vitest is invoked from the repo root.
-      cwd: API_ROOT,
-      env: { ...process.env, DATABASE_URL: databaseUrl },
-      stdio: 'inherit',
-    });
-
-    child.on('error', reject);
-    child.on('exit', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`prisma migrate deploy exited with code ${code}`));
-      }
-    });
+async function runTypeOrmMigrations(databaseUrl: string): Promise<void> {
+  // Spin up a transient DataSource so we exercise the same migration runner
+  // path the production app uses. `synchronize: false` here is critical —
+  // tests must catch schema drift relative to the committed migration.
+  const dataSource = new DataSource({
+    type: 'postgres',
+    url: databaseUrl,
+    entities: [...ENTITIES],
+    migrations: [...MIGRATIONS],
+    namingStrategy: new SnakeNamingStrategy(),
+    synchronize: false,
+    logging: false,
   });
+
+  try {
+    await dataSource.initialize();
+    await dataSource.runMigrations();
+  } finally {
+    if (dataSource.isInitialized) {
+      await dataSource.destroy();
+    }
+  }
 }
 
 // Starts a fresh PostgreSQL container per call so each test suite gets a
@@ -56,7 +55,7 @@ export async function startTestDatabase(): Promise<TestDatabase> {
   try {
     const databaseUrl = container.getConnectionUri();
 
-    await runPrismaMigrateDeploy(databaseUrl);
+    await runTypeOrmMigrations(databaseUrl);
 
     return {
       databaseUrl,

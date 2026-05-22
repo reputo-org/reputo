@@ -7,7 +7,7 @@ import { AuthModule, AuthService } from '../../src/auth';
 import { OAuthAuthProviderService } from '../../src/auth/oauth-auth-provider.service';
 import { configModules } from '../../src/config';
 import { setupSwagger } from '../../src/docs';
-import { PrismaModule } from '../../src/persistence';
+import { PersistenceModule, SnapshotListenerService } from '../../src/persistence';
 import { HttpExceptionFilter } from '../../src/shared/filters/http-exception.filter';
 import { SnapshotModule } from '../../src/snapshot/snapshot.module';
 import { StorageService } from '../../src/storage/storage.service';
@@ -110,6 +110,16 @@ export async function createTestApp(options: TestAppOptions) {
       }),
     } satisfies TestAppOptions['oauthProviderService']);
 
+  // No-op `SnapshotListenerService` overrides the real one so SSE-driving
+  // services have a stub to depend on without opening a real LISTEN
+  // connection. Suites that need a real listener can build their own DataSource
+  // separately (see `tests/e2e/snapshots/sse-events.e2e-spec.ts`).
+  const noopListener = {
+    notifications$: { subscribe: () => ({ unsubscribe: () => undefined }) },
+    onModuleInit: async () => undefined,
+    onModuleDestroy: async () => undefined,
+  };
+
   const moduleRef = await Test.createTestingModule({
     imports: [
       ConfigModule.forRoot({
@@ -122,12 +132,14 @@ export async function createTestApp(options: TestAppOptions) {
           level: 'silent',
         },
       }),
-      PrismaModule,
+      PersistenceModule,
       AuthModule,
       AlgorithmPresetModule,
       SnapshotModule,
     ],
   })
+    .overrideProvider(SnapshotListenerService)
+    .useValue(noopListener)
     .overrideProvider(OAuthAuthProviderService)
     .useValue(mockOAuthService)
     .overrideProvider(StorageService)

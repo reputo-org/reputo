@@ -1,9 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import type { SnapshotStatus } from '@prisma/client';
+import { SNAPSHOT_STATUS, type SnapshotStatus } from '@reputo/contracts';
 import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { PaginationQueryDto } from '../../shared/dto';
-
-const SNAPSHOT_STATUS = ['queued', 'running', 'completed', 'failed', 'cancelled'] as const;
 
 export class ListSnapshotsQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({

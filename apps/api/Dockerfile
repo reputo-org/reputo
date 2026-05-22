@@ -41,11 +41,6 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 FROM installer AS builder
 ARG APP_NAME
 COPY --from=pruner /repo/out/full/ ./
-# Generate the Prisma client when the target app ships a Prisma schema. The
-# guard makes this step a no-op for apps without one (e.g. ui, workflows).
-RUN if [ -f "apps/${APP_NAME}/prisma/schema.prisma" ]; then \
-      pnpm --filter "@reputo/${APP_NAME}" prisma:generate; \
-    fi
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm exec turbo run build --filter="@reputo/${APP_NAME}..."
 RUN pnpm deploy --filter="@reputo/${APP_NAME}" --prod /prod/app

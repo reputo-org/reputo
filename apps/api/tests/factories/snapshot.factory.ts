@@ -1,6 +1,7 @@
 import { faker } from '@faker-js/faker';
-import type { Snapshot as PrismaSnapshot, SnapshotStatus } from '@prisma/client';
-import type { PrismaService } from '../../src/persistence';
+import { SnapshotStatus } from '@reputo/contracts';
+import type { DataSource, EntityManager } from 'typeorm';
+import { SnapshotEntity, SnapshotOutputEntity } from '../../src/persistence';
 
 type AlgorithmPresetFrozen = {
   key: string;
@@ -60,26 +61,42 @@ export function makeSnapshotDto(
 }
 
 export async function insertSnapshot(
-  prisma: PrismaService,
+  source: DataSource | EntityManager,
   algorithmPresetId: string,
   algorithmPresetFrozen: AlgorithmPresetFrozen,
   overrides: Partial<Omit<SnapshotCreate, 'algorithmPreset' | 'algorithmPresetFrozen'>> = {},
-): Promise<PrismaSnapshot> {
+): Promise<SnapshotEntity> {
+  const manager = 'manager' in source ? source.manager : source;
   const dto = makeSnapshot(algorithmPresetId, algorithmPresetFrozen, overrides);
-  const outputs = dto.outputs as Record<string, string | undefined> | undefined;
-  const outputRows = outputs
-    ? Object.entries(outputs)
-        .filter(([, value]) => value !== undefined)
-        .map(([key, value]) => ({ key, value: value as string }))
-    : [];
-  return prisma.snapshot.create({
-    data: {
-      status: dto.status ?? 'queued',
+  return manager.transaction(async (tx) => {
+    const snapshotRepo = tx.getRepository(SnapshotEntity);
+    const outputRepo = tx.getRepository(SnapshotOutputEntity);
+    const entity = snapshotRepo.create({
+      status: (dto.status ?? SnapshotStatus.queued) as SnapshotStatus,
       algorithmPresetId,
-      algorithmPresetFrozen: dto.algorithmPresetFrozen,
-      temporal: dto.temporal ?? undefined,
-      ...(outputRows.length > 0 ? { outputs: { create: outputRows } } : {}),
-    },
+      algorithmPresetFrozen: dto.algorithmPresetFrozen as unknown,
+      temporal: (dto.temporal ?? null) as unknown,
+      error: null,
+      startedAt: null,
+      completedAt: null,
+    });
+    const saved = await snapshotRepo.save(entity);
+    const outputs = dto.outputs as Record<string, string | undefined> | undefined;
+    if (outputs) {
+      const rows = Object.entries(outputs)
+        .filter(([, value]) => value !== undefined)
+        .map(([key, value]) =>
+          outputRepo.create({
+            snapshotId: saved.id,
+            key,
+            value: value as string,
+          }),
+        );
+      if (rows.length > 0) {
+        await outputRepo.save(rows);
+      }
+    }
+    return saved;
   });
 }
 

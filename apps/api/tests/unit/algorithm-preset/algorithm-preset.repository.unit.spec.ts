@@ -1,7 +1,8 @@
+import type { EntityManager, Repository } from 'typeorm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AlgorithmPresetRepository } from '../../../src/algorithm-preset/algorithm-preset.repository';
 import type { CreateAlgorithmPresetDto, UpdateAlgorithmPresetDto } from '../../../src/algorithm-preset/dto';
-import type { PrismaService } from '../../../src/persistence';
+import type { AlgorithmPresetEntity, AlgorithmPresetInputEntity } from '../../../src/persistence';
 
 const FIXED_NOW = new Date('2026-05-21T00:00:00.000Z');
 const TEST_UUID = '01940000-0000-7000-8000-000000000000';
@@ -13,7 +14,7 @@ type RelationalInput = {
   position: number;
 };
 
-function createRow(
+function createEntity(
   overrides: Partial<{
     id: string;
     key: string;
@@ -35,33 +36,73 @@ function createRow(
   };
 }
 
-const includeOrderedInputs = { inputs: { orderBy: { position: 'asc' } } };
-
 describe('AlgorithmPresetRepository', () => {
   let repository: AlgorithmPresetRepository;
-  let prismaMock: {
-    algorithmPreset: {
-      create: ReturnType<typeof vi.fn>;
-      findUnique: ReturnType<typeof vi.fn>;
-      update: ReturnType<typeof vi.fn>;
-      delete: ReturnType<typeof vi.fn>;
-      count: ReturnType<typeof vi.fn>;
-      findMany: ReturnType<typeof vi.fn>;
-    };
+  let presetRepoMock: Repository<AlgorithmPresetEntity> & {
+    findOne: ReturnType<typeof vi.fn>;
+    findAndCount: ReturnType<typeof vi.fn>;
+    save: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
   };
+  let inputRepoMock: Repository<AlgorithmPresetInputEntity> & {
+    save: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+  };
+  // The transaction handler we route through `manager.transaction(cb)`.
+  let txPresetRepo: typeof presetRepoMock;
+  let txInputRepo: typeof inputRepoMock;
+  let txManager: EntityManager;
 
   beforeEach(() => {
-    prismaMock = {
-      algorithmPreset: {
-        create: vi.fn(),
-        findUnique: vi.fn(),
-        update: vi.fn(),
-        delete: vi.fn(),
-        count: vi.fn(),
-        findMany: vi.fn(),
+    // Inner repositories used inside the `manager.transaction` callback.
+    txPresetRepo = {
+      findOne: vi.fn(),
+      save: vi.fn(async (entity) => entity),
+      delete: vi.fn(),
+      create: vi.fn((data) => data),
+      findAndCount: vi.fn(),
+    } as unknown as typeof presetRepoMock;
+    txInputRepo = {
+      save: vi.fn(async (rows) => rows),
+      delete: vi.fn(),
+    } as unknown as typeof inputRepoMock;
+
+    txManager = {
+      getRepository: vi.fn((target) => {
+        // Discriminate by constructor name without importing the entity (which
+        // would pull a TypeORM decorator graph into a unit test).
+        const name = (target as { name?: string }).name ?? '';
+        if (name.includes('Input')) return txInputRepo;
+        return txPresetRepo;
+      }),
+    } as unknown as EntityManager;
+
+    inputRepoMock = {
+      save: vi.fn(),
+      delete: vi.fn(),
+    } as unknown as typeof inputRepoMock;
+
+    presetRepoMock = {
+      findOne: vi.fn(),
+      findAndCount: vi.fn(),
+      save: vi.fn(async (entity) => entity),
+      delete: vi.fn(),
+      create: vi.fn((data) => data),
+      manager: {
+        transaction: vi.fn(async (cb: (m: EntityManager) => unknown) => cb(txManager)),
+        getRepository: vi.fn((target) => {
+          const name = (target as { name?: string }).name ?? '';
+          if (name.includes('Input')) return txInputRepo;
+          return txPresetRepo;
+        }),
       },
-    };
-    repository = new AlgorithmPresetRepository(prismaMock as unknown as PrismaService);
+    } as unknown as typeof presetRepoMock;
+
+    repository = new AlgorithmPresetRepository(
+      presetRepoMock as unknown as Repository<AlgorithmPresetEntity>,
+      inputRepoMock as unknown as Repository<AlgorithmPresetInputEntity>,
+    );
   });
 
   describe('create', () => {
@@ -80,25 +121,32 @@ describe('AlgorithmPresetRepository', () => {
         { id: 'i-1', key: 'first', value: 1, position: 0 },
         { id: 'i-2', key: 'second', value: 'two', position: 1 },
       ];
-      prismaMock.algorithmPreset.create.mockResolvedValue(createRow({ ...createDto, inputs: persistedInputs }));
+      // The save returns the saved preset; the second `findOne` (inside the
+      // transaction) returns the row with persisted inputs that map back out.
+      txPresetRepo.save.mockResolvedValue(createEntity({ ...createDto, inputs: persistedInputs }));
+      txPresetRepo.findOne.mockResolvedValue(createEntity({ ...createDto, inputs: persistedInputs }));
 
       const result = await repository.create(createDto);
 
-      expect(prismaMock.algorithmPreset.create).toHaveBeenCalledWith({
-        data: {
-          key: createDto.key,
-          version: createDto.version,
-          name: createDto.name,
-          description: createDto.description,
-          inputs: {
-            create: [
-              { key: 'first', value: 1, position: 0 },
-              { key: 'second', value: 'two', position: 1 },
-            ],
-          },
-        },
-        include: includeOrderedInputs,
+      // `presetRepo.create(...)` should be called with the scalar fields and
+      // null-coerced name/description.
+      expect(txPresetRepo.create).toHaveBeenCalledWith({
+        key: createDto.key,
+        version: createDto.version,
+        name: createDto.name,
+        description: createDto.description,
       });
+      // Inputs are persisted via the child repo and built with `position`
+      // indexes that mirror the caller's order.
+      const savedInputs = txInputRepo.save.mock.calls[0][0] as Array<{
+        key: string;
+        position: number;
+        value: unknown;
+      }>;
+      expect(savedInputs).toHaveLength(2);
+      expect(savedInputs[0]).toMatchObject({ key: 'first', position: 0, value: 1 });
+      expect(savedInputs[1]).toMatchObject({ key: 'second', position: 1, value: 'two' });
+
       expect(result._id).toBe(TEST_UUID);
       expect(result.inputs).toEqual([
         { key: 'first', value: 1 },
@@ -106,9 +154,10 @@ describe('AlgorithmPresetRepository', () => {
       ]);
     });
 
-    it('coerces null name/description from Prisma into undefined', async () => {
+    it('coerces null name/description from the entity into undefined', async () => {
       const dto: CreateAlgorithmPresetDto = { key: 'k', version: '1', inputs: [] };
-      prismaMock.algorithmPreset.create.mockResolvedValue(createRow({}));
+      txPresetRepo.save.mockResolvedValue(createEntity({}));
+      txPresetRepo.findOne.mockResolvedValue(createEntity({}));
 
       const result = await repository.create(dto);
 
@@ -118,21 +167,21 @@ describe('AlgorithmPresetRepository', () => {
   });
 
   describe('findAll', () => {
-    it('returns the paginated PaginateResult shape and forwards `include` to findMany', async () => {
-      const row = createRow({ inputs: [{ id: 'i-1', key: 'k', value: 1, position: 0 }] });
-      prismaMock.algorithmPreset.count.mockResolvedValue(1);
-      prismaMock.algorithmPreset.findMany.mockResolvedValue([row]);
+    it('returns the paginated PaginateResult shape and loads the inputs relation', async () => {
+      const row = createEntity({ inputs: [{ id: 'i-1', key: 'k', value: 1, position: 0 }] });
+      presetRepoMock.findAndCount.mockResolvedValue([[row], 1]);
 
       const result = await repository.findAll({ key: 'test_key' }, { page: 1, limit: 10 });
 
-      expect(prismaMock.algorithmPreset.count).toHaveBeenCalledWith({ where: { key: 'test_key' } });
-      expect(prismaMock.algorithmPreset.findMany).toHaveBeenCalledWith({
-        where: { key: 'test_key' },
-        orderBy: [{ createdAt: 'desc' }],
-        skip: 0,
-        take: 10,
-        include: includeOrderedInputs,
-      });
+      expect(presetRepoMock.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { key: 'test_key' },
+          order: { createdAt: 'DESC' },
+          skip: 0,
+          take: 10,
+          relations: { inputs: true },
+        }),
+      );
       expect(result.results[0]._id).toBe(TEST_UUID);
       expect(result.results[0].inputs).toEqual([{ key: 'k', value: 1 }]);
       expect(result.totalResults).toBe(1);
@@ -141,39 +190,38 @@ describe('AlgorithmPresetRepository', () => {
       expect(result.limit).toBe(10);
     });
 
-    it('parses sortBy into Prisma orderBy', async () => {
-      prismaMock.algorithmPreset.count.mockResolvedValue(0);
-      prismaMock.algorithmPreset.findMany.mockResolvedValue([]);
+    it('parses sortBy into TypeORM order', async () => {
+      presetRepoMock.findAndCount.mockResolvedValue([[], 0]);
 
       await repository.findAll({}, { sortBy: 'key:asc,version:desc' });
 
-      expect(prismaMock.algorithmPreset.findMany).toHaveBeenCalledWith(
+      expect(presetRepoMock.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
-          orderBy: [{ key: 'asc' }, { version: 'desc' }],
-          include: includeOrderedInputs,
+          order: { key: 'ASC', version: 'DESC' },
+          relations: { inputs: true },
         }),
       );
     });
   });
 
   describe('findById', () => {
-    it('passes the ordered include and maps the result', async () => {
-      prismaMock.algorithmPreset.findUnique.mockResolvedValue(
-        createRow({ inputs: [{ id: 'i-1', key: 'k', value: 1, position: 0 }] }),
+    it('uses findOne with the inputs relation and maps the result', async () => {
+      presetRepoMock.findOne.mockResolvedValue(
+        createEntity({ inputs: [{ id: 'i-1', key: 'k', value: 1, position: 0 }] }),
       );
 
       const result = await repository.findById(TEST_UUID);
 
-      expect(prismaMock.algorithmPreset.findUnique).toHaveBeenCalledWith({
+      expect(presetRepoMock.findOne).toHaveBeenCalledWith({
         where: { id: TEST_UUID },
-        include: includeOrderedInputs,
+        relations: { inputs: true },
       });
       expect(result?._id).toBe(TEST_UUID);
       expect(result?.inputs).toEqual([{ key: 'k', value: 1 }]);
     });
 
     it('returns null when not found', async () => {
-      prismaMock.algorithmPreset.findUnique.mockResolvedValue(null);
+      presetRepoMock.findOne.mockResolvedValue(null);
       await expect(repository.findById(TEST_UUID)).resolves.toBeNull();
     });
   });
@@ -181,19 +229,24 @@ describe('AlgorithmPresetRepository', () => {
   describe('updateById', () => {
     it('only forwards defined name/description fields when inputs are omitted', async () => {
       const updateDto: UpdateAlgorithmPresetDto = { name: 'New Name' };
-      prismaMock.algorithmPreset.update.mockResolvedValue(createRow({ name: 'New Name' }));
+      const existing = createEntity({});
+      txPresetRepo.findOne
+        // first call inside the transaction loads the row;
+        .mockResolvedValueOnce(existing)
+        // second call (after save) re-loads with relations
+        .mockResolvedValueOnce(createEntity({ name: 'New Name' }));
 
       const result = await repository.updateById(TEST_UUID, updateDto);
 
-      expect(prismaMock.algorithmPreset.update).toHaveBeenCalledWith({
-        where: { id: TEST_UUID },
-        data: { name: 'New Name' },
-        include: includeOrderedInputs,
-      });
+      expect(txPresetRepo.findOne).toHaveBeenCalledWith({ where: { id: TEST_UUID } });
+      expect(txPresetRepo.save).toHaveBeenCalled();
+      // No input rewrite for a scalar-only update.
+      expect(txInputRepo.delete).not.toHaveBeenCalled();
+      expect(txInputRepo.save).not.toHaveBeenCalled();
       expect(result?.name).toBe('New Name');
     });
 
-    it('replaces child rows with deleteMany + create when inputs are provided, preserving order', async () => {
+    it('replaces child rows with delete + save when inputs are provided, preserving order', async () => {
       const updateDto: UpdateAlgorithmPresetDto = {
         inputs: [
           { key: 'second', value: 'two' },
@@ -206,21 +259,25 @@ describe('AlgorithmPresetRepository', () => {
         { id: 'i-2', key: 'first', value: 1, position: 1 },
         { id: 'i-3', key: 'third', value: { nested: true }, position: 2 },
       ];
-      prismaMock.algorithmPreset.update.mockResolvedValue(createRow({ inputs: persisted }));
+      txPresetRepo.findOne
+        .mockResolvedValueOnce(createEntity({}))
+        .mockResolvedValueOnce(createEntity({ inputs: persisted }));
 
       const result = await repository.updateById(TEST_UUID, updateDto);
 
-      const updateCallArgs = prismaMock.algorithmPreset.update.mock.calls[0][0];
-      expect(updateCallArgs.where).toEqual({ id: TEST_UUID });
-      expect(updateCallArgs.include).toEqual(includeOrderedInputs);
-      expect(updateCallArgs.data.inputs).toEqual({
-        deleteMany: {},
-        create: [
-          { key: 'second', value: 'two', position: 0 },
-          { key: 'first', value: 1, position: 1 },
-          { key: 'third', value: { nested: true }, position: 2 },
-        ],
-      });
+      // Old inputs are wiped for the preset id, then the new rows are saved
+      // in declared order so positions match.
+      expect(txInputRepo.delete).toHaveBeenCalledWith({ algorithmPresetId: TEST_UUID });
+      const savedInputs = txInputRepo.save.mock.calls[0][0] as Array<{
+        key: string;
+        position: number;
+        value: unknown;
+      }>;
+      expect(savedInputs).toEqual([
+        expect.objectContaining({ key: 'second', position: 0, value: 'two' }),
+        expect.objectContaining({ key: 'first', position: 1, value: 1 }),
+        expect.objectContaining({ key: 'third', position: 2, value: { nested: true } }),
+      ]);
       // Order returned to the caller reflects the persisted positions, which
       // proves the wire shape mirrors the caller's input order.
       expect(result?.inputs).toEqual([
@@ -230,54 +287,62 @@ describe('AlgorithmPresetRepository', () => {
       ]);
     });
 
-    it('bumps updatedAt explicitly when only inputs change (nested writes do not trigger @updatedAt)', async () => {
+    it('bumps updatedAt explicitly when only inputs change (nested writes do not trigger @UpdateDateColumn)', async () => {
       const before = Date.now();
       const updateDto: UpdateAlgorithmPresetDto = { inputs: [{ key: 'only', value: 1 }] };
-      prismaMock.algorithmPreset.update.mockResolvedValue(createRow({}));
+      const existing = createEntity({});
+      txPresetRepo.findOne.mockResolvedValueOnce(existing).mockResolvedValueOnce(createEntity({}));
 
       await repository.updateById(TEST_UUID, updateDto);
 
-      const updateCallArgs = prismaMock.algorithmPreset.update.mock.calls[0][0];
-      expect(updateCallArgs.data.updatedAt).toBeInstanceOf(Date);
-      expect((updateCallArgs.data.updatedAt as Date).getTime()).toBeGreaterThanOrEqual(before);
+      const savedEntity = txPresetRepo.save.mock.calls[0][0] as { updatedAt: Date };
+      expect(savedEntity.updatedAt).toBeInstanceOf(Date);
+      expect(savedEntity.updatedAt.getTime()).toBeGreaterThanOrEqual(before);
     });
 
-    it('translates Prisma P2025 (not found) into null', async () => {
-      prismaMock.algorithmPreset.update.mockRejectedValue({ code: 'P2025' });
+    it('returns null when the preset does not exist (findOne miss)', async () => {
+      txPresetRepo.findOne.mockResolvedValue(null);
 
       await expect(repository.updateById(TEST_UUID, { name: 'x' })).resolves.toBeNull();
     });
   });
 
   describe('deleteById', () => {
-    it('delegates to the default Prisma client when no transaction is passed', async () => {
-      prismaMock.algorithmPreset.delete.mockResolvedValue(createRow({}));
+    it('uses the default EntityManager when no transactional manager is passed', async () => {
+      // The deleteById default branch uses `this.presets.manager.getRepository(...)`,
+      // which in our test returns `txPresetRepo`. So we mock the transaction-side
+      // repo even though we're not inside a transaction.
+      txPresetRepo.findOne.mockResolvedValue(createEntity({}));
+      txPresetRepo.delete.mockResolvedValue({ affected: 1 });
 
       const result = await repository.deleteById(TEST_UUID);
 
-      expect(prismaMock.algorithmPreset.delete).toHaveBeenCalledWith({
+      // findOne (via the manager-derived repo) loads the row with relations.
+      expect(txPresetRepo.findOne).toHaveBeenCalledWith({
         where: { id: TEST_UUID },
-        include: includeOrderedInputs,
+        relations: { inputs: true },
       });
+      expect(txPresetRepo.delete).toHaveBeenCalledWith({ id: TEST_UUID });
       expect(result?._id).toBe(TEST_UUID);
     });
 
-    it('uses the provided transactional client when supplied', async () => {
-      const tx = {
-        algorithmPreset: { delete: vi.fn().mockResolvedValue(createRow({})) },
+    it('uses the provided transactional EntityManager when supplied', async () => {
+      const customPresetRepo = {
+        findOne: vi.fn().mockResolvedValue(createEntity({})),
+        delete: vi.fn().mockResolvedValue({ affected: 1 }),
       };
+      const customManager = {
+        getRepository: vi.fn(() => customPresetRepo),
+      } as unknown as EntityManager;
 
-      await repository.deleteById(TEST_UUID, tx as unknown as PrismaService);
+      await repository.deleteById(TEST_UUID, customManager);
 
-      expect(tx.algorithmPreset.delete).toHaveBeenCalledWith({
-        where: { id: TEST_UUID },
-        include: includeOrderedInputs,
-      });
-      expect(prismaMock.algorithmPreset.delete).not.toHaveBeenCalled();
+      expect(customPresetRepo.delete).toHaveBeenCalledWith({ id: TEST_UUID });
+      expect(presetRepoMock.delete).not.toHaveBeenCalled();
     });
 
-    it('translates Prisma P2025 (not found) into null', async () => {
-      prismaMock.algorithmPreset.delete.mockRejectedValue({ code: 'P2025' });
+    it('returns null when the row does not exist', async () => {
+      txPresetRepo.findOne.mockResolvedValue(null);
 
       await expect(repository.deleteById(TEST_UUID)).resolves.toBeNull();
     });

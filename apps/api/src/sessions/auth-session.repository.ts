@@ -1,9 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import type { AuthSession as PrismaAuthSession } from '@prisma/client';
-import { Prisma } from '@prisma/client';
+import { InjectRepository } from '@nestjs/typeorm';
 import type { OAuthProvider } from '@reputo/contracts';
-import { PrismaService } from '../persistence';
-import { toPrismaProvider, toWireProvider } from '../shared/utils';
+import { In, IsNull, MoreThan, Repository } from 'typeorm';
+import { AuthSessionEntity } from '../persistence';
 
 // Public AuthSession shape — non-secret fields only. Used by guards, view
 // models, and any caller that doesn't need to decrypt provider tokens.
@@ -23,8 +22,8 @@ export interface AuthSessionRow {
 }
 
 // Full AuthSession shape including encrypted tokens, PKCE verifier, and the
-// CSRF state. Returned only by the privileged helpers used inside the
-// refresh path.
+// CSRF state. Returned only by the privileged helpers used inside the refresh
+// path.
 export interface AuthSessionWithSecrets extends AuthSessionRow {
   accessTokenCiphertext: string;
   refreshTokenCiphertext: string;
@@ -61,60 +60,61 @@ export interface UserSessionActivity {
   activeSessionCount: number;
 }
 
-const isRecordNotFound = (err: unknown): boolean =>
-  typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025';
-
-function mapPublicRow(row: PrismaAuthSession): AuthSessionRow {
+function mapPublicRow(entity: AuthSessionEntity): AuthSessionRow {
   return {
-    _id: row.id,
-    sessionId: row.sessionId,
-    provider: toWireProvider(row.provider),
-    userId: row.userId,
-    accessTokenExpiresAt: row.accessTokenExpiresAt,
-    refreshTokenExpiresAt: row.refreshTokenExpiresAt,
-    scope: row.scope,
-    lastRefreshedAt: row.lastRefreshedAt ?? undefined,
-    revokedAt: row.revokedAt ?? undefined,
-    expiresAt: row.expiresAt,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
+    _id: entity.id,
+    sessionId: entity.sessionId,
+    provider: entity.provider,
+    userId: entity.userId,
+    accessTokenExpiresAt: entity.accessTokenExpiresAt,
+    refreshTokenExpiresAt: entity.refreshTokenExpiresAt,
+    scope: entity.scope,
+    lastRefreshedAt: entity.lastRefreshedAt ?? undefined,
+    revokedAt: entity.revokedAt ?? undefined,
+    expiresAt: entity.expiresAt,
+    createdAt: entity.createdAt,
+    updatedAt: entity.updatedAt,
   };
 }
 
-function mapRowWithSecrets(row: PrismaAuthSession): AuthSessionWithSecrets {
+function mapRowWithSecrets(entity: AuthSessionEntity): AuthSessionWithSecrets {
   return {
-    ...mapPublicRow(row),
-    accessTokenCiphertext: row.accessTokenCiphertext,
-    refreshTokenCiphertext: row.refreshTokenCiphertext,
-    state: row.state,
-    codeVerifier: row.codeVerifier,
+    ...mapPublicRow(entity),
+    accessTokenCiphertext: entity.accessTokenCiphertext,
+    refreshTokenCiphertext: entity.refreshTokenCiphertext,
+    state: entity.state,
+    codeVerifier: entity.codeVerifier,
   };
 }
 
 @Injectable()
 export class AuthSessionRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(AuthSessionEntity)
+    private readonly repo: Repository<AuthSessionEntity>,
+  ) {}
 
   // Returned shape includes secrets because the create path is the only one
   // that already holds the plaintext (callers just minted them) and the
   // session row is immediately consumed for cookie issuance.
   async create(data: AuthSessionCreateInput): Promise<AuthSessionWithSecrets> {
-    const created = await this.prisma.authSession.create({
-      data: {
-        sessionId: data.sessionId,
-        provider: toPrismaProvider(data.provider),
-        userId: data.userId,
-        accessTokenCiphertext: data.accessTokenCiphertext,
-        refreshTokenCiphertext: data.refreshTokenCiphertext,
-        accessTokenExpiresAt: data.accessTokenExpiresAt,
-        refreshTokenExpiresAt: data.refreshTokenExpiresAt,
-        scope: { set: data.scope },
-        state: data.state,
-        codeVerifier: data.codeVerifier,
-        expiresAt: data.expiresAt,
-      },
+    const entity = this.repo.create({
+      sessionId: data.sessionId,
+      provider: data.provider,
+      userId: data.userId,
+      accessTokenCiphertext: data.accessTokenCiphertext,
+      refreshTokenCiphertext: data.refreshTokenCiphertext,
+      accessTokenExpiresAt: data.accessTokenExpiresAt,
+      refreshTokenExpiresAt: data.refreshTokenExpiresAt,
+      scope: data.scope,
+      state: data.state,
+      codeVerifier: data.codeVerifier,
+      expiresAt: data.expiresAt,
+      lastRefreshedAt: null,
+      revokedAt: null,
     });
-    return mapRowWithSecrets(created);
+    const saved = await this.repo.save(entity);
+    return mapRowWithSecrets(saved);
   }
 
   // Overload: callers explicitly opt in to the privileged shape (including
@@ -126,15 +126,15 @@ export class AuthSessionRepository {
     sessionId: string,
     includeSecrets = false,
   ): Promise<AuthSessionRow | AuthSessionWithSecrets | null> {
-    const row = await this.prisma.authSession.findFirst({
+    const entity = await this.repo.findOne({
       where: {
         sessionId,
-        revokedAt: null,
-        expiresAt: { gt: new Date() },
+        revokedAt: IsNull(),
+        expiresAt: MoreThan(new Date()),
       },
     });
-    if (!row) return null;
-    return includeSecrets ? mapRowWithSecrets(row) : mapPublicRow(row);
+    if (!entity) return null;
+    return includeSecrets ? mapRowWithSecrets(entity) : mapPublicRow(entity);
   }
 
   // Privileged convenience: explicit name so refresh-path callers don't need
@@ -147,53 +147,43 @@ export class AuthSessionRepository {
     sessionId: string,
     update: AuthSessionUpdateAfterRefreshInput,
   ): Promise<AuthSessionWithSecrets | null> {
-    const data: Prisma.AuthSessionUpdateInput = {};
-    if (update.accessTokenCiphertext !== undefined) data.accessTokenCiphertext = update.accessTokenCiphertext;
-    if (update.refreshTokenCiphertext !== undefined) data.refreshTokenCiphertext = update.refreshTokenCiphertext;
-    if (update.accessTokenExpiresAt !== undefined) data.accessTokenExpiresAt = update.accessTokenExpiresAt;
-    if (update.refreshTokenExpiresAt !== undefined) data.refreshTokenExpiresAt = update.refreshTokenExpiresAt;
-    if (update.scope !== undefined) data.scope = { set: update.scope };
-    if (update.lastRefreshedAt !== undefined) data.lastRefreshedAt = update.lastRefreshedAt;
-    if (update.expiresAt !== undefined) data.expiresAt = update.expiresAt;
+    const entity = await this.repo.findOne({
+      where: {
+        sessionId,
+        revokedAt: IsNull(),
+        expiresAt: MoreThan(new Date()),
+      },
+    });
+    if (!entity) return null;
 
-    try {
-      const row = await this.prisma.authSession.update({
-        where: { sessionId, revokedAt: null, expiresAt: { gt: new Date() } },
-        data,
-      });
-      return mapRowWithSecrets(row);
-    } catch (err) {
-      // The compound `where` (non-unique fields after the unique `sessionId`)
-      // emits P2025 when the row exists but no longer matches the
-      // active-session filter — treat that as "no active session" and return
-      // null instead of bubbling the error up.
-      if (isRecordNotFound(err)) return null;
-      throw err;
-    }
+    if (update.accessTokenCiphertext !== undefined) entity.accessTokenCiphertext = update.accessTokenCiphertext;
+    if (update.refreshTokenCiphertext !== undefined) entity.refreshTokenCiphertext = update.refreshTokenCiphertext;
+    if (update.accessTokenExpiresAt !== undefined) entity.accessTokenExpiresAt = update.accessTokenExpiresAt;
+    if (update.refreshTokenExpiresAt !== undefined) entity.refreshTokenExpiresAt = update.refreshTokenExpiresAt;
+    if (update.scope !== undefined) entity.scope = update.scope;
+    if (update.lastRefreshedAt !== undefined) entity.lastRefreshedAt = update.lastRefreshedAt;
+    if (update.expiresAt !== undefined) entity.expiresAt = update.expiresAt;
+
+    const saved = await this.repo.save(entity);
+    return mapRowWithSecrets(saved);
   }
 
   async revokeBySessionId(sessionId: string, revokedAt = new Date()): Promise<void> {
-    try {
-      await this.prisma.authSession.update({
-        where: { sessionId, revokedAt: null },
-        data: { revokedAt, expiresAt: revokedAt },
-      });
-    } catch (err) {
-      if (isRecordNotFound(err)) return;
-      throw err;
-    }
+    await this.repo.update({ sessionId, revokedAt: IsNull() }, { revokedAt, expiresAt: revokedAt });
   }
 
   async revokeAllByUserId(userId: string, revokedAt = new Date()): Promise<number> {
-    const result = await this.prisma.authSession.updateMany({
-      where: {
-        userId,
-        revokedAt: null,
-        expiresAt: { gt: revokedAt },
-      },
-      data: { revokedAt, expiresAt: revokedAt },
-    });
-    return result.count;
+    const result = await this.repo.update(
+      { userId, revokedAt: IsNull(), expiresAt: MoreThan(revokedAt) },
+      { revokedAt, expiresAt: revokedAt },
+    );
+    return result.affected ?? 0;
+  }
+
+  async deleteExpired(now = new Date()): Promise<{ deletedCount: number }> {
+    const qb = this.repo.createQueryBuilder().delete().where('expires_at < :now', { now });
+    const result = await qb.execute();
+    return { deletedCount: result.affected ?? 0 };
   }
 
   // Returns Map<userId, { lastSignInAt, activeSessionCount }>. Users with no
@@ -206,32 +196,34 @@ export class AuthSessionRepository {
     const activity = new Map<string, UserSessionActivity>();
     if (userIds.length === 0) return activity;
 
-    // Two groupBy queries — Prisma can't express a conditional/filtered
-    // count alongside an unconditional aggregate in a single call, but the
-    // input is bounded by the admin list page size (<=100) so the extra
-    // round-trip is negligible.
     const ids = [...userIds];
+    // Two grouped queries — `findAndCount`/`groupBy` over the same column with
+    // different filters isn't expressible in a single QueryBuilder.
     const [lastSignInRows, activeCountRows] = await Promise.all([
-      this.prisma.authSession.groupBy({
-        by: ['userId'],
-        where: { userId: { in: ids } },
-        _max: { createdAt: true },
-      }),
-      this.prisma.authSession.groupBy({
-        by: ['userId'],
-        where: { userId: { in: ids }, revokedAt: null, expiresAt: { gt: now } },
-        _count: { _all: true },
-      }),
+      this.repo
+        .createQueryBuilder('s')
+        .select('s.user_id', 'userId')
+        .addSelect('MAX(s.created_at)', 'lastSignInAt')
+        .where({ userId: In(ids) })
+        .groupBy('s.user_id')
+        .getRawMany<{ userId: string; lastSignInAt: Date | null }>(),
+      this.repo
+        .createQueryBuilder('s')
+        .select('s.user_id', 'userId')
+        .addSelect('COUNT(*)::int', 'count')
+        .where({ userId: In(ids), revokedAt: IsNull(), expiresAt: MoreThan(now) })
+        .groupBy('s.user_id')
+        .getRawMany<{ userId: string; count: number }>(),
     ]);
 
     const activeCountByUserId = new Map<string, number>();
     for (const row of activeCountRows) {
-      activeCountByUserId.set(row.userId, row._count._all);
+      activeCountByUserId.set(row.userId, Number(row.count));
     }
 
     for (const row of lastSignInRows) {
       activity.set(row.userId, {
-        lastSignInAt: row._max.createdAt ?? null,
+        lastSignInAt: row.lastSignInAt ?? null,
         activeSessionCount: activeCountByUserId.get(row.userId) ?? 0,
       });
     }

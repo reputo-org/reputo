@@ -1,9 +1,10 @@
 import type { INestApplication } from '@nestjs/common';
+import type { DataSource } from 'typeorm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { PrismaService } from '../../../src/persistence';
 import { insertAlgorithmPreset, randomAlgorithmPreset } from '../../factories/algorithmPreset.factory';
 import { createTestApp } from '../../utils/app-test.module';
 import { createAuthenticatedSession } from '../../utils/auth-session';
+import { getTestDataSource, truncateBusinessTables } from '../../utils/db';
 import { assertPaginationMath, assertPaginationStructure } from '../../utils/pagination';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { api } from '../../utils/request';
@@ -11,7 +12,7 @@ import { api } from '../../utils/request';
 describe('GET /api/v1/algorithm-presets', () => {
   let app: INestApplication;
   let authCookie: string;
-  let prisma: PrismaService;
+  let dataSource: DataSource;
   let db: TestDatabase;
 
   beforeAll(async () => {
@@ -19,13 +20,12 @@ describe('GET /api/v1/algorithm-presets', () => {
     process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({});
     app = boot.app;
-    prisma = boot.moduleRef.get(PrismaService);
+    dataSource = getTestDataSource(boot.moduleRef);
     authCookie = (await createAuthenticatedSession(boot.moduleRef)).cookie;
   });
 
   afterEach(async () => {
-    await prisma.snapshot.deleteMany({});
-    await prisma.algorithmPreset.deleteMany({});
+    await truncateBusinessTables(dataSource);
   });
 
   afterAll(async () => {
@@ -35,7 +35,7 @@ describe('GET /api/v1/algorithm-presets', () => {
 
   it('should list presets with default pagination (200) and PaginationDto shape', async () => {
     for (let i = 0; i < 15; i++) {
-      await insertAlgorithmPreset(prisma, randomAlgorithmPreset());
+      await insertAlgorithmPreset(dataSource, randomAlgorithmPreset());
     }
 
     const res = await api(app, authCookie).get('/algorithm-presets').expect(200);
@@ -62,7 +62,7 @@ describe('GET /api/v1/algorithm-presets', () => {
 
   it('should respect limit and page query params (200)', async () => {
     for (let i = 0; i < 25; i++) {
-      await insertAlgorithmPreset(prisma, randomAlgorithmPreset());
+      await insertAlgorithmPreset(dataSource, randomAlgorithmPreset());
     }
 
     const res = await api(app, authCookie).get('/algorithm-presets?page=2&limit=5').expect(200);
@@ -76,11 +76,11 @@ describe('GET /api/v1/algorithm-presets', () => {
   });
 
   it('should sort by createdAt:desc (200)', async () => {
-    await insertAlgorithmPreset(prisma, { key: 'preset_1' });
+    await insertAlgorithmPreset(dataSource, { key: 'preset_1' });
     await new Promise((resolve) => setTimeout(resolve, 10));
-    await insertAlgorithmPreset(prisma, { key: 'preset_2' });
+    await insertAlgorithmPreset(dataSource, { key: 'preset_2' });
     await new Promise((resolve) => setTimeout(resolve, 10));
-    await insertAlgorithmPreset(prisma, { key: 'preset_3' });
+    await insertAlgorithmPreset(dataSource, { key: 'preset_3' });
 
     const res = await api(app, authCookie).get('/algorithm-presets').expect(200);
 
@@ -90,9 +90,9 @@ describe('GET /api/v1/algorithm-presets', () => {
   });
 
   it('should support multiple sort fields via sortBy (200)', async () => {
-    await insertAlgorithmPreset(prisma, { key: 'a_key', version: '1.0.0' });
-    await insertAlgorithmPreset(prisma, { key: 'z_key', version: '1.0.0' });
-    await insertAlgorithmPreset(prisma, { key: 'a_key', version: '2.0.0' });
+    await insertAlgorithmPreset(dataSource, { key: 'a_key', version: '1.0.0' });
+    await insertAlgorithmPreset(dataSource, { key: 'z_key', version: '1.0.0' });
+    await insertAlgorithmPreset(dataSource, { key: 'a_key', version: '2.0.0' });
 
     const res = await api(app, authCookie).get('/algorithm-presets?sortBy=key:asc,version:desc').expect(200);
 
@@ -102,9 +102,9 @@ describe('GET /api/v1/algorithm-presets', () => {
   });
 
   it('should filter by key (200)', async () => {
-    await insertAlgorithmPreset(prisma, { key: 'target_key' });
-    await insertAlgorithmPreset(prisma, { key: 'other_key' });
-    await insertAlgorithmPreset(prisma, { key: 'target_key' });
+    await insertAlgorithmPreset(dataSource, { key: 'target_key' });
+    await insertAlgorithmPreset(dataSource, { key: 'other_key' });
+    await insertAlgorithmPreset(dataSource, { key: 'target_key' });
 
     const res = await api(app, authCookie).get('/algorithm-presets?key=target_key').expect(200);
 
@@ -115,9 +115,9 @@ describe('GET /api/v1/algorithm-presets', () => {
   });
 
   it('should filter by version (200)', async () => {
-    await insertAlgorithmPreset(prisma, { version: '2.0.0' });
-    await insertAlgorithmPreset(prisma, { version: '1.0.0' });
-    await insertAlgorithmPreset(prisma, { version: '2.0.0' });
+    await insertAlgorithmPreset(dataSource, { version: '2.0.0' });
+    await insertAlgorithmPreset(dataSource, { version: '1.0.0' });
+    await insertAlgorithmPreset(dataSource, { version: '2.0.0' });
 
     const res = await api(app, authCookie).get('/algorithm-presets?version=2.0.0').expect(200);
 
@@ -128,8 +128,8 @@ describe('GET /api/v1/algorithm-presets', () => {
   });
 
   it('should return empty results when filters match nothing (200)', async () => {
-    await insertAlgorithmPreset(prisma, { key: 'key_1' });
-    await insertAlgorithmPreset(prisma, { key: 'key_2' });
+    await insertAlgorithmPreset(dataSource, { key: 'key_1' });
+    await insertAlgorithmPreset(dataSource, { key: 'key_2' });
 
     const res = await api(app, authCookie).get('/algorithm-presets?key=non_existent_key').expect(200);
 

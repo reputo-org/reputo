@@ -8,10 +8,12 @@
 
 ## Persistence
 
-- Persistence lives in `src/persistence` (Prisma client + listeners) and per-feature repositories. The API owns the application database; no other workspace opens a connection to it.
-- Prefer the repository layer over raw `PrismaClient` access from services so query intent stays testable.
-- Snapshot real-time updates use PostgreSQL `LISTEN/NOTIFY` on `snapshot_updates`. Always pair a snapshot mutation with the matching `pg_notify` in the same transaction.
-- Schema and migration files live in `prisma/`. Add a migration with `pnpm --filter @reputo/api prisma:migrate:dev`; ship it with `pnpm --filter @reputo/api prisma:migrate:deploy`.
+- Persistence lives in `src/persistence` (TypeORM `DataSource`, entity definitions, and the LISTEN/NOTIFY listener) plus per-feature repositories. The API owns the application database; no other workspace opens a connection to it.
+- ORM is **TypeORM** via `@nestjs/typeorm`. The naming strategy is `SnakeNamingStrategy` (snake_case at the DB layer, camelCase in entities); avoid sprinkling per-column `@Column({ name: ... })` overrides.
+- Prefer the repository layer over raw `Repository<Entity>` / `DataSource` access from services so query intent stays testable.
+- Snapshot real-time updates use PostgreSQL `LISTEN/NOTIFY` on `snapshot_updates`. Always pair a snapshot mutation with the matching `pg_notify` in the same transaction (use `manager.query('SELECT pg_notify($1, $2)', [SNAPSHOT_UPDATES_CHANNEL, id])` inside the surrounding `dataSource.transaction(...)`).
+- Multi-table writes use `dataSource.transaction(async (manager) => { ... })`; never call repositories from two unrelated contexts inside one logical write.
+- Entity files live under `src/persistence/entities/`. The standalone CLI DataSource for migrations is `src/persistence/data-source.ts`. Migrations live under `src/persistence/migrations/`. Generate a new migration with `pnpm --filter @reputo/api typeorm:generate src/persistence/migrations/<Name>` and apply it with `pnpm --filter @reputo/api typeorm:run`. `synchronize: true` is forbidden outside test fixtures.
 
 ## Temporal worker
 

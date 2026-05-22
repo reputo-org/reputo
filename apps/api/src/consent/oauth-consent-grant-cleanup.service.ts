@@ -1,6 +1,6 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../persistence';
+import { OAuthConsentGrantRepository } from './oauth-consent-grant.repository';
 
 // Periodically deletes expired OAuthConsentGrant rows. Interval is driven by
 // `consent.grantCleanupIntervalMs` and can be set to 0 to disable in tests
@@ -13,7 +13,7 @@ export class OAuthConsentGrantCleanupService implements OnModuleInit, OnModuleDe
   private running = false;
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly consentGrantRepository: OAuthConsentGrantRepository,
     configService: ConfigService,
   ) {
     this.intervalMs = Number(configService.get<number>('consent.grantCleanupIntervalMs') ?? 5 * 60 * 1000);
@@ -36,13 +36,11 @@ export class OAuthConsentGrantCleanupService implements OnModuleInit, OnModuleDe
   // Exposed for unit tests and the soft preference of being callable on
   // demand. Deletes every OAuthConsentGrant row whose `expiresAt` has passed.
   async runOnce(now: Date = new Date()): Promise<{ deletedCount: number }> {
-    const result = await this.prisma.oAuthConsentGrant.deleteMany({
-      where: { expiresAt: { lt: now } },
-    });
-    if (result.count > 0) {
-      this.logger.log({ msg: 'Expired OAuth consent grants cleaned up.', deletedCount: result.count });
+    const result = await this.consentGrantRepository.deleteExpired(now);
+    if (result.deletedCount > 0) {
+      this.logger.log({ msg: 'Expired OAuth consent grants cleaned up.', deletedCount: result.deletedCount });
     }
-    return { deletedCount: result.count };
+    return result;
   }
 
   private scheduleNext(): void {

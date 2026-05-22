@@ -1,9 +1,12 @@
 import type { INestApplication } from '@nestjs/common';
+import { SnapshotStatus } from '@reputo/contracts';
+import type { DataSource } from 'typeorm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { PrismaService } from '../../../src/persistence';
+import { AlgorithmPresetEntity, AlgorithmPresetInputEntity, SnapshotEntity } from '../../../src/persistence';
 import { insertAlgorithmPreset } from '../../factories/algorithmPreset.factory';
 import { createTestApp } from '../../utils/app-test.module';
 import { createAuthenticatedSession } from '../../utils/auth-session';
+import { getTestDataSource, truncateBusinessTables } from '../../utils/db';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { api } from '../../utils/request';
 import { randomUUIDv7 } from '../../utils/uuid';
@@ -11,7 +14,7 @@ import { randomUUIDv7 } from '../../utils/uuid';
 describe('DELETE /api/v1/algorithm-presets/:id', () => {
   let app: INestApplication;
   let authCookie: string;
-  let prisma: PrismaService;
+  let dataSource: DataSource;
   let db: TestDatabase;
 
   beforeAll(async () => {
@@ -19,13 +22,12 @@ describe('DELETE /api/v1/algorithm-presets/:id', () => {
     process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({});
     app = boot.app;
-    prisma = boot.moduleRef.get(PrismaService);
+    dataSource = getTestDataSource(boot.moduleRef);
     authCookie = (await createAuthenticatedSession(boot.moduleRef)).cookie;
   });
 
   afterEach(async () => {
-    await prisma.snapshot.deleteMany({});
-    await prisma.algorithmPreset.deleteMany({});
+    await truncateBusinessTables(dataSource);
   });
 
   afterAll(async () => {
@@ -34,14 +36,14 @@ describe('DELETE /api/v1/algorithm-presets/:id', () => {
   });
 
   it('should delete preset by id (204) with no body', async () => {
-    const preset = await insertAlgorithmPreset(prisma);
+    const preset = await insertAlgorithmPreset(dataSource);
 
     const res = await api(app, authCookie).delete(`/algorithm-presets/${preset.id}`).expect(204);
 
     expect(res.body).toEqual({});
     expect(res.text).toBe('');
 
-    const count = await prisma.algorithmPreset.count({ where: { id: preset.id } });
+    const count = await dataSource.getRepository(AlgorithmPresetEntity).count({ where: { id: preset.id } });
     expect(count).toBe(0);
   });
 
@@ -54,7 +56,7 @@ describe('DELETE /api/v1/algorithm-presets/:id', () => {
   });
 
   it('should make subsequent GET by id return 404 after deletion', async () => {
-    const preset = await insertAlgorithmPreset(prisma);
+    const preset = await insertAlgorithmPreset(dataSource);
 
     await api(app, authCookie).delete(`/algorithm-presets/${preset.id}`).expect(204);
 
@@ -62,32 +64,33 @@ describe('DELETE /api/v1/algorithm-presets/:id', () => {
   });
 
   it('should cascade delete snapshots referencing the preset', async () => {
-    const preset = await insertAlgorithmPreset(prisma, {
+    const preset = await insertAlgorithmPreset(dataSource, {
       key: 'test_key',
       version: '1.0.0',
       inputs: [],
     });
-    await prisma.snapshot.create({
-      data: {
+    const snapshotRepo = dataSource.getRepository(SnapshotEntity);
+    await snapshotRepo.save(
+      snapshotRepo.create({
         algorithmPresetId: preset.id,
         algorithmPresetFrozen: {
           key: preset.key,
           version: preset.version,
         },
-        status: 'queued',
-      },
-    });
+        status: SnapshotStatus.queued,
+      }),
+    );
 
     await api(app, authCookie).delete(`/algorithm-presets/${preset.id}`).expect(204);
 
-    const snapshotCount = await prisma.snapshot.count({ where: { algorithmPresetId: preset.id } });
+    const snapshotCount = await snapshotRepo.count({ where: { algorithmPresetId: preset.id } });
     expect(snapshotCount).toBe(0);
-    const presetCount = await prisma.algorithmPreset.count({ where: { id: preset.id } });
+    const presetCount = await dataSource.getRepository(AlgorithmPresetEntity).count({ where: { id: preset.id } });
     expect(presetCount).toBe(0);
   });
 
   it('should cascade delete child algorithm_preset_inputs rows when the preset is deleted', async () => {
-    const preset = await insertAlgorithmPreset(prisma, {
+    const preset = await insertAlgorithmPreset(dataSource, {
       inputs: [
         { key: 'a', value: 1 },
         { key: 'b', value: 'two' },
@@ -95,12 +98,13 @@ describe('DELETE /api/v1/algorithm-presets/:id', () => {
       ],
     });
 
-    const before = await prisma.algorithmPresetInput.count({ where: { algorithmPresetId: preset.id } });
+    const inputRepo = dataSource.getRepository(AlgorithmPresetInputEntity);
+    const before = await inputRepo.count({ where: { algorithmPresetId: preset.id } });
     expect(before).toBe(3);
 
     await api(app, authCookie).delete(`/algorithm-presets/${preset.id}`).expect(204);
 
-    const after = await prisma.algorithmPresetInput.count({ where: { algorithmPresetId: preset.id } });
+    const after = await inputRepo.count({ where: { algorithmPresetId: preset.id } });
     expect(after).toBe(0);
   });
 });

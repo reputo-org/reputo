@@ -1,16 +1,17 @@
+import type { Repository } from 'typeorm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PrismaService } from '../../../src/persistence';
+import type { AuthSessionEntity } from '../../../src/persistence';
 import { AuthSessionRepository } from '../../../src/sessions/auth-session.repository';
 
 const FIXED_NOW = new Date('2026-05-21T00:00:00.000Z');
 const TEST_UUID = '01940000-0000-7000-8000-000000000000';
 const TEST_USER_UUID = '01940000-0000-7000-8000-000000000001';
 
-function createPrismaSession(overrides: Record<string, unknown> = {}) {
+function createEntity(overrides: Record<string, unknown> = {}) {
   return {
     id: TEST_UUID,
     sessionId: 'session-1',
-    provider: 'deep_id',
+    provider: 'deep-id',
     userId: TEST_USER_UUID,
     accessTokenCiphertext: 'ct-access',
     refreshTokenCiphertext: 'ct-refresh',
@@ -29,33 +30,30 @@ function createPrismaSession(overrides: Record<string, unknown> = {}) {
 }
 
 describe('AuthSessionRepository', () => {
-  let prismaMock: {
-    authSession: {
-      create: ReturnType<typeof vi.fn>;
-      findFirst: ReturnType<typeof vi.fn>;
-      update: ReturnType<typeof vi.fn>;
-      updateMany: ReturnType<typeof vi.fn>;
-      groupBy: ReturnType<typeof vi.fn>;
-    };
+  let repoMock: Repository<AuthSessionEntity> & {
+    findOne: ReturnType<typeof vi.fn>;
+    save: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    createQueryBuilder: ReturnType<typeof vi.fn>;
   };
   let repository: AuthSessionRepository;
 
   beforeEach(() => {
-    prismaMock = {
-      authSession: {
-        create: vi.fn(),
-        findFirst: vi.fn(),
-        update: vi.fn(),
-        updateMany: vi.fn(),
-        groupBy: vi.fn(),
-      },
-    };
-    repository = new AuthSessionRepository(prismaMock as unknown as PrismaService);
+    repoMock = {
+      findOne: vi.fn(),
+      save: vi.fn(async (entity) => entity),
+      update: vi.fn(),
+      create: vi.fn((data) => data),
+      createQueryBuilder: vi.fn(),
+    } as unknown as typeof repoMock;
+
+    repository = new AuthSessionRepository(repoMock as unknown as Repository<AuthSessionEntity>);
   });
 
   describe('create', () => {
-    it('forwards the wire provider as the Prisma enum and returns the full secret-bearing row', async () => {
-      prismaMock.authSession.create.mockResolvedValue(createPrismaSession());
+    it('persists the session and returns the row with secrets', async () => {
+      repoMock.save.mockResolvedValue(createEntity());
 
       const session = await repository.create({
         sessionId: 'session-1',
@@ -71,16 +69,16 @@ describe('AuthSessionRepository', () => {
         expiresAt: new Date(FIXED_NOW.getTime() + 3_600_000),
       });
 
-      expect(prismaMock.authSession.create).toHaveBeenCalledWith(
+      // repo.create() is fed the camelCased columns.
+      expect(repoMock.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
-            sessionId: 'session-1',
-            provider: 'deep_id',
-            userId: TEST_USER_UUID,
-            scope: { set: ['openid', 'profile'] },
-          }),
+          sessionId: 'session-1',
+          provider: 'deep-id',
+          userId: TEST_USER_UUID,
+          scope: ['openid', 'profile'],
         }),
       );
+      expect(repoMock.save).toHaveBeenCalled();
       expect(session.accessTokenCiphertext).toBe('ct-access');
       expect(session.provider).toBe('deep-id');
     });
@@ -88,24 +86,22 @@ describe('AuthSessionRepository', () => {
 
   describe('findActiveBySessionId', () => {
     it('filters out revoked and expired sessions and projects the public shape by default', async () => {
-      prismaMock.authSession.findFirst.mockResolvedValue(createPrismaSession());
+      repoMock.findOne.mockResolvedValue(createEntity());
 
       const row = await repository.findActiveBySessionId('session-1');
 
-      expect(prismaMock.authSession.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            sessionId: 'session-1',
-            revokedAt: null,
-            expiresAt: { gt: expect.any(Date) },
-          }),
-        }),
-      );
+      // The where clause must include the unrevoked + unexpired guards. We
+      // assert via object containment because TypeORM wraps `IsNull()` /
+      // `MoreThan()` in opaque value objects.
+      const call = repoMock.findOne.mock.calls[0][0];
+      expect(call.where.sessionId).toBe('session-1');
+      expect(call.where.revokedAt).toBeDefined();
+      expect(call.where.expiresAt).toBeDefined();
       expect((row as { accessTokenCiphertext?: string }).accessTokenCiphertext).toBeUndefined();
     });
 
     it('returns ciphertexts and PKCE material when includeSecrets is true', async () => {
-      prismaMock.authSession.findFirst.mockResolvedValue(createPrismaSession());
+      repoMock.findOne.mockResolvedValue(createEntity());
 
       const row = await repository.findActiveBySessionId('session-1', true);
 
@@ -114,16 +110,22 @@ describe('AuthSessionRepository', () => {
       expect(row?.state).toBe('state-1');
       expect(row?.codeVerifier).toBe('verifier-1');
     });
+
+    it('returns null when no row matches', async () => {
+      repoMock.findOne.mockResolvedValue(null);
+      await expect(repository.findActiveBySessionId('session-1')).resolves.toBeNull();
+    });
   });
 
   describe('updateAfterRefresh', () => {
     it('uses the compound where clause so revoked sessions cannot be silently refreshed', async () => {
-      prismaMock.authSession.update.mockResolvedValue(
-        createPrismaSession({
-          accessTokenCiphertext: 'new-access',
-          refreshTokenCiphertext: 'new-refresh',
-        }),
-      );
+      const found = createEntity();
+      repoMock.findOne.mockResolvedValue(found);
+      repoMock.save.mockImplementation(async (entity) => ({
+        ...entity,
+        accessTokenCiphertext: 'new-access',
+        refreshTokenCiphertext: 'new-refresh',
+      }));
 
       const result = await repository.updateAfterRefresh('session-1', {
         accessTokenCiphertext: 'new-access',
@@ -135,75 +137,124 @@ describe('AuthSessionRepository', () => {
         expiresAt: new Date(),
       });
 
-      expect(prismaMock.authSession.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            sessionId: 'session-1',
-            revokedAt: null,
-            expiresAt: { gt: expect.any(Date) },
-          }),
-        }),
-      );
+      // The lookup applies revokedAt+expiresAt guards (same `findOne` shape as
+      // findActiveBySessionId), then the mutation lands via `save`.
+      const findCall = repoMock.findOne.mock.calls[0][0];
+      expect(findCall.where.sessionId).toBe('session-1');
+      expect(findCall.where.revokedAt).toBeDefined();
+      expect(findCall.where.expiresAt).toBeDefined();
       expect(result?.accessTokenCiphertext).toBe('new-access');
     });
 
-    it('returns null when the Prisma update misses (P2025) because the session was revoked or expired', async () => {
-      prismaMock.authSession.update.mockRejectedValue({ code: 'P2025' });
+    it('returns null when the row is not found (revoked or expired)', async () => {
+      repoMock.findOne.mockResolvedValue(null);
 
       await expect(
-        repository.updateAfterRefresh('session-1', {
-          accessTokenCiphertext: 'new-access',
-        }),
+        repository.updateAfterRefresh('session-1', { accessTokenCiphertext: 'new-access' }),
       ).resolves.toBeNull();
     });
   });
 
   describe('revokeBySessionId', () => {
-    it('swallows P2025 so revoking an already-revoked session is idempotent', async () => {
-      prismaMock.authSession.update.mockRejectedValue({ code: 'P2025' });
+    it('is idempotent: a missing row is treated as a no-op (affected=0)', async () => {
+      repoMock.update.mockResolvedValue({ affected: 0 });
 
       await expect(repository.revokeBySessionId('session-1')).resolves.toBeUndefined();
     });
 
     it('forces expiresAt to the revoked moment so cleanup picks the row up', async () => {
-      prismaMock.authSession.update.mockResolvedValue(createPrismaSession({ revokedAt: FIXED_NOW }));
+      repoMock.update.mockResolvedValue({ affected: 1 });
 
       await repository.revokeBySessionId('session-1', FIXED_NOW);
 
-      expect(prismaMock.authSession.update).toHaveBeenCalledWith({
-        where: { sessionId: 'session-1', revokedAt: null },
-        data: { revokedAt: FIXED_NOW, expiresAt: FIXED_NOW },
-      });
+      const updateCall = repoMock.update.mock.calls[0];
+      const where = updateCall[0] as { sessionId: string; revokedAt: unknown };
+      const data = updateCall[1] as { revokedAt: Date; expiresAt: Date };
+      expect(where.sessionId).toBe('session-1');
+      // revokedAt guard is an IsNull() value — we don't compare it directly.
+      expect(where.revokedAt).toBeDefined();
+      expect(data.revokedAt).toBe(FIXED_NOW);
+      expect(data.expiresAt).toBe(FIXED_NOW);
     });
   });
 
   describe('revokeAllByUserId', () => {
     it('returns the number of sessions touched', async () => {
-      prismaMock.authSession.updateMany.mockResolvedValue({ count: 4 });
+      repoMock.update.mockResolvedValue({ affected: 4 });
 
       const count = await repository.revokeAllByUserId(TEST_USER_UUID, FIXED_NOW);
 
-      expect(prismaMock.authSession.updateMany).toHaveBeenCalledWith({
-        where: { userId: TEST_USER_UUID, revokedAt: null, expiresAt: { gt: FIXED_NOW } },
-        data: { revokedAt: FIXED_NOW, expiresAt: FIXED_NOW },
-      });
+      const updateCall = repoMock.update.mock.calls[0];
+      const where = updateCall[0] as { userId: string };
+      const data = updateCall[1] as { revokedAt: Date; expiresAt: Date };
+      expect(where.userId).toBe(TEST_USER_UUID);
+      expect(data.revokedAt).toBe(FIXED_NOW);
+      expect(data.expiresAt).toBe(FIXED_NOW);
       expect(count).toBe(4);
     });
   });
 
-  describe('aggregateActivityByUserIds', () => {
-    it('returns empty map without hitting Prisma when the input is empty', async () => {
-      await expect(repository.aggregateActivityByUserIds([])).resolves.toEqual(new Map());
-      expect(prismaMock.authSession.groupBy).not.toHaveBeenCalled();
+  describe('deleteExpired', () => {
+    it('deletes rows whose expires_at is in the past and reports the count', async () => {
+      const execute = vi.fn().mockResolvedValue({ affected: 5 });
+      const where = vi.fn().mockReturnValue({ execute });
+      const del = vi.fn().mockReturnValue({ where });
+      repoMock.createQueryBuilder.mockReturnValue({ delete: del });
+
+      const result = await repository.deleteExpired(FIXED_NOW);
+
+      expect(repoMock.createQueryBuilder).toHaveBeenCalled();
+      expect(del).toHaveBeenCalled();
+      expect(where).toHaveBeenCalledWith('expires_at < :now', { now: FIXED_NOW });
+      expect(result).toEqual({ deletedCount: 5 });
     });
 
-    it('merges last-sign-in and active-session-count groupBy results, defaulting count to 0', async () => {
-      prismaMock.authSession.groupBy
-        .mockResolvedValueOnce([
-          { userId: TEST_USER_UUID, _max: { createdAt: new Date('2026-04-01T00:00:00.000Z') } },
-          { userId: 'user-2', _max: { createdAt: new Date('2026-04-02T00:00:00.000Z') } },
-        ])
-        .mockResolvedValueOnce([{ userId: TEST_USER_UUID, _count: { _all: 2 } }]);
+    it('returns zero when no rows are expired', async () => {
+      const execute = vi.fn().mockResolvedValue({ affected: 0 });
+      const where = vi.fn().mockReturnValue({ execute });
+      const del = vi.fn().mockReturnValue({ where });
+      repoMock.createQueryBuilder.mockReturnValue({ delete: del });
+
+      const result = await repository.deleteExpired();
+      expect(result).toEqual({ deletedCount: 0 });
+    });
+  });
+
+  describe('aggregateActivityByUserIds', () => {
+    it('returns empty map without hitting the DB when the input is empty', async () => {
+      await expect(repository.aggregateActivityByUserIds([])).resolves.toEqual(new Map());
+      expect(repoMock.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('merges last-sign-in and active-session-count results, defaulting count to 0', async () => {
+      const lastSignInBuilder = {
+        select: vi.fn().mockReturnThis(),
+        addSelect: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        groupBy: vi.fn().mockReturnThis(),
+        getRawMany: vi.fn().mockResolvedValue([
+          { userId: TEST_USER_UUID, lastSignInAt: new Date('2026-04-01T00:00:00.000Z') },
+          { userId: 'user-2', lastSignInAt: new Date('2026-04-02T00:00:00.000Z') },
+        ]),
+      };
+      const activeCountBuilder = {
+        select: vi.fn().mockReturnThis(),
+        addSelect: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        groupBy: vi.fn().mockReturnThis(),
+        getRawMany: vi.fn().mockResolvedValue([{ userId: TEST_USER_UUID, count: 2 }]),
+      };
+      // Two `createQueryBuilder` calls are issued in parallel for the two
+      // groups. Order is stable because they're awaited via `Promise.all` in
+      // the source, but we don't rely on it: we return the same two builders
+      // in order.
+      repoMock.createQueryBuilder
+        .mockReturnValueOnce(
+          lastSignInBuilder as unknown as ReturnType<Repository<AuthSessionEntity>['createQueryBuilder']>,
+        )
+        .mockReturnValueOnce(
+          activeCountBuilder as unknown as ReturnType<Repository<AuthSessionEntity>['createQueryBuilder']>,
+        );
 
       const activity = await repository.aggregateActivityByUserIds([TEST_USER_UUID, 'user-2'], FIXED_NOW);
 

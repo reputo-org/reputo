@@ -1,9 +1,10 @@
 import type { INestApplication } from '@nestjs/common';
+import type { DataSource } from 'typeorm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { PrismaService } from '../../../src/persistence';
 import { insertAlgorithmPreset } from '../../factories/algorithmPreset.factory';
 import { createTestApp } from '../../utils/app-test.module';
 import { createAuthenticatedSession } from '../../utils/auth-session';
+import { getTestDataSource, truncateBusinessTables } from '../../utils/db';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { api } from '../../utils/request';
 import { randomUUIDv7 } from '../../utils/uuid';
@@ -11,7 +12,7 @@ import { randomUUIDv7 } from '../../utils/uuid';
 describe('GET /api/v1/algorithm-presets/:id', () => {
   let app: INestApplication;
   let authCookie: string;
-  let prisma: PrismaService;
+  let dataSource: DataSource;
   let db: TestDatabase;
 
   beforeAll(async () => {
@@ -19,13 +20,12 @@ describe('GET /api/v1/algorithm-presets/:id', () => {
     process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({});
     app = boot.app;
-    prisma = boot.moduleRef.get(PrismaService);
+    dataSource = getTestDataSource(boot.moduleRef);
     authCookie = (await createAuthenticatedSession(boot.moduleRef)).cookie;
   });
 
   afterEach(async () => {
-    await prisma.snapshot.deleteMany({});
-    await prisma.algorithmPreset.deleteMany({});
+    await truncateBusinessTables(dataSource);
   });
 
   afterAll(async () => {
@@ -34,7 +34,7 @@ describe('GET /api/v1/algorithm-presets/:id', () => {
   });
 
   it('should get preset by id (200)', async () => {
-    const preset = await insertAlgorithmPreset(prisma, {
+    const preset = await insertAlgorithmPreset(dataSource, {
       name: 'Test Preset',
       description: 'Test description for the preset',
     });
