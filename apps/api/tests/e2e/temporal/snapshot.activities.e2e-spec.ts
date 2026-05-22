@@ -150,14 +150,19 @@ describe('API snapshot activities (integration)', () => {
         error: { message: 'boom' },
       } satisfies UpdateSnapshotInput);
 
-      const persisted = await prisma.snapshot.findUnique({ where: { id: snapshot.id } });
+      const persisted = await prisma.snapshot.findUnique({
+        where: { id: snapshot.id },
+        include: { outputs: true },
+      });
       expect(persisted?.temporal).toEqual({ workflowId: 'wf-1', taskQueue: 'orchestrator' });
-      expect(persisted?.outputs).toEqual({ csv: 'snapshots/output.csv' });
+      expect(persisted?.outputs.map((o) => ({ key: o.key, value: o.value }))).toEqual([
+        { key: 'csv', value: 'snapshots/output.csv' },
+      ]);
       expect((persisted?.error as { message?: string } | null)?.message).toBe('boom');
       expect(typeof (persisted?.error as { timestamp?: string } | null)?.timestamp).toBe('string');
     });
 
-    it('is idempotent under retry: same input twice → same DB state', async () => {
+    it('is idempotent under retry: same input twice → same DB state without duplicate output rows', async () => {
       const { snapshot } = await seedSnapshot();
 
       const input = {
@@ -167,13 +172,23 @@ describe('API snapshot activities (integration)', () => {
       };
 
       await env.run(activities.updateSnapshot, input);
-      const after1 = await prisma.snapshot.findUnique({ where: { id: snapshot.id } });
+      const after1 = await prisma.snapshot.findUnique({
+        where: { id: snapshot.id },
+        include: { outputs: true },
+      });
       await env.run(activities.updateSnapshot, input);
-      const after2 = await prisma.snapshot.findUnique({ where: { id: snapshot.id } });
+      const after2 = await prisma.snapshot.findUnique({
+        where: { id: snapshot.id },
+        include: { outputs: true },
+      });
 
       expect(after1?.status).toBe('completed');
       expect(after2?.status).toBe('completed');
-      expect(after2?.outputs).toEqual(after1?.outputs);
+      // Replay keeps exactly one row per (snapshot, key); no duplicates accumulate.
+      expect(after2?.outputs).toHaveLength(1);
+      expect(after2?.outputs.map((o) => ({ key: o.key, value: o.value }))).toEqual(
+        after1?.outputs.map((o) => ({ key: o.key, value: o.value })),
+      );
     });
 
     it('throws non-retryable ApplicationFailure when the snapshot is missing', async () => {

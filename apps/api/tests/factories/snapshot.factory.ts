@@ -66,13 +66,19 @@ export async function insertSnapshot(
   overrides: Partial<Omit<SnapshotCreate, 'algorithmPreset' | 'algorithmPresetFrozen'>> = {},
 ): Promise<PrismaSnapshot> {
   const dto = makeSnapshot(algorithmPresetId, algorithmPresetFrozen, overrides);
+  const outputs = dto.outputs as Record<string, string | undefined> | undefined;
+  const outputRows = outputs
+    ? Object.entries(outputs)
+        .filter(([, value]) => value !== undefined)
+        .map(([key, value]) => ({ key, value: value as string }))
+    : [];
   return prisma.snapshot.create({
     data: {
       status: dto.status ?? 'queued',
       algorithmPresetId,
       algorithmPresetFrozen: dto.algorithmPresetFrozen,
       temporal: dto.temporal ?? undefined,
-      outputs: (dto.outputs as Record<string, unknown> | undefined) ?? undefined,
+      ...(outputRows.length > 0 ? { outputs: { create: outputRows } } : {}),
     },
   });
 }

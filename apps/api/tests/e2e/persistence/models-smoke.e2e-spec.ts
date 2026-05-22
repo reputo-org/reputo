@@ -51,7 +51,7 @@ describe('Prisma models smoke', () => {
     expect(fetched.version).toBe('1.0.0');
   });
 
-  it('round-trips a Snapshot with frozen/temporal/outputs JSON and the AlgorithmPreset FK', async () => {
+  it('round-trips a Snapshot with frozen/temporal JSON, relational outputs, and the AlgorithmPreset FK', async () => {
     const preset = await prisma.algorithmPreset.create({
       data: {
         key: 'token_holdings',
@@ -75,20 +75,54 @@ describe('Prisma models smoke', () => {
           taskQueue: 'orchestrator-worker',
           algorithmTaskQueue: 'algo-runner',
         },
-        outputs: { csv: 's3://bucket/out.csv' },
+        outputs: { create: [{ key: 'csv', value: 's3://bucket/out.csv' }] },
         startedAt: new Date(),
       },
+      include: { outputs: true },
     });
 
     expect(snapshot.status).toBe('queued');
     expect(snapshot.algorithmPresetId).toBe(preset.id);
+    expect(snapshot.outputs.map((o) => ({ key: o.key, value: o.value }))).toEqual([
+      { key: 'csv', value: 's3://bucket/out.csv' },
+    ]);
 
     const refetched = await prisma.snapshot.findUniqueOrThrow({
       where: { id: snapshot.id },
-      include: { algorithmPreset: true },
+      include: { algorithmPreset: true, outputs: true },
     });
     expect(refetched.algorithmPreset.id).toBe(preset.id);
     expect((refetched.algorithmPresetFrozen as { key: string }).key).toBe('token_holdings');
+    expect(refetched.outputs).toHaveLength(1);
+  });
+
+  it('cascades snapshot deletion to the child snapshot_outputs rows', async () => {
+    const preset = await prisma.algorithmPreset.create({
+      data: {
+        key: 'cascade_check',
+        version: '1.0.0',
+        inputs: { create: [{ key: 'arg', value: 'v', position: 0 }] },
+      },
+    });
+
+    const snapshot = await prisma.snapshot.create({
+      data: {
+        algorithmPresetId: preset.id,
+        algorithmPresetFrozen: { key: preset.key, version: preset.version, inputs: [] },
+        outputs: {
+          create: [
+            { key: 'csv', value: 's3://bucket/a.csv' },
+            { key: 'json', value: 's3://bucket/a.json' },
+          ],
+        },
+      },
+    });
+
+    expect(await prisma.snapshotOutput.count({ where: { snapshotId: snapshot.id } })).toBe(2);
+
+    await prisma.snapshot.delete({ where: { id: snapshot.id } });
+
+    expect(await prisma.snapshotOutput.count({ where: { snapshotId: snapshot.id } })).toBe(0);
   });
 
   it('round-trips an OAuthUser and rejects duplicate (provider, sub)', async () => {

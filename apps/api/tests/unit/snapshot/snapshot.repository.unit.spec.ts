@@ -7,6 +7,12 @@ const FIXED_NOW = new Date('2026-05-21T00:00:00.000Z');
 const PRESET_ID = '01940000-0000-7000-8000-000000000000';
 const SNAPSHOT_ID = '01940000-0000-7000-8000-000000000001';
 
+type RelationalOutput = {
+  id?: string;
+  key: string;
+  value: string;
+};
+
 function createRow(overrides: Record<string, unknown> = {}) {
   return {
     id: SNAPSHOT_ID,
@@ -14,15 +20,17 @@ function createRow(overrides: Record<string, unknown> = {}) {
     algorithmPresetId: PRESET_ID,
     algorithmPresetFrozen: { key: 'test_key', version: '1.0.0', inputs: [] },
     temporal: null,
-    outputs: null,
     error: null,
     startedAt: null,
     completedAt: null,
     createdAt: FIXED_NOW,
     updatedAt: FIXED_NOW,
+    outputs: [] as RelationalOutput[],
     ...overrides,
   };
 }
+
+const includeOutputs = { outputs: true };
 
 describe('SnapshotRepository', () => {
   let repository: SnapshotRepository;
@@ -67,32 +75,52 @@ describe('SnapshotRepository', () => {
 
       const result = await repository.create(data);
 
-      expect(prismaMock.snapshot.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            status: 'queued',
-            algorithmPresetId: PRESET_ID,
-            algorithmPresetFrozen: data.algorithmPresetFrozen,
-          }),
+      expect(prismaMock.snapshot.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          status: 'queued',
+          algorithmPresetId: PRESET_ID,
+          algorithmPresetFrozen: data.algorithmPresetFrozen,
         }),
-      );
+        include: includeOutputs,
+      });
       expect(result._id).toBe(SNAPSHOT_ID);
       expect(result.algorithmPreset).toBe(PRESET_ID);
     });
 
-    it('passes temporal and outputs JSON through', async () => {
+    it('persists outputs via a nested create and maps them back to a Record', async () => {
       const data: SnapshotCreateData = {
         algorithmPreset: PRESET_ID,
         algorithmPresetFrozen: { key: 'k', version: '1', inputs: [] },
         temporal: { workflowId: 'wf-1', taskQueue: 'orchestrator' },
         outputs: { csv: 'path' },
       };
-      prismaMock.snapshot.create.mockResolvedValue(createRow({ temporal: data.temporal, outputs: data.outputs }));
+      prismaMock.snapshot.create.mockResolvedValue(
+        createRow({
+          temporal: data.temporal,
+          outputs: [{ id: 'o-1', key: 'csv', value: 'path' }],
+        }),
+      );
 
       const result = await repository.create(data);
 
+      const createArgs = prismaMock.snapshot.create.mock.calls[0][0];
+      expect(createArgs.data.outputs).toEqual({ create: [{ key: 'csv', value: 'path' }] });
       expect(result.temporal).toEqual(data.temporal);
-      expect(result.outputs).toEqual(data.outputs);
+      expect(result.outputs).toEqual({ csv: 'path' });
+    });
+
+    it('omits the outputs nested write when no outputs are provided', async () => {
+      const data: SnapshotCreateData = {
+        algorithmPreset: PRESET_ID,
+        algorithmPresetFrozen: { key: 'k', version: '1', inputs: [] },
+      };
+      prismaMock.snapshot.create.mockResolvedValue(createRow());
+
+      const result = await repository.create(data);
+
+      const createArgs = prismaMock.snapshot.create.mock.calls[0][0];
+      expect(createArgs.data.outputs).toBeUndefined();
+      expect(result.outputs).toBeUndefined();
     });
   });
 
@@ -106,6 +134,7 @@ describe('SnapshotRepository', () => {
       expect(prismaMock.snapshot.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { status: 'completed', algorithmPresetId: PRESET_ID },
+          include: includeOutputs,
         }),
       );
     });
@@ -124,6 +153,7 @@ describe('SnapshotRepository', () => {
               { algorithmPresetFrozen: { path: ['version'], equals: '1.0.0' } },
             ],
           },
+          include: includeOutputs,
         }),
       );
     });
@@ -146,21 +176,30 @@ describe('SnapshotRepository', () => {
       await expect(repository.findById(SNAPSHOT_ID)).resolves.toBeNull();
     });
 
-    it('maps a found row', async () => {
-      prismaMock.snapshot.findUnique.mockResolvedValue(createRow());
+    it('maps a found row and projects outputs into a Record', async () => {
+      prismaMock.snapshot.findUnique.mockResolvedValue(
+        createRow({ outputs: [{ id: 'o-1', key: 'csv', value: 'snapshots/out.csv' }] }),
+      );
       const result = await repository.findById(SNAPSHOT_ID);
+
+      expect(prismaMock.snapshot.findUnique).toHaveBeenCalledWith({
+        where: { id: SNAPSHOT_ID },
+        include: includeOutputs,
+      });
       expect(result?._id).toBe(SNAPSHOT_ID);
+      expect(result?.outputs).toEqual({ csv: 'snapshots/out.csv' });
     });
   });
 
   describe('find', () => {
-    it('maps every row from findMany', async () => {
+    it('maps every row from findMany and includes outputs', async () => {
       prismaMock.snapshot.findMany.mockResolvedValue([createRow(), createRow({ id: 'other' })]);
 
       const result = await repository.find({ algorithmPresetId: PRESET_ID });
 
       expect(prismaMock.snapshot.findMany).toHaveBeenCalledWith({
         where: { algorithmPresetId: PRESET_ID },
+        include: includeOutputs,
       });
       expect(result).toHaveLength(2);
       expect(result[1]._id).toBe('other');
@@ -175,7 +214,10 @@ describe('SnapshotRepository', () => {
 
       await repository.deleteById(SNAPSHOT_ID, tx as unknown as PrismaService);
 
-      expect(tx.snapshot.delete).toHaveBeenCalledWith({ where: { id: SNAPSHOT_ID } });
+      expect(tx.snapshot.delete).toHaveBeenCalledWith({
+        where: { id: SNAPSHOT_ID },
+        include: includeOutputs,
+      });
       expect(prismaMock.snapshot.delete).not.toHaveBeenCalled();
     });
 
@@ -197,10 +239,50 @@ describe('SnapshotRepository', () => {
       expect(prismaMock.snapshot.update).toHaveBeenCalledWith({
         where: { id: SNAPSHOT_ID },
         data: { status: 'running', startedAt: FIXED_NOW },
+        include: includeOutputs,
       });
       expect(prismaMock.$transaction).toHaveBeenCalledWith(['update-call', 'notify-call']);
       expect(result?._id).toBe(SNAPSHOT_ID);
       expect(result?.status).toBe('running');
+    });
+
+    it('replaces outputs via `deleteMany + create` inside the same transaction', async () => {
+      const updatedRow = createRow({
+        status: 'completed',
+        completedAt: FIXED_NOW,
+        outputs: [{ id: 'o-1', key: 'csv', value: 'snapshots/out.csv' }],
+      });
+      prismaMock.snapshot.update.mockReturnValue('update-call');
+      prismaMock.$executeRaw.mockReturnValue('notify-call');
+      prismaMock.$transaction.mockResolvedValue([updatedRow, 1]);
+
+      const result = await repository.applyExternalUpdate(SNAPSHOT_ID, {
+        status: 'completed',
+        completedAt: FIXED_NOW,
+        outputs: { csv: 'snapshots/out.csv' },
+      });
+
+      const updateArgs = prismaMock.snapshot.update.mock.calls[0][0];
+      expect(updateArgs.data.outputs).toEqual({
+        deleteMany: {},
+        create: [{ key: 'csv', value: 'snapshots/out.csv' }],
+      });
+      expect(result?.outputs).toEqual({ csv: 'snapshots/out.csv' });
+    });
+
+    it('skips undefined output values when building child rows', async () => {
+      const updatedRow = createRow({ outputs: [{ id: 'o-1', key: 'csv', value: 'path' }] });
+      prismaMock.snapshot.update.mockReturnValue('update-call');
+      prismaMock.$executeRaw.mockReturnValue('notify-call');
+      prismaMock.$transaction.mockResolvedValue([updatedRow, 1]);
+
+      await repository.applyExternalUpdate(SNAPSHOT_ID, { outputs: { csv: 'path', skipped: undefined } });
+
+      const updateArgs = prismaMock.snapshot.update.mock.calls[0][0];
+      expect(updateArgs.data.outputs).toEqual({
+        deleteMany: {},
+        create: [{ key: 'csv', value: 'path' }],
+      });
     });
 
     it('returns null when Prisma reports record-not-found (P2025)', async () => {
