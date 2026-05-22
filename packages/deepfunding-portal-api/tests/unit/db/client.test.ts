@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { closeDbInstance, createDb } from '../../../src/db/client.js';
 import type { DeepFundingPortalDb } from '../../../src/shared/types/db.js';
 import { cleanupTestDb, tableExists } from '../../utils/db-helpers.js';
@@ -6,55 +6,66 @@ import { cleanupTestDb, tableExists } from '../../utils/db-helpers.js';
 describe('Database Client', () => {
   let db: DeepFundingPortalDb | null = null;
 
-  afterEach(() => {
+  afterEach(async () => {
     if (db) {
-      cleanupTestDb(db);
+      await cleanupTestDb(db);
       db = null;
     }
   });
 
   describe('createDb', () => {
-    it('should create database instance', () => {
-      db = createDb({ path: ':memory:' });
+    it('should create an initialized data source', async () => {
+      db = await createDb({ path: ':memory:' });
 
       expect(db).toBeDefined();
-      expect(db.sqlite).toBeDefined();
-      expect(db.drizzle).toBeDefined();
+      expect(db.dataSource).toBeDefined();
+      expect(db.dataSource.isInitialized).toBe(true);
     });
 
-    it('should initialize database with schema', () => {
-      db = createDb({ path: ':memory:' });
+    it('should initialize database with schema via migrations', async () => {
+      db = await createDb({ path: ':memory:' });
 
-      expect(tableExists(db, 'rounds')).toBe(true);
-      expect(tableExists(db, 'pools')).toBe(true);
-      expect(tableExists(db, 'proposals')).toBe(true);
-      expect(tableExists(db, 'users')).toBe(true);
-      expect(tableExists(db, 'milestones')).toBe(true);
-      expect(tableExists(db, 'reviews')).toBe(true);
-      expect(tableExists(db, 'comments')).toBe(true);
-      expect(tableExists(db, 'comment_votes')).toBe(true);
+      expect(await tableExists(db, 'rounds')).toBe(true);
+      expect(await tableExists(db, 'pools')).toBe(true);
+      expect(await tableExists(db, 'proposals')).toBe(true);
+      expect(await tableExists(db, 'users')).toBe(true);
+      expect(await tableExists(db, 'milestones')).toBe(true);
+      expect(await tableExists(db, 'reviews')).toBe(true);
+      expect(await tableExists(db, 'comments')).toBe(true);
+      expect(await tableExists(db, 'comment_votes')).toBe(true);
     });
 
-    it('should return independent instances', () => {
-      const db1 = createDb({ path: ':memory:' });
-      const db2 = createDb({ path: ':memory:' });
+    it('should return independent instances', async () => {
+      const db1 = await createDb({ path: ':memory:' });
+      const db2 = await createDb({ path: ':memory:' });
 
       expect(db2).toBeDefined();
       expect(db2).not.toBe(db1);
-      closeDbInstance(db1);
-      closeDbInstance(db2);
+      await closeDbInstance(db1);
+      await closeDbInstance(db2);
       db = null;
     });
   });
 
   describe('closeDbInstance', () => {
-    it('should close database connection', () => {
-      db = createDb({ path: ':memory:' });
-      const closeSpy = vi.spyOn(db.sqlite, 'close');
+    it('should destroy the underlying data source', async () => {
+      db = await createDb({ path: ':memory:' });
+      const localDb = db;
 
-      closeDbInstance(db);
+      await closeDbInstance(localDb);
 
-      expect(closeSpy).toHaveBeenCalled();
+      expect(localDb.dataSource.isInitialized).toBe(false);
+      db = null;
+    });
+
+    it('should be safe to call when the data source is already destroyed', async () => {
+      db = await createDb({ path: ':memory:' });
+      const localDb = db;
+
+      await closeDbInstance(localDb);
+      await closeDbInstance(localDb);
+
+      expect(localDb.dataSource.isInitialized).toBe(false);
       db = null;
     });
   });

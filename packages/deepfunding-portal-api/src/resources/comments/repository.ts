@@ -1,43 +1,46 @@
-import { eq } from 'drizzle-orm';
+import { CommentEntity } from '../../db/entities/comment.entity.js';
 import type { DeepFundingPortalDb } from '../../shared/types/db.js';
 import { type CreateManyOptions, chunkArray, DEFAULT_CHUNK_SIZE } from '../../shared/utils/index.js';
 import { normalizeCommentToRecord } from './normalize.js';
-import * as schema from './schema.js';
 import type { Comment, CommentRecord } from './types.js';
 
 /**
  * Create a comments repository bound to the given database instance.
  */
 export function createCommentsRepo(db: DeepFundingPortalDb) {
+  const repo = db.dataSource.getRepository(CommentEntity);
+
   return {
-    create(data: Comment): void {
-      db.drizzle.insert(schema.comments).values(normalizeCommentToRecord(data)).run();
+    async create(data: Comment): Promise<void> {
+      await repo.insert(normalizeCommentToRecord(data));
     },
 
-    createMany(items: Comment[], options?: CreateManyOptions): void {
+    async createMany(items: Comment[], options?: CreateManyOptions): Promise<void> {
       const chunkSize = options?.chunkSize ?? DEFAULT_CHUNK_SIZE;
       const chunks = chunkArray(items, chunkSize);
-      db.sqlite.transaction(() => {
+      await db.dataSource.transaction(async (manager) => {
+        const txRepo = manager.getRepository(CommentEntity);
         for (const chunk of chunks) {
-          db.drizzle.insert(schema.comments).values(chunk.map(normalizeCommentToRecord)).run();
+          await txRepo.insert(chunk.map(normalizeCommentToRecord));
         }
-      })();
+      });
     },
 
-    findAll(): CommentRecord[] {
-      return db.drizzle.select().from(schema.comments).all();
+    async findAll(): Promise<CommentRecord[]> {
+      return (await repo.find()) as unknown as CommentRecord[];
     },
 
-    findByProposalId(proposalId: number): CommentRecord[] {
-      return db.drizzle.select().from(schema.comments).where(eq(schema.comments.proposalId, proposalId)).all();
+    async findByProposalId(proposalId: number): Promise<CommentRecord[]> {
+      return (await repo.find({ where: { proposalId } })) as unknown as CommentRecord[];
     },
 
-    findByUserId(userId: number): CommentRecord[] {
-      return db.drizzle.select().from(schema.comments).where(eq(schema.comments.userId, userId)).all();
+    async findByUserId(userId: number): Promise<CommentRecord[]> {
+      return (await repo.find({ where: { userId } })) as unknown as CommentRecord[];
     },
 
-    findById(commentId: number): CommentRecord | undefined {
-      return db.drizzle.select().from(schema.comments).where(eq(schema.comments.commentId, commentId)).get();
+    async findById(commentId: number): Promise<CommentRecord | undefined> {
+      const result = (await repo.findOne({ where: { commentId } })) as unknown as CommentRecord | null;
+      return result ?? undefined;
     },
   };
 }

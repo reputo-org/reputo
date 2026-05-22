@@ -1,35 +1,38 @@
-import { eq } from 'drizzle-orm';
+import { UserEntity } from '../../db/entities/user.entity.js';
 import type { DeepFundingPortalDb } from '../../shared/types/db.js';
 import { type CreateManyOptions, chunkArray, DEFAULT_CHUNK_SIZE } from '../../shared/utils/index.js';
 import { normalizeUserToRecord } from './normalize.js';
-import * as schema from './schema.js';
 import type { User, UserRecord } from './types.js';
 
 /**
  * Create a users repository bound to the given database instance.
  */
 export function createUsersRepo(db: DeepFundingPortalDb) {
+  const repo = db.dataSource.getRepository(UserEntity);
+
   return {
-    create(data: User): void {
-      db.drizzle.insert(schema.users).values(normalizeUserToRecord(data)).run();
+    async create(data: User): Promise<void> {
+      await repo.insert(normalizeUserToRecord(data));
     },
 
-    createMany(items: User[], options?: CreateManyOptions): void {
+    async createMany(items: User[], options?: CreateManyOptions): Promise<void> {
       const chunkSize = options?.chunkSize ?? DEFAULT_CHUNK_SIZE;
       const chunks = chunkArray(items, chunkSize);
-      db.sqlite.transaction(() => {
+      await db.dataSource.transaction(async (manager) => {
+        const txRepo = manager.getRepository(UserEntity);
         for (const chunk of chunks) {
-          db.drizzle.insert(schema.users).values(chunk.map(normalizeUserToRecord)).run();
+          await txRepo.insert(chunk.map(normalizeUserToRecord));
         }
-      })();
+      });
     },
 
-    findAll(): UserRecord[] {
-      return db.drizzle.select().from(schema.users).all();
+    async findAll(): Promise<UserRecord[]> {
+      return (await repo.find()) as unknown as UserRecord[];
     },
 
-    findById(id: number): UserRecord | undefined {
-      return db.drizzle.select().from(schema.users).where(eq(schema.users.id, id)).get();
+    async findById(id: number): Promise<UserRecord | undefined> {
+      const result = (await repo.findOne({ where: { id } })) as unknown as UserRecord | null;
+      return result ?? undefined;
     },
   };
 }

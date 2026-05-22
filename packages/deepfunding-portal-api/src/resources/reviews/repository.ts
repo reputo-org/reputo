@@ -1,43 +1,46 @@
-import { eq } from 'drizzle-orm';
+import { ReviewEntity } from '../../db/entities/review.entity.js';
 import type { DeepFundingPortalDb } from '../../shared/types/db.js';
 import { type CreateManyOptions, chunkArray, DEFAULT_CHUNK_SIZE } from '../../shared/utils/index.js';
 import { normalizeReviewToRecord } from './normalize.js';
-import * as schema from './schema.js';
 import type { Review, ReviewRecord } from './types.js';
 
 /**
  * Create a reviews repository bound to the given database instance.
  */
 export function createReviewsRepo(db: DeepFundingPortalDb) {
+  const repo = db.dataSource.getRepository(ReviewEntity);
+
   return {
-    create(data: Review): void {
-      db.drizzle.insert(schema.reviews).values(normalizeReviewToRecord(data)).run();
+    async create(data: Review): Promise<void> {
+      await repo.insert(normalizeReviewToRecord(data));
     },
 
-    createMany(items: Review[], options?: CreateManyOptions): void {
+    async createMany(items: Review[], options?: CreateManyOptions): Promise<void> {
       const chunkSize = options?.chunkSize ?? DEFAULT_CHUNK_SIZE;
       const chunks = chunkArray(items, chunkSize);
-      db.sqlite.transaction(() => {
+      await db.dataSource.transaction(async (manager) => {
+        const txRepo = manager.getRepository(ReviewEntity);
         for (const chunk of chunks) {
-          db.drizzle.insert(schema.reviews).values(chunk.map(normalizeReviewToRecord)).run();
+          await txRepo.insert(chunk.map(normalizeReviewToRecord));
         }
-      })();
+      });
     },
 
-    findAll(): ReviewRecord[] {
-      return db.drizzle.select().from(schema.reviews).all();
+    async findAll(): Promise<ReviewRecord[]> {
+      return (await repo.find()) as unknown as ReviewRecord[];
     },
 
-    findByProposalId(proposalId: number): ReviewRecord[] {
-      return db.drizzle.select().from(schema.reviews).where(eq(schema.reviews.proposalId, proposalId)).all();
+    async findByProposalId(proposalId: number): Promise<ReviewRecord[]> {
+      return (await repo.find({ where: { proposalId } })) as unknown as ReviewRecord[];
     },
 
-    findByReviewerId(reviewerId: number): ReviewRecord[] {
-      return db.drizzle.select().from(schema.reviews).where(eq(schema.reviews.reviewerId, reviewerId)).all();
+    async findByReviewerId(reviewerId: number): Promise<ReviewRecord[]> {
+      return (await repo.find({ where: { reviewerId } })) as unknown as ReviewRecord[];
     },
 
-    findById(reviewId: number): ReviewRecord | undefined {
-      return db.drizzle.select().from(schema.reviews).where(eq(schema.reviews.reviewId, reviewId)).get();
+    async findById(reviewId: number): Promise<ReviewRecord | undefined> {
+      const result = (await repo.findOne({ where: { reviewId } })) as unknown as ReviewRecord | null;
+      return result ?? undefined;
     },
   };
 }

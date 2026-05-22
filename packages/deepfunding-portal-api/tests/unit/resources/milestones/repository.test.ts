@@ -8,47 +8,48 @@ describe('Milestone Repository', () => {
   let db: DeepFundingPortalDb;
   let repo: ReturnType<typeof createMilestonesRepo>;
 
-  beforeEach(() => {
-    db = createTestDb();
+  beforeEach(async () => {
+    db = await createTestDb();
     repo = createMilestonesRepo(db);
   });
 
-  afterEach(() => {
-    cleanupTestDb(db);
+  afterEach(async () => {
+    await cleanupTestDb(db);
   });
 
   describe('create', () => {
-    it('should insert a single milestone', () => {
+    it('should insert a single milestone', async () => {
       const milestone = createMockMilestone({
         id: 1,
         proposal_id: 100,
         title: 'Test Milestone',
       });
 
-      repo.create(milestone);
+      await repo.create(milestone);
 
-      const result = repo.findById(1);
-      expect(result).toBeDefined();
-      expect(result?.title).toBe('Test Milestone');
-      expect(result?.proposalId).toBe(100);
+      const all = await repo.findAll();
+      const first = all[0];
+      expect(first).toBeDefined();
+      expect(first?.title).toBe('Test Milestone');
+      expect(first?.proposalId).toBe(100);
     });
   });
 
   describe('createMany', () => {
-    it('should insert multiple milestones', () => {
+    it('should insert multiple milestones', async () => {
       const milestones = [
         createMockMilestone({ id: 1, proposal_id: 100 }),
         createMockMilestone({ id: 2, proposal_id: 100 }),
         createMockMilestone({ id: 3, proposal_id: 200 }),
       ];
 
-      repo.createMany(milestones);
+      await repo.createMany(milestones);
 
-      const all = repo.findAll();
+      const all = await repo.findAll();
       expect(all.length).toBe(3);
     });
 
-    it('should handle chunking for large batches', () => {
+    it('should handle chunking for large batches', async () => {
       const milestones = Array.from({ length: 250 }, (_, i) =>
         createMockMilestone({
           id: i + 1,
@@ -56,13 +57,13 @@ describe('Milestone Repository', () => {
         }),
       );
 
-      repo.createMany(milestones, { chunkSize: 100 });
+      await repo.createMany(milestones, { chunkSize: 100 });
 
-      const all = repo.findAll();
+      const all = await repo.findAll();
       expect(all.length).toBe(250);
     });
 
-    it('should use default chunk size when not specified', () => {
+    it('should use default chunk size when not specified', async () => {
       const milestones = Array.from({ length: 150 }, (_, i) =>
         createMockMilestone({
           id: i + 1,
@@ -70,62 +71,67 @@ describe('Milestone Repository', () => {
         }),
       );
 
-      repo.createMany(milestones);
+      await repo.createMany(milestones);
 
-      const all = repo.findAll();
+      const all = await repo.findAll();
       expect(all.length).toBe(150);
     });
   });
 
   describe('findAll', () => {
-    it('should return all milestones', () => {
-      repo.create(createMockMilestone({ id: 1, proposal_id: 100 }));
-      repo.create(createMockMilestone({ id: 2, proposal_id: 200 }));
+    it('should return all milestones', async () => {
+      await repo.create(createMockMilestone({ id: 1, proposal_id: 100 }));
+      await repo.create(createMockMilestone({ id: 2, proposal_id: 200 }));
 
-      const result = repo.findAll();
+      const result = await repo.findAll();
       expect(result.length).toBe(2);
     });
 
-    it('should return empty array when no milestones exist', () => {
-      const result = repo.findAll();
+    it('should return empty array when no milestones exist', async () => {
+      const result = await repo.findAll();
       expect(result).toEqual([]);
     });
   });
 
   describe('findByProposalId', () => {
-    it('should find milestones by proposal ID', () => {
-      repo.create(createMockMilestone({ id: 1, proposal_id: 100 }));
-      repo.create(createMockMilestone({ id: 2, proposal_id: 100 }));
-      repo.create(createMockMilestone({ id: 3, proposal_id: 200 }));
+    it('should find milestones by proposal ID', async () => {
+      await repo.create(createMockMilestone({ id: 1, proposal_id: 100 }));
+      await repo.create(createMockMilestone({ id: 2, proposal_id: 100 }));
+      await repo.create(createMockMilestone({ id: 3, proposal_id: 200 }));
 
-      const result = repo.findByProposalId(100);
+      const result = await repo.findByProposalId(100);
       expect(result.length).toBe(2);
       expect(result.every((m) => m.proposalId === 100)).toBe(true);
     });
 
-    it('should return empty array when no milestones found for proposal', () => {
-      const result = repo.findByProposalId(999);
+    it('should return empty array when no milestones found for proposal', async () => {
+      const result = await repo.findByProposalId(999);
       expect(result).toEqual([]);
     });
   });
 
   describe('findById', () => {
-    it('should find milestone by ID', () => {
+    it('should find milestone by ID', async () => {
       const milestone = createMockMilestone({
         id: 1,
         proposal_id: 100,
         title: 'Specific Milestone',
       });
-      repo.create(milestone);
+      await repo.create(milestone);
 
-      const result = repo.findById(1);
+      const all = await repo.findAll();
+      const first = all[0];
+      expect(first).toBeDefined();
+      if (!first) return;
+
+      const result = await repo.findById(first.id);
       expect(result).toBeDefined();
-      expect(result?.id).toBe(1);
+      expect(result?.id).toBe(first.id);
       expect(result?.title).toBe('Specific Milestone');
     });
 
-    it('should return undefined when milestone not found', () => {
-      const result = repo.findById(999);
+    it('should return undefined when milestone not found', async () => {
+      const result = await repo.findById(999);
       expect(result).toBeUndefined();
     });
   });

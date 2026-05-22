@@ -8,60 +8,60 @@ describe('Round Repository', () => {
   let db: DeepFundingPortalDb;
   let repo: ReturnType<typeof createRoundsRepo>;
 
-  beforeEach(() => {
-    db = createTestDb();
+  beforeEach(async () => {
+    db = await createTestDb();
     repo = createRoundsRepo(db);
   });
 
-  afterEach(() => {
-    cleanupTestDb(db);
+  afterEach(async () => {
+    await cleanupTestDb(db);
   });
 
   describe('create', () => {
-    it('should insert a single round', () => {
+    it('should insert a single round', async () => {
       const round = createMockRound({
         id: 1,
         name: 'Test Round',
       });
 
-      repo.create(round);
+      await repo.create(round);
 
-      const result = repo.findById(1);
+      const result = await repo.findById(1);
       expect(result).toBeDefined();
       expect(result?.name).toBe('Test Round');
     });
   });
 
   describe('createMany', () => {
-    it('should insert multiple rounds', () => {
+    it('should insert multiple rounds', async () => {
       const rounds = [createMockRound({ id: 1 }), createMockRound({ id: 2 }), createMockRound({ id: 3 })];
 
-      repo.createMany(rounds);
+      await repo.createMany(rounds);
 
-      const all = repo.findAll();
+      const all = await repo.findAll();
       expect(all.length).toBe(3);
     });
   });
 
   describe('findAll', () => {
-    it('should return all rounds', () => {
-      repo.create(createMockRound({ id: 1 }));
-      repo.create(createMockRound({ id: 2 }));
+    it('should return all rounds', async () => {
+      await repo.create(createMockRound({ id: 1 }));
+      await repo.create(createMockRound({ id: 2 }));
 
-      const result = repo.findAll();
+      const result = await repo.findAll();
       expect(result.length).toBe(2);
     });
   });
 
   describe('findById', () => {
-    it('should find round by ID', () => {
+    it('should find round by ID', async () => {
       const round = createMockRound({
         id: 1,
         name: 'Specific Round',
       });
-      repo.create(round);
+      await repo.create(round);
 
-      const result = repo.findById(1);
+      const result = await repo.findById(1);
       expect(result).toBeDefined();
       expect(result?.id).toBe(1);
       expect(result?.name).toBe('Specific Round');
