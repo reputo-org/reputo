@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Prisma } from '@prisma/client';
 import type { UpdateSnapshotInput } from '@reputo/contracts';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { AlgorithmPresetRepository } from '../algorithm-preset/algorithm-preset.repository';
@@ -9,7 +8,13 @@ import { getAlgorithmDefinitionOrThrow, validateAlgorithmInputs } from '../share
 import { StorageService } from '../storage/storage.service';
 import { TemporalService } from '../temporal';
 import type { CreateSnapshotDto, ListSnapshotsQueryDto } from './dto';
-import type { AlgorithmPresetFrozen, SnapshotCreateData, SnapshotOutputs, SnapshotRow } from './snapshot.repository';
+import type {
+  AlgorithmPresetFrozen,
+  SnapshotApplyExternalUpdate,
+  SnapshotCreateData,
+  SnapshotOutputs,
+  SnapshotRow,
+} from './snapshot.repository';
 import { SnapshotRepository } from './snapshot.repository';
 
 const ALGORITHM_PRESET_ENTITY = 'AlgorithmPreset';
@@ -116,7 +121,7 @@ export class SnapshotService {
    * surfaces that as a non-retryable failure so the workflow stops retrying.
    */
   async applyExternalUpdate(input: UpdateSnapshotInput): Promise<SnapshotRow | null> {
-    const data: Prisma.SnapshotUpdateInput = {};
+    const data: SnapshotApplyExternalUpdate = {};
 
     if (input.status !== undefined) {
       data.status = input.status;
@@ -128,18 +133,18 @@ export class SnapshotService {
     }
 
     if (input.temporal !== undefined) {
-      data.temporal = input.temporal as unknown as Prisma.InputJsonValue;
+      data.temporal = input.temporal;
     }
 
     if (input.outputs !== undefined) {
-      data.outputs = input.outputs as unknown as Prisma.InputJsonValue;
+      data.outputs = input.outputs;
     }
 
     if (input.error !== undefined) {
       data.error = {
         ...input.error,
         timestamp: new Date().toISOString(),
-      } as unknown as Prisma.InputJsonValue;
+      };
     }
 
     const updated = await this.repository.applyExternalUpdate(input.snapshotId, data);

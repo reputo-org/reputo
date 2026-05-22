@@ -70,17 +70,32 @@ model Snapshot {
   algorithmPresetId     String         @map("algorithm_preset_id")
   algorithmPresetFrozen Json           @map("algorithm_preset_frozen")
   temporal              Json?
-  outputs               Json?
   error                 Json?
   startedAt             DateTime?      @map("started_at")
   completedAt           DateTime?      @map("completed_at")
   createdAt             DateTime       @default(now()) @map("created_at")
   updatedAt             DateTime       @updatedAt @map("updated_at")
 
-  algorithmPreset AlgorithmPreset @relation(fields: [algorithmPresetId], references: [id], onDelete: Restrict)
+  algorithmPreset AlgorithmPreset  @relation(fields: [algorithmPresetId], references: [id], onDelete: Restrict)
+  outputs         SnapshotOutput[]
 
   @@index([algorithmPresetId])
   @@map("snapshots")
+}
+
+model SnapshotOutput {
+  id         String   @id @default(uuid(7))
+  snapshotId String   @map("snapshot_id")
+  key        String
+  value      String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  snapshot Snapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, key])
+  @@index([snapshotId])
+  @@map("snapshot_outputs")
 }
 
 model OAuthUser {
