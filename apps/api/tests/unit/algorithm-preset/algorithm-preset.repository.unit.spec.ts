@@ -6,12 +6,19 @@ import type { PrismaService } from '../../../src/persistence';
 const FIXED_NOW = new Date('2026-05-21T00:00:00.000Z');
 const TEST_UUID = '01940000-0000-7000-8000-000000000000';
 
+type RelationalInput = {
+  id?: string;
+  key: string;
+  value: unknown;
+  position: number;
+};
+
 function createRow(
   overrides: Partial<{
     id: string;
     key: string;
     version: string;
-    inputs: unknown;
+    inputs: RelationalInput[];
     name: string | null;
     description: string | null;
   }> = {},
@@ -20,13 +27,15 @@ function createRow(
     id: overrides.id ?? TEST_UUID,
     key: overrides.key ?? 'test_key',
     version: overrides.version ?? '1.0.0',
-    inputs: overrides.inputs ?? [],
     name: overrides.name ?? null,
     description: overrides.description ?? null,
+    inputs: overrides.inputs ?? [],
     createdAt: FIXED_NOW,
     updatedAt: FIXED_NOW,
   };
 }
+
+const includeOrderedInputs = { inputs: { orderBy: { position: 'asc' } } };
 
 describe('AlgorithmPresetRepository', () => {
   let repository: AlgorithmPresetRepository;
@@ -56,16 +65,22 @@ describe('AlgorithmPresetRepository', () => {
   });
 
   describe('create', () => {
-    it('passes the DTO through and maps the Prisma row to `_id`', async () => {
+    it('issues a nested create with positional indexes preserving caller order', async () => {
       const createDto: CreateAlgorithmPresetDto = {
         key: 'test_key',
         version: '1.0.0',
-        inputs: [{ key: 'input1', value: 'value1' }],
+        inputs: [
+          { key: 'first', value: 1 },
+          { key: 'second', value: 'two' },
+        ],
         name: 'Test',
         description: 'A description longer than ten chars',
       };
-      const row = createRow({ ...createDto });
-      prismaMock.algorithmPreset.create.mockResolvedValue(row);
+      const persistedInputs: RelationalInput[] = [
+        { id: 'i-1', key: 'first', value: 1, position: 0 },
+        { id: 'i-2', key: 'second', value: 'two', position: 1 },
+      ];
+      prismaMock.algorithmPreset.create.mockResolvedValue(createRow({ ...createDto, inputs: persistedInputs }));
 
       const result = await repository.create(createDto);
 
@@ -73,13 +88,22 @@ describe('AlgorithmPresetRepository', () => {
         data: {
           key: createDto.key,
           version: createDto.version,
-          inputs: createDto.inputs,
           name: createDto.name,
           description: createDto.description,
+          inputs: {
+            create: [
+              { key: 'first', value: 1, position: 0 },
+              { key: 'second', value: 'two', position: 1 },
+            ],
+          },
         },
+        include: includeOrderedInputs,
       });
       expect(result._id).toBe(TEST_UUID);
-      expect(result.key).toBe('test_key');
+      expect(result.inputs).toEqual([
+        { key: 'first', value: 1 },
+        { key: 'second', value: 'two' },
+      ]);
     });
 
     it('coerces null name/description from Prisma into undefined', async () => {
@@ -94,8 +118,8 @@ describe('AlgorithmPresetRepository', () => {
   });
 
   describe('findAll', () => {
-    it('returns the paginated PaginateResult shape', async () => {
-      const row = createRow({ id: TEST_UUID });
+    it('returns the paginated PaginateResult shape and forwards `include` to findMany', async () => {
+      const row = createRow({ inputs: [{ id: 'i-1', key: 'k', value: 1, position: 0 }] });
       prismaMock.algorithmPreset.count.mockResolvedValue(1);
       prismaMock.algorithmPreset.findMany.mockResolvedValue([row]);
 
@@ -107,8 +131,10 @@ describe('AlgorithmPresetRepository', () => {
         orderBy: [{ createdAt: 'desc' }],
         skip: 0,
         take: 10,
+        include: includeOrderedInputs,
       });
       expect(result.results[0]._id).toBe(TEST_UUID);
+      expect(result.results[0].inputs).toEqual([{ key: 'k', value: 1 }]);
       expect(result.totalResults).toBe(1);
       expect(result.totalPages).toBe(1);
       expect(result.page).toBe(1);
@@ -124,19 +150,26 @@ describe('AlgorithmPresetRepository', () => {
       expect(prismaMock.algorithmPreset.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           orderBy: [{ key: 'asc' }, { version: 'desc' }],
+          include: includeOrderedInputs,
         }),
       );
     });
   });
 
   describe('findById', () => {
-    it('returns the row when present', async () => {
-      prismaMock.algorithmPreset.findUnique.mockResolvedValue(createRow({}));
+    it('passes the ordered include and maps the result', async () => {
+      prismaMock.algorithmPreset.findUnique.mockResolvedValue(
+        createRow({ inputs: [{ id: 'i-1', key: 'k', value: 1, position: 0 }] }),
+      );
 
       const result = await repository.findById(TEST_UUID);
 
-      expect(prismaMock.algorithmPreset.findUnique).toHaveBeenCalledWith({ where: { id: TEST_UUID } });
+      expect(prismaMock.algorithmPreset.findUnique).toHaveBeenCalledWith({
+        where: { id: TEST_UUID },
+        include: includeOrderedInputs,
+      });
       expect(result?._id).toBe(TEST_UUID);
+      expect(result?.inputs).toEqual([{ key: 'k', value: 1 }]);
     });
 
     it('returns null when not found', async () => {
@@ -146,7 +179,7 @@ describe('AlgorithmPresetRepository', () => {
   });
 
   describe('updateById', () => {
-    it('only forwards defined fields to Prisma', async () => {
+    it('only forwards defined name/description fields when inputs are omitted', async () => {
       const updateDto: UpdateAlgorithmPresetDto = { name: 'New Name' };
       prismaMock.algorithmPreset.update.mockResolvedValue(createRow({ name: 'New Name' }));
 
@@ -155,8 +188,58 @@ describe('AlgorithmPresetRepository', () => {
       expect(prismaMock.algorithmPreset.update).toHaveBeenCalledWith({
         where: { id: TEST_UUID },
         data: { name: 'New Name' },
+        include: includeOrderedInputs,
       });
       expect(result?.name).toBe('New Name');
+    });
+
+    it('replaces child rows with deleteMany + create when inputs are provided, preserving order', async () => {
+      const updateDto: UpdateAlgorithmPresetDto = {
+        inputs: [
+          { key: 'second', value: 'two' },
+          { key: 'first', value: 1 },
+          { key: 'third', value: { nested: true } },
+        ],
+      };
+      const persisted: RelationalInput[] = [
+        { id: 'i-1', key: 'second', value: 'two', position: 0 },
+        { id: 'i-2', key: 'first', value: 1, position: 1 },
+        { id: 'i-3', key: 'third', value: { nested: true }, position: 2 },
+      ];
+      prismaMock.algorithmPreset.update.mockResolvedValue(createRow({ inputs: persisted }));
+
+      const result = await repository.updateById(TEST_UUID, updateDto);
+
+      const updateCallArgs = prismaMock.algorithmPreset.update.mock.calls[0][0];
+      expect(updateCallArgs.where).toEqual({ id: TEST_UUID });
+      expect(updateCallArgs.include).toEqual(includeOrderedInputs);
+      expect(updateCallArgs.data.inputs).toEqual({
+        deleteMany: {},
+        create: [
+          { key: 'second', value: 'two', position: 0 },
+          { key: 'first', value: 1, position: 1 },
+          { key: 'third', value: { nested: true }, position: 2 },
+        ],
+      });
+      // Order returned to the caller reflects the persisted positions, which
+      // proves the wire shape mirrors the caller's input order.
+      expect(result?.inputs).toEqual([
+        { key: 'second', value: 'two' },
+        { key: 'first', value: 1 },
+        { key: 'third', value: { nested: true } },
+      ]);
+    });
+
+    it('bumps updatedAt explicitly when only inputs change (nested writes do not trigger @updatedAt)', async () => {
+      const before = Date.now();
+      const updateDto: UpdateAlgorithmPresetDto = { inputs: [{ key: 'only', value: 1 }] };
+      prismaMock.algorithmPreset.update.mockResolvedValue(createRow({}));
+
+      await repository.updateById(TEST_UUID, updateDto);
+
+      const updateCallArgs = prismaMock.algorithmPreset.update.mock.calls[0][0];
+      expect(updateCallArgs.data.updatedAt).toBeInstanceOf(Date);
+      expect((updateCallArgs.data.updatedAt as Date).getTime()).toBeGreaterThanOrEqual(before);
     });
 
     it('translates Prisma P2025 (not found) into null', async () => {
@@ -172,7 +255,10 @@ describe('AlgorithmPresetRepository', () => {
 
       const result = await repository.deleteById(TEST_UUID);
 
-      expect(prismaMock.algorithmPreset.delete).toHaveBeenCalledWith({ where: { id: TEST_UUID } });
+      expect(prismaMock.algorithmPreset.delete).toHaveBeenCalledWith({
+        where: { id: TEST_UUID },
+        include: includeOrderedInputs,
+      });
       expect(result?._id).toBe(TEST_UUID);
     });
 
@@ -183,7 +269,10 @@ describe('AlgorithmPresetRepository', () => {
 
       await repository.deleteById(TEST_UUID, tx as unknown as PrismaService);
 
-      expect(tx.algorithmPreset.delete).toHaveBeenCalledWith({ where: { id: TEST_UUID } });
+      expect(tx.algorithmPreset.delete).toHaveBeenCalledWith({
+        where: { id: TEST_UUID },
+        include: includeOrderedInputs,
+      });
       expect(prismaMock.algorithmPreset.delete).not.toHaveBeenCalled();
     });
 

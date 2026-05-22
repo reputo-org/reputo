@@ -1,5 +1,9 @@
 import { faker } from '@faker-js/faker';
-import type { AlgorithmPreset as PrismaAlgorithmPreset } from '@prisma/client';
+import type {
+  Prisma,
+  AlgorithmPreset as PrismaAlgorithmPreset,
+  AlgorithmPresetInput as PrismaAlgorithmPresetInput,
+} from '@prisma/client';
 import type { PrismaService } from '../../src/persistence';
 
 export type AlgorithmPresetCreate = {
@@ -8,6 +12,13 @@ export type AlgorithmPresetCreate = {
   inputs?: Array<{ key: string; value?: unknown }>;
   name?: string;
   description?: string;
+};
+
+// `inputs` is materialised from the relational `algorithm_preset_inputs` table
+// so callers (snapshot factories, e2e suites) can build frozen-preset payloads
+// without re-querying the child table themselves.
+export type AlgorithmPresetWithInputs = PrismaAlgorithmPreset & {
+  inputs: Array<Pick<PrismaAlgorithmPresetInput, 'key' | 'value' | 'position'>>;
 };
 
 export function makeAlgorithmPreset(overrides: AlgorithmPresetCreate = {}) {
@@ -26,17 +37,25 @@ export function makeAlgorithmPreset(overrides: AlgorithmPresetCreate = {}) {
 export async function insertAlgorithmPreset(
   prisma: PrismaService,
   overrides: AlgorithmPresetCreate = {},
-): Promise<PrismaAlgorithmPreset> {
+): Promise<AlgorithmPresetWithInputs> {
   const dto = makeAlgorithmPreset(overrides);
-  return prisma.algorithmPreset.create({
+  const created = await prisma.algorithmPreset.create({
     data: {
       key: dto.key,
       version: dto.version,
-      inputs: dto.inputs,
       name: dto.name ?? null,
       description: dto.description ?? null,
+      inputs: {
+        create: dto.inputs.map((input, position) => ({
+          key: input.key,
+          value: input.value as Prisma.InputJsonValue,
+          position,
+        })),
+      },
     },
+    include: { inputs: { orderBy: { position: 'asc' } } },
   });
+  return created;
 }
 
 export function randomAlgorithmPreset(): AlgorithmPresetCreate {

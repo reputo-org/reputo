@@ -34,18 +34,34 @@ model AlgorithmPreset {
   id          String   @id @default(uuid(7))
   key         String
   version     String
-  inputs      Json     @default("[]")
   name        String?
   description String?
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  inputs    AlgorithmPresetInput[]
   snapshots Snapshot[]
 
   @@index([key])
   @@index([version])
   @@index([key, version])
   @@map("algorithm_presets")
+}
+
+model AlgorithmPresetInput {
+  id                String   @id @default(uuid(7))
+  algorithmPresetId String   @map("algorithm_preset_id")
+  key               String
+  value             Json
+  position          Int
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  algorithmPreset AlgorithmPreset @relation(fields: [algorithmPresetId], references: [id], onDelete: Cascade)
+
+  @@unique([algorithmPresetId, key])
+  @@index([algorithmPresetId])
+  @@map("algorithm_preset_inputs")
 }
 
 model Snapshot {

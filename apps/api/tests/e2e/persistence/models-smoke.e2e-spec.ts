@@ -23,22 +23,25 @@ describe('Prisma models smoke', () => {
     await db?.stop();
   });
 
-  it('round-trips an AlgorithmPreset with JSON inputs', async () => {
+  it('round-trips an AlgorithmPreset with relational inputs ordered by position', async () => {
     const created = await prisma.algorithmPreset.create({
       data: {
         key: 'voting_engagement',
         version: '1.0.0',
-        inputs: [
-          { key: 'window_days', value: 30 },
-          { key: 'min_votes', value: 5 },
-        ],
         name: 'Default voting engagement',
         description: 'Baseline configuration used in regression tests.',
+        inputs: {
+          create: [
+            { key: 'window_days', value: 30, position: 0 },
+            { key: 'min_votes', value: 5, position: 1 },
+          ],
+        },
       },
+      include: { inputs: { orderBy: { position: 'asc' } } },
     });
 
     expect(created.id).toMatch(/^[0-9a-f-]{36}$/);
-    expect(created.inputs).toEqual([
+    expect(created.inputs.map((input) => ({ key: input.key, value: input.value }))).toEqual([
       { key: 'window_days', value: 30 },
       { key: 'min_votes', value: 5 },
     ]);
@@ -53,8 +56,9 @@ describe('Prisma models smoke', () => {
       data: {
         key: 'token_holdings',
         version: '2.1.0',
-        inputs: [{ key: 'chain', value: 'cardano' }],
+        inputs: { create: [{ key: 'chain', value: 'cardano', position: 0 }] },
       },
+      include: { inputs: { orderBy: { position: 'asc' } } },
     });
 
     const snapshot = await prisma.snapshot.create({
@@ -63,7 +67,7 @@ describe('Prisma models smoke', () => {
         algorithmPresetFrozen: {
           key: preset.key,
           version: preset.version,
-          inputs: preset.inputs as unknown[],
+          inputs: preset.inputs.map((input) => ({ key: input.key, value: input.value })),
         },
         temporal: {
           workflowId: 'wf-123',

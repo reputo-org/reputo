@@ -85,4 +85,22 @@ describe('DELETE /api/v1/algorithm-presets/:id', () => {
     const presetCount = await prisma.algorithmPreset.count({ where: { id: preset.id } });
     expect(presetCount).toBe(0);
   });
+
+  it('should cascade delete child algorithm_preset_inputs rows when the preset is deleted', async () => {
+    const preset = await insertAlgorithmPreset(prisma, {
+      inputs: [
+        { key: 'a', value: 1 },
+        { key: 'b', value: 'two' },
+        { key: 'c', value: { nested: true } },
+      ],
+    });
+
+    const before = await prisma.algorithmPresetInput.count({ where: { algorithmPresetId: preset.id } });
+    expect(before).toBe(3);
+
+    await api(app, authCookie).delete(`/algorithm-presets/${preset.id}`).expect(204);
+
+    const after = await prisma.algorithmPresetInput.count({ where: { algorithmPresetId: preset.id } });
+    expect(after).toBe(0);
+  });
 });
