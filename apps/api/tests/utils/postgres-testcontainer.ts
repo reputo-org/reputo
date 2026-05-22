@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
 export interface TestDatabase {
@@ -9,8 +10,11 @@ export interface TestDatabase {
   stop: () => Promise<void>;
 }
 
-const SCHEMA_PATH = path.resolve(process.cwd(), 'prisma/schema.prisma');
-const MIGRATIONS_DIR = path.resolve(process.cwd(), 'prisma/migrations');
+// Resolve paths relative to this file so the helper works regardless of which
+// directory `vitest` was invoked from (e.g. repo root vs. `apps/api`).
+const API_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const SCHEMA_PATH = path.join(API_ROOT, 'prisma/schema.prisma');
+const MIGRATIONS_DIR = path.join(API_ROOT, 'prisma/migrations');
 
 async function runPrismaMigrateDeploy(databaseUrl: string): Promise<void> {
   if (!existsSync(MIGRATIONS_DIR)) {
@@ -21,6 +25,9 @@ async function runPrismaMigrateDeploy(databaseUrl: string): Promise<void> {
 
   await new Promise<void>((resolve, reject) => {
     const child = spawn('pnpm', ['exec', 'prisma', 'migrate', 'deploy', '--schema', SCHEMA_PATH], {
+      // `cwd` pins pnpm to the api workspace so it can resolve the local
+      // `prisma` bin even when vitest is invoked from the repo root.
+      cwd: API_ROOT,
       env: { ...process.env, DATABASE_URL: databaseUrl },
       stdio: 'inherit',
     });
@@ -46,13 +53,20 @@ export async function startTestDatabase(): Promise<TestDatabase> {
     .withPassword('postgres')
     .start();
 
-  const databaseUrl = container.getConnectionUri();
+  try {
+    const databaseUrl = container.getConnectionUri();
 
-  await runPrismaMigrateDeploy(databaseUrl);
+    await runPrismaMigrateDeploy(databaseUrl);
 
-  return {
-    databaseUrl,
-    container,
-    stop: () => container.stop().then(() => undefined),
-  };
+    return {
+      databaseUrl,
+      container,
+      stop: () => container.stop().then(() => undefined),
+    };
+  } catch (err) {
+    // If migration (or anything after `start`) fails, the container would
+    // otherwise be orphaned because the caller never receives a `stop()`.
+    await container.stop().catch(() => undefined);
+    throw err;
+  }
 }
