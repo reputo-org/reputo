@@ -93,7 +93,7 @@ export function createDeepfundingSyncActivity(ctx: DeepfundingSyncContext) {
 
     const startedAt = new Date().toISOString();
 
-    const db = createDb({ path: localDbPath });
+    const db = await createDb({ path: localDbPath });
     const repos = createRepos(db);
 
     try {
@@ -250,7 +250,7 @@ export function createDeepfundingSyncActivity(ctx: DeepfundingSyncContext) {
       };
     } finally {
       try {
-        closeDbInstance(db);
+        await closeDbInstance(db);
       } catch {
         // ignore
       }
