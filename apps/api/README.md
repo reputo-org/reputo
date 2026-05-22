@@ -15,22 +15,29 @@ PostgreSQL database.
 
 ## Persistence
 
-Prisma owns the schema in `apps/api/prisma/schema.prisma`; migrations live in
-`apps/api/prisma/migrations`. Snapshot SSE is driven by PostgreSQL
+TypeORM via `@nestjs/typeorm` owns the schema. Entities live under
+`src/persistence/entities/`, the standalone CLI DataSource is
+`src/persistence/data-source.ts`, and migrations live under
+`src/persistence/migrations/`. Snapshot SSE is driven by PostgreSQL
 `LISTEN/NOTIFY` on the `snapshot_updates` channel — every replica listens and
 fans NOTIFY payloads out to in-process SSE subjects.
 
-Run migrations and regenerate the client with:
+Cross-workspace conventions (entities, naming strategy, transactions,
+pagination, tests) live in
+[docs/runbooks/typeorm-conventions.md](../../docs/runbooks/typeorm-conventions.md).
+
+Generate and run migrations:
 
 ```bash
-pnpm --filter @reputo/api prisma:generate
-pnpm --filter @reputo/api prisma:migrate:dev      # local dev
-pnpm --filter @reputo/api prisma:migrate:deploy   # staging/production
-pnpm --filter @reputo/api prisma:studio
+pnpm --filter @reputo/api typeorm:generate src/persistence/migrations/<Name>
+pnpm --filter @reputo/api typeorm:run      # apply pending migrations
+pnpm --filter @reputo/api typeorm:revert   # roll back the last migration
+pnpm --filter @reputo/api typeorm:show     # list applied/pending
 ```
 
-`pnpm --filter @reputo/api test:e2e` runs `prisma generate` first, then spins
-up a Postgres container via `@testcontainers/postgresql`.
+`pnpm --filter @reputo/api test:e2e` spins up a Postgres container via
+`@testcontainers/postgresql` and runs `dataSource.runMigrations()` so tests
+exercise the same SQL production runs.
 
 ## Commands
 

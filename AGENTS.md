@@ -10,6 +10,7 @@
 - If behavior changes, update or add tests.
 - Never put secrets, tokens, or credentials in code or logs.
 - Keep diffs focused and PR-sized.
+- For any DB-touching change, follow [docs/runbooks/typeorm-conventions.md](docs/runbooks/typeorm-conventions.md). TypeORM is the standard ORM across `@reputo/api`, `@reputo/onchain-data`, and `@reputo/deepfunding-portal-api`.
 
 ## Toolchain
 

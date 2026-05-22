@@ -1,6 +1,13 @@
 # @reputo/onchain-data
 
-Workspace package for syncing EVM asset transfer data and Cardano asset transaction/UTXO data into PostgreSQL.
+Workspace package for syncing EVM asset transfer data and Cardano asset transaction/UTXO data into PostgreSQL via TypeORM.
+
+Cross-workspace persistence conventions live in
+[docs/runbooks/typeorm-conventions.md](../../docs/runbooks/typeorm-conventions.md).
+This package predates the standard `data-source.ts` + migrations pattern and
+uses `EntitySchema` plus `dataSource.synchronize()` from
+[src/db/client.ts](src/db/client.ts) under an advisory lock; new persistence
+code in other workspaces should follow the conventions doc instead.
 
 ## Public Surface
 

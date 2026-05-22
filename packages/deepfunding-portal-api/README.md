@@ -14,6 +14,7 @@ Workspace package for fetching DeepFunding Portal data and persisting it to SQLi
 - SQLite via TypeORM's `better-sqlite3` driver.
 - Entity classes live under `src/db/entities/` with camelCase fields and `SnakeNamingStrategy` mapping to snake_case columns.
 - Schema changes go through TypeORM migrations under `src/db/migrations/`. The init migration recreates the pre-TypeORM table layout — DBs are ephemeral per snapshot, so there is no data migration.
+- Cross-workspace persistence conventions (entity style, naming, JSON vs relational, transactions, pagination) live in [docs/runbooks/typeorm-conventions.md](../../docs/runbooks/typeorm-conventions.md).
 
 ## Commands
 
