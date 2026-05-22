@@ -34,4 +34,13 @@ describe('Prisma bootstrap smoke', () => {
     expect(rows).toHaveLength(1);
     expect(Number(rows[0].one)).toBe(1);
   });
+
+  // Pins the snake_case DB-layer name produced by `@@map`. If a future schema
+  // edit drops the @@map (or pluralization) for `Snapshot`, this fails fast.
+  it('has the canonical snake_case `snapshots` table in PG', async () => {
+    const rows = await prismaService.$queryRaw<
+      { exists: boolean }[]
+    >`SELECT to_regclass('public.snapshots') IS NOT NULL AS exists`;
+    expect(rows[0]?.exists).toBe(true);
+  });
 });
