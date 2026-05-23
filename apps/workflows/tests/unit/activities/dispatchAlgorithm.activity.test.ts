@@ -17,12 +17,10 @@ describe('dispatchAlgorithm activity', () => {
     process.env.AWS_REGION = 'us-east-1';
     process.env.STORAGE_BUCKET = 'reputo-test-bucket';
     process.env.DEEPFUNDING_API_BASE_URL = 'https://api.deepfunding.xyz';
-    process.env.DEEPFUNDING_API_KEY = '';
-    process.env.ONCHAIN_DATA_POSTGRES_HOST = 'localhost';
-    process.env.ONCHAIN_DATA_POSTGRES_PORT = '5432';
-    process.env.ONCHAIN_DATA_POSTGRES_USER = 'postgres';
-    process.env.ONCHAIN_DATA_POSTGRES_PASSWORD = 'postgres';
-    process.env.ONCHAIN_DATA_POSTGRES_DB_NAME = 'reputo_onchain_test';
+    process.env.DEEPFUNDING_API_KEY = 'test-deepfunding-key';
+    process.env.ONCHAIN_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/reputo_onchain_test';
+    process.env.ALCHEMY_API_KEY = 'test-alchemy-key';
+    process.env.BLOCKFROST_API_KEY = 'test-blockfrost-key';
   });
 
   it('throws UnsupportedAlgorithmError for unknown algorithm keys', async () => {

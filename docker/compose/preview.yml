@@ -261,11 +261,7 @@ services:
             - STORAGE_MAX_SIZE_BYTES=52428800
             - DEEPFUNDING_API_BASE_URL=https://deep-projects.ai/wp-json/deepfunding/v1
             - AWS_REGION=eu-central-1
-            - ONCHAIN_DATA_POSTGRES_HOST=onchain-data-postgresql
-            - ONCHAIN_DATA_POSTGRES_PORT=5432
-            - ONCHAIN_DATA_POSTGRES_USER=reputo_onchain
-            - ONCHAIN_DATA_POSTGRES_PASSWORD=reputo_onchain
-            - ONCHAIN_DATA_POSTGRES_DB_NAME=reputo_onchain
+            - ONCHAIN_DATABASE_URL=postgresql://reputo_onchain:reputo_onchain@onchain-data-postgresql:5432/reputo_onchain
     onchain-data-worker:
         container_name: onchain-data-worker
         image: ghcr.io/reputo-org/reputo/workflows:${PREVIEW_IMAGE_TAG}
@@ -306,11 +302,7 @@ services:
             - STORAGE_MAX_SIZE_BYTES=52428800
             - DEEPFUNDING_API_BASE_URL=https://deep-projects.ai/wp-json/deepfunding/v1
             - AWS_REGION=eu-central-1
-            - ONCHAIN_DATA_POSTGRES_HOST=onchain-data-postgresql
-            - ONCHAIN_DATA_POSTGRES_PORT=5432
-            - ONCHAIN_DATA_POSTGRES_USER=reputo_onchain
-            - ONCHAIN_DATA_POSTGRES_PASSWORD=reputo_onchain
-            - ONCHAIN_DATA_POSTGRES_DB_NAME=reputo_onchain
+            - ONCHAIN_DATABASE_URL=postgresql://reputo_onchain:reputo_onchain@onchain-data-postgresql:5432/reputo_onchain
     typescript-worker:
         container_name: typescript-worker
         image: ghcr.io/reputo-org/reputo/workflows:${PREVIEW_IMAGE_TAG}
@@ -351,8 +343,4 @@ services:
             - STORAGE_MAX_SIZE_BYTES=52428800
             - DEEPFUNDING_API_BASE_URL=https://deep-projects.ai/wp-json/deepfunding/v1
             - AWS_REGION=eu-central-1
-            - ONCHAIN_DATA_POSTGRES_HOST=onchain-data-postgresql
-            - ONCHAIN_DATA_POSTGRES_PORT=5432
-            - ONCHAIN_DATA_POSTGRES_USER=reputo_onchain
-            - ONCHAIN_DATA_POSTGRES_PASSWORD=reputo_onchain
-            - ONCHAIN_DATA_POSTGRES_DB_NAME=reputo_onchain
+            - ONCHAIN_DATABASE_URL=postgresql://reputo_onchain:reputo_onchain@onchain-data-postgresql:5432/reputo_onchain

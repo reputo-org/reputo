@@ -13,19 +13,16 @@ const BASE_ENV = {
   AWS_REGION: 'eu-central-1',
   STORAGE_BUCKET: 'reputo-test',
   DEEPFUNDING_API_BASE_URL: 'https://api.deepfunding.xyz',
-  DEEPFUNDING_API_KEY: '',
-  ONCHAIN_DATA_POSTGRES_HOST: 'localhost',
-  ONCHAIN_DATA_POSTGRES_PORT: '5432',
-  ONCHAIN_DATA_POSTGRES_USER: 'postgres',
-  ONCHAIN_DATA_POSTGRES_PASSWORD: 'postgres',
-  ONCHAIN_DATA_POSTGRES_DB_NAME: 'reputo_onchain_test',
+  DEEPFUNDING_API_KEY: 'test-deepfunding-key',
+  ONCHAIN_DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/reputo_onchain_test',
+  ALCHEMY_API_KEY: 'test-alchemy-key',
+  BLOCKFROST_API_KEY: 'test-blockfrost-key',
 };
 
 describe('workflows config', () => {
   beforeEach(() => {
     vi.resetModules();
     process.env = { ...ORIGINAL_ENV, ...BASE_ENV };
-    delete process.env.ALCHEMY_API_KEY;
   });
 
   afterEach(() => {
@@ -39,36 +36,39 @@ describe('workflows config', () => {
     expect(configModule.default.temporal.onchainDataTaskQueue).toBe('onchain-data-worker');
     expect(configModule.default.storage.bucket).toBe('reputo-test');
     expect(configModule.default.onchainData).toEqual({
-      host: 'localhost',
-      port: '5432',
-      user: 'postgres',
-      password: 'postgres',
-      dbName: 'reputo_onchain_test',
-      uri: 'postgresql://postgres:postgres@localhost:5432/reputo_onchain_test',
-      alchemyApiKey: undefined,
-      blockfrostAPIKey: undefined,
-    });
-  });
-
-  it('rejects missing required on-chain PostgreSQL env vars during shared config load', async () => {
-    delete process.env.ONCHAIN_DATA_POSTGRES_PORT;
-
-    await expect(import('../../../src/config/index.js')).rejects.toThrow(/ONCHAIN_DATA_POSTGRES_PORT/);
-  });
-
-  it('builds the shared on-chain config from PostgreSQL env vars when alchemy is present', async () => {
-    process.env.ALCHEMY_API_KEY = 'test-alchemy-key';
-    const configModule = await import('../../../src/config/index.js');
-
-    expect(configModule.default.onchainData).toEqual({
-      host: 'localhost',
-      port: '5432',
-      user: 'postgres',
-      password: 'postgres',
-      dbName: 'reputo_onchain_test',
       uri: 'postgresql://postgres:postgres@localhost:5432/reputo_onchain_test',
       alchemyApiKey: 'test-alchemy-key',
-      blockfrostAPIKey: undefined,
+      blockfrostAPIKey: 'test-blockfrost-key',
     });
+  });
+
+  it('rejects a missing ONCHAIN_DATABASE_URL during shared config load', async () => {
+    delete process.env.ONCHAIN_DATABASE_URL;
+
+    await expect(import('../../../src/config/index.js')).rejects.toThrow(/ONCHAIN_DATABASE_URL/);
+  });
+
+  it('rejects a non-postgres ONCHAIN_DATABASE_URL scheme', async () => {
+    process.env.ONCHAIN_DATABASE_URL = 'mysql://user:pass@localhost:3306/db';
+
+    await expect(import('../../../src/config/index.js')).rejects.toThrow(/postgresql|postgres/);
+  });
+
+  it('rejects a missing ALCHEMY_API_KEY during shared config load', async () => {
+    delete process.env.ALCHEMY_API_KEY;
+
+    await expect(import('../../../src/config/index.js')).rejects.toThrow(/ALCHEMY_API_KEY/);
+  });
+
+  it('rejects a missing BLOCKFROST_API_KEY during shared config load', async () => {
+    delete process.env.BLOCKFROST_API_KEY;
+
+    await expect(import('../../../src/config/index.js')).rejects.toThrow(/BLOCKFROST_API_KEY/);
+  });
+
+  it('rejects an empty DEEPFUNDING_API_KEY (closes audit M4 empty-string-secret hole)', async () => {
+    process.env.DEEPFUNDING_API_KEY = '';
+
+    await expect(import('../../../src/config/index.js')).rejects.toThrow(/DEEPFUNDING_API_KEY/);
   });
 });
