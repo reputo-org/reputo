@@ -14,7 +14,13 @@ const databaseUrl = process.env.DATABASE_URL;
  * `synchronize` is hard-coded to `false`: schema changes always go through a
  * generated migration so production runs are deterministic.
  */
-export const AppDataSource = new DataSource({
+// Single export: the TypeORM CLI (both `typeorm-ts-node-commonjs` for the TS
+// source and `typeorm` for the compiled JS) requires exactly one DataSource
+// export per file. Exposing the same instance under two names trips
+// `loadDataSource` with "Given data source file must contain only one export
+// of DataSource instance". External consumers import the named alias from
+// `./index.ts`.
+const AppDataSource = new DataSource({
   type: 'postgres',
   url: databaseUrl,
   entities: [...ENTITIES],
@@ -24,6 +30,4 @@ export const AppDataSource = new DataSource({
   logging: false,
 });
 
-// `typeorm-ts-node-commonjs` picks up the default export when given a `.ts`
-// path, so re-export here in addition to the named export.
 export default AppDataSource;

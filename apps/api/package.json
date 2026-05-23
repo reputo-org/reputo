@@ -19,6 +19,7 @@
     "typeorm:run": "typeorm-ts-node-commonjs migration:run -d src/persistence/data-source.ts",
     "typeorm:revert": "typeorm-ts-node-commonjs migration:revert -d src/persistence/data-source.ts",
     "typeorm:show": "typeorm-ts-node-commonjs migration:show -d src/persistence/data-source.ts",
+    "typeorm:run:prod": "typeorm migration:run -d dist/persistence/data-source.js",
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "test:cov": "vitest --coverage",
@@ -85,7 +86,8 @@
     "vite-tsconfig-paths": "^5.1.4"
   },
   "files": [
-    "dist/**"
+    "dist/**",
+    "docker-entrypoint.sh"
   ],
   "author": {
     "name": "Behzad Rabiei",
