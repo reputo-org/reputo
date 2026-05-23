@@ -1,9 +1,10 @@
 import { DataSource } from 'typeorm';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+import { env } from '../config/env';
 import { ENTITIES } from './entities';
 import { MIGRATIONS } from './migrations';
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = env.DATABASE_URL;
 
 /**
  * Standalone TypeORM `DataSource` used by the CLI (`typeorm migration:generate`,

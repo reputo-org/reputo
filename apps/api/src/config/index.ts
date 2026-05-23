@@ -1,12 +1,12 @@
-import * as Joi from 'joi';
-import appConfig, { appConfigSchema } from './app.config';
-import authConfig, { authConfigSchema } from './auth.config';
-import awsConfig, { awsConfigSchema } from './aws.config';
-import consentConfig, { consentConfigSchema } from './consent.config';
-import databaseConfig, { databaseConfigSchema } from './database.config';
-import loggerConfig, { loggerConfigSchema } from './logger.config';
-import storageConfig, { storageConfigSchema } from './storage.config';
-import temporalConfig, { temporalConfigSchema } from './temporal.config';
+import appConfig from './app.config';
+import authConfig from './auth.config';
+import awsConfig from './aws.config';
+import consentConfig from './consent.config';
+import databaseConfig from './database.config';
+import { env, envSchema } from './env';
+import loggerConfig from './logger.config';
+import storageConfig from './storage.config';
+import temporalConfig from './temporal.config';
 
 export const configModules = [
   appConfig,
@@ -19,13 +19,14 @@ export const configModules = [
   temporalConfig,
 ];
 
-export const configValidationSchema = Joi.object({
-  ...appConfigSchema,
-  ...authConfigSchema,
-  ...awsConfigSchema,
-  ...consentConfigSchema,
-  ...databaseConfigSchema,
-  ...loggerConfigSchema,
-  ...storageConfigSchema,
-  ...temporalConfigSchema,
-});
+// `env` is already parsed at module-load time inside `./env`. The
+// `ConfigModule.forRoot({ validate })` callback receives the raw `process.env`
+// and must either return the validated object or throw. Re-parsing here keeps
+// the surface aligned with `@nestjs/config` expectations without duplicating
+// the error-formatting in two places: `./env` is the canonical thrower, and
+// this callback is the integration point.
+export function validateEnv(): Record<string, unknown> {
+  return env as unknown as Record<string, unknown>;
+}
+
+export { envSchema };

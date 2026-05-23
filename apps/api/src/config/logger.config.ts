@@ -1,13 +1,7 @@
 import { registerAs } from '@nestjs/config';
-import * as Joi from 'joi';
+
+import { env } from './env';
 
 export default registerAs('logger', () => ({
-  level: process.env.LOG_LEVEL || 'info',
+  level: env.LOG_LEVEL,
 }));
-
-export const loggerConfigSchema = {
-  LOG_LEVEL: Joi.string()
-    .valid('fatal', 'error', 'warn', 'info', 'debug', 'trace')
-    .default('info')
-    .description('Log level'),
-};

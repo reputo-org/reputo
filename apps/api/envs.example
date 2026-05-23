@@ -5,6 +5,8 @@ AUTH_MODE=oauth
 # Required when AUTH_MODE=oauth. Seeds the single owner allowlist row;
 # startup fails if it conflicts with an existing active owner.
 OWNER_EMAIL=owner@example.com
+# OAuth provider against which OWNER_EMAIL is seeded (defaults to deep-id).
+OWNER_PROVIDER=deep-id
 APP_PUBLIC_URL=http://localhost:5173
 
 # PostgreSQL connection URL for the API application database (consumed by Prisma).
@@ -45,3 +47,6 @@ STORAGE_CONTENT_TYPE_ALLOWLIST=text/csv,text/plain,application/json
 TEMPORAL_ADDRESS=localhost:7233
 TEMPORAL_NAMESPACE=default
 TEMPORAL_ORCHESTRATOR_TASK_QUEUE=workflows
+# Task queue the API process hosts its snapshot activities worker on.
+# Workflows-side `proxyActivities({ taskQueue: ... })` must use the same value.
+TEMPORAL_API_SNAPSHOT_ACTIVITIES_TASK_QUEUE=api-snapshot-activities
