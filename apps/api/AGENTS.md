@@ -6,6 +6,12 @@
 - Keep HTTP concerns at the edge. Services may raise domain errors; controllers and filters should translate them into HTTP responses.
 - When endpoint behavior or request/response contracts change, update the relevant unit or e2e tests.
 
+## Environment
+
+- `src/config/env.ts` is the single source of truth for this app's environment.
+- Never read `process.env.*` outside that module.
+- Adding or changing an env var: see the root [AGENTS.md](../../AGENTS.md) "Environment variables" section and [docs/runbooks/env-validation.md](../../docs/runbooks/env-validation.md) for the full checklist.
+
 ## Persistence
 
 - See [docs/runbooks/typeorm-conventions.md](../../docs/runbooks/typeorm-conventions.md) for the cross-workspace TypeORM conventions (entities, DataSource, migrations, transactions, pagination). The rules below are the API-specific extras layered on top.
