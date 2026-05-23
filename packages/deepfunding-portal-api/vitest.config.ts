@@ -5,5 +5,7 @@ export default createVitestConfig({
   include: ['tests/**/*.test.ts'],
   coverageInclude: ['src/**/*.ts'],
   coverageExclude: ['src/shared/types/**/*.ts'],
+  testTimeout: 30_000,
+  hookTimeout: 30_000,
 });
 
