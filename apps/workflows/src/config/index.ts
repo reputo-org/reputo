@@ -49,7 +49,6 @@ const commonEnvVarsSchema = Joi.object()
       .min(1)
       .default(52428800)
       .description('Maximum size for storage objects in bytes'),
-    STORAGE_CONTENT_TYPE_ALLOWLIST: Joi.string().description('Comma-separated list of allowed content types'),
     DEEPFUNDING_API_BASE_URL: Joi.string().description('DeepFunding API base URL').required(),
     DEEPFUNDING_API_KEY: Joi.string().allow('').description('DeepFunding API key').required(),
     DEEPFUNDING_API_REQUEST_TIMEOUT_MS: Joi.number()
@@ -127,7 +126,6 @@ const config = {
     presignPutTtl: envVars.STORAGE_PRESIGN_PUT_TTL,
     presignGetTtl: envVars.STORAGE_PRESIGN_GET_TTL,
     maxSizeBytes: envVars.STORAGE_MAX_SIZE_BYTES,
-    contentTypeAllowlist: envVars.STORAGE_CONTENT_TYPE_ALLOWLIST,
   },
   logger: {
     level: envVars.LOG_LEVEL,
