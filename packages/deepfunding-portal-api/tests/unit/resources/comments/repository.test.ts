@@ -8,88 +8,88 @@ describe('Comment Repository', () => {
   let db: DeepFundingPortalDb;
   let repo: ReturnType<typeof createCommentsRepo>;
 
-  beforeEach(() => {
-    db = createTestDb();
+  beforeEach(async () => {
+    db = await createTestDb();
     repo = createCommentsRepo(db);
   });
 
-  afterEach(() => {
-    cleanupTestDb(db);
+  afterEach(async () => {
+    await cleanupTestDb(db);
   });
 
   describe('create', () => {
-    it('should insert a single comment', () => {
+    it('should insert a single comment', async () => {
       const comment = createMockComment({
         comment_id: 1,
         proposal_id: 100,
       });
 
-      repo.create(comment);
+      await repo.create(comment);
 
-      const result = repo.findById(1);
+      const result = await repo.findById(1);
       expect(result).toBeDefined();
       expect(result?.proposalId).toBe(100);
     });
   });
 
   describe('createMany', () => {
-    it('should insert multiple comments', () => {
+    it('should insert multiple comments', async () => {
       const comments = [
         createMockComment({ comment_id: 1, proposal_id: 100 }),
         createMockComment({ comment_id: 2, proposal_id: 100 }),
         createMockComment({ comment_id: 3, proposal_id: 200 }),
       ];
 
-      repo.createMany(comments);
+      await repo.createMany(comments);
 
-      const all = repo.findAll();
+      const all = await repo.findAll();
       expect(all.length).toBe(3);
     });
   });
 
   describe('findAll', () => {
-    it('should return all comments', () => {
-      repo.create(createMockComment({ comment_id: 1 }));
-      repo.create(createMockComment({ comment_id: 2 }));
+    it('should return all comments', async () => {
+      await repo.create(createMockComment({ comment_id: 1 }));
+      await repo.create(createMockComment({ comment_id: 2 }));
 
-      const result = repo.findAll();
+      const result = await repo.findAll();
       expect(result.length).toBe(2);
     });
   });
 
   describe('findByProposalId', () => {
-    it('should find comments by proposal ID', () => {
-      repo.create(createMockComment({ comment_id: 1, proposal_id: 100 }));
-      repo.create(createMockComment({ comment_id: 2, proposal_id: 100 }));
-      repo.create(createMockComment({ comment_id: 3, proposal_id: 200 }));
+    it('should find comments by proposal ID', async () => {
+      await repo.create(createMockComment({ comment_id: 1, proposal_id: 100 }));
+      await repo.create(createMockComment({ comment_id: 2, proposal_id: 100 }));
+      await repo.create(createMockComment({ comment_id: 3, proposal_id: 200 }));
 
-      const result = repo.findByProposalId(100);
+      const result = await repo.findByProposalId(100);
       expect(result.length).toBe(2);
       expect(result.every((c) => c.proposalId === 100)).toBe(true);
     });
   });
 
   describe('findByUserId', () => {
-    it('should find comments by user ID', () => {
-      repo.create(createMockComment({ comment_id: 1, user_id: 10 }));
-      repo.create(createMockComment({ comment_id: 2, user_id: 10 }));
-      repo.create(createMockComment({ comment_id: 3, user_id: 20 }));
+    it('should find comments by user ID', async () => {
+      await repo.create(createMockComment({ comment_id: 1, user_id: 10 }));
+      await repo.create(createMockComment({ comment_id: 2, user_id: 10 }));
+      await repo.create(createMockComment({ comment_id: 3, user_id: 20 }));
 
-      const result = repo.findByUserId(10);
+      const result = await repo.findByUserId(10);
       expect(result.length).toBe(2);
       expect(result.every((c) => c.userId === 10)).toBe(true);
     });
   });
 
   describe('findById', () => {
-    it('should find comment by ID', () => {
+    it('should find comment by ID', async () => {
       const comment = createMockComment({
         comment_id: 1,
         content: 'Specific comment',
       });
-      repo.create(comment);
+      await repo.create(comment);
 
-      const result = repo.findById(1);
+      const result = await repo.findById(1);
       expect(result).toBeDefined();
       expect(result?.commentId).toBe(1);
       expect(result?.content).toBe('Specific comment');

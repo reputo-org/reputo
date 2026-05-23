@@ -22,7 +22,7 @@ import { extractInputKeys, loadVotes } from './utils/index.js';
 export async function computeVotingEngagement(snapshot: Snapshot, storage: Storage): Promise<AlgorithmResult> {
   const ctx = Context.current();
   const logger = ctx.log;
-  const snapshotId = snapshot._id;
+  const snapshotId = snapshot.id;
 
   logger.info('Starting voting_engagement algorithm', { snapshotId });
 

@@ -1,0 +1,35 @@
+{
+    "$schema": "https://typedoc.org/schema.json",
+    "entryPoints": ["src/index.ts"],
+    "entryPointStrategy": "resolve",
+    "out": "docs",
+    "cleanOutputDir": true,
+
+    "readme": "README.md",
+    "name": "@reputo/contracts",
+    "includeVersion": true,
+
+    "exclude": [
+        "**/*.test.ts",
+        "**/__tests__/**",
+        "**/*.spec.ts"
+    ],
+    "excludeExternals": true,
+    "excludePrivate": true,
+    "excludeProtected": false,
+
+    "categorizeByGroup": true,
+    "visibilityFilters": {
+        "protected": true,
+        "private": false,
+        "inherited": true,
+        "external": false
+    },
+
+    "githubPages": false,
+    "plugin": ["typedoc-plugin-markdown"],
+    "commentStyle": "jsdoc",
+    "excludeNotDocumented": false,
+    "excludeNotDocumentedKinds": [],
+    "sort": ["source-order"]
+}

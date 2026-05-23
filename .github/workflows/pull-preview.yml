@@ -61,12 +61,6 @@ jobs:
                   OWNER_EMAIL=preview@example.com
                   EOF
 
-            - name: Generate MongoDB keyfile
-              if: github.event.action != 'closed' && github.event.action != 'unlabeled'
-              run: |
-                  openssl rand -base64 768 > docker/config/mongo/keyfile.txt
-                  chmod 400 docker/config/mongo/keyfile.txt
-
             - id: pullpreview_primary
               name: Deploy preview
               continue-on-error: true

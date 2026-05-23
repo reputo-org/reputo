@@ -1,245 +1,368 @@
-import type { Snapshot, SnapshotModel } from '@reputo/database';
+import { SnapshotStatus } from '@reputo/contracts';
+import type { EntityManager, Repository } from 'typeorm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SnapshotEntity, SnapshotOutputEntity } from '../../../src/persistence';
+import type { SnapshotCreateData } from '../../../src/snapshot/snapshot.repository';
 import { SnapshotRepository } from '../../../src/snapshot/snapshot.repository';
+
+const FIXED_NOW = new Date('2026-05-21T00:00:00.000Z');
+const PRESET_ID = '01940000-0000-7000-8000-000000000000';
+const SNAPSHOT_ID = '01940000-0000-7000-8000-000000000001';
+
+type RelationalOutput = { id?: string; key: string; value: string };
+
+function createEntity(overrides: Record<string, unknown> = {}) {
+  return {
+    id: SNAPSHOT_ID,
+    status: SnapshotStatus.queued,
+    algorithmPresetId: PRESET_ID,
+    algorithmPresetFrozen: { key: 'test_key', version: '1.0.0', inputs: [] },
+    temporal: null,
+    error: null,
+    startedAt: null,
+    completedAt: null,
+    createdAt: FIXED_NOW,
+    updatedAt: FIXED_NOW,
+    outputs: [] as RelationalOutput[],
+    ...overrides,
+  };
+}
 
 describe('SnapshotRepository', () => {
   let repository: SnapshotRepository;
-  let mockModel: SnapshotModel;
+  let snapshotRepoMock: Repository<SnapshotEntity> & {
+    findOne: ReturnType<typeof vi.fn>;
+    findAndCount: ReturnType<typeof vi.fn>;
+    find: ReturnType<typeof vi.fn>;
+    save: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+  };
+  let outputRepoMock: Repository<SnapshotOutputEntity> & {
+    save: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+  };
+
+  // EntityManager that is handed to the transaction callback. We expose the
+  // inner repos directly so individual tests can adjust them.
+  let txSnapshotRepo: typeof snapshotRepoMock;
+  let txOutputRepo: typeof outputRepoMock;
+  let txManager: EntityManager & { query: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    txSnapshotRepo = {
+      findOne: vi.fn(),
+      findAndCount: vi.fn(),
+      find: vi.fn(),
+      save: vi.fn(async (entity) => entity),
+      delete: vi.fn(),
+      create: vi.fn((data) => data),
+    } as unknown as typeof snapshotRepoMock;
+    txOutputRepo = {
+      save: vi.fn(async (rows) => rows),
+      delete: vi.fn(),
+    } as unknown as typeof outputRepoMock;
 
-    mockModel = {
-      create: vi.fn(),
-      paginate: vi.fn(),
-      findById: vi.fn().mockReturnValue({
-        lean: vi.fn().mockReturnValue({
-          exec: vi.fn(),
-        }),
+    txManager = {
+      getRepository: vi.fn((target) => {
+        const name = (target as { name?: string }).name ?? '';
+        if (name.includes('Output')) return txOutputRepo;
+        return txSnapshotRepo;
       }),
-      findByIdAndDelete: vi.fn().mockReturnValue({
-        lean: vi.fn().mockReturnValue({
-          exec: vi.fn(),
-        }),
-      }),
-    } as unknown as SnapshotModel;
+      query: vi.fn(async () => undefined),
+    } as unknown as EntityManager & { query: ReturnType<typeof vi.fn> };
 
-    repository = new SnapshotRepository(mockModel);
+    outputRepoMock = {
+      save: vi.fn(),
+      delete: vi.fn(),
+    } as unknown as typeof outputRepoMock;
+
+    snapshotRepoMock = {
+      findOne: vi.fn(),
+      findAndCount: vi.fn(),
+      find: vi.fn(),
+      save: vi.fn(async (entity) => entity),
+      delete: vi.fn(),
+      create: vi.fn((data) => data),
+      manager: {
+        transaction: vi.fn(async (cb: (m: EntityManager) => unknown) => cb(txManager)),
+        getRepository: vi.fn((target) => {
+          const name = (target as { name?: string }).name ?? '';
+          if (name.includes('Output')) return txOutputRepo;
+          return txSnapshotRepo;
+        }),
+      },
+    } as unknown as typeof snapshotRepoMock;
+
+    repository = new SnapshotRepository(
+      snapshotRepoMock as unknown as Repository<SnapshotEntity>,
+      outputRepoMock as unknown as Repository<SnapshotOutputEntity>,
+    );
   });
 
   describe('create', () => {
-    it('should call model.create with the provided data', async () => {
-      const createData: Omit<Snapshot, 'createdAt' | 'updatedAt'> = {
-        status: 'queued',
-        algorithmPreset: '507f1f77bcf86cd799439011',
-        algorithmPresetFrozen: {
-          key: 'test_key',
-          version: '1.0.0',
-          inputs: [],
-        },
+    it('renames `algorithmPreset` to `algorithmPresetId` and defaults status to queued', async () => {
+      const data: SnapshotCreateData = {
+        algorithmPreset: PRESET_ID,
+        algorithmPresetFrozen: { key: 'k', version: '1', inputs: [] },
       };
+      txSnapshotRepo.save.mockResolvedValue(createEntity());
+      txSnapshotRepo.findOne.mockResolvedValue(createEntity());
 
-      const mockCreatedSnapshot = {
-        _id: '507f1f77bcf86cd799439012',
-        ...createData,
-      };
-      mockModel.create = vi.fn().mockResolvedValue(mockCreatedSnapshot);
+      const result = await repository.create(data);
 
-      const result = await repository.create(createData);
-
-      expect(mockModel.create).toHaveBeenCalledOnce();
-      expect(mockModel.create).toHaveBeenCalledWith(createData);
-      expect(result).toBe(mockCreatedSnapshot);
+      expect(txSnapshotRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: SnapshotStatus.queued,
+          algorithmPresetId: PRESET_ID,
+          algorithmPresetFrozen: data.algorithmPresetFrozen,
+        }),
+      );
+      expect(result._id).toBe(SNAPSHOT_ID);
+      expect(result.algorithmPreset).toBe(PRESET_ID);
     });
 
-    it('should handle optional temporal and outputs fields', async () => {
-      const createData: Omit<Snapshot, 'createdAt' | 'updatedAt'> = {
-        status: 'queued',
-        algorithmPreset: '507f1f77bcf86cd799439011',
-        algorithmPresetFrozen: {
-          key: 'test_key',
-          version: '1.0.0',
-          inputs: [],
-        },
-        temporal: {
-          workflowId: 'wf-123',
-          runId: 'run-456',
-          taskQueue: 'algorithms',
-        },
-        outputs: { csv: 'key' },
+    it('persists outputs into the relational child table and maps them back to a Record', async () => {
+      const data: SnapshotCreateData = {
+        algorithmPreset: PRESET_ID,
+        algorithmPresetFrozen: { key: 'k', version: '1', inputs: [] },
+        temporal: { workflowId: 'wf-1', taskQueue: 'orchestrator' },
+        outputs: { csv: 'path' },
       };
+      txSnapshotRepo.save.mockResolvedValue(createEntity({ temporal: data.temporal }));
+      txSnapshotRepo.findOne.mockResolvedValue(
+        createEntity({
+          temporal: data.temporal,
+          outputs: [{ id: 'o-1', key: 'csv', value: 'path' }],
+        }),
+      );
 
-      const mockCreatedSnapshot = {
-        _id: '507f1f77bcf86cd799439012',
-        ...createData,
-      };
-      mockModel.create = vi.fn().mockResolvedValue(mockCreatedSnapshot);
+      const result = await repository.create(data);
 
-      const result = await repository.create(createData);
-
-      expect(mockModel.create).toHaveBeenCalledWith(createData);
-      expect(result).toBe(mockCreatedSnapshot);
+      const savedRows = txOutputRepo.save.mock.calls[0][0] as Array<{ key: string; value: string }>;
+      expect(savedRows).toHaveLength(1);
+      expect(savedRows[0]).toMatchObject({ key: 'csv', value: 'path' });
+      expect(result.temporal).toEqual(data.temporal);
+      expect(result.outputs).toEqual({ csv: 'path' });
     });
 
-    it('should handle create errors', async () => {
-      const createData: Omit<Snapshot, 'createdAt' | 'updatedAt'> = {
-        status: 'queued',
-        algorithmPreset: '507f1f77bcf86cd799439011',
-        algorithmPresetFrozen: {
-          key: 'test_key',
-          version: '1.0.0',
-          inputs: [],
-        },
+    it('omits the outputs write when no outputs are provided', async () => {
+      const data: SnapshotCreateData = {
+        algorithmPreset: PRESET_ID,
+        algorithmPresetFrozen: { key: 'k', version: '1', inputs: [] },
       };
+      txSnapshotRepo.save.mockResolvedValue(createEntity());
+      txSnapshotRepo.findOne.mockResolvedValue(createEntity());
 
-      const mockError = new Error('Database error');
-      mockModel.create = vi.fn().mockRejectedValue(mockError);
+      const result = await repository.create(data);
 
-      await expect(repository.create(createData)).rejects.toThrow('Database error');
+      expect(txOutputRepo.save).not.toHaveBeenCalled();
+      expect(result.outputs).toBeUndefined();
     });
   });
 
   describe('findAll', () => {
-    it('should call model.paginate with filter and options', async () => {
-      const filter = { status: 'queued' };
-      const options = { page: 1, limit: 10, sortBy: 'createdAt:desc' };
+    it('applies status and algorithmPresetId filters directly', async () => {
+      snapshotRepoMock.findAndCount.mockResolvedValue([[], 0]);
 
-      const mockPaginatedResult = {
-        results: [],
-        totalResults: 5,
-        page: 1,
-        limit: 10,
-        totalPages: 1,
-      };
-      mockModel.paginate = vi.fn().mockResolvedValue(mockPaginatedResult);
+      await repository.findAll({ status: SnapshotStatus.completed, algorithmPresetId: PRESET_ID }, {});
 
-      const result = await repository.findAll(filter, options);
-
-      expect(mockModel.paginate).toHaveBeenCalledOnce();
-      expect(mockModel.paginate).toHaveBeenCalledWith(filter, options);
-      expect(result).toBe(mockPaginatedResult);
+      expect(snapshotRepoMock.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: SnapshotStatus.completed,
+            algorithmPresetId: PRESET_ID,
+          }),
+          relations: { outputs: true },
+        }),
+      );
     });
 
-    it('should handle empty filter and default pagination options', async () => {
-      const filter = {};
-      const options = {};
+    it('uses JSON path filters for frozen key/version via a Raw clause on `algorithmPresetFrozen`', async () => {
+      snapshotRepoMock.findAndCount.mockResolvedValue([[], 0]);
 
-      const mockPaginatedResult = {
-        results: [],
-        totalResults: 0,
-        page: 1,
-        limit: 10,
-        totalPages: 0,
-      };
-      mockModel.paginate = vi.fn().mockResolvedValue(mockPaginatedResult);
+      await repository.findAll({ frozenKey: 'voting_engagement', frozenVersion: '1.0.0' }, {});
 
-      const result = await repository.findAll(filter, options);
-
-      expect(mockModel.paginate).toHaveBeenCalledOnce();
-      expect(result).toBe(mockPaginatedResult);
+      const call = snapshotRepoMock.findAndCount.mock.calls[0][0];
+      expect(call).toMatchObject({
+        relations: { outputs: true },
+      });
+      // `algorithmPresetFrozen` is wrapped by TypeORM `Raw(...)` — it should
+      // be present on the `where` so the SQL pulls from JSONB.
+      const where = call.where as { algorithmPresetFrozen?: unknown };
+      expect(where.algorithmPresetFrozen).toBeDefined();
     });
 
-    it('should handle populate option', async () => {
-      const filter = {};
-      const options = { populate: 'algorithmPreset' };
+    it('returns a PaginateResult with `_id` and `algorithmPreset` mapped from the entity', async () => {
+      snapshotRepoMock.findAndCount.mockResolvedValue([[createEntity()], 1]);
 
-      const mockPaginatedResult = {
-        results: [],
-        totalResults: 0,
-        page: 1,
-        limit: 10,
-        totalPages: 0,
-      };
-      mockModel.paginate = vi.fn().mockResolvedValue(mockPaginatedResult);
+      const result = await repository.findAll({}, { page: 1, limit: 10 });
 
-      const result = await repository.findAll(filter, options);
-
-      expect(mockModel.paginate).toHaveBeenCalledWith(filter, options);
-      expect(result).toBe(mockPaginatedResult);
+      expect(result.results[0]._id).toBe(SNAPSHOT_ID);
+      expect(result.results[0].algorithmPreset).toBe(PRESET_ID);
+      expect(result.totalResults).toBe(1);
     });
   });
 
   describe('findById', () => {
-    it('should call model.findById with id and return lean result', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const mockSnapshot = {
-        _id: id,
-        algorithmPreset: '507f1f77bcf86cd799439012',
-        status: 'queued',
-      };
-
-      const mockExec = vi.fn().mockResolvedValue(mockSnapshot);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findById = vi.fn().mockReturnValue({ lean: mockLean });
-
-      const result = await repository.findById(id);
-
-      expect(mockModel.findById).toHaveBeenCalledOnce();
-      expect(mockModel.findById).toHaveBeenCalledWith(id);
-      expect(mockLean).toHaveBeenCalledOnce();
-      expect(mockExec).toHaveBeenCalledOnce();
-      expect(result).toBe(mockSnapshot);
+    it('returns null when not found', async () => {
+      snapshotRepoMock.findOne.mockResolvedValue(null);
+      await expect(repository.findById(SNAPSHOT_ID)).resolves.toBeNull();
     });
 
-    it('should return null when snapshot not found', async () => {
-      const id = '507f1f77bcf86cd799439011';
+    it('maps a found row and projects outputs into a Record', async () => {
+      snapshotRepoMock.findOne.mockResolvedValue(
+        createEntity({ outputs: [{ id: 'o-1', key: 'csv', value: 'snapshots/out.csv' }] }),
+      );
+      const result = await repository.findById(SNAPSHOT_ID);
 
-      const mockExec = vi.fn().mockResolvedValue(null);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findById = vi.fn().mockReturnValue({ lean: mockLean });
+      expect(snapshotRepoMock.findOne).toHaveBeenCalledWith({
+        where: { id: SNAPSHOT_ID },
+        relations: { outputs: true },
+      });
+      expect(result?._id).toBe(SNAPSHOT_ID);
+      expect(result?.outputs).toEqual({ csv: 'snapshots/out.csv' });
+    });
+  });
 
-      const result = await repository.findById(id);
+  describe('find', () => {
+    it('maps every row from find and includes outputs', async () => {
+      snapshotRepoMock.find.mockResolvedValue([createEntity(), createEntity({ id: 'other' })]);
 
-      expect(result).toBeNull();
+      const result = await repository.find({ algorithmPresetId: PRESET_ID });
+
+      expect(snapshotRepoMock.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ algorithmPresetId: PRESET_ID }),
+          relations: { outputs: true },
+        }),
+      );
+      expect(result).toHaveLength(2);
+      expect(result[1]._id).toBe('other');
     });
   });
 
   describe('deleteById', () => {
-    it('should call model.findByIdAndDelete with id and session option', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const mockDeletedSnapshot = { _id: id };
+    it('uses the provided transactional EntityManager when supplied', async () => {
+      const customSnapshotRepo = {
+        findOne: vi.fn().mockResolvedValue(createEntity()),
+        delete: vi.fn().mockResolvedValue({ affected: 1 }),
+      };
+      const customManager = {
+        getRepository: vi.fn(() => customSnapshotRepo),
+      } as unknown as EntityManager;
 
-      const mockExec = vi.fn().mockResolvedValue(mockDeletedSnapshot);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findByIdAndDelete = vi.fn().mockReturnValue({ lean: mockLean });
+      await repository.deleteById(SNAPSHOT_ID, customManager);
 
-      const result = await repository.deleteById(id);
-
-      expect(mockModel.findByIdAndDelete).toHaveBeenCalledOnce();
-      expect(mockModel.findByIdAndDelete).toHaveBeenCalledWith(id, {
-        session: undefined,
-      });
-      expect(result).toBe(mockDeletedSnapshot);
+      expect(customSnapshotRepo.delete).toHaveBeenCalledWith({ id: SNAPSHOT_ID });
+      expect(snapshotRepoMock.delete).not.toHaveBeenCalled();
     });
 
-    it('should pass session when provided', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const mockDeletedSnapshot = { _id: id };
-      const mockSession = { id: 'session-123' };
+    it('returns null when the row does not exist', async () => {
+      txSnapshotRepo.findOne.mockResolvedValue(null);
+      await expect(repository.deleteById(SNAPSHOT_ID)).resolves.toBeNull();
+    });
+  });
 
-      const mockExec = vi.fn().mockResolvedValue(mockDeletedSnapshot);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findByIdAndDelete = vi.fn().mockReturnValue({ lean: mockLean });
+  describe('applyExternalUpdate', () => {
+    it('runs the update and pg_notify in a single transaction', async () => {
+      const initial = createEntity();
+      const updated = createEntity({ status: SnapshotStatus.running, startedAt: FIXED_NOW });
+      txSnapshotRepo.findOne
+        // Inside the transaction: first load, then refresh after save.
+        .mockResolvedValueOnce(initial)
+        .mockResolvedValueOnce(updated);
 
-      const result = await repository.deleteById(id, mockSession as any);
-
-      expect(mockModel.findByIdAndDelete).toHaveBeenCalledOnce();
-      expect(mockModel.findByIdAndDelete).toHaveBeenCalledWith(id, {
-        session: mockSession,
+      const result = await repository.applyExternalUpdate(SNAPSHOT_ID, {
+        status: SnapshotStatus.running,
+        startedAt: FIXED_NOW,
       });
-      expect(result).toBe(mockDeletedSnapshot);
+
+      // The transaction wrapped both the entity save and the pg_notify call.
+      expect(snapshotRepoMock.manager.transaction).toHaveBeenCalledOnce();
+      expect(txSnapshotRepo.save).toHaveBeenCalled();
+      expect(txManager.query).toHaveBeenCalledWith('SELECT pg_notify($1, $2)', expect.arrayContaining([SNAPSHOT_ID]));
+      expect(result?._id).toBe(SNAPSHOT_ID);
+      expect(result?.status).toBe(SnapshotStatus.running);
     });
 
-    it('should return null when snapshot not found', async () => {
-      const id = '507f1f77bcf86cd799439011';
+    it('replaces outputs via `delete + save` inside the same transaction', async () => {
+      const initial = createEntity();
+      const refreshed = createEntity({
+        status: SnapshotStatus.completed,
+        completedAt: FIXED_NOW,
+        outputs: [{ id: 'o-1', key: 'csv', value: 'snapshots/out.csv' }],
+      });
+      txSnapshotRepo.findOne.mockResolvedValueOnce(initial).mockResolvedValueOnce(refreshed);
 
-      const mockExec = vi.fn().mockResolvedValue(null);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findByIdAndDelete = vi.fn().mockReturnValue({ lean: mockLean });
+      const result = await repository.applyExternalUpdate(SNAPSHOT_ID, {
+        status: SnapshotStatus.completed,
+        completedAt: FIXED_NOW,
+        outputs: { csv: 'snapshots/out.csv' },
+      });
 
-      const result = await repository.deleteById(id);
+      expect(txOutputRepo.delete).toHaveBeenCalledWith({ snapshotId: SNAPSHOT_ID });
+      const savedRows = txOutputRepo.save.mock.calls[0][0] as Array<{ key: string; value: string }>;
+      expect(savedRows).toEqual([expect.objectContaining({ key: 'csv', value: 'snapshots/out.csv' })]);
+      expect(result?.outputs).toEqual({ csv: 'snapshots/out.csv' });
+    });
 
-      expect(result).toBeNull();
+    it('skips undefined output values when building child rows', async () => {
+      const initial = createEntity();
+      const refreshed = createEntity({
+        outputs: [{ id: 'o-1', key: 'csv', value: 'path' }],
+      });
+      txSnapshotRepo.findOne.mockResolvedValueOnce(initial).mockResolvedValueOnce(refreshed);
+
+      await repository.applyExternalUpdate(SNAPSHOT_ID, { outputs: { csv: 'path', skipped: undefined } });
+
+      const savedRows = txOutputRepo.save.mock.calls[0][0] as Array<{ key: string; value: string }>;
+      expect(savedRows).toEqual([expect.objectContaining({ key: 'csv', value: 'path' })]);
+    });
+
+    it('returns null when the row is not found inside the transaction', async () => {
+      txSnapshotRepo.findOne.mockResolvedValueOnce(null);
+
+      await expect(
+        repository.applyExternalUpdate(SNAPSHOT_ID, { status: SnapshotStatus.completed }),
+      ).resolves.toBeNull();
+    });
+
+    it('rethrows unexpected transaction errors', async () => {
+      snapshotRepoMock.manager.transaction = vi.fn(async () => {
+        throw new Error('boom');
+      });
+
+      await expect(repository.applyExternalUpdate(SNAPSHOT_ID, { status: SnapshotStatus.completed })).rejects.toThrow(
+        'boom',
+      );
+    });
+  });
+
+  describe('deleteMany', () => {
+    it('translates the TypeORM affected count into `{ deletedCount }`', async () => {
+      // Default branch resolves the inner repo via `this.snapshots.manager`,
+      // which our mock routes to `txSnapshotRepo`.
+      txSnapshotRepo.delete.mockResolvedValue({ affected: 3 });
+
+      const result = await repository.deleteMany({ algorithmPresetId: PRESET_ID });
+
+      expect(txSnapshotRepo.delete).toHaveBeenCalledWith(expect.objectContaining({ algorithmPresetId: PRESET_ID }));
+      expect(result).toEqual({ deletedCount: 3 });
+    });
+
+    it('honours a transactional EntityManager', async () => {
+      const customSnapshotRepo = {
+        delete: vi.fn().mockResolvedValue({ affected: 2 }),
+      };
+      const customManager = {
+        getRepository: vi.fn(() => customSnapshotRepo),
+      } as unknown as EntityManager;
+
+      const result = await repository.deleteMany({ algorithmPresetId: PRESET_ID }, customManager);
+
+      expect(customSnapshotRepo.delete).toHaveBeenCalled();
+      expect(result).toEqual({ deletedCount: 2 });
     });
   });
 });

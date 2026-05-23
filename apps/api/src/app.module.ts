@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
 import { LoggerModule } from 'nestjs-pino';
 
 import { AdminModule } from './admin';
@@ -9,8 +8,10 @@ import { AuthModule } from './auth';
 import { configModules, configValidationSchema } from './config';
 import { pinoConfig } from './config/pino.config';
 import { ConsentModule } from './consent';
+import { PersistenceModule } from './persistence';
 import { SnapshotModule } from './snapshot/snapshot.module';
 import { StorageModule } from './storage/storage.module';
+import { ApiWorkerModule } from './temporal/api-worker.module';
 
 @Module({
   imports: [
@@ -24,19 +25,14 @@ import { StorageModule } from './storage/storage.module';
       inject: [ConfigService],
       useFactory: pinoConfig,
     }),
-    MongooseModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        uri: configService.get<string>('mongoDB.uri'),
-      }),
-    }),
+    PersistenceModule,
     AuthModule,
     AdminModule,
     ConsentModule,
     AlgorithmPresetModule,
     SnapshotModule,
     StorageModule,
+    ApiWorkerModule,
   ],
   controllers: [],
   providers: [],

@@ -1,4 +1,4 @@
-import type { AlgorithmPresetFrozen } from '@reputo/database';
+import type { AlgorithmPresetFrozenDto as AlgorithmPresetFrozen } from '@reputo/contracts';
 import type { Storage } from '@reputo/storage';
 
 export type SubIdSupportedChain = 'ethereum' | 'cardano';

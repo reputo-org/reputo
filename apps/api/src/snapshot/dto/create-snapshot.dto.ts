@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsMongoId, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
 
 class SnapshotTemporalDto {
   @ApiPropertyOptional({
@@ -44,10 +44,10 @@ export class CreateSnapshotDto {
    * The service fetches the full preset and stores it as algorithmPresetFrozen with the same input values.
    */
   @ApiProperty({
-    description: 'AlgorithmPreset ID to embed as frozen preset in the snapshot',
-    example: '66f9c9...',
+    description: 'AlgorithmPreset ID (UUID v7) to embed as frozen preset in the snapshot',
+    example: '01940000-0000-7000-8000-000000000000',
   })
-  @IsMongoId()
+  @IsUUID('7')
   @IsNotEmpty()
   algorithmPresetId: string;
 

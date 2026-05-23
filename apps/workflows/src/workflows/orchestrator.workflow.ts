@@ -1,3 +1,4 @@
+import { API_SNAPSHOT_ACTIVITIES_TASK_QUEUE, type ApiSnapshotActivities } from '@reputo/contracts';
 import * as workflow from '@temporalio/workflow';
 import {
   ACTIVITY_MAX_ATTEMPTS,
@@ -14,7 +15,6 @@ import { UnsupportedAlgorithmError } from '../shared/errors/index.js';
 import type {
   AlgorithmLibraryActivities,
   AlgorithmResult,
-  DbActivities,
   DependencyKey,
   DependencyResolverActivities,
   OrchestratorWorkflowInput,
@@ -27,7 +27,8 @@ import {
 } from '../shared/utils/orchestrator-input.utils.js';
 import { extractOnchainSyncTargets } from '../shared/utils/sync-targets.utils.js';
 
-const { getSnapshot, updateSnapshot } = workflow.proxyActivities<DbActivities>({
+const { getSnapshot, updateSnapshot } = workflow.proxyActivities<ApiSnapshotActivities>({
+  taskQueue: API_SNAPSHOT_ACTIVITIES_TASK_QUEUE,
   startToCloseTimeout: DB_ACTIVITY_TIMEOUT,
   retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
 });
@@ -125,7 +126,7 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
     runId: workflowInfo.runId,
   });
 
-  const { snapshot } = await getSnapshot({ snapshotId });
+  const snapshot = await getSnapshot({ snapshotId });
 
   workflow.log.info('Snapshot fetched', {
     snapshotId,

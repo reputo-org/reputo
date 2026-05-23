@@ -1,6 +1,6 @@
 import { BadGatewayException, BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { OAuthProvider } from '@reputo/database';
+import type { OAuthProvider } from '@reputo/contracts';
 import type { OAuthProviderAuthConfig } from '../../config/auth.config';
 import {
   AUTH_MODE_MOCK,

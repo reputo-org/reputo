@@ -1,8 +1,13 @@
 # syntax=docker/dockerfile:1
+# check=skip=MultipleInstructionsDisallowed
 #
 # Reusable per-app image. Builds are minimised via `turbo prune --docker`,
 # which produces an isolated build context containing only the target app
 # and its workspace dependencies.
+#
+# `check=skip=MultipleInstructionsDisallowed` silences the linter for the
+# runtime stage's ENTRYPOINT, which intentionally overrides the one inherited
+# from `node:slim` so we can run TypeORM migrations before `pnpm start`.
 #
 # Usage:
 #   docker buildx build --build-arg APP_NAME=api -f apps/api/Dockerfile .
@@ -50,5 +55,8 @@ FROM base AS runtime
 ENV NODE_ENV=production
 WORKDIR /prod/app
 COPY --from=builder /prod/app ./
+# pnpm deploy preserves the file but not always the exec bit across layers.
+RUN chmod +x ./docker-entrypoint.sh
 EXPOSE 3000
+ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["pnpm", "start"]

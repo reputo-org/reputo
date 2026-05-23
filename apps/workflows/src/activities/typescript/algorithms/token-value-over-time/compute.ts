@@ -38,7 +38,7 @@ function chunkArray<T>(items: T[], chunkSize: number): T[][] {
 export async function computeTokenValueOverTime(snapshot: Snapshot, storage: Storage): Promise<AlgorithmResult> {
   const ctx = Context.current();
   const logger = ctx.log;
-  const snapshotId = snapshot._id;
+  const snapshotId = snapshot.id;
 
   const snapshotCreatedAt = new Date(snapshot.createdAt ?? new Date());
 

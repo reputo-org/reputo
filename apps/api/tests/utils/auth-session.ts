@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { getModelToken } from '@nestjs/mongoose';
 import type { TestingModule } from '@nestjs/testing';
-import type { AccessAllowlist, AccessRole, AuthSession, OAuthUser } from '@reputo/database';
-import { MODEL_NAMES } from '@reputo/database';
-import type { Model } from 'mongoose';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import type { AccessRole } from '@reputo/contracts';
+import type { Repository } from 'typeorm';
+import { AccessAllowlistEntity, AuthSessionEntity, OAuthUserEntity } from '../../src/persistence';
 import { encryptValue } from '../../src/shared/utils';
 
 export const AUTH_TEST_ENV = {
@@ -17,6 +17,10 @@ export const AUTH_TEST_ENV = {
   DEEP_ID_AUTH_SCOPES: 'openid profile email offline_access',
   DEEP_ID_CONSENT_REDIRECT_URI: 'http://localhost:3000/api/v1/oauth/consent/deep-id/callback',
   DEEP_ID_CONSENT_GRANT_TTL_SECONDS: '600',
+  // 0 disables the periodic consent cleanup cron so tests never get a stray
+  // tick mid-assertion. Suites that exercise the cleanup path call `runOnce`
+  // directly.
+  DEEP_ID_CONSENT_CLEANUP_INTERVAL_MS: '0',
   VOTING_PORTAL_RETURN_URL: 'http://localhost:3001/voting',
   DEEP_ID_VOTING_PORTAL_SCOPES: 'api wallets',
   AUTH_COOKIE_NAME: 'reputo_test_session',
@@ -25,6 +29,10 @@ export const AUTH_TEST_ENV = {
   AUTH_COOKIE_SAME_SITE: 'lax',
   AUTH_SESSION_TTL_SECONDS: '3600',
   AUTH_REFRESH_LEEWAY_SECONDS: '60',
+  // 0 disables the periodic cleanup cron so tests never get a stray tick
+  // mid-assertion. Suites that exercise the cleanup path call `runOnce`
+  // directly.
+  AUTH_SESSION_CLEANUP_INTERVAL_MS: '0',
   AUTH_TOKEN_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef',
   APP_PUBLIC_URL: 'http://localhost:5173',
 } as const;
@@ -44,66 +52,77 @@ export function applyAuthTestEnv(overrides: Partial<Record<keyof typeof AUTH_TES
   }
 }
 
+// Seeds an authenticated session for an integration test. OAuthUser,
+// AuthSession, and AccessAllowlist are persisted in Postgres (TypeORM) per
+// tasks 06, 07 and the Phase 6 ORM rewrite.
 export async function createAuthenticatedSession(
   moduleRef: TestingModule,
   options: CreateAuthenticatedSessionOptions = {},
 ) {
-  const authSessionModel = moduleRef.get<Model<AuthSession>>(getModelToken(MODEL_NAMES.AUTH_SESSION));
-  const oauthUserModel = moduleRef.get<Model<OAuthUser>>(getModelToken(MODEL_NAMES.OAUTH_USER));
-  const accessAllowlistModel = moduleRef.get<Model<AccessAllowlist>>(getModelToken(MODEL_NAMES.ACCESS_ALLOWLIST));
+  const userRepo = moduleRef.get<Repository<OAuthUserEntity>>(getRepositoryToken(OAuthUserEntity));
+  const allowlistRepo = moduleRef.get<Repository<AccessAllowlistEntity>>(getRepositoryToken(AccessAllowlistEntity));
+  const sessionRepo = moduleRef.get<Repository<AuthSessionEntity>>(getRepositoryToken(AuthSessionEntity));
+
   const subSuffix = randomUUID();
   const now = Date.now();
   const email = options.email ?? `${subSuffix}@example.com`;
+  const normalizedEmail = email.trim().toLowerCase();
   const role = options.role ?? 'admin';
-  const user = await oauthUserModel.create({
-    provider: 'deep-id',
-    sub: `did:deep-id:${subSuffix}`,
-    email,
-    email_verified: true,
-    username: `user-${subSuffix}`,
-  });
-  const sessionId = randomUUID();
 
-  await accessAllowlistModel.updateOne(
-    {
+  const user = await userRepo.save(
+    userRepo.create({
       provider: 'deep-id',
-      email: email.trim().toLowerCase(),
-    },
-    {
-      $set: {
-        provider: 'deep-id',
-        email: email.trim().toLowerCase(),
-        role,
-        invitedBy: null,
-      },
-      $setOnInsert: {
-        invitedAt: new Date(now),
-      },
-      $unset: {
-        revokedAt: '',
-        revokedBy: '',
-      },
-    },
-    { upsert: true },
+      sub: `did:deep-id:${subSuffix}`,
+      email: normalizedEmail,
+      emailVerified: true,
+      username: `user-${subSuffix}`,
+      aud: [],
+    }),
   );
 
-  await authSessionModel.create({
-    sessionId,
-    provider: 'deep-id',
-    userId: user._id,
-    accessTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-access-token'),
-    refreshTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-refresh-token'),
-    accessTokenExpiresAt: options.accessTokenExpiresAt ?? new Date(now + 10 * 60 * 1000),
-    refreshTokenExpiresAt: options.refreshTokenExpiresAt ?? new Date(now + 30 * 60 * 1000),
-    scope: options.scope ?? ['openid', 'profile', 'email', 'offline_access'],
-    state: `state-${subSuffix}`,
-    codeVerifier: `verifier-${subSuffix}`,
-    expiresAt: options.expiresAt ?? new Date(now + 30 * 60 * 1000),
-  });
+  const existingEntry = await allowlistRepo.findOne({ where: { provider: 'deep-id', email: normalizedEmail } });
+  if (existingEntry) {
+    existingEntry.role = role;
+    existingEntry.invitedByUserId = null;
+    existingEntry.revokedAt = null;
+    existingEntry.revokedByUserId = null;
+    await allowlistRepo.save(existingEntry);
+  } else {
+    await allowlistRepo.save(
+      allowlistRepo.create({
+        provider: 'deep-id',
+        email: normalizedEmail,
+        role,
+        invitedByUserId: null,
+        invitedAt: new Date(now),
+        revokedAt: null,
+        revokedByUserId: null,
+      }),
+    );
+  }
+
+  const sessionId = randomUUID();
+  await sessionRepo.save(
+    sessionRepo.create({
+      sessionId,
+      provider: 'deep-id',
+      userId: user.id,
+      accessTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-access-token'),
+      refreshTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-refresh-token'),
+      accessTokenExpiresAt: options.accessTokenExpiresAt ?? new Date(now + 10 * 60 * 1000),
+      refreshTokenExpiresAt: options.refreshTokenExpiresAt ?? new Date(now + 30 * 60 * 1000),
+      scope: options.scope ?? ['openid', 'profile', 'email', 'offline_access'],
+      state: `state-${subSuffix}`,
+      codeVerifier: `verifier-${subSuffix}`,
+      expiresAt: options.expiresAt ?? new Date(now + 30 * 60 * 1000),
+      lastRefreshedAt: null,
+      revokedAt: null,
+    }),
+  );
 
   return {
     cookie: `${AUTH_TEST_ENV.AUTH_COOKIE_NAME}=${encodeURIComponent(sessionId)}`,
     sessionId,
-    userId: user._id.toString(),
+    userId: user.id,
   };
 }

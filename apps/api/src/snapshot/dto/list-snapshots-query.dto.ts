@@ -1,7 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import type { SnapshotStatus } from '@reputo/database';
-import { SNAPSHOT_STATUS } from '@reputo/database';
-import { IsEnum, IsMongoId, IsOptional, IsString } from 'class-validator';
+import { SNAPSHOT_STATUS, type SnapshotStatus } from '@reputo/contracts';
+import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { PaginationQueryDto } from '../../shared/dto';
 
 export class ListSnapshotsQueryDto extends PaginationQueryDto {
@@ -15,10 +14,10 @@ export class ListSnapshotsQueryDto extends PaginationQueryDto {
   status?: SnapshotStatus;
 
   @ApiPropertyOptional({
-    description: 'Filter by algorithm preset ID',
-    example: '66f9c9...',
+    description: 'Filter by algorithm preset ID (UUID v7)',
+    example: '01940000-0000-7000-8000-000000000000',
   })
-  @IsMongoId()
+  @IsUUID('7')
   @IsOptional()
   algorithmPreset?: string;
 

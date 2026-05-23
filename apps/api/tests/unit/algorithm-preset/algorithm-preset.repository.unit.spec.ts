@@ -1,229 +1,350 @@
-import type { AlgorithmPresetModel } from '@reputo/database';
+import type { EntityManager, Repository } from 'typeorm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AlgorithmPresetRepository } from '../../../src/algorithm-preset/algorithm-preset.repository';
 import type { CreateAlgorithmPresetDto, UpdateAlgorithmPresetDto } from '../../../src/algorithm-preset/dto';
+import type { AlgorithmPresetEntity, AlgorithmPresetInputEntity } from '../../../src/persistence';
+
+const FIXED_NOW = new Date('2026-05-21T00:00:00.000Z');
+const TEST_UUID = '01940000-0000-7000-8000-000000000000';
+
+type RelationalInput = {
+  id?: string;
+  key: string;
+  value: unknown;
+  position: number;
+};
+
+function createEntity(
+  overrides: Partial<{
+    id: string;
+    key: string;
+    version: string;
+    inputs: RelationalInput[];
+    name: string | null;
+    description: string | null;
+  }> = {},
+) {
+  return {
+    id: overrides.id ?? TEST_UUID,
+    key: overrides.key ?? 'test_key',
+    version: overrides.version ?? '1.0.0',
+    name: overrides.name ?? null,
+    description: overrides.description ?? null,
+    inputs: overrides.inputs ?? [],
+    createdAt: FIXED_NOW,
+    updatedAt: FIXED_NOW,
+  };
+}
 
 describe('AlgorithmPresetRepository', () => {
   let repository: AlgorithmPresetRepository;
-  let mockModel: AlgorithmPresetModel;
+  let presetRepoMock: Repository<AlgorithmPresetEntity> & {
+    findOne: ReturnType<typeof vi.fn>;
+    findAndCount: ReturnType<typeof vi.fn>;
+    save: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+  };
+  let inputRepoMock: Repository<AlgorithmPresetInputEntity> & {
+    save: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+  };
+  // The transaction handler we route through `manager.transaction(cb)`.
+  let txPresetRepo: typeof presetRepoMock;
+  let txInputRepo: typeof inputRepoMock;
+  let txManager: EntityManager;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    // Inner repositories used inside the `manager.transaction` callback.
+    txPresetRepo = {
+      findOne: vi.fn(),
+      save: vi.fn(async (entity) => entity),
+      delete: vi.fn(),
+      create: vi.fn((data) => data),
+      findAndCount: vi.fn(),
+    } as unknown as typeof presetRepoMock;
+    txInputRepo = {
+      save: vi.fn(async (rows) => rows),
+      delete: vi.fn(),
+    } as unknown as typeof inputRepoMock;
 
-    mockModel = {
-      create: vi.fn(),
-      paginate: vi.fn(),
-      findById: vi.fn().mockReturnValue({
-        lean: vi.fn().mockReturnValue({
-          exec: vi.fn(),
-        }),
+    txManager = {
+      getRepository: vi.fn((target) => {
+        // Discriminate by constructor name without importing the entity (which
+        // would pull a TypeORM decorator graph into a unit test).
+        const name = (target as { name?: string }).name ?? '';
+        if (name.includes('Input')) return txInputRepo;
+        return txPresetRepo;
       }),
-      findByIdAndUpdate: vi.fn().mockReturnValue({
-        lean: vi.fn().mockReturnValue({
-          exec: vi.fn(),
-        }),
-      }),
-      findByIdAndDelete: vi.fn().mockReturnValue({
-        lean: vi.fn().mockReturnValue({
-          exec: vi.fn(),
-        }),
-      }),
-    } as unknown as AlgorithmPresetModel;
+    } as unknown as EntityManager;
 
-    repository = new AlgorithmPresetRepository(mockModel);
+    inputRepoMock = {
+      save: vi.fn(),
+      delete: vi.fn(),
+    } as unknown as typeof inputRepoMock;
+
+    presetRepoMock = {
+      findOne: vi.fn(),
+      findAndCount: vi.fn(),
+      save: vi.fn(async (entity) => entity),
+      delete: vi.fn(),
+      create: vi.fn((data) => data),
+      manager: {
+        transaction: vi.fn(async (cb: (m: EntityManager) => unknown) => cb(txManager)),
+        getRepository: vi.fn((target) => {
+          const name = (target as { name?: string }).name ?? '';
+          if (name.includes('Input')) return txInputRepo;
+          return txPresetRepo;
+        }),
+      },
+    } as unknown as typeof presetRepoMock;
+
+    repository = new AlgorithmPresetRepository(
+      presetRepoMock as unknown as Repository<AlgorithmPresetEntity>,
+      inputRepoMock as unknown as Repository<AlgorithmPresetInputEntity>,
+    );
   });
 
   describe('create', () => {
-    it('should call model.create with the provided DTO', async () => {
+    it('issues a nested create with positional indexes preserving caller order', async () => {
       const createDto: CreateAlgorithmPresetDto = {
         key: 'test_key',
         version: '1.0.0',
-        inputs: [{ key: 'input1', value: 'value1' }],
+        inputs: [
+          { key: 'first', value: 1 },
+          { key: 'second', value: 'two' },
+        ],
+        name: 'Test',
+        description: 'A description longer than ten chars',
       };
-
-      const mockCreatedPreset = {
-        _id: '507f1f77bcf86cd799439011',
-        ...createDto,
-      };
-      mockModel.create = vi.fn().mockResolvedValue(mockCreatedPreset);
+      const persistedInputs: RelationalInput[] = [
+        { id: 'i-1', key: 'first', value: 1, position: 0 },
+        { id: 'i-2', key: 'second', value: 'two', position: 1 },
+      ];
+      // The save returns the saved preset; the second `findOne` (inside the
+      // transaction) returns the row with persisted inputs that map back out.
+      txPresetRepo.save.mockResolvedValue(createEntity({ ...createDto, inputs: persistedInputs }));
+      txPresetRepo.findOne.mockResolvedValue(createEntity({ ...createDto, inputs: persistedInputs }));
 
       const result = await repository.create(createDto);
 
-      expect(mockModel.create).toHaveBeenCalledOnce();
-      expect(mockModel.create).toHaveBeenCalledWith(createDto);
-      expect(result).toBe(mockCreatedPreset);
+      // `presetRepo.create(...)` should be called with the scalar fields and
+      // null-coerced name/description.
+      expect(txPresetRepo.create).toHaveBeenCalledWith({
+        key: createDto.key,
+        version: createDto.version,
+        name: createDto.name,
+        description: createDto.description,
+      });
+      // Inputs are persisted via the child repo and built with `position`
+      // indexes that mirror the caller's order.
+      const savedInputs = txInputRepo.save.mock.calls[0][0] as Array<{
+        key: string;
+        position: number;
+        value: unknown;
+      }>;
+      expect(savedInputs).toHaveLength(2);
+      expect(savedInputs[0]).toMatchObject({ key: 'first', position: 0, value: 1 });
+      expect(savedInputs[1]).toMatchObject({ key: 'second', position: 1, value: 'two' });
+
+      expect(result._id).toBe(TEST_UUID);
+      expect(result.inputs).toEqual([
+        { key: 'first', value: 1 },
+        { key: 'second', value: 'two' },
+      ]);
     });
 
-    it('should handle create errors', async () => {
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'test_key',
-        version: '1.0.0',
-        inputs: [],
-      };
+    it('coerces null name/description from the entity into undefined', async () => {
+      const dto: CreateAlgorithmPresetDto = { key: 'k', version: '1', inputs: [] };
+      txPresetRepo.save.mockResolvedValue(createEntity({}));
+      txPresetRepo.findOne.mockResolvedValue(createEntity({}));
 
-      const mockError = new Error('Database error');
-      mockModel.create = vi.fn().mockRejectedValue(mockError);
+      const result = await repository.create(dto);
 
-      await expect(repository.create(createDto)).rejects.toThrow('Database error');
+      expect(result.name).toBeUndefined();
+      expect(result.description).toBeUndefined();
     });
   });
 
   describe('findAll', () => {
-    it('should call model.paginate with filter and options', async () => {
-      const filter = { key: 'test_key' };
-      const options = { page: 1, limit: 10, sortBy: 'createdAt:desc' };
+    it('returns the paginated PaginateResult shape and loads the inputs relation', async () => {
+      const row = createEntity({ inputs: [{ id: 'i-1', key: 'k', value: 1, position: 0 }] });
+      presetRepoMock.findAndCount.mockResolvedValue([[row], 1]);
 
-      const mockPaginatedResult = {
-        results: [],
-        totalResults: 0,
-        page: 1,
-        limit: 10,
-        totalPages: 0,
-      };
-      mockModel.paginate = vi.fn().mockResolvedValue(mockPaginatedResult);
+      const result = await repository.findAll({ key: 'test_key' }, { page: 1, limit: 10 });
 
-      const result = await repository.findAll(filter, options);
-
-      expect(mockModel.paginate).toHaveBeenCalledOnce();
-      expect(mockModel.paginate).toHaveBeenCalledWith(filter, options);
-      expect(result).toBe(mockPaginatedResult);
+      expect(presetRepoMock.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { key: 'test_key' },
+          order: { createdAt: 'DESC' },
+          skip: 0,
+          take: 10,
+          relations: { inputs: true },
+        }),
+      );
+      expect(result.results[0]._id).toBe(TEST_UUID);
+      expect(result.results[0].inputs).toEqual([{ key: 'k', value: 1 }]);
+      expect(result.totalResults).toBe(1);
+      expect(result.totalPages).toBe(1);
+      expect(result.page).toBe(1);
+      expect(result.limit).toBe(10);
     });
 
-    it('should handle empty filter and default pagination options', async () => {
-      const filter = {};
-      const options = {};
+    it('parses sortBy into TypeORM order', async () => {
+      presetRepoMock.findAndCount.mockResolvedValue([[], 0]);
 
-      const mockPaginatedResult = {
-        results: [],
-        totalResults: 0,
-        page: 1,
-        limit: 10,
-        totalPages: 0,
-      };
-      mockModel.paginate = vi.fn().mockResolvedValue(mockPaginatedResult);
+      await repository.findAll({}, { sortBy: 'key:asc,version:desc' });
 
-      const result = await repository.findAll(filter, options);
-
-      expect(mockModel.paginate).toHaveBeenCalledOnce();
-      expect(result).toBe(mockPaginatedResult);
+      expect(presetRepoMock.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          order: { key: 'ASC', version: 'DESC' },
+          relations: { inputs: true },
+        }),
+      );
     });
   });
 
   describe('findById', () => {
-    it('should call model.findById with id and return lean result', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const mockPreset = {
-        _id: id,
-        key: 'test_key',
-        version: '1.0.0',
-      };
+    it('uses findOne with the inputs relation and maps the result', async () => {
+      presetRepoMock.findOne.mockResolvedValue(
+        createEntity({ inputs: [{ id: 'i-1', key: 'k', value: 1, position: 0 }] }),
+      );
 
-      const mockExec = vi.fn().mockResolvedValue(mockPreset);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findById = vi.fn().mockReturnValue({ lean: mockLean });
+      const result = await repository.findById(TEST_UUID);
 
-      const result = await repository.findById(id);
-
-      expect(mockModel.findById).toHaveBeenCalledOnce();
-      expect(mockModel.findById).toHaveBeenCalledWith(id);
-      expect(mockLean).toHaveBeenCalledOnce();
-      expect(mockExec).toHaveBeenCalledOnce();
-      expect(result).toBe(mockPreset);
+      expect(presetRepoMock.findOne).toHaveBeenCalledWith({
+        where: { id: TEST_UUID },
+        relations: { inputs: true },
+      });
+      expect(result?._id).toBe(TEST_UUID);
+      expect(result?.inputs).toEqual([{ key: 'k', value: 1 }]);
     });
 
-    it('should return null when preset not found', async () => {
-      const id = '507f1f77bcf86cd799439011';
-
-      const mockExec = vi.fn().mockResolvedValue(null);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findById = vi.fn().mockReturnValue({ lean: mockLean });
-
-      const result = await repository.findById(id);
-
-      expect(result).toBeNull();
+    it('returns null when not found', async () => {
+      presetRepoMock.findOne.mockResolvedValue(null);
+      await expect(repository.findById(TEST_UUID)).resolves.toBeNull();
     });
   });
 
   describe('updateById', () => {
-    it('should call model.findByIdAndUpdate with id and updateDto', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const updateDto: UpdateAlgorithmPresetDto = {
-        name: 'Updated Name',
-        description: 'Updated description',
-      };
+    it('only forwards defined name/description fields when inputs are omitted', async () => {
+      const updateDto: UpdateAlgorithmPresetDto = { name: 'New Name' };
+      const existing = createEntity({});
+      txPresetRepo.findOne
+        // first call inside the transaction loads the row;
+        .mockResolvedValueOnce(existing)
+        // second call (after save) re-loads with relations
+        .mockResolvedValueOnce(createEntity({ name: 'New Name' }));
 
-      const mockUpdatedPreset = { _id: id, ...updateDto };
-      const mockExec = vi.fn().mockResolvedValue(mockUpdatedPreset);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findByIdAndUpdate = vi.fn().mockReturnValue({ lean: mockLean });
+      const result = await repository.updateById(TEST_UUID, updateDto);
 
-      const result = await repository.updateById(id, updateDto);
-
-      expect(mockModel.findByIdAndUpdate).toHaveBeenCalledOnce();
-      expect(mockModel.findByIdAndUpdate).toHaveBeenCalledWith(id, updateDto, { new: true });
-      expect(result).toBe(mockUpdatedPreset);
+      expect(txPresetRepo.findOne).toHaveBeenCalledWith({ where: { id: TEST_UUID } });
+      expect(txPresetRepo.save).toHaveBeenCalled();
+      // No input rewrite for a scalar-only update.
+      expect(txInputRepo.delete).not.toHaveBeenCalled();
+      expect(txInputRepo.save).not.toHaveBeenCalled();
+      expect(result?.name).toBe('New Name');
     });
 
-    it('should return null when preset not found', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const updateDto: UpdateAlgorithmPresetDto = { name: 'Updated' };
+    it('replaces child rows with delete + save when inputs are provided, preserving order', async () => {
+      const updateDto: UpdateAlgorithmPresetDto = {
+        inputs: [
+          { key: 'second', value: 'two' },
+          { key: 'first', value: 1 },
+          { key: 'third', value: { nested: true } },
+        ],
+      };
+      const persisted: RelationalInput[] = [
+        { id: 'i-1', key: 'second', value: 'two', position: 0 },
+        { id: 'i-2', key: 'first', value: 1, position: 1 },
+        { id: 'i-3', key: 'third', value: { nested: true }, position: 2 },
+      ];
+      txPresetRepo.findOne
+        .mockResolvedValueOnce(createEntity({}))
+        .mockResolvedValueOnce(createEntity({ inputs: persisted }));
 
-      const mockExec = vi.fn().mockResolvedValue(null);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findByIdAndUpdate = vi.fn().mockReturnValue({ lean: mockLean });
+      const result = await repository.updateById(TEST_UUID, updateDto);
 
-      const result = await repository.updateById(id, updateDto);
+      // Old inputs are wiped for the preset id, then the new rows are saved
+      // in declared order so positions match.
+      expect(txInputRepo.delete).toHaveBeenCalledWith({ algorithmPresetId: TEST_UUID });
+      const savedInputs = txInputRepo.save.mock.calls[0][0] as Array<{
+        key: string;
+        position: number;
+        value: unknown;
+      }>;
+      expect(savedInputs).toEqual([
+        expect.objectContaining({ key: 'second', position: 0, value: 'two' }),
+        expect.objectContaining({ key: 'first', position: 1, value: 1 }),
+        expect.objectContaining({ key: 'third', position: 2, value: { nested: true } }),
+      ]);
+      // Order returned to the caller reflects the persisted positions, which
+      // proves the wire shape mirrors the caller's input order.
+      expect(result?.inputs).toEqual([
+        { key: 'second', value: 'two' },
+        { key: 'first', value: 1 },
+        { key: 'third', value: { nested: true } },
+      ]);
+    });
 
-      expect(result).toBeNull();
+    it('bumps updatedAt explicitly when only inputs change (nested writes do not trigger @UpdateDateColumn)', async () => {
+      const before = Date.now();
+      const updateDto: UpdateAlgorithmPresetDto = { inputs: [{ key: 'only', value: 1 }] };
+      const existing = createEntity({});
+      txPresetRepo.findOne.mockResolvedValueOnce(existing).mockResolvedValueOnce(createEntity({}));
+
+      await repository.updateById(TEST_UUID, updateDto);
+
+      const savedEntity = txPresetRepo.save.mock.calls[0][0] as { updatedAt: Date };
+      expect(savedEntity.updatedAt).toBeInstanceOf(Date);
+      expect(savedEntity.updatedAt.getTime()).toBeGreaterThanOrEqual(before);
+    });
+
+    it('returns null when the preset does not exist (findOne miss)', async () => {
+      txPresetRepo.findOne.mockResolvedValue(null);
+
+      await expect(repository.updateById(TEST_UUID, { name: 'x' })).resolves.toBeNull();
     });
   });
 
   describe('deleteById', () => {
-    it('should call model.findByIdAndDelete with id and session option', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const mockDeletedPreset = { _id: id };
+    it('uses the default EntityManager when no transactional manager is passed', async () => {
+      // The deleteById default branch uses `this.presets.manager.getRepository(...)`,
+      // which in our test returns `txPresetRepo`. So we mock the transaction-side
+      // repo even though we're not inside a transaction.
+      txPresetRepo.findOne.mockResolvedValue(createEntity({}));
+      txPresetRepo.delete.mockResolvedValue({ affected: 1 });
 
-      const mockExec = vi.fn().mockResolvedValue(mockDeletedPreset);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findByIdAndDelete = vi.fn().mockReturnValue({ lean: mockLean });
+      const result = await repository.deleteById(TEST_UUID);
 
-      const result = await repository.deleteById(id);
-
-      expect(mockModel.findByIdAndDelete).toHaveBeenCalledOnce();
-      expect(mockModel.findByIdAndDelete).toHaveBeenCalledWith(id, {
-        session: undefined,
+      // findOne (via the manager-derived repo) loads the row with relations.
+      expect(txPresetRepo.findOne).toHaveBeenCalledWith({
+        where: { id: TEST_UUID },
+        relations: { inputs: true },
       });
-      expect(result).toBe(mockDeletedPreset);
+      expect(txPresetRepo.delete).toHaveBeenCalledWith({ id: TEST_UUID });
+      expect(result?._id).toBe(TEST_UUID);
     });
 
-    it('should pass session when provided', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const mockDeletedPreset = { _id: id };
-      const mockSession = { id: 'session-123' };
+    it('uses the provided transactional EntityManager when supplied', async () => {
+      const customPresetRepo = {
+        findOne: vi.fn().mockResolvedValue(createEntity({})),
+        delete: vi.fn().mockResolvedValue({ affected: 1 }),
+      };
+      const customManager = {
+        getRepository: vi.fn(() => customPresetRepo),
+      } as unknown as EntityManager;
 
-      const mockExec = vi.fn().mockResolvedValue(mockDeletedPreset);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findByIdAndDelete = vi.fn().mockReturnValue({ lean: mockLean });
+      await repository.deleteById(TEST_UUID, customManager);
 
-      const result = await repository.deleteById(id, mockSession as any);
-
-      expect(mockModel.findByIdAndDelete).toHaveBeenCalledOnce();
-      expect(mockModel.findByIdAndDelete).toHaveBeenCalledWith(id, {
-        session: mockSession,
-      });
-      expect(result).toBe(mockDeletedPreset);
+      expect(customPresetRepo.delete).toHaveBeenCalledWith({ id: TEST_UUID });
+      expect(presetRepoMock.delete).not.toHaveBeenCalled();
     });
 
-    it('should return null when preset not found', async () => {
-      const id = '507f1f77bcf86cd799439011';
+    it('returns null when the row does not exist', async () => {
+      txPresetRepo.findOne.mockResolvedValue(null);
 
-      const mockExec = vi.fn().mockResolvedValue(null);
-      const mockLean = vi.fn().mockReturnValue({ exec: mockExec });
-      mockModel.findByIdAndDelete = vi.fn().mockReturnValue({ lean: mockLean });
-
-      const result = await repository.deleteById(id);
-
-      expect(result).toBeNull();
+      await expect(repository.deleteById(TEST_UUID)).resolves.toBeNull();
     });
   });
 });

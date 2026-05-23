@@ -28,8 +28,8 @@ GitHub Actions -> GHCR image tags -> Komodo webhooks -> Periphery -> Docker Comp
 - `resources/` contains the declarative ResourceSync input for servers, stacks,
   procedures, alerters, schedules, and UserGroups.
 
-Komodo's Postgres-backed mode uses FerretDB in front of Postgres because Core
-speaks the MongoDB wire protocol.
+Komodo's Postgres-backed mode runs FerretDB in front of Postgres so Core can
+talk to a Postgres-backed metadata store through its native document-DB driver.
 
 ## Core Deploy
 

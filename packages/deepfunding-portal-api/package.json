@@ -1,7 +1,7 @@
 {
   "name": "@reputo/deepfunding-portal-api",
   "version": "0.0.0",
-  "description": "TypeScript package for fetching data from the DeepFunding Portal API and persisting to SQLite via Drizzle ORM.",
+  "description": "TypeScript package for fetching data from the DeepFunding Portal API and persisting to SQLite via TypeORM.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "private": true,
@@ -32,9 +32,11 @@
   },
   "dependencies": {
     "better-sqlite3": "catalog:",
-    "drizzle-orm": "catalog:",
     "p-limit": "catalog:",
     "pino": "catalog:",
+    "reflect-metadata": "0.2.2",
+    "typeorm": "catalog:",
+    "typeorm-naming-strategies": "catalog:",
     "undici": "catalog:"
   },
   "devDependencies": {
@@ -50,7 +52,7 @@
     "deepfunding",
     "api",
     "sqlite",
-    "drizzle"
+    "typeorm"
   ],
   "files": [
     "dist",

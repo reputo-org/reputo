@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
-import { AccessAllowlistSchema, MODEL_NAMES } from '@reputo/database';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AccessAllowlistEntity } from '../persistence';
 import { SessionsModule } from '../sessions';
 import { RolesGuard } from '../shared/guards/roles.guard';
 import { UsersModule } from '../users';
@@ -10,18 +10,10 @@ import { AdminService } from './admin.service';
 import { AdminAllowlistRepository } from './admin-allowlist.repository';
 import { AdminOwnerSeeder } from './admin-owner.seeder';
 
+// `PersistenceModule` is registered globally in `src/persistence`; feature
+// modules use `TypeOrmModule.forFeature(...)` to bind their entity repos.
 @Module({
-  imports: [
-    ConfigModule,
-    UsersModule,
-    SessionsModule,
-    MongooseModule.forFeature([
-      {
-        name: MODEL_NAMES.ACCESS_ALLOWLIST,
-        schema: AccessAllowlistSchema,
-      },
-    ]),
-  ],
+  imports: [ConfigModule, TypeOrmModule.forFeature([AccessAllowlistEntity]), UsersModule, SessionsModule],
   controllers: [AdminController],
   providers: [AdminAllowlistRepository, AdminService, AdminOwnerSeeder, RolesGuard],
   exports: [AdminService],

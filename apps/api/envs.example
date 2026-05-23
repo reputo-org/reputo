@@ -7,11 +7,9 @@ AUTH_MODE=oauth
 OWNER_EMAIL=owner@example.com
 APP_PUBLIC_URL=http://localhost:5173
 
-MONGODB_HOST=localhost
-MONGODB_PORT=27017
-MONGODB_USER=admin
-MONGODB_PASSWORD=password
-MONGODB_DB_NAME=reputo_dev
+# PostgreSQL connection URL for the API application database (consumed by Prisma).
+# Points at the API-owned PG instance (port 5434 in docker/compose/infra.yml).
+DATABASE_URL=postgresql://reputo_app:reputo_app@localhost:5434/reputo_app
 
 DEEP_ID_ISSUER_URL=https://identity.deep-id.ai
 DEEP_ID_CLIENT_ID=your-deep-id-client-id
@@ -20,6 +18,7 @@ DEEP_ID_AUTH_REDIRECT_URI=http://localhost:3000/api/v1/auth/deep-id/callback
 DEEP_ID_AUTH_SCOPES=openid profile email offline_access
 DEEP_ID_CONSENT_REDIRECT_URI=http://localhost:3000/api/v1/oauth/consent/deep-id/callback
 DEEP_ID_CONSENT_GRANT_TTL_SECONDS=600
+DEEP_ID_CONSENT_CLEANUP_INTERVAL_MS=300000
 VOTING_PORTAL_RETURN_URL=http://localhost:3001/voting
 DEEP_ID_VOTING_PORTAL_SCOPES=api wallets
 
@@ -29,6 +28,7 @@ AUTH_COOKIE_SECURE=false
 AUTH_COOKIE_SAME_SITE=lax
 AUTH_SESSION_TTL_SECONDS=2592000
 AUTH_REFRESH_LEEWAY_SECONDS=60
+AUTH_SESSION_CLEANUP_INTERVAL_MS=3600000
 AUTH_TOKEN_ENCRYPTION_KEY=replace-with-a-long-random-secret-at-least-32-characters
 
 AWS_REGION=eu-north-1

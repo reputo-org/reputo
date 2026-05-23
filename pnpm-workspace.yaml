@@ -10,16 +10,18 @@ catalog:
   '@blockfrost/openapi': ^0.1.86
   '@commitlint/cli': ^19.8.1
   '@commitlint/config-conventional': ^19.8.1
+  '@nestjs/typeorm': ^11.0.0
   '@semantic-release/commit-analyzer': ^13.0.1
   '@semantic-release/github': ^12.0.6
   '@semantic-release/release-notes-generator': ^14.1.0
   '@swc/cli': ^0.6.0
   '@swc/core': ^1.12.7
   '@tanstack/react-table': ^8.21.3
-  '@temporalio/activity': ^1.11.3
-  '@temporalio/client': ^1.11.3
-  '@temporalio/worker': ^1.11.3
-  '@temporalio/workflow': ^1.11.3
+  '@temporalio/activity': ^1.16.0
+  '@temporalio/client': ^1.16.0
+  '@temporalio/testing': ^1.16.0
+  '@temporalio/worker': ^1.16.0
+  '@temporalio/workflow': ^1.16.0
   '@testcontainers/postgresql': ^11.8.1
   '@types/better-sqlite3': ^7.6.13
   '@types/js-yaml': ^4.0.9
@@ -36,7 +38,6 @@ catalog:
   better-sqlite3: ^11.10.0
   concurrently: ^9.2.1
   drizzle-orm: ^0.44.2
-  mongoose: ^8.19.1
   p-limit: ^6.2.0
   pg: ^8.16.3
   pino: ^9.8.0
@@ -50,8 +51,10 @@ catalog:
   typedoc: ^0.28.13
   typedoc-plugin-markdown: ^4.9.0
   typeorm: ^0.3.28
+  typeorm-naming-strategies: ^4.1.0
   typescript: 5.9.2
   undici: ^7.10.0
+  uuid: ^11.1.0
   vitest: 3.2.4
   zod: ^4.1.0
 

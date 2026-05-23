@@ -1,14 +1,13 @@
 import type { INestApplication } from '@nestjs/common';
-import { getModelToken } from '@nestjs/mongoose';
 import type { TestingModule } from '@nestjs/testing';
-import type { AccessAllowlist, AuthSession, OAuthUser } from '@reputo/database';
-import { MODEL_NAMES } from '@reputo/database';
-import type { Model } from 'mongoose';
 import supertest from 'supertest';
+import type { DataSource } from 'typeorm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { AccessAllowlistEntity, AuthSessionEntity, OAuthUserEntity } from '../../../src/persistence';
 import { createTestApp } from '../../utils/app-test.module';
 import { AUTH_TEST_ENV } from '../../utils/auth-session';
-import { startMongo, stopMongo } from '../../utils/mongo-memory-server';
+import { getTestDataSource } from '../../utils/db';
+import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { base } from '../../utils/request';
 import {
   createMockOAuthProviderDouble,
@@ -20,41 +19,36 @@ import {
 describe('Admin access-control e2e', () => {
   let app: INestApplication;
   let moduleRef: TestingModule;
-  let accessAllowlistModel: Model<AccessAllowlist>;
-  let authSessionModel: Model<AuthSession>;
-  let oauthUserModel: Model<OAuthUser>;
+  let dataSource: DataSource;
+  let db: TestDatabase;
   const oauthProvider = createMockOAuthProviderDouble();
 
   beforeAll(async () => {
-    const mongoUri = await startMongo();
+    db = await startTestDatabase();
+    process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({
-      mongoUri,
       oauthProviderService: oauthProvider.service,
     });
 
     app = boot.app;
     moduleRef = boot.moduleRef;
-    accessAllowlistModel = moduleRef.get(getModelToken(MODEL_NAMES.ACCESS_ALLOWLIST));
-    authSessionModel = moduleRef.get(getModelToken(MODEL_NAMES.AUTH_SESSION));
-    oauthUserModel = moduleRef.get(getModelToken(MODEL_NAMES.OAUTH_USER));
+    dataSource = getTestDataSource(moduleRef);
   });
 
   beforeEach(async () => {
     oauthProvider.reset();
-    await Promise.all([
-      accessAllowlistModel.deleteMany({}),
-      authSessionModel.deleteMany({}),
-      oauthUserModel.deleteMany({}),
-    ]);
+    await dataSource.getRepository(AccessAllowlistEntity).createQueryBuilder().delete().where('1=1').execute();
+    await dataSource.getRepository(AuthSessionEntity).createQueryBuilder().delete().where('1=1').execute();
+    await dataSource.getRepository(OAuthUserEntity).createQueryBuilder().delete().where('1=1').execute();
   });
 
   afterAll(async () => {
     await app.close();
-    await stopMongo();
+    await db?.stop();
   });
 
   it('allows an allowlisted verified-email login and returns the resolved role from /me', async () => {
-    await seedAllowlist(accessAllowlistModel, 'admin', 'allowed@example.com');
+    await seedAllowlist(dataSource.getRepository(AccessAllowlistEntity), 'admin', 'allowed@example.com');
 
     const login = await loginAsMockedProvider({
       app,
@@ -97,12 +91,12 @@ describe('Admin access-control e2e', () => {
       `${AUTH_TEST_ENV.APP_PUBLIC_URL}/access-denied?reason=not_allowlisted`,
     );
     expect(login.cookie).toBeUndefined();
-    expect(await oauthUserModel.countDocuments()).toBe(0);
-    expect(await authSessionModel.countDocuments()).toBe(0);
+    expect(await dataSource.getRepository(OAuthUserEntity).count()).toBe(0);
+    expect(await dataSource.getRepository(AuthSessionEntity).count()).toBe(0);
   });
 
   it('redirects an unverified callback email before user or session rows are created', async () => {
-    await seedAllowlist(accessAllowlistModel, 'admin', 'unverified@example.com');
+    await seedAllowlist(dataSource.getRepository(AccessAllowlistEntity), 'admin', 'unverified@example.com');
 
     const login = await loginAsMockedProvider({
       app,
@@ -116,15 +110,16 @@ describe('Admin access-control e2e', () => {
       `${AUTH_TEST_ENV.APP_PUBLIC_URL}/access-denied?reason=email_unverified`,
     );
     expect(login.cookie).toBeUndefined();
-    expect(await oauthUserModel.countDocuments()).toBe(0);
-    expect(await authSessionModel.countDocuments()).toBe(0);
+    expect(await dataSource.getRepository(OAuthUserEntity).count()).toBe(0);
+    expect(await dataSource.getRepository(AuthSessionEntity).count()).toBe(0);
   });
 
   it('lists owner and active admins for an authenticated admin', async () => {
-    await seedAllowlist(accessAllowlistModel, 'owner', 'owner@example.com');
-    await seedAllowlist(accessAllowlistModel, 'admin', 'admin@example.com');
-    await seedAllowlist(accessAllowlistModel, 'admin', 'z-admin@example.com');
-    await seedAllowlist(accessAllowlistModel, 'admin', 'revoked@example.com', {
+    const allowlistRepo = dataSource.getRepository(AccessAllowlistEntity);
+    await seedAllowlist(allowlistRepo, 'owner', 'owner@example.com');
+    await seedAllowlist(allowlistRepo, 'admin', 'admin@example.com');
+    await seedAllowlist(allowlistRepo, 'admin', 'z-admin@example.com');
+    await seedAllowlist(allowlistRepo, 'admin', 'revoked@example.com', {
       revokedAt: new Date('2026-04-02T00:00:00.000Z'),
     });
 
@@ -147,7 +142,7 @@ describe('Admin access-control e2e', () => {
   });
 
   it('rejects admin callers from adding admins', async () => {
-    await seedAllowlist(accessAllowlistModel, 'admin', 'admin@example.com');
+    await seedAllowlist(dataSource.getRepository(AccessAllowlistEntity), 'admin', 'admin@example.com');
 
     const login = await loginAsMockedProvider({
       app,
@@ -164,7 +159,7 @@ describe('Admin access-control e2e', () => {
   });
 
   it('creates a new admin as owner and shows the row in GET /admins', async () => {
-    await seedAllowlist(accessAllowlistModel, 'owner', 'owner@example.com');
+    await seedAllowlist(dataSource.getRepository(AccessAllowlistEntity), 'owner', 'owner@example.com');
 
     const owner = await loginAsMockedProvider({
       app,
@@ -195,8 +190,9 @@ describe('Admin access-control e2e', () => {
   });
 
   it('restores a previously revoked admin as owner via the restore route', async () => {
-    await seedAllowlist(accessAllowlistModel, 'owner', 'owner@example.com');
-    await seedAllowlist(accessAllowlistModel, 'admin', 'restore@example.com', {
+    const allowlistRepo = dataSource.getRepository(AccessAllowlistEntity);
+    await seedAllowlist(allowlistRepo, 'owner', 'owner@example.com');
+    await seedAllowlist(allowlistRepo, 'admin', 'restore@example.com', {
       invitedAt: new Date('2026-01-01T00:00:00.000Z'),
       revokedAt: new Date('2026-02-01T00:00:00.000Z'),
     });
@@ -223,19 +219,22 @@ describe('Admin access-control e2e', () => {
       invitedByEmail: 'owner@example.com',
     });
 
-    const row = await accessAllowlistModel.findOne({ email: 'restore@example.com' }).lean();
+    const row = await allowlistRepo.findOne({
+      where: { provider: 'deep-id', email: 'restore@example.com' },
+    });
     const list = await requestAs(app, ownerCookie, 'get', '/admins').expect(200);
 
-    expect(row?.revokedAt).toBeUndefined();
-    expect(row?.revokedBy).toBeUndefined();
+    expect(row?.revokedAt).toBeNull();
+    expect(row?.revokedByUserId).toBeNull();
     expect(list.body.results).toEqual(
       expect.arrayContaining([expect.objectContaining({ email: 'restore@example.com', role: 'admin' })]),
     );
   });
 
   it('returns 409 when owner adds an already active email', async () => {
-    await seedAllowlist(accessAllowlistModel, 'owner', 'owner@example.com');
-    await seedAllowlist(accessAllowlistModel, 'admin', 'active@example.com');
+    const allowlistRepo = dataSource.getRepository(AccessAllowlistEntity);
+    await seedAllowlist(allowlistRepo, 'owner', 'owner@example.com');
+    await seedAllowlist(allowlistRepo, 'admin', 'active@example.com');
 
     const owner = await loginAsMockedProvider({
       app,
@@ -252,7 +251,7 @@ describe('Admin access-control e2e', () => {
   });
 
   it('rejects owner self-removal', async () => {
-    await seedAllowlist(accessAllowlistModel, 'owner', 'owner@example.com');
+    await seedAllowlist(dataSource.getRepository(AccessAllowlistEntity), 'owner', 'owner@example.com');
 
     const owner = await loginAsMockedProvider({
       app,
@@ -269,14 +268,17 @@ describe('Admin access-control e2e', () => {
       `/admins/deep-id/${encodeURIComponent('owner@example.com')}`,
     ).expect(403);
 
-    const row = await accessAllowlistModel.findOne({ email: 'owner@example.com' }).lean();
+    const row = await dataSource.getRepository(AccessAllowlistEntity).findOne({
+      where: { provider: 'deep-id', email: 'owner@example.com' },
+    });
 
-    expect(row?.revokedAt).toBeUndefined();
+    expect(row?.revokedAt).toBeNull();
   });
 
   it('revokes an admin as owner and forces the removed admin cookie to log out on the next request', async () => {
-    await seedAllowlist(accessAllowlistModel, 'owner', 'owner@example.com');
-    await seedAllowlist(accessAllowlistModel, 'admin', 'target@example.com');
+    const allowlistRepo = dataSource.getRepository(AccessAllowlistEntity);
+    await seedAllowlist(allowlistRepo, 'owner', 'owner@example.com');
+    await seedAllowlist(allowlistRepo, 'admin', 'target@example.com');
 
     const owner = await loginAsMockedProvider({
       app,
@@ -301,7 +303,9 @@ describe('Admin access-control e2e', () => {
       `/admins/deep-id/${encodeURIComponent('target@example.com')}`,
     ).expect(204);
 
-    const revokedRow = await accessAllowlistModel.findOne({ email: 'target@example.com' }).lean();
+    const revokedRow = await allowlistRepo.findOne({
+      where: { provider: 'deep-id', email: 'target@example.com' },
+    });
     const nextRequest = await requestAs(app, targetCookie, 'get', '/auth/me').expect(401);
 
     expect(revokedRow?.revokedAt).toBeTruthy();
@@ -314,12 +318,12 @@ describe('Admin access-control e2e', () => {
 describe('Admin access-control e2e (mock mode)', () => {
   let app: INestApplication;
   let moduleRef: TestingModule;
-  let accessAllowlistModel: Model<AccessAllowlist>;
-  let authSessionModel: Model<AuthSession>;
-  let oauthUserModel: Model<OAuthUser>;
+  let dataSource: DataSource;
+  let db: TestDatabase;
 
   beforeAll(async () => {
-    const mongoUri = await startMongo();
+    db = await startTestDatabase();
+    process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({
       authEnv: {
         AUTH_MODE: 'mock',
@@ -330,27 +334,22 @@ describe('Admin access-control e2e (mock mode)', () => {
         DEEP_ID_AUTH_REDIRECT_URI: 'https://mock.invalid/callback',
         APP_PUBLIC_URL: 'https://mock.invalid',
       },
-      mongoUri,
     });
 
     app = boot.app;
     moduleRef = boot.moduleRef;
-    accessAllowlistModel = moduleRef.get(getModelToken(MODEL_NAMES.ACCESS_ALLOWLIST));
-    authSessionModel = moduleRef.get(getModelToken(MODEL_NAMES.AUTH_SESSION));
-    oauthUserModel = moduleRef.get(getModelToken(MODEL_NAMES.OAUTH_USER));
+    dataSource = getTestDataSource(moduleRef);
   });
 
   beforeEach(async () => {
-    await Promise.all([
-      accessAllowlistModel.deleteMany({}),
-      authSessionModel.deleteMany({}),
-      oauthUserModel.deleteMany({}),
-    ]);
+    await dataSource.getRepository(AccessAllowlistEntity).createQueryBuilder().delete().where('1=1').execute();
+    await dataSource.getRepository(AuthSessionEntity).createQueryBuilder().delete().where('1=1').execute();
+    await dataSource.getRepository(OAuthUserEntity).createQueryBuilder().delete().where('1=1').execute();
   });
 
   afterAll(async () => {
     await app.close();
-    await stopMongo();
+    await db?.stop();
   });
 
   it('treats the mock preview user as owner without an allowlist row', async () => {
@@ -369,7 +368,7 @@ describe('Admin access-control e2e (mock mode)', () => {
 
     const currentSession = await agent.get(base('/auth/me')).expect(200);
 
-    expect(await accessAllowlistModel.countDocuments()).toBe(0);
+    expect(await dataSource.getRepository(AccessAllowlistEntity).count()).toBe(0);
     expect(currentSession.body).toMatchObject({
       authenticated: true,
       provider: 'deep-id',

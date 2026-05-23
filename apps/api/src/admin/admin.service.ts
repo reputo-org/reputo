@@ -10,17 +10,15 @@ import { ConfigService } from '@nestjs/config';
 import {
   ACCESS_ROLE_ADMIN,
   ACCESS_ROLE_OWNER,
-  type AccessAllowlistWithId,
   type AccessRole,
   OAUTH_PROVIDERS,
   type OAuthProvider,
   OAuthProviderDeepId,
-  type OAuthUserWithId,
-} from '@reputo/database';
+} from '@reputo/contracts';
 import { isEmail } from 'class-validator';
 import { AuthSessionRepository, type UserSessionActivity } from '../sessions';
-import { OAuthUserRepository } from '../users';
-import { AdminAllowlistRepository } from './admin-allowlist.repository';
+import { OAuthUserRepository, type OAuthUserRow } from '../users';
+import { type AccessAllowlistRow, AdminAllowlistRepository } from './admin-allowlist.repository';
 import type { AdminListResponseDto, AdminViewDto, ListAdminsQueryDto } from './dto';
 
 export class OwnerEmailConflictError extends Error {
@@ -54,7 +52,7 @@ export class AdminService {
     this.ownerProvider = configService.get<OAuthProvider>('auth.ownerProvider') ?? OAuthProviderDeepId;
   }
 
-  isAllowlisted(provider: OAuthProvider, email: string): Promise<AccessAllowlistWithId | null> {
+  isAllowlisted(provider: OAuthProvider, email: string): Promise<AccessAllowlistRow | null> {
     return this.adminAllowlistRepository.findActiveByProviderEmail(provider, email);
   }
 
@@ -91,7 +89,7 @@ export class AdminService {
   }
 
   async addAdmin(
-    actor: OAuthUserWithId,
+    actor: OAuthUserRow,
     input: { provider: OAuthProvider; email: string; role?: AccessRole },
   ): Promise<AdminViewDto> {
     const provider = this.requireProvider(input.provider);
@@ -124,7 +122,7 @@ export class AdminService {
     }
   }
 
-  async restoreAdmin(actor: OAuthUserWithId, input: { provider: OAuthProvider; email: string }): Promise<AdminViewDto> {
+  async restoreAdmin(actor: OAuthUserRow, input: { provider: OAuthProvider; email: string }): Promise<AdminViewDto> {
     const provider = this.requireProvider(input.provider);
     const targetEmail = this.normalizeEmailOrThrow(input.email);
 
@@ -141,7 +139,7 @@ export class AdminService {
   }
 
   async updateRole(
-    actor: OAuthUserWithId,
+    actor: OAuthUserRow,
     input: { provider: OAuthProvider; email: string; role: AccessRole },
   ): Promise<AdminViewDto> {
     const provider = this.requireProvider(input.provider);
@@ -186,7 +184,7 @@ export class AdminService {
     return this.toAdminView(updated, await this.resolveActorEmailMap(actor, updated), null);
   }
 
-  async removeAdmin(actor: OAuthUserWithId, input: { provider: OAuthProvider; email: string }): Promise<void> {
+  async removeAdmin(actor: OAuthUserRow, input: { provider: OAuthProvider; email: string }): Promise<void> {
     const provider = this.requireProvider(input.provider);
     const targetEmail = this.normalizeEmailOrThrow(input.email);
     const actorEmail = actor.email ? this.normalizeEmail(actor.email) : undefined;
@@ -265,14 +263,12 @@ export class AdminService {
   }
 
   private async resolveInviterAndRevokerEmails(
-    rows: readonly AccessAllowlistWithId[],
+    rows: readonly AccessAllowlistRow[],
   ): Promise<ReadonlyMap<string, string>> {
     const ids = new Set<string>();
     for (const row of rows) {
-      const invitedById = this.toIdString(row.invitedBy);
-      if (invitedById) ids.add(invitedById);
-      const revokedById = this.toIdString(row.revokedBy);
-      if (revokedById) ids.add(revokedById);
+      if (row.invitedBy) ids.add(row.invitedBy);
+      if (row.revokedBy) ids.add(row.revokedBy);
     }
 
     if (ids.size === 0) return new Map();
@@ -286,13 +282,11 @@ export class AdminService {
   }
 
   /** Single-row variant used by mutation paths where a list lookup would be wasteful. */
-  private async resolveActorEmailMap(actor: OAuthUserWithId, row: AccessAllowlistWithId): Promise<Map<string, string>> {
+  private async resolveActorEmailMap(actor: OAuthUserRow, row: AccessAllowlistRow): Promise<Map<string, string>> {
     const map = this.actorEmailMap(actor);
     const ids: string[] = [];
-    const inviterId = this.toIdString(row.invitedBy);
-    if (inviterId && !map.has(inviterId)) ids.push(inviterId);
-    const revokerId = this.toIdString(row.revokedBy);
-    if (revokerId && !map.has(revokerId)) ids.push(revokerId);
+    if (row.invitedBy && !map.has(row.invitedBy)) ids.push(row.invitedBy);
+    if (row.revokedBy && !map.has(row.revokedBy)) ids.push(row.revokedBy);
 
     if (ids.length === 0) return map;
 
@@ -303,13 +297,13 @@ export class AdminService {
     return map;
   }
 
-  private actorEmailMap(actor: OAuthUserWithId): Map<string, string> {
+  private actorEmailMap(actor: OAuthUserRow): Map<string, string> {
     const map = new Map<string, string>();
     if (actor.email) map.set(String(actor._id), this.normalizeEmail(actor.email));
     return map;
   }
 
-  private async collectSessionActivity(rows: readonly AccessAllowlistWithId[]): Promise<ActivityByKey> {
+  private async collectSessionActivity(rows: readonly AccessAllowlistRow[]): Promise<ActivityByKey> {
     // Resolve OAuthUsers per (provider, email) in parallel; the repository has no
     // batch-by-email lookup, but the page-size cap (max 100) keeps the fan-out bounded.
     const userLookups = await Promise.all(
@@ -321,7 +315,7 @@ export class AdminService {
 
     const userByKey = new Map(
       userLookups
-        .filter((entry): entry is { key: string; user: OAuthUserWithId } => entry.user !== null)
+        .filter((entry): entry is { key: string; user: OAuthUserRow } => entry.user !== null)
         .map(({ key, user }) => [key, user]),
     );
 
@@ -336,14 +330,12 @@ export class AdminService {
   }
 
   private toAdminView(
-    row: AccessAllowlistWithId,
+    row: AccessAllowlistRow,
     emailByUserId: ReadonlyMap<string, string>,
     activityByKey: ActivityByKey | null,
   ): AdminViewDto {
-    const invitedById = this.toIdString(row.invitedBy);
-    const revokedById = this.toIdString(row.revokedBy);
-    const invitedByEmail = invitedById ? emailByUserId.get(invitedById) : undefined;
-    const revokedByEmail = revokedById ? emailByUserId.get(revokedById) : undefined;
+    const invitedByEmail = row.invitedBy ? emailByUserId.get(row.invitedBy) : undefined;
+    const revokedByEmail = row.revokedBy ? emailByUserId.get(row.revokedBy) : undefined;
     const activity = activityByKey?.get(`${row.provider}:${row.email}`);
 
     const view: AdminViewDto = {
@@ -387,12 +379,7 @@ export class AdminService {
     return email.trim().toLowerCase();
   }
 
-  private toIdString(value: unknown): string | undefined {
-    if (!value) return undefined;
-    return String(value);
-  }
-
-  private toLogActor(actor: OAuthUserWithId): { email?: string; id: string } {
+  private toLogActor(actor: OAuthUserRow): { email?: string; id: string } {
     return {
       id: String(actor._id),
       ...(actor.email ? { email: this.normalizeEmail(actor.email) } : {}),
@@ -400,7 +387,7 @@ export class AdminService {
   }
 
   private logMutation(
-    actor: OAuthUserWithId,
+    actor: OAuthUserRow,
     action: MutationAction,
     provider: OAuthProvider,
     targetEmail: string,

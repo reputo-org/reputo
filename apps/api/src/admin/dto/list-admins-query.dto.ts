@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ACCESS_ROLES, type AccessRole, OAUTH_PROVIDERS, type OAuthProvider } from '@reputo/database';
+import { ACCESS_ROLES, type AccessRole, OAUTH_PROVIDERS, type OAuthProvider } from '@reputo/contracts';
 import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import {

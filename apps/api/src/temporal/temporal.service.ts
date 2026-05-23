@@ -1,9 +1,16 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Snapshot } from '@reputo/database';
 import { Client, Connection } from '@temporalio/client';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { WORKFLOW_RUN_TIMEOUT } from '../shared/constants/temporal.constants';
+
+// Minimal projection of a snapshot used by the workflow lifecycle helpers
+// below. The repository's `SnapshotRow` and any equivalent DTO satisfy this
+// shape, so callers do not need a runtime conversion.
+export interface TerminableSnapshot {
+  status: string;
+  temporal?: { workflowId?: string } | null;
+}
 
 /**
  * Service for interacting with Temporal workflows.
@@ -66,7 +73,7 @@ export class TemporalService implements OnModuleInit, OnModuleDestroy {
   /**
    * Starts the OrchestratorWorkflow for a given snapshot.
    *
-   * @param snapshotId - MongoDB ObjectId of the snapshot to execute
+   * @param snapshotId - UUID v7 of the snapshot to execute
    * @returns Promise that resolves when workflow is started
    * @throws Error if Temporal client is not available or workflow start fails
    */
@@ -240,7 +247,7 @@ export class TemporalService implements OnModuleInit, OnModuleDestroy {
   /**
    * Cancels workflows for all running snapshots.
    */
-  async cancelSnapshotWorkflows(snapshots: Snapshot[]): Promise<void> {
+  async cancelSnapshotWorkflows(snapshots: TerminableSnapshot[]): Promise<void> {
     const runningSnapshots = snapshots.filter(
       (snapshot) => snapshot.status === 'running' && snapshot.temporal?.workflowId,
     );
@@ -262,7 +269,7 @@ export class TemporalService implements OnModuleInit, OnModuleDestroy {
    * @param snapshots - Array of snapshots to terminate workflows for
    * @param waitForCompletion - If true, waits for all workflows to reach terminal state before returning
    */
-  async terminateSnapshotWorkflows(snapshots: Snapshot[], waitForCompletion = false): Promise<void> {
+  async terminateSnapshotWorkflows(snapshots: TerminableSnapshot[], waitForCompletion = false): Promise<void> {
     const runningSnapshots = snapshots.filter(
       (snapshot) => snapshot.status === 'running' && snapshot.temporal?.workflowId,
     );

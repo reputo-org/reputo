@@ -1,14 +1,17 @@
-import type { AccessRole, AuthSessionWithId, OAuthUserWithId } from '@reputo/database';
+import type { AccessRole } from '@reputo/contracts';
 import type { Request } from 'express';
+import type { AuthSessionRow } from '../../sessions';
+import type { OAuthUserRow } from '../../users';
 
-type AuthSessionRequestHiddenFields = 'accessTokenCiphertext' | 'refreshTokenCiphertext' | 'state' | 'codeVerifier';
-
-export type CurrentAuthSession = Omit<AuthSessionWithId, AuthSessionRequestHiddenFields>;
+// Public AuthSessionRow already excludes ciphertexts, PKCE verifier, and
+// the CSRF state, so consumers of `request.authContext` cannot accidentally
+// log secret material.
+export type CurrentAuthSession = AuthSessionRow;
 
 export interface AuthRequestContext {
   role: AccessRole;
   session: CurrentAuthSession;
-  user: OAuthUserWithId;
+  user: OAuthUserRow;
 }
 
 declare global {

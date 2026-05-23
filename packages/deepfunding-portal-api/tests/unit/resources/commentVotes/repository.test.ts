@@ -8,25 +8,25 @@ describe('CommentVote Repository', () => {
   let db: DeepFundingPortalDb;
   let repo: ReturnType<typeof createCommentVotesRepo>;
 
-  beforeEach(() => {
-    db = createTestDb();
+  beforeEach(async () => {
+    db = await createTestDb();
     repo = createCommentVotesRepo(db);
   });
 
-  afterEach(() => {
-    cleanupTestDb(db);
+  afterEach(async () => {
+    await cleanupTestDb(db);
   });
 
   describe('create', () => {
-    it('should insert a single comment vote', () => {
+    it('should insert a single comment vote', async () => {
       const vote = createMockCommentVote({
         voter_id: 1,
         comment_id: 10,
       });
 
-      repo.create(vote);
+      await repo.create(vote);
 
-      const all = repo.findAll();
+      const all = await repo.findAll();
       expect(all.length).toBe(1);
       expect(all[0]?.voterId).toBe(1);
       expect(all[0]?.commentId).toBe(10);
@@ -34,49 +34,49 @@ describe('CommentVote Repository', () => {
   });
 
   describe('createMany', () => {
-    it('should insert multiple comment votes', () => {
+    it('should insert multiple comment votes', async () => {
       const votes = [
         createMockCommentVote({ voter_id: 1, comment_id: 10 }),
         createMockCommentVote({ voter_id: 2, comment_id: 10 }),
         createMockCommentVote({ voter_id: 1, comment_id: 20 }),
       ];
 
-      repo.createMany(votes);
+      await repo.createMany(votes);
 
-      const all = repo.findAll();
+      const all = await repo.findAll();
       expect(all.length).toBe(3);
     });
   });
 
   describe('findAll', () => {
-    it('should return all comment votes', () => {
-      repo.create(createMockCommentVote({ voter_id: 1, comment_id: 10 }));
-      repo.create(createMockCommentVote({ voter_id: 2, comment_id: 20 }));
+    it('should return all comment votes', async () => {
+      await repo.create(createMockCommentVote({ voter_id: 1, comment_id: 10 }));
+      await repo.create(createMockCommentVote({ voter_id: 2, comment_id: 20 }));
 
-      const result = repo.findAll();
+      const result = await repo.findAll();
       expect(result.length).toBe(2);
     });
   });
 
   describe('findByCommentId', () => {
-    it('should find votes by comment ID', () => {
-      repo.create(createMockCommentVote({ voter_id: 1, comment_id: 10 }));
-      repo.create(createMockCommentVote({ voter_id: 2, comment_id: 10 }));
-      repo.create(createMockCommentVote({ voter_id: 3, comment_id: 20 }));
+    it('should find votes by comment ID', async () => {
+      await repo.create(createMockCommentVote({ voter_id: 1, comment_id: 10 }));
+      await repo.create(createMockCommentVote({ voter_id: 2, comment_id: 10 }));
+      await repo.create(createMockCommentVote({ voter_id: 3, comment_id: 20 }));
 
-      const result = repo.findByCommentId(10);
+      const result = await repo.findByCommentId(10);
       expect(result.length).toBe(2);
       expect(result.every((v) => v.commentId === 10)).toBe(true);
     });
   });
 
   describe('findByVoterId', () => {
-    it('should find votes by voter ID', () => {
-      repo.create(createMockCommentVote({ voter_id: 1, comment_id: 10 }));
-      repo.create(createMockCommentVote({ voter_id: 1, comment_id: 20 }));
-      repo.create(createMockCommentVote({ voter_id: 2, comment_id: 30 }));
+    it('should find votes by voter ID', async () => {
+      await repo.create(createMockCommentVote({ voter_id: 1, comment_id: 10 }));
+      await repo.create(createMockCommentVote({ voter_id: 1, comment_id: 20 }));
+      await repo.create(createMockCommentVote({ voter_id: 2, comment_id: 30 }));
 
-      const result = repo.findByVoterId(1);
+      const result = await repo.findByVoterId(1);
       expect(result.length).toBe(2);
       expect(result.every((v) => v.voterId === 1)).toBe(true);
     });

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { OAuthProvider } from '@reputo/database';
+import type { OAuthProvider } from '@reputo/contracts';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import type { ConsentProviderConfig, ConsentSourceConfig } from '../config/consent.config';
 import { OAuthProviderClient } from '../shared/oauth';

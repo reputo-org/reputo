@@ -186,7 +186,7 @@ function buildChildSnapshot(
 ): Snapshot {
   return {
     ...snapshot,
-    _id: `${snapshot._id}__custom_algorithm_child_${childIndex + 1}_${child.algorithm_key}`,
+    id: `${snapshot.id}__custom_algorithm_child_${childIndex + 1}_${child.algorithm_key}`,
     algorithmPresetFrozen: {
       ...snapshot.algorithmPresetFrozen,
       key: child.algorithm_key,
@@ -329,7 +329,7 @@ async function runChildAlgorithm(input: {
 export async function computeCustomAlgorithm(snapshot: Snapshot, storage: Storage): Promise<AlgorithmResult> {
   const ctx = Context.current();
   const logger = ctx.log;
-  const snapshotId = snapshot._id;
+  const snapshotId = snapshot.id;
 
   logger.info('Starting custom_algorithm', { snapshotId });
 

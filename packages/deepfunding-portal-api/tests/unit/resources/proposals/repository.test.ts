@@ -8,26 +8,26 @@ describe('Proposal Repository', () => {
   let db: DeepFundingPortalDb;
   let repo: ReturnType<typeof createProposalsRepo>;
 
-  beforeEach(() => {
-    db = createTestDb();
+  beforeEach(async () => {
+    db = await createTestDb();
     repo = createProposalsRepo(db);
   });
 
-  afterEach(() => {
-    cleanupTestDb(db);
+  afterEach(async () => {
+    await cleanupTestDb(db);
   });
 
   describe('create', () => {
-    it('should insert a single proposal', () => {
+    it('should insert a single proposal', async () => {
       const proposal = createMockProposal({
         id: 1,
         round_id: 10,
         title: 'Test Proposal',
       });
 
-      repo.create(proposal);
+      await repo.create(proposal);
 
-      const result = repo.findById(1);
+      const result = await repo.findById(1);
       expect(result).toBeDefined();
       expect(result?.title).toBe('Test Proposal');
       expect(result?.roundId).toBe(10);
@@ -35,20 +35,20 @@ describe('Proposal Repository', () => {
   });
 
   describe('createMany', () => {
-    it('should insert multiple proposals', () => {
+    it('should insert multiple proposals', async () => {
       const proposals = [
         createMockProposal({ id: 1, round_id: 10 }),
         createMockProposal({ id: 2, round_id: 10 }),
         createMockProposal({ id: 3, round_id: 20 }),
       ];
 
-      repo.createMany(proposals);
+      await repo.createMany(proposals);
 
-      const all = repo.findAll();
+      const all = await repo.findAll();
       expect(all.length).toBe(3);
     });
 
-    it('should handle chunking for large batches', () => {
+    it('should handle chunking for large batches', async () => {
       const proposals = Array.from({ length: 250 }, (_, i) =>
         createMockProposal({
           id: i + 1,
@@ -56,62 +56,62 @@ describe('Proposal Repository', () => {
         }),
       );
 
-      repo.createMany(proposals, { chunkSize: 100 });
+      await repo.createMany(proposals, { chunkSize: 100 });
 
-      const all = repo.findAll();
+      const all = await repo.findAll();
       expect(all.length).toBe(250);
     });
   });
 
   describe('findAll', () => {
-    it('should return all proposals', () => {
-      repo.create(createMockProposal({ id: 1, round_id: 10 }));
-      repo.create(createMockProposal({ id: 2, round_id: 20 }));
+    it('should return all proposals', async () => {
+      await repo.create(createMockProposal({ id: 1, round_id: 10 }));
+      await repo.create(createMockProposal({ id: 2, round_id: 20 }));
 
-      const result = repo.findAll();
+      const result = await repo.findAll();
       expect(result.length).toBe(2);
     });
 
-    it('should return empty array when no proposals exist', () => {
-      const result = repo.findAll();
+    it('should return empty array when no proposals exist', async () => {
+      const result = await repo.findAll();
       expect(result).toEqual([]);
     });
   });
 
   describe('findByRoundId', () => {
-    it('should find proposals by round ID', () => {
-      repo.create(createMockProposal({ id: 1, round_id: 10 }));
-      repo.create(createMockProposal({ id: 2, round_id: 10 }));
-      repo.create(createMockProposal({ id: 3, round_id: 20 }));
+    it('should find proposals by round ID', async () => {
+      await repo.create(createMockProposal({ id: 1, round_id: 10 }));
+      await repo.create(createMockProposal({ id: 2, round_id: 10 }));
+      await repo.create(createMockProposal({ id: 3, round_id: 20 }));
 
-      const result = repo.findByRoundId(10);
+      const result = await repo.findByRoundId(10);
       expect(result.length).toBe(2);
       expect(result.every((p) => p.roundId === 10)).toBe(true);
     });
 
-    it('should return empty array when no proposals found for round', () => {
-      const result = repo.findByRoundId(999);
+    it('should return empty array when no proposals found for round', async () => {
+      const result = await repo.findByRoundId(999);
       expect(result).toEqual([]);
     });
   });
 
   describe('findById', () => {
-    it('should find proposal by ID', () => {
+    it('should find proposal by ID', async () => {
       const proposal = createMockProposal({
         id: 1,
         round_id: 10,
         title: 'Specific Proposal',
       });
-      repo.create(proposal);
+      await repo.create(proposal);
 
-      const result = repo.findById(1);
+      const result = await repo.findById(1);
       expect(result).toBeDefined();
       expect(result?.id).toBe(1);
       expect(result?.title).toBe('Specific Proposal');
     });
 
-    it('should return undefined when proposal not found', () => {
-      const result = repo.findById(999);
+    it('should return undefined when proposal not found', async () => {
+      const result = await repo.findById(999);
       expect(result).toBeUndefined();
     });
   });

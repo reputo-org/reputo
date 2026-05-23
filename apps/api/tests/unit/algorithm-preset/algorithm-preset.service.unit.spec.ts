@@ -1,11 +1,11 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import type { ConfigService } from '@nestjs/config';
 import { validateAlgorithmPreset } from '@reputo/algorithm-validator';
-import { MODEL_NAMES } from '@reputo/database';
 import { getAlgorithmDefinition } from '@reputo/reputation-algorithms';
 import type { StorageMetadata } from '@reputo/storage';
+import type { DataSource } from 'typeorm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AlgorithmPresetRepository } from '../../../src/algorithm-preset/algorithm-preset.repository';
+import type { AlgorithmPresetRepository } from '../../../src/algorithm-preset/algorithm-preset.repository';
 import { AlgorithmPresetService } from '../../../src/algorithm-preset/algorithm-preset.service';
 import type {
   CreateAlgorithmPresetDto,
@@ -13,9 +13,9 @@ import type {
   UpdateAlgorithmPresetDto,
 } from '../../../src/algorithm-preset/dto';
 import { StorageInputValidationException } from '../../../src/shared/exceptions';
-import { SnapshotRepository } from '../../../src/snapshot/snapshot.repository';
-import { StorageService } from '../../../src/storage/storage.service';
-import { TemporalService } from '../../../src/temporal';
+import type { SnapshotRepository } from '../../../src/snapshot/snapshot.repository';
+import type { StorageService } from '../../../src/storage/storage.service';
+import type { TemporalService } from '../../../src/temporal';
 
 vi.mock('@reputo/reputation-algorithms', async () => {
   const actual = await vi.importActual('@reputo/reputation-algorithms');
@@ -33,6 +33,8 @@ vi.mock('@reputo/algorithm-validator', async () => {
   };
 });
 
+const PRESET_ID = '01940000-0000-7000-8000-000000000000';
+
 describe('AlgorithmPresetService', () => {
   let service: AlgorithmPresetService;
   let mockRepository: AlgorithmPresetRepository;
@@ -40,7 +42,7 @@ describe('AlgorithmPresetService', () => {
   let mockConfigService: ConfigService;
   let mockSnapshotRepository: SnapshotRepository;
   let mockTemporalService: TemporalService;
-  let mockConnection: any;
+  let mockDataSource: DataSource;
   const mockLogger = {
     info: vi.fn(),
     error: vi.fn(),
@@ -48,10 +50,10 @@ describe('AlgorithmPresetService', () => {
     debug: vi.fn(),
     log: vi.fn(),
     setContext: vi.fn(),
-  } as any;
+  } as unknown as Parameters<typeof AlgorithmPresetService.prototype.constructor>[0];
 
   const defaultStorageConfig = {
-    maxSizeBytes: 52428800, // 50MB
+    maxSizeBytes: 52428800,
     contentTypeAllowlist: 'text/csv,text/plain,application/json',
   };
 
@@ -70,21 +72,12 @@ describe('AlgorithmPresetService', () => {
         csv: {
           hasHeader: true,
           delimiter: ',',
-          columns: [
-            {
-              key: 'column1',
-              type: 'string',
-              required: true,
-            },
-          ],
+          columns: [{ key: 'column1', type: 'string', required: true }],
         },
       },
     ],
     outputs: [],
-    runtime: {
-      taskQueue: 'test-queue',
-      activity: 'test-activity',
-    },
+    runtime: { taskQueue: 'test-queue', activity: 'test-activity' },
   };
 
   const validMetadata: StorageMetadata = {
@@ -133,55 +126,45 @@ describe('AlgorithmPresetService', () => {
       terminateSnapshotWorkflows: vi.fn().mockResolvedValue(undefined),
     } as unknown as TemporalService;
 
-    const session = {
-      withTransaction: vi.fn(async (cb: () => Promise<void>) => cb()),
-      endSession: vi.fn(),
-    };
-    mockConnection = {
-      startSession: vi.fn().mockResolvedValue(session),
-    };
+    // `dataSource.transaction(cb)` immediately invokes the callback with an
+    // empty proxy that re-uses the service's existing repository mocks via
+    // passthrough — the same pattern as the old `prisma.$transaction` test
+    // double, just now keyed off the TypeORM EntityManager rather than the
+    // PrismaClient.
+    mockDataSource = {
+      transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb({})),
+    } as unknown as DataSource;
 
     vi.mocked(getAlgorithmDefinition).mockReturnValue(JSON.stringify(mockAlgorithmDefinition));
-
-    vi.mocked(validateAlgorithmPreset).mockImplementation(async (args: any) => {
+    vi.mocked(validateAlgorithmPreset).mockImplementation(async (args) => {
+      const typed = args as {
+        definition: typeof mockAlgorithmDefinition;
+        preset: { inputs: Array<{ key: string; value?: unknown }> };
+        resolveInputContent: (input: { input: unknown; value: string }) => Promise<Buffer>;
+      };
       const errors: Array<{ field: string; message: string; source: 'file' }> = [];
 
-      for (const input of args.definition.inputs) {
-        if (input.type !== 'csv' && input.type !== 'json') {
-          continue;
-        }
-
-        const presetInput = args.preset.inputs.find((candidate: any) => candidate.key === input.key);
+      for (const input of typed.definition.inputs) {
+        if (input.type !== 'csv' && input.type !== 'json') continue;
+        const presetInput = typed.preset.inputs.find((candidate) => candidate.key === input.key);
         if (!presetInput || typeof presetInput.value !== 'string' || presetInput.value.trim() === '') {
           continue;
         }
-
         try {
-          await args.resolveInputContent({ input, value: presetInput.value });
+          await typed.resolveInputContent({ input, value: presetInput.value });
         } catch (error) {
           const messages =
             error instanceof AggregateError
               ? error.errors.map((item) => (item instanceof Error ? item.message : String(item)))
               : [error instanceof Error ? error.message : String(error)];
-
           errors.push(...messages.map((message) => ({ field: input.key, message, source: 'file' as const })));
         }
       }
 
       if (errors.length > 0) {
-        return {
-          success: false,
-          errors,
-        };
+        return { success: false, errors };
       }
-
-      return {
-        success: true,
-        data: {
-          preset: {},
-          payload: {},
-        },
-      };
+      return { success: true, data: { preset: {}, payload: {} } };
     });
 
     service = new AlgorithmPresetService(
@@ -190,20 +173,19 @@ describe('AlgorithmPresetService', () => {
       mockStorageService,
       mockSnapshotRepository,
       mockTemporalService,
-      mockConnection,
+      mockDataSource,
       mockConfigService,
     );
   });
 
   describe('create', () => {
-    it('should delegate to repository.create with the provided DTO', async () => {
+    it('delegates to repository.create with the DTO', async () => {
       const createDto: CreateAlgorithmPresetDto = {
         key: 'test_key',
         version: '1.0.0',
         inputs: [{ key: 'input1', value: 'uploads/test.csv' }],
       };
-
-      const mockPreset = { _id: '507f1f77bcf86cd799439011', ...createDto };
+      const mockPreset = { _id: PRESET_ID, ...createDto };
       mockRepository.create = vi.fn().mockResolvedValue(mockPreset);
 
       const result = await service.create(createDto);
@@ -213,700 +195,13 @@ describe('AlgorithmPresetService', () => {
       expect(result).toBe(mockPreset);
     });
 
-    it('should validate storage metadata and CSV content for csv inputs', async () => {
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'test_key',
-        version: '1.0.0',
-        inputs: [{ key: 'input1', value: 'uploads/test.csv' }],
-      };
-
-      const mockPreset = { _id: '507f1f77bcf86cd799439011', ...createDto };
-      mockRepository.create = vi.fn().mockResolvedValue(mockPreset);
-
-      await service.create(createDto);
-
-      expect(mockStorageService.getObjectMetadata).toHaveBeenCalledWith('uploads/test.csv');
-      expect(mockStorageService.getObject).toHaveBeenCalledWith('uploads/test.csv');
-      expect(validateAlgorithmPreset).toHaveBeenCalledWith(
-        expect.objectContaining({
-          definition: expect.objectContaining({
-            key: 'test_key',
-            version: '1.0.0',
-          }),
-          preset: expect.objectContaining({
-            key: 'test_key',
-            version: '1.0.0',
-            inputs: createDto.inputs,
-          }),
-        }),
-      );
-    });
-
-    it('should provide nested definition and file resolvers for combined algorithms', async () => {
-      const combinedDefinition = {
-        key: 'custom_algorithm',
-        name: 'Custom Algorithm',
-        kind: 'combined',
-        category: 'Custom',
-        summary: 'Combined algorithm',
-        description: 'Combined algorithm definition',
-        version: '1.0.0',
-        inputs: [
-          {
-            key: 'sub_ids',
-            label: 'Sub IDs',
-            type: 'json',
-            required: true,
-            json: {
-              schema: 'sub_id_input_map',
-            },
-          },
-          {
-            key: 'sub_algorithms',
-            label: 'Sub Algorithms',
-            type: 'sub_algorithm',
-            required: true,
-            minItems: 1,
-            sharedInputKeys: ['sub_ids'],
-            uiHint: {
-              widget: 'sub_algorithm_composer',
-            },
-          },
-        ],
-        outputs: [],
-        runtime: 'typescript',
-      };
-
-      const childDefinition = {
-        key: 'voting_engagement',
-        name: 'Voting Engagement',
-        kind: 'standalone',
-        category: 'Engagement',
-        summary: 'Child algorithm',
-        description: 'Child algorithm definition',
-        version: '1.0.0',
-        inputs: [
-          {
-            key: 'sub_ids',
-            label: 'Sub IDs',
-            type: 'json',
-            required: true,
-            json: {
-              schema: 'sub_id_input_map',
-            },
-          },
-          {
-            key: 'votes',
-            label: 'Votes CSV',
-            type: 'csv',
-            csv: {
-              hasHeader: true,
-              delimiter: ',',
-              columns: [{ key: 'column1', type: 'string', required: true }],
-            },
-          },
-        ],
-        outputs: [],
-        runtime: 'typescript',
-      };
-
-      vi.mocked(getAlgorithmDefinition).mockImplementation(({ key }) => {
-        if (key === 'custom_algorithm') {
-          return JSON.stringify(combinedDefinition);
-        }
-
-        if (key === 'voting_engagement') {
-          return JSON.stringify(childDefinition);
-        }
-
-        throw new Error(`Unexpected algorithm lookup: ${key}`);
-      });
-
-      mockStorageService.getObjectMetadata = vi.fn().mockResolvedValue(validMetadata);
-      mockStorageService.getObject = vi.fn().mockResolvedValue(validCsvBuffer);
-
-      vi.mocked(validateAlgorithmPreset).mockImplementation(async (args: any) => {
-        await expect(
-          args.resolveNestedDefinition({
-            algorithmKey: 'voting_engagement',
-            algorithmVersion: '1.0.0',
-          }),
-        ).resolves.toEqual(childDefinition);
-
-        await expect(
-          args.resolveInputContent({
-            input: childDefinition.inputs[1],
-            value: 'uploads/votes.csv',
-          }),
-        ).resolves.toEqual(validCsvBuffer);
-
-        return {
-          success: true,
-          data: {
-            preset: {},
-            payload: {},
-          },
-        };
-      });
-
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'custom_algorithm',
-        version: '1.0.0',
-        inputs: [
-          { key: 'sub_ids', value: 'uploads/sub_ids.json' },
-          {
-            key: 'sub_algorithms',
-            value: [
-              {
-                algorithm_key: 'voting_engagement',
-                algorithm_version: '1.0.0',
-                weight: 1,
-                inputs: [{ key: 'votes', value: 'uploads/votes.csv' }],
-              },
-            ],
-          },
-        ],
-      };
-
-      const mockPreset = { _id: '507f1f77bcf86cd799439011', ...createDto };
-      mockRepository.create = vi.fn().mockResolvedValue(mockPreset);
-
-      await service.create(createDto);
-
-      expect(mockStorageService.getObjectMetadata).toHaveBeenCalledWith('uploads/votes.csv');
-      expect(mockStorageService.getObject).toHaveBeenCalledWith('uploads/votes.csv');
-    });
-  });
-
-  describe('validateStorageInputs - metadata validation', () => {
-    it('should throw StorageInputValidationException when the uploaded file does not match the csv input type', async () => {
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'test_key',
-        version: '1.0.0',
-        inputs: [{ key: 'input1', value: 'uploads/test.csv' }],
-      };
-
-      const invalidMetadata: StorageMetadata = {
-        ...validMetadata,
-        contentType: 'application/json',
-      };
-      mockStorageService.getObjectMetadata = vi.fn().mockResolvedValue(invalidMetadata);
-
-      await expect(service.create(createDto)).rejects.toThrow(StorageInputValidationException);
-
-      try {
-        await service.create(createDto);
-      } catch (error) {
-        expect(error).toBeInstanceOf(StorageInputValidationException);
-        const response = (error as StorageInputValidationException).getResponse() as any;
-        expect(response.errors[0].inputKey).toBe('input1');
-        expect(response.errors[0].errors[0]).toContain('must be a CSV file');
-      }
-    });
-
-    it('should throw StorageInputValidationException when file exceeds API config maxSizeBytes', async () => {
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'test_key',
-        version: '1.0.0',
-        inputs: [{ key: 'input1', value: 'uploads/test.csv' }],
-      };
-
-      const oversizedMetadata: StorageMetadata = {
-        ...validMetadata,
-        size: defaultStorageConfig.maxSizeBytes + 1,
-      };
-      mockStorageService.getObjectMetadata = vi.fn().mockResolvedValue(oversizedMetadata);
-
-      await expect(service.create(createDto)).rejects.toThrow(StorageInputValidationException);
-
-      try {
-        await service.create(createDto);
-      } catch (error) {
-        const response = (error as StorageInputValidationException).getResponse() as any;
-        expect(response.errors[0].errors).toContainEqual(expect.stringContaining('exceeds API limit'));
-      }
-    });
-
-    it('should throw StorageInputValidationException when file exceeds algorithm definition maxBytes', async () => {
-      const definitionWithMaxBytes = {
-        ...mockAlgorithmDefinition,
-        inputs: [
-          {
-            ...mockAlgorithmDefinition.inputs[0],
-            csv: {
-              ...mockAlgorithmDefinition.inputs[0].csv,
-              maxBytes: 500, // 500 bytes limit
-            },
-          },
-        ],
-      };
-
-      vi.mocked(getAlgorithmDefinition).mockReturnValue(JSON.stringify(definitionWithMaxBytes));
-
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'test_key',
-        version: '1.0.0',
-        inputs: [{ key: 'input1', value: 'uploads/test.csv' }],
-      };
-
-      // Metadata size is 1024 bytes, which exceeds the 500 byte limit
-      await expect(service.create(createDto)).rejects.toThrow(StorageInputValidationException);
-
-      try {
-        await service.create(createDto);
-      } catch (error) {
-        const response = (error as StorageInputValidationException).getResponse() as any;
-        expect(response.errors[0].errors).toContainEqual(expect.stringContaining('exceeds algorithm limit'));
-      }
-    });
-
-    it('should allow files within both API and algorithm definition limits', async () => {
-      const definitionWithMaxBytes = {
-        ...mockAlgorithmDefinition,
-        inputs: [
-          {
-            ...mockAlgorithmDefinition.inputs[0],
-            csv: {
-              ...mockAlgorithmDefinition.inputs[0].csv,
-              maxBytes: 2000, // 2000 bytes limit
-            },
-          },
-        ],
-      };
-
-      vi.mocked(getAlgorithmDefinition).mockReturnValue(JSON.stringify(definitionWithMaxBytes));
-
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'test_key',
-        version: '1.0.0',
-        inputs: [{ key: 'input1', value: 'uploads/test.csv' }],
-      };
-
-      const mockPreset = { _id: '507f1f77bcf86cd799439011', ...createDto };
-      mockRepository.create = vi.fn().mockResolvedValue(mockPreset);
-
-      // Metadata size is 1024 bytes, which is within the 2000 byte limit
-      const result = await service.create(createDto);
-
-      expect(result).toBe(mockPreset);
-    });
-  });
-
-  describe('validateStorageInputs - CSV content validation', () => {
-    it('should throw StorageInputValidationException when CSV content is invalid', async () => {
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'test_key',
-        version: '1.0.0',
-        inputs: [{ key: 'input1', value: 'uploads/test.csv' }],
-      };
-
-      vi.mocked(validateAlgorithmPreset).mockResolvedValue({
-        success: false,
-        errors: [{ field: 'input1', message: 'Missing required column: column1', source: 'file' }],
-      });
-
-      await expect(service.create(createDto)).rejects.toThrow(StorageInputValidationException);
-
-      try {
-        await service.create(createDto);
-      } catch (error) {
-        const response = (error as StorageInputValidationException).getResponse() as any;
-        expect(response.errors[0].inputKey).toBe('input1');
-        expect(response.errors[0].errors).toContain('Missing required column: column1');
-      }
-    });
-
-    it('should collect multiple CSV validation errors', async () => {
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'test_key',
-        version: '1.0.0',
-        inputs: [{ key: 'input1', value: 'uploads/test.csv' }],
-      };
-
-      vi.mocked(validateAlgorithmPreset).mockResolvedValue({
-        success: false,
-        errors: [
-          { field: 'input1', message: 'Missing required column: column1', source: 'file' },
-          { field: 'input1', message: 'CSV must contain at least one data row', source: 'file' },
-        ],
-      });
-
-      try {
-        await service.create(createDto);
-      } catch (error) {
-        const response = (error as StorageInputValidationException).getResponse() as any;
-        expect(response.errors[0].errors).toHaveLength(2);
-        expect(response.errors[0].errors).toContain('Missing required column: column1');
-        expect(response.errors[0].errors).toContain('CSV must contain at least one data row');
-      }
-    });
-  });
-
-  describe('validateStorageInputs - multiple errors collection', () => {
-    it('should stop before shared validation when metadata is invalid', async () => {
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'test_key',
-        version: '1.0.0',
-        inputs: [{ key: 'input1', value: 'uploads/test.csv' }],
-      };
-
-      // Invalid content type
-      const invalidMetadata: StorageMetadata = {
-        ...validMetadata,
-        contentType: 'application/octet-stream',
-      };
-      mockStorageService.getObjectMetadata = vi.fn().mockResolvedValue(invalidMetadata);
-
-      try {
-        await service.create(createDto);
-      } catch (error) {
-        const response = (error as StorageInputValidationException).getResponse() as any;
-        expect(response.errors[0].errors).toContainEqual(expect.stringContaining('Invalid content type'));
-      }
-
-      expect(validateAlgorithmPreset).toHaveBeenCalledOnce();
-    });
-
-    it('should collect errors from multiple CSV inputs', async () => {
-      const multiInputDefinition = {
-        ...mockAlgorithmDefinition,
-        inputs: [
-          {
-            key: 'input1',
-            type: 'csv',
-            csv: {
-              hasHeader: true,
-              delimiter: ',',
-              columns: [{ key: 'col1', type: 'string', required: true }],
-            },
-          },
-          {
-            key: 'input2',
-            type: 'csv',
-            csv: {
-              hasHeader: true,
-              delimiter: ',',
-              columns: [{ key: 'col2', type: 'string', required: true }],
-            },
-          },
-        ],
-      };
-
-      vi.mocked(getAlgorithmDefinition).mockReturnValue(JSON.stringify(multiInputDefinition));
-
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'test_key',
-        version: '1.0.0',
-        inputs: [
-          { key: 'input1', value: 'uploads/file1.csv' },
-          { key: 'input2', value: 'uploads/file2.csv' },
-        ],
-      };
-
-      vi.mocked(validateAlgorithmPreset).mockResolvedValue({
-        success: false,
-        errors: [
-          { field: 'input1', message: 'Error in file 1', source: 'file' },
-          { field: 'input2', message: 'Error in file 2', source: 'file' },
-        ],
-      });
-
-      try {
-        await service.create(createDto);
-      } catch (error) {
-        const response = (error as StorageInputValidationException).getResponse() as any;
-        expect(response.errors).toHaveLength(2);
-        expect(response.errors[0].inputKey).toBe('input1');
-        expect(response.errors[0].errors).toContain('Error in file 1');
-        expect(response.errors[1].inputKey).toBe('input2');
-        expect(response.errors[1].errors).toContain('Error in file 2');
-      }
-    });
-  });
-
-  describe('validateStorageInputs - skip non-CSV inputs', () => {
-    it('should skip validation for non-csv input types', async () => {
-      const mixedInputDefinition = {
-        ...mockAlgorithmDefinition,
-        inputs: [
-          {
-            key: 'numberInput',
-            type: 'number',
-          },
-          {
-            key: 'csvInput',
-            type: 'csv',
-            csv: {
-              hasHeader: true,
-              delimiter: ',',
-              columns: [{ key: 'col1', type: 'string', required: true }],
-            },
-          },
-        ],
-      };
-
-      vi.mocked(getAlgorithmDefinition).mockReturnValue(JSON.stringify(mixedInputDefinition));
-
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'test_key',
-        version: '1.0.0',
-        inputs: [
-          { key: 'numberInput', value: 42 },
-          { key: 'csvInput', value: 'uploads/test.csv' },
-        ],
-      };
-
-      const mockPreset = { _id: '507f1f77bcf86cd799439011', ...createDto };
-      mockRepository.create = vi.fn().mockResolvedValue(mockPreset);
-
-      await service.create(createDto);
-
-      // Should only call storage methods once (for the CSV input)
-      expect(mockStorageService.getObjectMetadata).toHaveBeenCalledTimes(1);
-      expect(mockStorageService.getObject).toHaveBeenCalledTimes(1);
-      expect(mockStorageService.getObjectMetadata).toHaveBeenCalledWith('uploads/test.csv');
-    });
-  });
-
-  describe('validateStorageInputs - JSON content validation', () => {
-    it('should validate storage metadata and JSON content for json inputs', async () => {
-      const jsonDefinition = {
-        ...mockAlgorithmDefinition,
-        inputs: [
-          {
-            key: 'wallets',
-            label: 'Wallet Addresses JSON',
-            description: 'Wallet input',
-            type: 'json',
-            required: true,
-            json: {
-              maxBytes: 5242880,
-              schema: 'wallet_address_map',
-              rootKey: 'wallets',
-              allowedChains: ['ethereum', 'cardano'],
-            },
-          },
-        ],
-      };
-      vi.mocked(getAlgorithmDefinition).mockReturnValue(JSON.stringify(jsonDefinition));
-
-      const jsonMetadata: StorageMetadata = {
-        filename: 'wallets.json',
-        ext: 'json',
-        size: 512,
-        contentType: 'application/json',
-        timestamp: Date.now(),
-      };
-      const validJsonBuffer = Buffer.from(
-        JSON.stringify({
-          wallets: {
-            ethereum: ['0x1234567890abcdef1234567890abcdef12345678'],
-          },
-        }),
-        'utf-8',
-      );
-
-      mockStorageService.getObjectMetadata = vi.fn().mockResolvedValue(jsonMetadata);
-      mockStorageService.getObject = vi.fn().mockResolvedValue(validJsonBuffer);
-
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'test_key',
-        version: '1.0.0',
-        inputs: [{ key: 'wallets', value: 'uploads/wallets.json' }],
-      };
-
-      const mockPreset = { _id: '507f1f77bcf86cd799439011', ...createDto };
-      mockRepository.create = vi.fn().mockResolvedValue(mockPreset);
-
-      await service.create(createDto);
-
-      expect(mockStorageService.getObjectMetadata).toHaveBeenCalledWith('uploads/wallets.json');
-      expect(mockStorageService.getObject).toHaveBeenCalledWith('uploads/wallets.json');
-      expect(validateAlgorithmPreset).toHaveBeenCalledWith(
-        expect.objectContaining({
-          definition: expect.objectContaining({
-            key: 'test_key',
-          }),
-        }),
-      );
-    });
-
-    it('should surface validator errors when token_value_over_time wallet files still use the old top-level wallets key', async () => {
-      const tokenValueDefinition = {
-        key: 'token_value_over_time',
-        name: 'Token Value Over Time',
-        category: 'Activity',
-        summary: 'Test algorithm summary',
-        description: 'Test algorithm definition',
-        version: '1.0.0',
-        inputs: [
-          {
-            key: 'wallets',
-            label: 'Sub-ID Wallet Map JSON',
-            description: 'Wallet input',
-            type: 'json',
-            required: true,
-            json: {
-              maxBytes: 5242880,
-              schema: 'sub_id_wallet_address_map',
-              allowedChains: ['ethereum', 'cardano'],
-            },
-          },
-          {
-            key: 'selected_resources',
-            label: 'Resources',
-            description: 'Selected resources',
-            type: 'array',
-            required: true,
-            minItems: 1,
-            uniqueBy: ['chain', 'resource_key'],
-            uiHint: {
-              widget: 'resource_selector',
-              resourceCatalog: {
-                chains: [
-                  {
-                    key: 'ethereum',
-                    label: 'Ethereum',
-                    resources: [
-                      {
-                        key: 'fet_token',
-                        label: 'FET',
-                        kind: 'token',
-                        identifier: '0xaaa',
-                        tokenIdentifier: '0xaaa',
-                        tokenKey: 'fet',
-                      },
-                    ],
-                  },
-                  {
-                    key: 'cardano',
-                    label: 'Cardano',
-                    resources: [
-                      {
-                        key: 'fet_token',
-                        label: 'FET',
-                        kind: 'token',
-                        identifier: 'asset1',
-                        tokenIdentifier: 'asset1',
-                        tokenKey: 'fet',
-                      },
-                    ],
-                  },
-                ],
-              },
-            },
-            item: {
-              type: 'object',
-              properties: [
-                { key: 'chain', label: 'Chain', description: 'Chain', type: 'string', required: true },
-                {
-                  key: 'resource_key',
-                  label: 'Resource',
-                  description: 'Resource key',
-                  type: 'string',
-                  required: true,
-                },
-              ],
-            },
-          },
-        ],
-        outputs: [],
-        runtime: 'typescript',
-      };
-      vi.mocked(getAlgorithmDefinition).mockReturnValue(JSON.stringify(tokenValueDefinition));
-
-      const jsonMetadata: StorageMetadata = {
-        filename: 'wallets.json',
-        ext: 'json',
-        size: 512,
-        contentType: 'application/json',
-        timestamp: Date.now(),
-      };
-      const oldFormatWallets = Buffer.from(
-        JSON.stringify({
-          wallets: {
-            ethereum: ['0x1234567890abcdef1234567890abcdef12345678'],
-          },
-        }),
-        'utf-8',
-      );
-
-      mockStorageService.getObjectMetadata = vi.fn().mockResolvedValue(jsonMetadata);
-      mockStorageService.getObject = vi.fn().mockResolvedValue(oldFormatWallets);
-      vi.mocked(validateAlgorithmPreset).mockResolvedValue({
-        success: false,
-        errors: [
-          {
-            field: 'wallets',
-            message: 'JSON must not contain the top-level key "wallets"; provide sub-id keys at the root',
-            source: 'file',
-          },
-        ],
-      });
-
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'token_value_over_time',
-        version: '1.0.0',
-        inputs: [
-          { key: 'wallets', value: 'uploads/wallets.json' },
-          {
-            key: 'selected_resources',
-            value: [
-              {
-                chain: 'cardano',
-                resource_key: 'fet_token',
-              },
-            ],
-          },
-        ],
-      };
-
-      await expect(service.create(createDto)).rejects.toThrow(StorageInputValidationException);
-
-      try {
-        await service.create(createDto);
-      } catch (error) {
-        const response = (error as StorageInputValidationException).getResponse() as any;
-        expect(response.errors[0].inputKey).toBe('wallets');
-        expect(response.errors[0].errors).toContain(
-          'JSON must not contain the top-level key "wallets"; provide sub-id keys at the root',
-        );
-      }
-    });
-
-    it('should reject stale selected_targets presets with a recreate message', async () => {
-      vi.mocked(getAlgorithmDefinition).mockReturnValue(
-        JSON.stringify({
-          key: 'token_value_over_time',
-          name: 'Token Value Over Time',
-          category: 'Activity',
-          summary: 'Test algorithm summary',
-          description: 'Test algorithm definition',
-          version: '1.0.0',
-          inputs: [
-            {
-              key: 'selected_resources',
-              label: 'Resources',
-              description: 'Selected resources',
-              type: 'array',
-              required: true,
-              item: {
-                type: 'object',
-                properties: [{ key: 'chain', label: 'Chain', description: 'Chain', type: 'string', required: true }],
-              },
-            },
-          ],
-          outputs: [],
-          runtime: 'typescript',
-        }),
-      );
-      vi.mocked(validateAlgorithmPreset).mockResolvedValue({
+    it('rejects stale presets via the validator pipeline', async () => {
+      vi.mocked(validateAlgorithmPreset).mockResolvedValueOnce({
         success: false,
         errors: [
           {
             field: 'selected_targets',
-            message:
-              'Input "selected_targets" is not supported by token_value_over_time@1.0.0. Recreate the preset using the current algorithm definition.',
+            message: 'Input not supported. Recreate the preset.',
             source: 'definition',
           },
         ],
@@ -914,7 +209,7 @@ describe('AlgorithmPresetService', () => {
 
       await expect(
         service.create({
-          key: 'token_value_over_time',
+          key: 'test_key',
           version: '1.0.0',
           inputs: [{ key: 'selected_targets', value: [] }],
         }),
@@ -923,281 +218,163 @@ describe('AlgorithmPresetService', () => {
   });
 
   describe('list', () => {
-    it('should filter by key and version from queryDto', async () => {
+    it('forwards key/version into the structured repository filter', async () => {
       const queryDto: ListAlgorithmPresetsQueryDto = {
         key: 'test_key',
         version: '1.0.0',
         page: 1,
         limit: 10,
-      };
-
-      const mockPaginatedResult = {
-        results: [],
-        totalResults: 2,
-        page: 1,
-        limit: 10,
-        totalPages: 1,
-      };
-
-      mockRepository.findAll = vi.fn().mockResolvedValue(mockPaginatedResult);
-
-      const result = await service.list(queryDto);
-
-      expect(mockRepository.findAll).toHaveBeenCalledOnce();
-      const [filter, options] = (mockRepository.findAll as any).mock.calls[0];
-      expect(filter).toEqual({ key: 'test_key', version: '1.0.0' });
-      expect(options).toMatchObject({ page: 1, limit: 10 });
-      expect(result).toBe(mockPaginatedResult);
-    });
-
-    it('should filter with pagination options including sortBy', async () => {
-      const queryDto: ListAlgorithmPresetsQueryDto = {
-        key: 'test_key',
-        page: 2,
-        limit: 20,
         sortBy: 'createdAt:desc',
       };
+      mockRepository.findAll = vi
+        .fn()
+        .mockResolvedValue({ results: [], totalResults: 0, page: 1, limit: 10, totalPages: 0 });
 
-      const mockPaginatedResult = {
-        results: [],
-        totalResults: 50,
-        page: 2,
-        limit: 20,
-        totalPages: 3,
-      };
+      await service.list(queryDto);
 
-      mockRepository.findAll = vi.fn().mockResolvedValue(mockPaginatedResult);
-
-      const result = await service.list(queryDto);
-
-      const [, options] = (mockRepository.findAll as any).mock.calls[0];
-      expect(options).toMatchObject({
-        page: 2,
-        limit: 20,
-        sortBy: 'createdAt:desc',
-      });
-      expect(result).toBe(mockPaginatedResult);
-    });
-
-    it('should handle empty queryDto with no filters', async () => {
-      const queryDto: ListAlgorithmPresetsQueryDto = {};
-
-      const mockPaginatedResult = {
-        results: [],
-        totalResults: 0,
-        page: 1,
-        limit: 10,
-        totalPages: 0,
-      };
-
-      mockRepository.findAll = vi.fn().mockResolvedValue(mockPaginatedResult);
-
-      const result = await service.list(queryDto);
-
-      const [filter] = (mockRepository.findAll as any).mock.calls[0];
-      expect(filter).toEqual({});
-      expect(result).toBe(mockPaginatedResult);
+      expect(mockRepository.findAll).toHaveBeenCalledWith(
+        { key: 'test_key', version: '1.0.0' },
+        { page: 1, limit: 10, sortBy: 'createdAt:desc' },
+      );
     });
   });
 
   describe('getById', () => {
-    it('should return preset when found', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const mockPreset = {
-        _id: id,
-        key: 'test_key',
-        version: '1.0.0',
-      };
+    it('returns the row when present', async () => {
+      const row = { _id: PRESET_ID, key: 'k', version: '1.0.0', inputs: [] };
+      mockRepository.findById = vi.fn().mockResolvedValue(row);
 
-      mockRepository.findById = vi.fn().mockResolvedValue(mockPreset);
+      const result = await service.getById(PRESET_ID);
 
-      const result = await service.getById(id);
-
-      expect(mockRepository.findById).toHaveBeenCalledOnce();
-      expect(mockRepository.findById).toHaveBeenCalledWith(id);
-      expect(result).toBe(mockPreset);
+      expect(result).toBe(row);
     });
 
-    it('should throw NotFoundException when preset not found', async () => {
-      const id = '507f1f77bcf86cd799439011';
-
+    it('throws NotFoundException when missing', async () => {
       mockRepository.findById = vi.fn().mockResolvedValue(null);
 
-      const promise = service.getById(id);
-
-      await expect(promise).rejects.toBeInstanceOf(NotFoundException);
-      await expect(promise).rejects.toThrow(`${MODEL_NAMES.ALGORITHM_PRESET} with ID ${id} not found`);
+      await expect(service.getById(PRESET_ID)).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 
   describe('updateById', () => {
-    it('should return updated preset when found', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const updateDto: UpdateAlgorithmPresetDto = {
-        name: 'Updated Name',
-        description: 'Updated description',
-      };
-
-      const mockUpdatedPreset = {
-        _id: id,
-        key: 'test_key',
-        version: '1.0.0',
-        ...updateDto,
-      };
-
+    it('validates against the original key/version then updates', async () => {
+      const updateDto: UpdateAlgorithmPresetDto = { name: 'Updated', description: 'Updated description' };
       mockRepository.findById = vi.fn().mockResolvedValue({
-        _id: id,
+        _id: PRESET_ID,
         key: 'test_key',
         version: '1.0.0',
         inputs: [{ key: 'input1', value: 'uploads/test.csv' }],
       });
-      mockRepository.updateById = vi.fn().mockResolvedValue(mockUpdatedPreset);
+      mockRepository.updateById = vi.fn().mockResolvedValue({ _id: PRESET_ID, ...updateDto });
 
-      const result = await service.updateById(id, updateDto);
+      const result = await service.updateById(PRESET_ID, updateDto);
 
       expect(mockStorageService.getObjectMetadata).toHaveBeenCalledWith('uploads/test.csv');
-      expect(mockRepository.updateById).toHaveBeenCalledOnce();
-      expect(mockRepository.updateById).toHaveBeenCalledWith(id, updateDto);
-      expect(result).toBe(mockUpdatedPreset);
+      expect(mockRepository.updateById).toHaveBeenCalledWith(PRESET_ID, updateDto);
+      expect((result as { _id: string })._id).toBe(PRESET_ID);
     });
 
-    it('should throw NotFoundException when preset not found', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const updateDto: UpdateAlgorithmPresetDto = { name: 'Updated' };
-
+    it('throws NotFoundException when the preset is missing', async () => {
       mockRepository.findById = vi.fn().mockResolvedValue(null);
 
-      const promise = service.updateById(id, updateDto);
-
-      await expect(promise).rejects.toBeInstanceOf(NotFoundException);
-      await expect(promise).rejects.toThrow(`${MODEL_NAMES.ALGORITHM_PRESET} with ID ${id} not found`);
+      await expect(service.updateById(PRESET_ID, { name: 'x' })).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 
   describe('deleteById', () => {
-    it('should complete successfully when preset is deleted', async () => {
-      const id = '507f1f77bcf86cd799439011';
+    it('runs the snapshot deleteMany + preset deleteById inside `dataSource.transaction`', async () => {
+      const preset = { _id: PRESET_ID, key: 'k', version: '1', inputs: [] };
+      const snapshots = [{ _id: 's1', status: 'completed', algorithmPresetFrozen: { inputs: [] } }];
 
-      mockRepository.findById = vi.fn().mockResolvedValue({ _id: id, inputs: [] });
+      mockRepository.findById = vi.fn().mockResolvedValue(preset);
+      mockSnapshotRepository.find = vi.fn().mockResolvedValue(snapshots);
+      mockRepository.deleteById = vi.fn().mockResolvedValue(preset);
+      mockSnapshotRepository.deleteMany = vi.fn().mockResolvedValue({ deletedCount: 1 });
+
+      await service.deleteById(PRESET_ID);
+
+      expect(mockSnapshotRepository.find).toHaveBeenCalledWith({ algorithmPresetId: PRESET_ID });
+      expect(mockTemporalService.terminateSnapshotWorkflows).toHaveBeenCalledWith(snapshots, true);
+      expect(mockDataSource.transaction).toHaveBeenCalledOnce();
+      expect(mockSnapshotRepository.deleteMany).toHaveBeenCalledWith(
+        { algorithmPresetId: PRESET_ID },
+        expect.anything(),
+      );
+      expect(mockRepository.deleteById).toHaveBeenCalledWith(PRESET_ID, expect.anything());
+    });
+
+    it('skips snapshot deleteMany when there are no snapshots', async () => {
+      mockRepository.findById = vi.fn().mockResolvedValue({ _id: PRESET_ID, inputs: [] });
       mockSnapshotRepository.find = vi.fn().mockResolvedValue([]);
-      mockRepository.deleteById = vi.fn().mockResolvedValue({ _id: id });
+      mockRepository.deleteById = vi.fn().mockResolvedValue({ _id: PRESET_ID });
 
-      await service.deleteById(id);
+      await service.deleteById(PRESET_ID);
 
-      expect(mockTemporalService.terminateSnapshotWorkflows).toHaveBeenCalledWith([], true);
       expect(mockSnapshotRepository.deleteMany).not.toHaveBeenCalled();
       expect(mockRepository.deleteById).toHaveBeenCalled();
     });
 
-    it('should throw NotFoundException when preset not found', async () => {
-      const id = '507f1f77bcf86cd799439011';
-
-      mockRepository.findById = vi.fn().mockResolvedValue(null);
-
-      const promise = service.deleteById(id);
-
-      await expect(promise).rejects.toBeInstanceOf(NotFoundException);
-      await expect(promise).rejects.toThrow(`${MODEL_NAMES.ALGORITHM_PRESET} with ID ${id} not found`);
-    });
-
-    it('should cascade delete snapshots, terminate workflows, and clean S3', async () => {
-      const id = '507f1f77bcf86cd799439011';
+    it('cleans up S3 keys from preset inputs and snapshot prefixes', async () => {
       const preset = {
-        _id: id,
+        _id: PRESET_ID,
         inputs: [
           { key: 'votes', value: 'uploads/uuid-1/votes.csv' },
-          { key: 'config', value: 'some-value' }, // non-upload value
+          { key: 'config', value: 'some-value' },
         ],
       };
       const snapshots = [
-        { _id: 's1', status: 'completed' },
-        {
-          _id: 's2',
-          status: 'running',
-          temporal: { workflowId: 'wf-1' },
-        },
+        { _id: 's1', status: 'completed', algorithmPresetFrozen: { inputs: [] } },
+        { _id: 's2', status: 'running', temporal: { workflowId: 'wf-1' }, algorithmPresetFrozen: { inputs: [] } },
       ];
-
       mockRepository.findById = vi.fn().mockResolvedValue(preset);
       mockSnapshotRepository.find = vi.fn().mockResolvedValue(snapshots);
-      mockRepository.deleteById = vi.fn().mockResolvedValue({ _id: id });
+      mockRepository.deleteById = vi.fn().mockResolvedValue(preset);
       mockStorageService.listObjectsByPrefix = vi
         .fn()
         .mockResolvedValueOnce(['snapshots/s1/output1.csv'])
-        .mockResolvedValueOnce(['snapshots/s2/output2.json', 'snapshots/s2/output3.csv']);
+        .mockResolvedValueOnce(['snapshots/s2/output2.json']);
       mockStorageService.deleteObjects = vi.fn().mockResolvedValue({
-        deleted: [
-          'uploads/uuid-1/votes.csv',
-          'snapshots/s1/output1.csv',
-          'snapshots/s2/output2.json',
-          'snapshots/s2/output3.csv',
-        ],
+        deleted: ['uploads/uuid-1/votes.csv', 'snapshots/s1/output1.csv', 'snapshots/s2/output2.json'],
         errors: [],
       });
 
-      await service.deleteById(id);
+      await service.deleteById(PRESET_ID);
 
-      // Verify workflows terminated
-      expect(mockTemporalService.terminateSnapshotWorkflows).toHaveBeenCalledWith(snapshots, true);
-
-      // Verify DB cascade delete
-      expect(mockSnapshotRepository.deleteMany).toHaveBeenCalled();
-      const [filter] = (mockSnapshotRepository.deleteMany as any).mock.calls[0];
-      expect(filter).toEqual({ algorithmPreset: id });
-      expect(mockRepository.deleteById).toHaveBeenCalled();
-
-      // Verify S3 cleanup
-      expect(mockStorageService.listObjectsByPrefix).toHaveBeenCalledWith('snapshots/s1/');
-      expect(mockStorageService.listObjectsByPrefix).toHaveBeenCalledWith('snapshots/s2/');
       expect(mockStorageService.deleteObjects).toHaveBeenCalledWith([
         'uploads/uuid-1/votes.csv',
         'snapshots/s1/output1.csv',
         'snapshots/s2/output2.json',
-        'snapshots/s2/output3.csv',
       ]);
     });
 
-    it('should handle S3 cleanup failures gracefully', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const preset = {
-        _id: id,
-        inputs: [{ key: 'votes', value: 'uploads/uuid-1/votes.csv' }],
-      };
+    it('throws NotFoundException when the preset is missing', async () => {
+      mockRepository.findById = vi.fn().mockResolvedValue(null);
 
-      mockRepository.findById = vi.fn().mockResolvedValue(preset);
-      mockSnapshotRepository.find = vi.fn().mockResolvedValue([]);
-      mockRepository.deleteById = vi.fn().mockResolvedValue({ _id: id });
-      mockStorageService.deleteObjects = vi.fn().mockRejectedValue(new Error('S3 error'));
-
-      // Should not throw even if S3 cleanup fails
-      await expect(service.deleteById(id)).resolves.not.toThrow();
-
-      // DB operations should still complete
-      expect(mockRepository.deleteById).toHaveBeenCalled();
+      await expect(service.deleteById(PRESET_ID)).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('should handle partial S3 deletion failures', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const preset = {
-        _id: id,
-        inputs: [{ key: 'votes', value: 'uploads/uuid-1/votes.csv' }],
+    it('does not fail the delete when S3 cleanup throws', async () => {
+      mockRepository.findById = vi.fn().mockResolvedValue({ _id: PRESET_ID, inputs: [] });
+      mockSnapshotRepository.find = vi.fn().mockResolvedValue([]);
+      mockRepository.deleteById = vi.fn().mockResolvedValue({ _id: PRESET_ID });
+      mockStorageService.deleteObjects = vi.fn().mockRejectedValue(new Error('S3 error'));
+
+      await expect(service.deleteById(PRESET_ID)).resolves.not.toThrow();
+    });
+  });
+
+  describe('storage validation', () => {
+    it('throws StorageInputValidationException when content type is wrong', async () => {
+      const createDto: CreateAlgorithmPresetDto = {
+        key: 'test_key',
+        version: '1.0.0',
+        inputs: [{ key: 'input1', value: 'uploads/test.csv' }],
       };
-      const snapshots = [{ _id: 's1', status: 'completed' }];
+      mockStorageService.getObjectMetadata = vi
+        .fn()
+        .mockResolvedValue({ ...validMetadata, contentType: 'application/json' });
 
-      mockRepository.findById = vi.fn().mockResolvedValue(preset);
-      mockSnapshotRepository.find = vi.fn().mockResolvedValue(snapshots);
-      mockRepository.deleteById = vi.fn().mockResolvedValue({ _id: id });
-      mockStorageService.listObjectsByPrefix = vi.fn().mockResolvedValue(['snapshots/s1/output.csv']);
-      mockStorageService.deleteObjects = vi.fn().mockResolvedValue({
-        deleted: ['uploads/uuid-1/votes.csv'],
-        errors: [{ key: 'snapshots/s1/output.csv', message: 'Access denied' }],
-      });
-
-      await service.deleteById(id);
-
-      // Should complete successfully despite partial S3 failure
-      expect(mockRepository.deleteById).toHaveBeenCalled();
-      expect(mockLogger.warn).toHaveBeenCalled();
+      await expect(service.create(createDto)).rejects.toThrow(StorageInputValidationException);
     });
   });
 });

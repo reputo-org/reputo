@@ -1,9 +1,9 @@
 import { BadGatewayException, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Types } from 'mongoose';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthService } from '../../../src/auth/auth.service';
 import { encryptValue } from '../../../src/shared/utils';
+import { randomUUIDv7 } from '../../utils/uuid';
 
 describe('AuthService', () => {
   let configValues: Record<string, unknown>;
@@ -70,7 +70,7 @@ describe('AuthService', () => {
     };
     oauthService.getScopes.mockReturnValue(['openid', 'profile', 'email', 'offline_access']);
     accessService.isAllowlisted.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       provider: 'deep-id',
       email: 'jane@example.com',
       role: 'owner',
@@ -107,7 +107,7 @@ describe('AuthService', () => {
     configValues['auth.appPublicUrl'] = 'https://mock.invalid';
     service = createService();
 
-    const userId = new Types.ObjectId();
+    const userId = randomUUIDv7();
     const request = {
       headers: {
         'x-forwarded-proto': 'https',
@@ -128,7 +128,7 @@ describe('AuthService', () => {
       updatedAt: new Date('2026-04-03T10:00:00.000Z'),
     });
     authSessionRepository.create.mockImplementation(async (payload) => ({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       ...payload,
     }));
 
@@ -158,7 +158,7 @@ describe('AuthService', () => {
   it('handles the callback, syncs the user, creates the session, and issues the cookie', async () => {
     const response = {} as any;
     const request = { headers: {} } as any;
-    const userId = new Types.ObjectId();
+    const userId = randomUUIDv7();
 
     cookieService.getAuthFlow.mockReturnValue({
       provider: 'deep-id',
@@ -202,7 +202,7 @@ describe('AuthService', () => {
       updatedAt: new Date('2026-04-03T10:00:00.000Z'),
     });
     authSessionRepository.create.mockImplementation(async (payload) => ({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       ...payload,
     }));
 
@@ -358,7 +358,7 @@ describe('AuthService', () => {
     configValues['auth.appPublicUrl'] = 'https://mock.invalid';
     service = createService();
 
-    const userId = new Types.ObjectId();
+    const userId = randomUUIDv7();
     const request = {
       headers: {
         host: 'preview.local',
@@ -378,7 +378,7 @@ describe('AuthService', () => {
       updatedAt: new Date('2026-04-03T10:00:00.000Z'),
     });
     authSessionRepository.create.mockImplementation(async (payload) => ({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       ...payload,
     }));
 
@@ -470,11 +470,11 @@ describe('AuthService', () => {
   it.each(['owner', 'admin'] as const)('attaches the resolved %s role to session context and views', async (role) => {
     const response = {} as any;
     const request = { headers: {} } as any;
-    const userId = new Types.ObjectId();
+    const userId = randomUUIDv7();
 
     cookieService.getSessionId.mockReturnValue(`session-${role}`);
     authSessionRepository.findActiveBySessionId.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       sessionId: `session-${role}`,
       provider: 'deep-id',
       userId,
@@ -517,11 +517,11 @@ describe('AuthService', () => {
   it('revokes the session, clears the cookie, and returns 401 when the allowlist row is missing mid-session', async () => {
     const response = {} as any;
     const request = { headers: {} } as any;
-    const userId = new Types.ObjectId();
+    const userId = randomUUIDv7();
 
     cookieService.getSessionId.mockReturnValue('session-revoked-allowlist');
     authSessionRepository.findActiveBySessionId.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       sessionId: 'session-revoked-allowlist',
       provider: 'deep-id',
       userId,
@@ -560,11 +560,11 @@ describe('AuthService', () => {
 
     const response = {} as any;
     const request = { headers: {} } as any;
-    const userId = new Types.ObjectId();
+    const userId = randomUUIDv7();
 
     cookieService.getSessionId.mockReturnValue('mock-session');
     authSessionRepository.findActiveBySessionId.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       sessionId: 'mock-session',
       provider: 'deep-id',
       userId,
@@ -610,7 +610,7 @@ describe('AuthService', () => {
   it('refreshes near-expiry provider tokens during session bootstrap', async () => {
     const response = {} as any;
     const request = { headers: {} } as any;
-    const userId = new Types.ObjectId();
+    const userId = randomUUIDv7();
     const encryptedRefreshToken = encryptValue(
       configValues['auth.tokenEncryptionKey'] as string,
       'provider-refresh-token',
@@ -618,7 +618,7 @@ describe('AuthService', () => {
 
     cookieService.getSessionId.mockReturnValue('session-123');
     authSessionRepository.findActiveBySessionId.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       sessionId: 'session-123',
       provider: 'deep-id',
       userId,
@@ -640,7 +640,7 @@ describe('AuthService', () => {
       token_type: 'Bearer',
     });
     authSessionRepository.updateAfterRefresh.mockImplementation(async (_sessionId, payload) => ({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       sessionId: 'session-123',
       provider: 'deep-id',
       userId,
@@ -714,13 +714,13 @@ describe('AuthService', () => {
   it('preserves the session when the provider refresh fails transiently', async () => {
     const response = {} as any;
     const request = { headers: {} } as any;
-    const userId = new Types.ObjectId();
+    const userId = randomUUIDv7();
     const refreshTokenCiphertext = encryptValue(
       configValues['auth.tokenEncryptionKey'] as string,
       'provider-refresh-token',
     );
     const sessionRow = {
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       sessionId: 'session-transient',
       provider: 'deep-id',
       userId,
@@ -769,7 +769,7 @@ describe('AuthService', () => {
   it('revokes the session when the provider rejects the refresh token with invalid_grant', async () => {
     const response = {} as any;
     const request = { headers: {} } as any;
-    const userId = new Types.ObjectId();
+    const userId = randomUUIDv7();
     const refreshTokenCiphertext = encryptValue(
       configValues['auth.tokenEncryptionKey'] as string,
       'provider-refresh-token',
@@ -777,7 +777,7 @@ describe('AuthService', () => {
 
     cookieService.getSessionId.mockReturnValue('session-invalid-grant');
     authSessionRepository.findActiveBySessionId.mockResolvedValueOnce({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       sessionId: 'session-invalid-grant',
       provider: 'deep-id',
       userId,
@@ -793,7 +793,7 @@ describe('AuthService', () => {
     });
     // The re-read after invalid_grant returns the same (un-refreshed) row.
     authSessionRepository.findActiveBySessionId.mockResolvedValueOnce({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       sessionId: 'session-invalid-grant',
       provider: 'deep-id',
       userId,
@@ -818,13 +818,13 @@ describe('AuthService', () => {
   it('adopts a peer-refreshed session when invalid_grant follows a remote rotation', async () => {
     const response = {} as any;
     const request = { headers: {} } as any;
-    const userId = new Types.ObjectId();
+    const userId = randomUUIDv7();
     const stalelastRefreshedAt = new Date(Date.now() - 60 * 1_000);
     const freshLastRefreshedAt = new Date(Date.now() - 1_000);
 
     cookieService.getSessionId.mockReturnValue('session-peer-rotated');
     authSessionRepository.findActiveBySessionId.mockResolvedValueOnce({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       sessionId: 'session-peer-rotated',
       provider: 'deep-id',
       userId,
@@ -839,7 +839,7 @@ describe('AuthService', () => {
       lastRefreshedAt: stalelastRefreshedAt,
     });
     authSessionRepository.findActiveBySessionId.mockResolvedValueOnce({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       sessionId: 'session-peer-rotated',
       provider: 'deep-id',
       userId,
@@ -876,9 +876,9 @@ describe('AuthService', () => {
   it('coalesces concurrent refreshes so the provider is only called once per session', async () => {
     const response = {} as any;
     const request = { headers: {} } as any;
-    const userId = new Types.ObjectId();
+    const userId = randomUUIDv7();
     const sessionRow = {
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       sessionId: 'session-coalesce',
       provider: 'deep-id',
       userId,
@@ -901,7 +901,7 @@ describe('AuthService', () => {
     });
     oauthService.refreshTokens.mockReturnValue(refreshPromise);
     authSessionRepository.updateAfterRefresh.mockImplementation(async (_sessionId, payload) => ({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       sessionId: 'session-coalesce',
       provider: 'deep-id',
       userId,

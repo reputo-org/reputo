@@ -93,11 +93,6 @@ description = "Public app URL the staging API advertises to clients."
 is_secret = false
 
 [[variable]]
-name = "STAGING_MONGODB_DB_NAME"
-description = "Staging app Mongo database name."
-is_secret = false
-
-[[variable]]
 name = "STAGING_DEEP_ID_ISSUER_URL"
 description = "Staging Deep ID OIDC issuer URL."
 is_secret = false
@@ -162,6 +157,11 @@ name = "STAGING_ONCHAIN_DATA_POSTGRES_DB_NAME"
 description = "Staging onchain-data Postgres database name."
 is_secret = false
 
+[[variable]]
+name = "STAGING_API_POSTGRES_DB_NAME"
+description = "Staging API application Postgres database name."
+is_secret = false
+
 # ---------------------------------------------------------------------------
 # Staging secrets
 # ---------------------------------------------------------------------------
@@ -182,16 +182,6 @@ description = "Staging Grafana basic-auth htpasswd. Preserve doubled $$ escaping
 is_secret = true
 
 [[variable]]
-name = "STAGING_MONGODB_USER"
-description = "Staging app Mongo user."
-is_secret = true
-
-[[variable]]
-name = "STAGING_MONGODB_PASSWORD"
-description = "Staging app Mongo password."
-is_secret = true
-
-[[variable]]
 name = "STAGING_TEMPORAL_POSTGRES_USER"
 description = "Staging Temporal Postgres user."
 is_secret = true
@@ -209,6 +199,16 @@ is_secret = true
 [[variable]]
 name = "STAGING_ONCHAIN_DATA_POSTGRES_PASSWORD"
 description = "Staging onchain-data Postgres password."
+is_secret = true
+
+[[variable]]
+name = "STAGING_API_POSTGRES_USER"
+description = "Staging API application Postgres user."
+is_secret = true
+
+[[variable]]
+name = "STAGING_API_POSTGRES_PASSWORD"
+description = "Staging API application Postgres password."
 is_secret = true
 
 [[variable]]
@@ -291,11 +291,6 @@ description = "Public app URL the production API advertises to clients."
 is_secret = false
 
 [[variable]]
-name = "PRODUCTION_MONGODB_DB_NAME"
-description = "Production app Mongo database name."
-is_secret = false
-
-[[variable]]
 name = "PRODUCTION_DEEP_ID_ISSUER_URL"
 description = "Production Deep ID OIDC issuer URL."
 is_secret = false
@@ -360,6 +355,11 @@ name = "PRODUCTION_ONCHAIN_DATA_POSTGRES_DB_NAME"
 description = "Production onchain-data Postgres database name."
 is_secret = false
 
+[[variable]]
+name = "PRODUCTION_API_POSTGRES_DB_NAME"
+description = "Production API application Postgres database name."
+is_secret = false
+
 # ---------------------------------------------------------------------------
 # Production secrets
 # ---------------------------------------------------------------------------
@@ -380,16 +380,6 @@ description = "Production Grafana basic-auth htpasswd. Preserve doubled $$ escap
 is_secret = true
 
 [[variable]]
-name = "PRODUCTION_MONGODB_USER"
-description = "Production app Mongo user."
-is_secret = true
-
-[[variable]]
-name = "PRODUCTION_MONGODB_PASSWORD"
-description = "Production app Mongo password."
-is_secret = true
-
-[[variable]]
 name = "PRODUCTION_TEMPORAL_POSTGRES_USER"
 description = "Production Temporal Postgres user."
 is_secret = true
@@ -407,6 +397,16 @@ is_secret = true
 [[variable]]
 name = "PRODUCTION_ONCHAIN_DATA_POSTGRES_PASSWORD"
 description = "Production onchain-data Postgres password."
+is_secret = true
+
+[[variable]]
+name = "PRODUCTION_API_POSTGRES_USER"
+description = "Production API application Postgres user."
+is_secret = true
+
+[[variable]]
+name = "PRODUCTION_API_POSTGRES_PASSWORD"
+description = "Production API application Postgres password."
 is_secret = true
 
 [[variable]]

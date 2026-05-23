@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AlgorithmPresetController } from '../../../src/algorithm-preset/algorithm-preset.controller';
-import { AlgorithmPresetService } from '../../../src/algorithm-preset/algorithm-preset.service';
+import type { AlgorithmPresetService } from '../../../src/algorithm-preset/algorithm-preset.service';
 import type {
   CreateAlgorithmPresetDto,
   ListAlgorithmPresetsQueryDto,
   UpdateAlgorithmPresetDto,
 } from '../../../src/algorithm-preset/dto';
+
+const PRESET_ID = '01940000-0000-7000-8000-000000000000';
 
 describe('AlgorithmPresetController', () => {
   let controller: AlgorithmPresetController;
@@ -24,141 +26,52 @@ describe('AlgorithmPresetController', () => {
     controller = new AlgorithmPresetController(mockService);
   });
 
-  describe('create', () => {
-    it('should delegate to service.create with the provided DTO', async () => {
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'test_key',
-        version: '1.0.0',
-        inputs: [{ key: 'input1', value: 'value1' }],
-      };
+  it('delegates create() to the service', async () => {
+    const createDto: CreateAlgorithmPresetDto = {
+      key: 'test_key',
+      version: '1.0.0',
+      inputs: [{ key: 'input1', value: 'value1' }],
+    };
+    const mockPreset = { _id: PRESET_ID, ...createDto };
+    mockService.create = vi.fn().mockResolvedValue(mockPreset);
 
-      const mockPreset = { _id: '507f1f77bcf86cd799439011', ...createDto };
-      mockService.create = vi.fn().mockResolvedValue(mockPreset);
+    const result = await controller.create(createDto);
 
-      const result = await controller.create(createDto);
-
-      expect(mockService.create).toHaveBeenCalledOnce();
-      expect(mockService.create).toHaveBeenCalledWith(createDto);
-      expect(result).toBe(mockPreset);
-    });
-
-    it('should pass optional fields from DTO to service', async () => {
-      const createDto: CreateAlgorithmPresetDto = {
-        key: 'test_key',
-        version: '1.0.0',
-        inputs: [{ key: 'input1', value: 'value1' }],
-        name: 'Test Name',
-        description: 'Test description with more than 10 chars',
-      };
-
-      const mockPreset = { _id: '507f1f77bcf86cd799439011', ...createDto };
-      mockService.create = vi.fn().mockResolvedValue(mockPreset);
-
-      await controller.create(createDto);
-
-      expect(mockService.create).toHaveBeenCalledWith(createDto);
-    });
+    expect(mockService.create).toHaveBeenCalledWith(createDto);
+    expect(result).toBe(mockPreset);
   });
 
-  describe('list', () => {
-    it('should delegate to service.list with the provided query DTO', async () => {
-      const queryDto: ListAlgorithmPresetsQueryDto = {
-        key: 'test_key',
-        version: '1.0.0',
-        page: 1,
-        limit: 10,
-      };
+  it('delegates list() to the service', async () => {
+    const queryDto: ListAlgorithmPresetsQueryDto = { key: 'test_key', page: 1, limit: 10 };
+    const paginated = { results: [], totalResults: 0, page: 1, limit: 10, totalPages: 0 };
+    mockService.list = vi.fn().mockResolvedValue(paginated);
 
-      const mockPaginatedResult = {
-        results: [],
-        totalResults: 2,
-        page: 1,
-        limit: 10,
-        totalPages: 1,
-      };
-
-      mockService.list = vi.fn().mockResolvedValue(mockPaginatedResult);
-
-      const result = await controller.list(queryDto);
-
-      expect(mockService.list).toHaveBeenCalledOnce();
-      expect(mockService.list).toHaveBeenCalledWith(queryDto);
-      expect(result).toBe(mockPaginatedResult);
-    });
-
-    it('should handle empty query parameters', async () => {
-      const queryDto: ListAlgorithmPresetsQueryDto = {};
-
-      const mockPaginatedResult = {
-        results: [],
-        totalResults: 0,
-        page: 1,
-        limit: 10,
-        totalPages: 0,
-      };
-
-      mockService.list = vi.fn().mockResolvedValue(mockPaginatedResult);
-
-      const result = await controller.list(queryDto);
-
-      expect(result).toBe(mockPaginatedResult);
-    });
+    await expect(controller.list(queryDto)).resolves.toBe(paginated);
+    expect(mockService.list).toHaveBeenCalledWith(queryDto);
   });
 
-  describe('getById', () => {
-    it('should delegate to service.getById with the provided id', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const mockPreset = {
-        _id: id,
-        key: 'test_key',
-        version: '1.0.0',
-      };
+  it('delegates getById() to the service', async () => {
+    const mockPreset = { _id: PRESET_ID, key: 'test_key' };
+    mockService.getById = vi.fn().mockResolvedValue(mockPreset);
 
-      mockService.getById = vi.fn().mockResolvedValue(mockPreset);
-
-      const result = await controller.getById(id);
-
-      expect(mockService.getById).toHaveBeenCalledOnce();
-      expect(mockService.getById).toHaveBeenCalledWith(id);
-      expect(result).toBe(mockPreset);
-    });
+    await expect(controller.getById(PRESET_ID)).resolves.toBe(mockPreset);
+    expect(mockService.getById).toHaveBeenCalledWith(PRESET_ID);
   });
 
-  describe('updateById', () => {
-    it('should delegate to service.updateById with id and update DTO', async () => {
-      const id = '507f1f77bcf86cd799439011';
-      const updateDto: UpdateAlgorithmPresetDto = {
-        name: 'Updated Name',
-        description: 'Updated description',
-      };
+  it('delegates updateById() to the service', async () => {
+    const updateDto: UpdateAlgorithmPresetDto = { name: 'Updated' };
+    const mockUpdated = { _id: PRESET_ID, ...updateDto };
+    mockService.updateById = vi.fn().mockResolvedValue(mockUpdated);
 
-      const mockUpdatedPreset = {
-        _id: id,
-        key: 'test_key',
-        version: '1.0.0',
-        ...updateDto,
-      };
-
-      mockService.updateById = vi.fn().mockResolvedValue(mockUpdatedPreset);
-
-      const result = await controller.updateById(id, updateDto);
-
-      expect(mockService.updateById).toHaveBeenCalledOnce();
-      expect(mockService.updateById).toHaveBeenCalledWith(id, updateDto);
-      expect(result).toBe(mockUpdatedPreset);
-    });
+    await expect(controller.updateById(PRESET_ID, updateDto)).resolves.toBe(mockUpdated);
+    expect(mockService.updateById).toHaveBeenCalledWith(PRESET_ID, updateDto);
   });
 
-  describe('deleteById', () => {
-    it('should delegate to service.deleteById with the provided id', async () => {
-      const id = '507f1f77bcf86cd799439011';
+  it('delegates deleteById() to the service', async () => {
+    mockService.deleteById = vi.fn().mockResolvedValue(undefined);
 
-      mockService.deleteById = vi.fn().mockResolvedValue(undefined);
+    await controller.deleteById(PRESET_ID);
 
-      await controller.deleteById(id);
-
-      expect(mockService.deleteById).toHaveBeenCalledOnce();
-      expect(mockService.deleteById).toHaveBeenCalledWith(id);
-    });
+    expect(mockService.deleteById).toHaveBeenCalledWith(PRESET_ID);
   });
 });

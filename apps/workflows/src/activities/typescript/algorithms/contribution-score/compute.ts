@@ -33,7 +33,7 @@ import {
 export async function computeContributionScore(snapshot: Snapshot, storage: Storage): Promise<AlgorithmResult> {
   const ctx = Context.current();
   const logger = ctx.log;
-  const snapshotId = snapshot._id;
+  const snapshotId = snapshot.id;
 
   const params = extractInputs(snapshot.algorithmPresetFrozen.inputs);
   const subIdInputMap = await loadSubIdInputMap({
@@ -47,17 +47,19 @@ export async function computeContributionScore(snapshot: Snapshot, storage: Stor
     subIds.map((subId) => [subId, subIdInputMap.subIds[subId]?.deepProposalPortalId ?? null]),
   );
   const dbPath = await createDeepFundingDb(snapshotId, storage);
-  const db = createDb({ path: dbPath });
+  const db = await createDb({ path: dbPath });
   const repos = createRepos(db);
 
   logger.info('Starting contribution_score algorithm', { snapshotId });
   logger.info('Algorithm parameters', params);
 
   try {
-    const comments = repos.comments.findAll();
-    const commentVotes = repos.commentVotes.findAll();
-    const proposals = repos.proposals.findAll();
-    const users = repos.users.findAll();
+    const [comments, commentVotes, proposals, users] = await Promise.all([
+      repos.comments.findAll(),
+      repos.commentVotes.findAll(),
+      repos.proposals.findAll(),
+      repos.users.findAll(),
+    ]);
 
     logger.info('Loaded data from DeepFunding Portal database', {
       commentCount: comments.length,
@@ -197,7 +199,7 @@ export async function computeContributionScore(snapshot: Snapshot, storage: Stor
       },
     };
   } finally {
-    closeDbInstance(db);
+    await closeDbInstance(db);
     await rm(dirname(dbPath), { recursive: true, force: true });
   }
 }

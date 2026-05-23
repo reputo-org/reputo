@@ -4,6 +4,6 @@ export * from './dto';
 export * from './exceptions';
 export * from './filters/http-exception.filter';
 export * from './guards';
-export * from './pipes';
+export * from './persistence';
 export * from './types';
 export * from './utils';

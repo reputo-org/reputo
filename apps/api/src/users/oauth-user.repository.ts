@@ -1,77 +1,157 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import type { OAuthProvider, OAuthUser, OAuthUserModel, OAuthUserWithId } from '@reputo/database';
-import { MODEL_NAMES } from '@reputo/database';
+import { InjectRepository } from '@nestjs/typeorm';
+import type { OAuthProvider } from '@reputo/contracts';
+import { In, Repository } from 'typeorm';
+import { OAuthUserEntity } from '../persistence';
+
+// Domain shape returned by the repository. Uses `_id` (instead of TypeORM's
+// `id`) and snake_case JWT-ish field names (`auth_time`, `email_verified`)
+// to match the SessionUserView / `/auth/me` HTTP contract.
+export interface OAuthUserRow {
+  _id: string;
+  provider: OAuthProvider;
+  sub: string;
+  aud?: string[];
+  auth_time?: number;
+  email?: string;
+  email_verified?: boolean;
+  iat?: number;
+  iss?: string;
+  picture?: string;
+  rat?: number;
+  username?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Subset of OAuthUserRow that callers may upsert. `provider`/`sub` are the
+// upsert key and never appear here; timestamps are managed by TypeORM.
+export interface OAuthUserUpsertInput {
+  aud?: string[];
+  auth_time?: number;
+  email?: string;
+  email_verified?: boolean;
+  iat?: number;
+  iss?: string;
+  picture?: string;
+  rat?: number;
+  username?: string;
+}
+
+function mapRow(entity: OAuthUserEntity): OAuthUserRow {
+  return {
+    _id: entity.id,
+    provider: entity.provider,
+    sub: entity.sub,
+    // Collapse the empty array back to undefined so downstream JSON omits the
+    // field rather than emitting `"aud": []`.
+    aud: entity.aud.length > 0 ? entity.aud : undefined,
+    auth_time: entity.authTime ?? undefined,
+    email: entity.email ?? undefined,
+    email_verified: entity.emailVerified ?? undefined,
+    iat: entity.iat ?? undefined,
+    iss: entity.iss ?? undefined,
+    picture: entity.picture ?? undefined,
+    rat: entity.rat ?? undefined,
+    username: entity.username ?? undefined,
+    createdAt: entity.createdAt,
+    updatedAt: entity.updatedAt,
+  };
+}
+
+// Apply only those properties that are own-enumerable on `input`; callers omit
+// a key to leave it unchanged, or pass `undefined` to clear it.
+function applyUpdate(entity: OAuthUserEntity, input: OAuthUserUpsertInput): void {
+  for (const key of Object.keys(input) as (keyof OAuthUserUpsertInput)[]) {
+    const value = input[key];
+    switch (key) {
+      case 'aud':
+        entity.aud = (value as string[] | undefined) ?? [];
+        break;
+      case 'auth_time':
+        entity.authTime = (value as number | undefined) ?? null;
+        break;
+      case 'email':
+        entity.email = (value as string | undefined) ?? null;
+        break;
+      case 'email_verified':
+        entity.emailVerified = (value as boolean | undefined) ?? null;
+        break;
+      case 'iat':
+        entity.iat = (value as number | undefined) ?? null;
+        break;
+      case 'iss':
+        entity.iss = (value as string | undefined) ?? null;
+        break;
+      case 'picture':
+        entity.picture = (value as string | undefined) ?? null;
+        break;
+      case 'rat':
+        entity.rat = (value as number | undefined) ?? null;
+        break;
+      case 'username':
+        entity.username = (value as string | undefined) ?? null;
+        break;
+    }
+  }
+}
+
+function newEntity(provider: OAuthProvider, sub: string, input: OAuthUserUpsertInput): OAuthUserEntity {
+  const entity = new OAuthUserEntity();
+  entity.provider = provider;
+  entity.sub = sub;
+  entity.aud = input.aud ?? [];
+  entity.authTime = input.auth_time ?? null;
+  entity.email = input.email ?? null;
+  entity.emailVerified = input.email_verified ?? null;
+  entity.iat = input.iat ?? null;
+  entity.iss = input.iss ?? null;
+  entity.picture = input.picture ?? null;
+  entity.rat = input.rat ?? null;
+  entity.username = input.username ?? null;
+  return entity;
+}
 
 @Injectable()
 export class OAuthUserRepository {
   constructor(
-    @InjectModel(MODEL_NAMES.OAUTH_USER)
-    private readonly model: OAuthUserModel,
+    @InjectRepository(OAuthUserEntity)
+    private readonly repo: Repository<OAuthUserEntity>,
   ) {}
 
-  async upsertBySub(
-    provider: OAuthProvider,
-    sub: string,
-    update: Omit<OAuthUser, 'provider' | 'sub' | 'createdAt' | 'updatedAt'>,
-  ): Promise<OAuthUserWithId> {
-    const definedEntries = Object.entries(update).filter(([, value]) => value !== undefined);
-    const unsetEntries = Object.entries(update).filter(([, value]) => value === undefined);
-
-    return (await this.model
-      .findOneAndUpdate(
-        { provider, sub },
-        {
-          $set: {
-            provider,
-            sub,
-            ...Object.fromEntries(definedEntries),
-          },
-          ...(unsetEntries.length > 0 ? { $unset: Object.fromEntries(unsetEntries.map(([key]) => [key, ''])) } : {}),
-        },
-        {
-          upsert: true,
-          new: true,
-          setDefaultsOnInsert: true,
-        },
-      )
-      .lean()
-      .exec()) as OAuthUserWithId;
+  async upsertBySub(provider: OAuthProvider, sub: string, update: OAuthUserUpsertInput): Promise<OAuthUserRow> {
+    return this.repo.manager.transaction(async (manager) => {
+      const txRepo = manager.getRepository(OAuthUserEntity);
+      const existing = await txRepo.findOne({ where: { provider, sub } });
+      if (existing) {
+        applyUpdate(existing, update);
+        const saved = await txRepo.save(existing);
+        return mapRow(saved);
+      }
+      const saved = await txRepo.save(newEntity(provider, sub, update));
+      return mapRow(saved);
+    });
   }
 
-  async findById(id: string): Promise<OAuthUserWithId | null> {
-    return (await this.model.findById(id).lean().exec()) as OAuthUserWithId | null;
+  async findById(id: string): Promise<OAuthUserRow | null> {
+    const entity = await this.repo.findOne({ where: { id } });
+    return entity ? mapRow(entity) : null;
   }
 
-  async findByIds(ids: readonly string[]): Promise<OAuthUserWithId[]> {
-    if (ids.length === 0) {
-      return [];
-    }
-
-    return (await this.model
-      .find({
-        _id: {
-          $in: ids,
-        },
-      })
-      .lean()
-      .exec()) as OAuthUserWithId[];
+  async findByIds(ids: readonly string[]): Promise<OAuthUserRow[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.repo.find({ where: { id: In([...ids]) } });
+    return rows.map(mapRow);
   }
 
-  async findByProviderEmail(provider: OAuthProvider, email: string): Promise<OAuthUserWithId | null> {
+  async findByProviderEmail(provider: OAuthProvider, email: string): Promise<OAuthUserRow | null> {
     const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) return null;
 
-    if (!normalizedEmail) {
-      return null;
-    }
-
-    return (await this.model
-      .findOne({
-        provider,
-        email: normalizedEmail,
-      })
-      .sort({ updatedAt: -1 })
-      .lean()
-      .exec()) as OAuthUserWithId | null;
+    const entity = await this.repo.findOne({
+      where: { provider, email: normalizedEmail },
+      order: { updatedAt: 'DESC' },
+    });
+    return entity ? mapRow(entity) : null;
   }
 }

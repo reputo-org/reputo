@@ -1,5 +1,5 @@
 import { registerAs } from '@nestjs/config';
-import { type OAuthProvider, OAuthProviderDeepId } from '@reputo/database';
+import { type OAuthProvider, OAuthProviderDeepId } from '@reputo/contracts';
 import * as Joi from 'joi';
 
 export interface ConsentSourceConfig {
@@ -17,6 +17,9 @@ export interface ConsentProviderConfig {
 }
 
 export interface ConsentConfig {
+  // Periodic cleanup interval for expired OAuthConsentGrant rows. Set to 0
+  // to disable the cron (tests, one-off scripts).
+  grantCleanupIntervalMs: number;
   providers: Record<OAuthProvider, ConsentProviderConfig>;
   sources: Record<string, ConsentSourceConfig>;
 }
@@ -24,6 +27,7 @@ export interface ConsentConfig {
 export default registerAs(
   'consent',
   (): ConsentConfig => ({
+    grantCleanupIntervalMs: Number(process.env.DEEP_ID_CONSENT_CLEANUP_INTERVAL_MS ?? 5 * 60 * 1000),
     providers: {
       [OAuthProviderDeepId]: {
         redirectUri: process.env.DEEP_ID_CONSENT_REDIRECT_URI as string,
@@ -53,6 +57,11 @@ export const consentConfigSchema = {
     .positive()
     .required()
     .description('Transient Deep ID consent grant lifetime in seconds'),
+  DEEP_ID_CONSENT_CLEANUP_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(0)
+    .default(5 * 60 * 1000)
+    .description('Interval (ms) for the consent-grant expiry cleanup job; 0 disables the cron'),
   VOTING_PORTAL_RETURN_URL: Joi.string().uri().required().description('Voting Portal return URL after consent'),
   DEEP_ID_VOTING_PORTAL_SCOPES: Joi.string()
     .required()

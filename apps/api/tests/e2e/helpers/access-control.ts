@@ -1,10 +1,10 @@
 import type { INestApplication } from '@nestjs/common';
-import type { AccessAllowlist, AccessRole, OAuthProvider } from '@reputo/database';
-import { OAuthProviderDeepId } from '@reputo/database';
-import type { Model, Types } from 'mongoose';
+import type { AccessRole, OAuthProvider } from '@reputo/contracts';
 import supertest from 'supertest';
+import type { Repository } from 'typeorm';
 import { vi } from 'vitest';
 import type { OAuthAuthProviderService } from '../../../src/auth/oauth-auth-provider.service';
+import type { AccessAllowlistEntity } from '../../../src/persistence';
 import type {
   AuthFlowState,
   OAuthDiscoveryDocument,
@@ -40,10 +40,10 @@ export interface MockOAuthProviderDouble {
 
 export interface SeedAllowlistOptions {
   invitedAt?: Date;
-  invitedBy?: Types.ObjectId | string | null;
+  invitedBy?: string | null;
   provider?: OAuthProvider;
   revokedAt?: Date;
-  revokedBy?: Types.ObjectId | string | null;
+  revokedBy?: string | null;
 }
 
 export interface LoginAsMockedProviderOptions extends MockOAuthUserInfoInput {
@@ -147,33 +147,29 @@ export function createMockOAuthProviderDouble(): MockOAuthProviderDouble {
 }
 
 export async function seedAllowlist(
-  accessAllowlistModel: Model<AccessAllowlist>,
+  allowlistRepo: Repository<AccessAllowlistEntity>,
   role: AccessRole,
   email: string,
   options: SeedAllowlistOptions = {},
 ): Promise<void> {
-  const provider = options.provider ?? OAuthProviderDeepId;
+  const provider = options.provider ?? 'deep-id';
   const normalizedEmail = email.trim().toLowerCase();
-  const update = {
-    $set: {
-      provider,
-      email: normalizedEmail,
-      role,
-      invitedBy: options.invitedBy ?? null,
-      invitedAt: options.invitedAt ?? new Date(),
-      ...(options.revokedAt ? { revokedAt: options.revokedAt, revokedBy: options.revokedBy ?? null } : {}),
-    },
-    ...(options.revokedAt ? {} : { $unset: { revokedAt: '', revokedBy: '' } }),
+  const existing = await allowlistRepo.findOne({ where: { provider, email: normalizedEmail } });
+  const payload = {
+    provider,
+    email: normalizedEmail,
+    role,
+    invitedByUserId: options.invitedBy ?? null,
+    invitedAt: options.invitedAt ?? new Date(),
+    revokedAt: options.revokedAt ?? null,
+    revokedByUserId: options.revokedAt ? (options.revokedBy ?? null) : null,
   };
-
-  await accessAllowlistModel.updateOne(
-    {
-      provider,
-      email: normalizedEmail,
-    },
-    update,
-    { upsert: true },
-  );
+  if (existing) {
+    Object.assign(existing, payload);
+    await allowlistRepo.save(existing);
+  } else {
+    await allowlistRepo.save(allowlistRepo.create(payload));
+  }
 }
 
 export async function loginAsMockedProvider(

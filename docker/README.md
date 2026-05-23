@@ -7,7 +7,7 @@ docker/
 ├── compose/                      # all docker-compose files
 │   ├── dev.yml                   # local hot-reload stack
 │   ├── apps.yml                  # api, ui, workflows (rotates on deploy)
-│   ├── infra.yml                 # mongo, traefik, temporal*, postgres
+│   ├── infra.yml                 # traefik, temporal*, postgres (app + temporal + onchain-data)
 │   ├── observability.yml         # loki, promtail, prometheus, grafana, ...
 │   └── preview.yml               # PullPreview deployment
 ├── images/
@@ -16,11 +16,12 @@ docker/
 │   ├── examples/*.env.example    # tracked, source of truth
 │   └── *.env                     # runtime, gitignored
 └── config/                       # files mounted into containers
-    ├── mongo/                    # init.js, healthcheck.js
     ├── traefik/                  # traefik.yml
     ├── observability/            # grafana/, loki/, prometheus/, promtail/
     └── preview/                  # Caddyfile
 ```
+
+The application database is the `postgres` service in `infra.yml` (port `5434` on the host). The `temporal-postgresql` and `onchain-data-postgresql` services are separate PG instances with unrelated lifecycles. API ↔ Workflows traffic flows over Temporal activities, so no message-broker service is provisioned.
 
 App `Dockerfile`s for `api`, `ui`, and `workflows` live next to each app at `apps/<app>/Dockerfile` and are built by GitHub Actions, not by these compose files.
 
@@ -35,22 +36,16 @@ cp docker/env/examples/grafana.env.example docker/env/grafana.env
 cp docker/env/examples/api.env.example docker/env/api.env
 cp docker/env/examples/ui.env.example docker/env/ui.env
 cp docker/env/examples/workflows.env.example docker/env/workflows.env
-cp docker/env/examples/mongodb.env.example docker/env/mongodb.env
 cp docker/env/examples/temporal.env.example docker/env/temporal.env
 cp docker/env/examples/temporal-ui.env.example docker/env/temporal-ui.env
 cp docker/env/examples/temporal-postgresql.env.example docker/env/temporal-postgresql.env
 cp docker/env/examples/onchain-data-postgresql.env.example docker/env/onchain-data-postgresql.env
+cp docker/env/examples/postgres.env.example docker/env/postgres.env
 ```
 
 For htpasswd-style values such as `TRAEFIK_AUTH` and `GRAFANA_AUTH`, keep the doubled dollar signs from the examples. Docker Compose env files require `$` to be escaped as `$$`.
 
-## MongoDB Keyfile
-
-MongoDB runs as a single-node replica set and requires a keyfile. The Compose
-files generate `/etc/mongo-keyfile/keyfile.txt` on first startup and persist it
-in the `mongodb_keyfile` Docker volume. Do not commit or manually provision
-`docker/config/mongo/keyfile.txt`; any local copy is ignored and unused by the
-current Compose files.
+`postgres.env` carries `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` for the application database. The API reads it through `DATABASE_URL` in `api.env` (default `postgresql://reputo_app:reputo_app@localhost:5434/reputo_app` for local dev).
 
 ## Local Hot Reload
 
@@ -73,7 +68,7 @@ files are still the runtime source of truth, but operators deploy them through
 Komodo stacks rather than running host-local update automation.
 
 - `compose/apps.yml` — application services that rotate on every deploy.
-- `compose/infra.yml` — stateful services and platform services (`mongo`, `traefik`, Temporal cluster, Postgres).
+- `compose/infra.yml` — stateful services and platform services (`traefik`, Temporal cluster, application `postgres`, `onchain-data-postgresql`, `temporal-postgresql`).
 - `compose/observability.yml` — Loki / Promtail / Prometheus / cAdvisor / node-exporter / Grafana
 
 Set `IMAGE_TAG=staging` for staging app deploys and `IMAGE_TAG=production` for

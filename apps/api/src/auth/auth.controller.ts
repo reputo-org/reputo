@@ -9,10 +9,11 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import type { AccessRole, OAuthProvider, OAuthUserWithId } from '@reputo/database';
+import type { AccessRole, OAuthProvider } from '@reputo/contracts';
 import type { Request, Response } from 'express';
 import { CurrentRole, CurrentSession, CurrentUser, Public } from '../shared/decorators';
 import type { CurrentAuthSession, OAuthCallbackQuery } from '../shared/types';
+import type { OAuthUserRow } from '../users';
 import { AuthService } from './auth.service';
 import { CurrentSessionDto } from './dto';
 
@@ -75,7 +76,7 @@ export class AuthController {
   @ApiUnauthorizedResponse({ description: 'Authenticated session required.' })
   me(
     @CurrentSession() session: CurrentAuthSession,
-    @CurrentUser() user: OAuthUserWithId,
+    @CurrentUser() user: OAuthUserRow,
     @CurrentRole() role: AccessRole,
   ) {
     return this.authService.toCurrentSessionView(session, user, role);

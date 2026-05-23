@@ -1,5 +1,17 @@
 import type { MessageEvent } from '@nestjs/common';
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Query, Sse } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Sse,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -16,7 +28,6 @@ import {
 } from '@nestjs/swagger';
 import { map, type Observable } from 'rxjs';
 import { PaginationDto } from '../shared/dto';
-import { ParseObjectIdPipe } from '../shared/pipes';
 import { CreateSnapshotDto, ListSnapshotsQueryDto, SnapshotDto, SnapshotEventDto } from './dto';
 import { SnapshotService } from './snapshot.service';
 import { SnapshotEventsService } from './snapshot-events.service';
@@ -57,8 +68,8 @@ export class SnapshotController {
   @ApiQuery({
     name: 'algorithmPreset',
     required: false,
-    description: 'Filter events by AlgorithmPreset ID',
-    example: '66f9c9...',
+    description: 'Filter events by AlgorithmPreset ID (UUID v7)',
+    example: '01940000-0000-7000-8000-000000000000',
   })
   @ApiOkResponse({
     description: 'SSE stream established',
@@ -96,8 +107,8 @@ export class SnapshotController {
   })
   @ApiParam({
     name: 'id',
-    description: 'Snapshot unique identifier',
-    example: '6710be...',
+    description: 'Snapshot unique identifier (UUID v7)',
+    example: '01940000-0000-7000-8000-000000000000',
   })
   @ApiOkResponse({
     description: 'Successfully retrieved snapshot',
@@ -109,7 +120,7 @@ export class SnapshotController {
   @ApiNotFoundResponse({
     description: 'Snapshot not found',
   })
-  getById(@Param('id', ParseObjectIdPipe) id: string) {
+  getById(@Param('id', new ParseUUIDPipe({ version: '7' })) id: string) {
     return this.snapshotService.getById(id);
   }
 
@@ -123,8 +134,8 @@ export class SnapshotController {
   })
   @ApiParam({
     name: 'id',
-    description: 'Snapshot unique identifier',
-    example: '6710be...',
+    description: 'Snapshot unique identifier (UUID v7)',
+    example: '01940000-0000-7000-8000-000000000000',
   })
   @ApiNoContentResponse({
     description: 'Snapshot successfully deleted',
@@ -135,7 +146,7 @@ export class SnapshotController {
   @ApiNotFoundResponse({
     description: 'Snapshot not found',
   })
-  deleteById(@Param('id', ParseObjectIdPipe) id: string) {
+  deleteById(@Param('id', new ParseUUIDPipe({ version: '7' })) id: string) {
     return this.snapshotService.deleteById(id);
   }
 }

@@ -1,35 +1,38 @@
-import { eq } from 'drizzle-orm';
+import { PoolEntity } from '../../db/entities/pool.entity.js';
 import type { DeepFundingPortalDb } from '../../shared/types/db.js';
 import { type CreateManyOptions, chunkArray, DEFAULT_CHUNK_SIZE } from '../../shared/utils/index.js';
 import { normalizePoolToRecord } from './normalize.js';
-import * as schema from './schema.js';
-import type { Pool } from './types.js';
+import type { Pool, PoolRecord } from './types.js';
 
 /**
  * Create a pools repository bound to the given database instance.
  */
 export function createPoolsRepo(db: DeepFundingPortalDb) {
+  const repo = db.dataSource.getRepository(PoolEntity);
+
   return {
-    create(data: Pool): void {
-      db.drizzle.insert(schema.pools).values(normalizePoolToRecord(data)).run();
+    async create(data: Pool): Promise<void> {
+      await repo.insert(normalizePoolToRecord(data));
     },
 
-    createMany(items: Pool[], options?: CreateManyOptions): void {
+    async createMany(items: Pool[], options?: CreateManyOptions): Promise<void> {
       const chunkSize = options?.chunkSize ?? DEFAULT_CHUNK_SIZE;
       const chunks = chunkArray(items, chunkSize);
-      db.sqlite.transaction(() => {
+      await db.dataSource.transaction(async (manager) => {
+        const txRepo = manager.getRepository(PoolEntity);
         for (const chunk of chunks) {
-          db.drizzle.insert(schema.pools).values(chunk.map(normalizePoolToRecord)).run();
+          await txRepo.insert(chunk.map(normalizePoolToRecord));
         }
-      })();
+      });
     },
 
-    findAll() {
-      return db.drizzle.select().from(schema.pools).all();
+    async findAll(): Promise<PoolRecord[]> {
+      return (await repo.find()) as unknown as PoolRecord[];
     },
 
-    findById(id: number) {
-      return db.drizzle.select().from(schema.pools).where(eq(schema.pools.id, id)).get();
+    async findById(id: number): Promise<PoolRecord | undefined> {
+      const result = (await repo.findOne({ where: { id } })) as unknown as PoolRecord | null;
+      return result ?? undefined;
     },
   };
 }

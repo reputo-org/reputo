@@ -22,9 +22,9 @@ export default createVitestConfig({
     resolve: {
         alias: {
             src: resolve(__dirname, './src'),
-            '@reputo/database': resolve(
+            '@reputo/contracts': resolve(
                 __dirname,
-                '../../packages/database/src/index.ts'
+                '../../packages/contracts/src/index.ts'
             ),
             '@reputo/reputation-algorithms': resolve(
                 __dirname,

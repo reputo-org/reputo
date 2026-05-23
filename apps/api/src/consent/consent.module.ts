@@ -1,23 +1,19 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
-import { MODEL_NAMES, OAuthConsentGrantSchema } from '@reputo/database';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { OAuthConsentGrantEntity } from '../persistence';
 import { OAuthProviderClient } from '../shared/oauth';
 import { ConsentController } from './consent.controller';
 import { ConsentService } from './consent.service';
 import { OAuthConsentGrantRepository } from './oauth-consent-grant.repository';
+import { OAuthConsentGrantCleanupService } from './oauth-consent-grant-cleanup.service';
 
+// `PersistenceModule` is registered globally in `src/persistence`; feature
+// modules use `TypeOrmModule.forFeature(...)` to bind their entity repos.
 @Module({
-  imports: [
-    ConfigModule,
-    MongooseModule.forFeature([
-      {
-        name: MODEL_NAMES.OAUTH_CONSENT_GRANT,
-        schema: OAuthConsentGrantSchema,
-      },
-    ]),
-  ],
+  imports: [ConfigModule, TypeOrmModule.forFeature([OAuthConsentGrantEntity])],
   controllers: [ConsentController],
-  providers: [ConsentService, OAuthConsentGrantRepository, OAuthProviderClient],
+  providers: [ConsentService, OAuthConsentGrantRepository, OAuthConsentGrantCleanupService, OAuthProviderClient],
+  exports: [OAuthConsentGrantCleanupService],
 })
 export class ConsentModule {}

@@ -32,7 +32,10 @@
     },
     "pnpm": {
         "onlyBuiltDependencies": [
-            "better-sqlite3"
+            "@prisma/client",
+            "@prisma/engines",
+            "better-sqlite3",
+            "prisma"
         ]
     },
     "devDependencies": {

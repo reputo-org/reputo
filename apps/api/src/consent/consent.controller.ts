@@ -8,7 +8,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import type { OAuthProvider } from '@reputo/database';
+import type { OAuthProvider } from '@reputo/contracts';
 import type { Response } from 'express';
 import { CONSENT_INVALID_STATE_HTML } from '../shared/constants';
 import { Public } from '../shared/decorators';

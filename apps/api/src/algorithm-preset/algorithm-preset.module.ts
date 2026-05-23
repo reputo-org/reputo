@@ -1,6 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { AlgorithmPresetSchema, MODEL_NAMES } from '@reputo/database';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AlgorithmPresetEntity, AlgorithmPresetInputEntity } from '../persistence';
 import { SnapshotModule } from '../snapshot/snapshot.module';
 import { StorageModule } from '../storage/storage.module';
 import { TemporalModule } from '../temporal';
@@ -8,14 +8,12 @@ import { AlgorithmPresetController } from './algorithm-preset.controller';
 import { AlgorithmPresetRepository } from './algorithm-preset.repository';
 import { AlgorithmPresetService } from './algorithm-preset.service';
 
+// `PersistenceModule` is registered globally in `src/persistence`, providing
+// the root TypeORM DataSource. Feature-level entity repositories are wired
+// per-module via `TypeOrmModule.forFeature(...)`.
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      {
-        name: MODEL_NAMES.ALGORITHM_PRESET,
-        schema: AlgorithmPresetSchema,
-      },
-    ]),
+    TypeOrmModule.forFeature([AlgorithmPresetEntity, AlgorithmPresetInputEntity]),
     StorageModule,
     TemporalModule,
     forwardRef(() => SnapshotModule),

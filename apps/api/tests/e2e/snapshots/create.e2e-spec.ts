@@ -1,50 +1,50 @@
 import type { INestApplication } from '@nestjs/common';
-import { getModelToken } from '@nestjs/mongoose';
-import type { Model } from 'mongoose';
+import type { DataSource } from 'typeorm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { insertAlgorithmPreset } from '../../factories/algorithmPreset.factory';
 import { makeSnapshotDto } from '../../factories/snapshot.factory';
 import { createTestApp } from '../../utils/app-test.module';
 import { createAuthenticatedSession } from '../../utils/auth-session';
-import { startMongo, stopMongo } from '../../utils/mongo-memory-server';
+import { getTestDataSource, truncateBusinessTables } from '../../utils/db';
+import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { api } from '../../utils/request';
+import { randomUUIDv7 } from '../../utils/uuid';
 
 describe('POST /api/v1/snapshots', () => {
   let app: INestApplication;
   let authCookie: string;
-  let algorithmPresetModel: Model<any>;
-  let snapshotModel: Model<any>;
+  let dataSource: DataSource;
+  let db: TestDatabase;
 
   beforeAll(async () => {
-    const uri = await startMongo();
-    const boot = await createTestApp({ mongoUri: uri });
+    db = await startTestDatabase();
+    process.env.DATABASE_URL = db.databaseUrl;
+    const boot = await createTestApp({});
     app = boot.app;
+    dataSource = getTestDataSource(boot.moduleRef);
     authCookie = (await createAuthenticatedSession(boot.moduleRef)).cookie;
-    algorithmPresetModel = boot.moduleRef.get(getModelToken('AlgorithmPreset'));
-    snapshotModel = boot.moduleRef.get(getModelToken('Snapshot'));
   });
 
   afterEach(async () => {
-    await snapshotModel.deleteMany({});
-    await algorithmPresetModel.deleteMany({});
+    await truncateBusinessTables(dataSource);
   });
 
   afterAll(async () => {
     await app.close();
-    await stopMongo();
+    await db?.stop();
   });
 
   it('should create snapshot (201) with frozen preset and status defaulting to "queued"', async () => {
-    const preset = await insertAlgorithmPreset(algorithmPresetModel);
-    const dto = makeSnapshotDto(preset._id.toString());
+    const preset = await insertAlgorithmPreset(dataSource);
+    const dto = makeSnapshotDto(preset.id);
 
     const res = await api(app, authCookie).post('/snapshots').send(dto).expect(201);
 
     expect(res.body).toHaveProperty('_id');
+    expect(res.body._id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     expect(res.body.algorithmPresetFrozen).toBeInstanceOf(Object);
     expect(res.body.algorithmPresetFrozen.key).toBe('voting_engagement');
     expect(res.body.algorithmPresetFrozen.version).toBe('1.0.0');
-    // Verify timestamps are preserved in frozen preset
     expect(typeof res.body.algorithmPresetFrozen.createdAt).toBe('string');
     expect(typeof res.body.algorithmPresetFrozen.updatedAt).toBe('string');
     expect(res.body.status).toBe('queued');
@@ -63,8 +63,7 @@ describe('POST /api/v1/snapshots', () => {
   });
 
   it('should reject when algorithmPresetId does not exist (404)', async () => {
-    const nonExistentId = '507f1f77bcf86cd799439011';
-    const dto = makeSnapshotDto(nonExistentId);
+    const dto = makeSnapshotDto(randomUUIDv7());
 
     await api(app, authCookie).post('/snapshots').send(dto).expect(404);
   });

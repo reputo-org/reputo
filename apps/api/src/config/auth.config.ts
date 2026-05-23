@@ -1,5 +1,5 @@
 import { registerAs } from '@nestjs/config';
-import { OAUTH_PROVIDERS, type OAuthProvider, OAuthProviderDeepId } from '@reputo/database';
+import { OAUTH_PROVIDERS, type OAuthProvider, OAuthProviderDeepId } from '@reputo/contracts';
 import * as Joi from 'joi';
 import { AUTH_MODE_MOCK, AUTH_MODE_OAUTH } from '../shared/constants';
 
@@ -22,6 +22,9 @@ export interface AuthConfig {
   ownerProvider: OAuthProvider;
   providers: Record<OAuthProvider, OAuthProviderAuthConfig>;
   refreshLeewaySeconds: number;
+  // Periodic cleanup interval for expired AuthSession rows. Set to 0 to
+  // disable the cron (tests, one-off scripts).
+  sessionCleanupIntervalMs: number;
   sessionTtlSeconds: number;
   tokenEncryptionKey: string;
 }
@@ -64,6 +67,7 @@ export default registerAs(
     cookieSameSite: (process.env.AUTH_COOKIE_SAME_SITE ?? 'lax').toLowerCase(),
     sessionTtlSeconds: Number(process.env.AUTH_SESSION_TTL_SECONDS ?? 60 * 60 * 24 * 30),
     refreshLeewaySeconds: Number(process.env.AUTH_REFRESH_LEEWAY_SECONDS ?? 60),
+    sessionCleanupIntervalMs: Number(process.env.AUTH_SESSION_CLEANUP_INTERVAL_MS ?? 60 * 60 * 1000),
     tokenEncryptionKey: process.env.AUTH_TOKEN_ENCRYPTION_KEY as string,
     appPublicUrl: process.env.APP_PUBLIC_URL as string,
   }),
@@ -118,6 +122,11 @@ export const authConfigSchema = {
     .min(0)
     .default(60)
     .description('Seconds before access token expiry when refresh should happen'),
+  AUTH_SESSION_CLEANUP_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(0)
+    .default(60 * 60 * 1000)
+    .description('Interval (ms) for the auth-session expiry cleanup job; 0 disables the cron'),
   AUTH_TOKEN_ENCRYPTION_KEY: Joi.string()
     .trim()
     .min(32)

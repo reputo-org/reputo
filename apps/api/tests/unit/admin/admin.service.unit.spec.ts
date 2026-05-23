@@ -1,8 +1,8 @@
 import { ConflictException, ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Types } from 'mongoose';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminService, OwnerEmailConflictError } from '../../../src/admin';
+import { randomUUIDv7 } from '../../utils/uuid';
 
 describe('AdminService', () => {
   const adminAllowlistRepository = {
@@ -48,9 +48,9 @@ describe('AdminService', () => {
     authSessionRepository.aggregateActivityByUserIds = vi.fn(async () => new Map());
   });
 
-  function actor(overrides: Partial<{ _id: Types.ObjectId; email: string }> = {}) {
+  function actor(overrides: Partial<{ _id: string; email: string }> = {}) {
     return {
-      _id: overrides._id ?? new Types.ObjectId(),
+      _id: overrides._id ?? randomUUIDv7(),
       email: overrides.email ?? 'owner@example.com',
     } as never;
   }
@@ -58,7 +58,7 @@ describe('AdminService', () => {
   it('resolves an active allowlist role', async () => {
     const service = createService();
     adminAllowlistRepository.findActiveByProviderEmail.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       provider: 'deep-id',
       email: 'admin@example.com',
       role: 'admin',
@@ -81,7 +81,7 @@ describe('AdminService', () => {
     const acting = actor();
     adminAllowlistRepository.findByProviderEmail.mockResolvedValue(null);
     adminAllowlistRepository.createAdmin.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       provider: 'deep-id',
       email: 'new@example.com',
       role: 'admin',
@@ -108,7 +108,7 @@ describe('AdminService', () => {
   it('addAdmin rejects when an active row exists', async () => {
     const service = createService();
     adminAllowlistRepository.findByProviderEmail.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       provider: 'deep-id',
       email: 'active@example.com',
       role: 'admin',
@@ -124,7 +124,7 @@ describe('AdminService', () => {
   it('addAdmin instructs callers to use restore for revoked rows', async () => {
     const service = createService();
     adminAllowlistRepository.findByProviderEmail.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       provider: 'deep-id',
       email: 'revoked@example.com',
       role: 'admin',
@@ -138,11 +138,23 @@ describe('AdminService', () => {
     expect(adminAllowlistRepository.createAdmin).not.toHaveBeenCalled();
   });
 
+  it('addAdmin maps a duplicate-key race to ConflictException', async () => {
+    const service = createService();
+    adminAllowlistRepository.findByProviderEmail.mockResolvedValue(null);
+    adminAllowlistRepository.createAdmin.mockRejectedValue(Object.assign(new Error('duplicate'), { code: 'P2002' }));
+    adminAllowlistRepository.isDuplicateKeyError = vi.fn((err) => (err as { code?: unknown }).code === 'P2002');
+
+    await expect(service.addAdmin(actor(), { provider: 'deep-id', email: 'race@example.com' })).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(adminAllowlistRepository.isDuplicateKeyError).toHaveBeenCalled();
+  });
+
   it('restoreAdmin restores a revoked row', async () => {
     const service = createService();
     const acting = actor();
     adminAllowlistRepository.restore.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       provider: 'deep-id',
       email: 'restore@example.com',
       role: 'admin',
@@ -171,9 +183,8 @@ describe('AdminService', () => {
 
   it('updateRole demotes an admin to admin (no-op short-circuit)', async () => {
     const service = createService();
-    const targetId = new Types.ObjectId();
     adminAllowlistRepository.findActiveByProviderEmail.mockResolvedValue({
-      _id: targetId,
+      _id: randomUUIDv7(),
       provider: 'deep-id',
       email: 'admin@example.com',
       role: 'admin',
@@ -191,7 +202,7 @@ describe('AdminService', () => {
     const service = createService();
     const acting = actor({ email: 'owner@example.com' });
     adminAllowlistRepository.findActiveByProviderEmail.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       provider: 'deep-id',
       email: 'owner@example.com',
       role: 'owner',
@@ -206,7 +217,7 @@ describe('AdminService', () => {
   it('updateRole forbids demoting the last owner', async () => {
     const service = createService();
     adminAllowlistRepository.findActiveByProviderEmail.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       provider: 'deep-id',
       email: 'last-owner@example.com',
       role: 'owner',
@@ -227,14 +238,14 @@ describe('AdminService', () => {
     const service = createService();
     const acting = actor({ email: 'owner@example.com' });
     adminAllowlistRepository.findActiveByProviderEmail.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       provider: 'deep-id',
       email: 'admin@example.com',
       role: 'admin',
       invitedAt: new Date(),
     });
     adminAllowlistRepository.updateRole.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       provider: 'deep-id',
       email: 'admin@example.com',
       role: 'owner',
@@ -260,7 +271,7 @@ describe('AdminService', () => {
   it('removeAdmin forbids removing the last owner', async () => {
     const service = createService();
     adminAllowlistRepository.findActiveByProviderEmail.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       provider: 'deep-id',
       email: 'last-owner@example.com',
       role: 'owner',
@@ -288,7 +299,7 @@ describe('AdminService', () => {
   it('seedOwner is idempotent when configured owner already active', async () => {
     const service = createService('owner@example.com');
     adminAllowlistRepository.findByProviderEmail.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       provider: 'deep-id',
       email: 'owner@example.com',
       role: 'owner',
@@ -304,7 +315,7 @@ describe('AdminService', () => {
   it('seedOwner restores a revoked owner row to owner', async () => {
     const service = createService('owner@example.com');
     adminAllowlistRepository.findByProviderEmail.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       provider: 'deep-id',
       email: 'owner@example.com',
       role: 'admin',
@@ -323,7 +334,7 @@ describe('AdminService', () => {
     const loggerFatalSpy = vi.spyOn(Logger.prototype, 'fatal').mockImplementation(() => undefined);
     const service = createService('owner@example.com');
     adminAllowlistRepository.findByProviderEmail.mockResolvedValue({
-      _id: new Types.ObjectId(),
+      _id: randomUUIDv7(),
       provider: 'deep-id',
       email: 'owner@example.com',
       role: 'admin',

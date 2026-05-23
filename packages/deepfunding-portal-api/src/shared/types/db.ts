@@ -1,22 +1,20 @@
-import type Database from 'better-sqlite3';
+import type { DataSource } from 'typeorm';
 
 /**
  * Options for creating a new database
  */
 export type CreateDbOptions = {
-  /** Path to the SQLite database file */
+  /** Path to the SQLite database file. Use `:memory:` for an in-memory store. */
   path: string;
 };
 
 /**
- * DeepFunding Portal database wrapper
+ * DeepFunding Portal database wrapper.
  *
- * Note: The drizzle type is inferred from the schema at runtime.
- * This type represents the structure without the full drizzle type.
+ * Wraps an initialized TypeORM `DataSource` against a SQLite file. Repositories
+ * are constructed against this single instance via `createRepos`.
  */
 export type DeepFundingPortalDb = {
-  /** Underlying SQLite database connection */
-  sqlite: Database.Database;
-  /** Drizzle ORM database instance */
-  drizzle: ReturnType<typeof import('drizzle-orm/better-sqlite3').drizzle<any>>;
+  /** Initialized TypeORM data source backed by `better-sqlite3`. */
+  dataSource: DataSource;
 };

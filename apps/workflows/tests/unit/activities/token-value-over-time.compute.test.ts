@@ -217,7 +217,7 @@ describe('computeTokenValueOverTime pagination', () => {
 
     const result = await computeTokenValueOverTime(
       {
-        _id: 'snapshot-1',
+        id: 'snapshot-1',
         createdAt: new Date('2026-04-01T00:00:00.000Z'),
         algorithmPresetFrozen: {
           key: 'token_value_over_time',

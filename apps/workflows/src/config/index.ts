@@ -28,11 +28,6 @@ const commonEnvVarsSchema = Joi.object()
     TEMPORAL_ONCHAIN_DATA_TASK_QUEUE: Joi.string()
       .required()
       .description('Temporal task queue for onchain-data dependency resolution'),
-    MONGODB_HOST: Joi.string().required().description('MongoDB host'),
-    MONGODB_PORT: Joi.string().required().description('MongoDB port'),
-    MONGODB_USER: Joi.string().allow('').description('MongoDB username'),
-    MONGODB_PASSWORD: Joi.string().allow('').description('MongoDB password'),
-    MONGODB_DB_NAME: Joi.string().required().description('MongoDB database name'),
     AWS_REGION: Joi.string().required().description('AWS region for S3 operations'),
     AWS_ACCESS_KEY_ID: Joi.string().allow('').description('AWS access key ID (optional, only used in non-production)'),
     AWS_SECRET_ACCESS_KEY: Joi.string()
@@ -100,22 +95,6 @@ const commonEnvVarsSchema = Joi.object()
   .unknown();
 
 const envVars = validateEnvVars(commonEnvVarsSchema);
-const mongoDbUri = new URL('mongodb://localhost');
-mongoDbUri.hostname = envVars.MONGODB_HOST;
-mongoDbUri.port = envVars.MONGODB_PORT;
-mongoDbUri.pathname = `/${envVars.MONGODB_DB_NAME}`;
-mongoDbUri.searchParams.set('authSource', 'admin');
-mongoDbUri.searchParams.set('replicaSet', 'rs0');
-mongoDbUri.searchParams.set('directConnection', 'true');
-
-if (envVars.MONGODB_USER !== '') {
-  mongoDbUri.username = envVars.MONGODB_USER;
-}
-
-if (envVars.MONGODB_PASSWORD !== '') {
-  mongoDbUri.password = envVars.MONGODB_PASSWORD;
-}
-
 const onchainDataUri = new URL('postgresql://localhost');
 onchainDataUri.hostname = envVars.ONCHAIN_DATA_POSTGRES_HOST;
 onchainDataUri.port = envVars.ONCHAIN_DATA_POSTGRES_PORT;
@@ -137,14 +116,6 @@ const config = {
     algorithmTypescriptTaskQueue: envVars.TEMPORAL_ALGORITHM_TYPESCRIPT_TASK_QUEUE,
     algorithmPythonTaskQueue: envVars.TEMPORAL_ALGORITHM_PYTHON_TASK_QUEUE,
     onchainDataTaskQueue: envVars.TEMPORAL_ONCHAIN_DATA_TASK_QUEUE,
-  },
-  mongoDB: {
-    host: envVars.MONGODB_HOST,
-    port: envVars.MONGODB_PORT,
-    user: envVars.MONGODB_USER,
-    password: envVars.MONGODB_PASSWORD,
-    dbName: envVars.MONGODB_DB_NAME,
-    uri: mongoDbUri.toString(),
   },
   aws: {
     region: envVars.AWS_REGION,

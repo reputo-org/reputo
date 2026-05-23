@@ -1,70 +1,68 @@
 import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
-import { getModelToken } from '@nestjs/mongoose';
 import type { TestingModule } from '@nestjs/testing';
-import type { AccessAllowlist, AuthSession, OAuthUser } from '@reputo/database';
-import { MODEL_NAMES } from '@reputo/database';
-import type { Model, Types } from 'mongoose';
 import supertest from 'supertest';
+import type { DataSource } from 'typeorm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { AccessAllowlistEntity, AuthSessionEntity, OAuthUserEntity } from '../../../src/persistence';
 import { encryptValue } from '../../../src/shared/utils';
 import { createTestApp } from '../../utils/app-test.module';
 import { AUTH_TEST_ENV, createAuthenticatedSession } from '../../utils/auth-session';
-import { startMongo, stopMongo } from '../../utils/mongo-memory-server';
+import { getTestDataSource } from '../../utils/db';
+import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { api, base } from '../../utils/request';
 
 describe('Admin access management e2e', () => {
   let app: INestApplication;
   let moduleRef: TestingModule;
-  let accessAllowlistModel: Model<AccessAllowlist>;
-  let authSessionModel: Model<AuthSession>;
-  let oauthUserModel: Model<OAuthUser>;
+  let dataSource: DataSource;
+  let db: TestDatabase;
 
   beforeAll(async () => {
-    const mongoUri = await startMongo();
-    const boot = await createTestApp({ mongoUri });
+    db = await startTestDatabase();
+    process.env.DATABASE_URL = db.databaseUrl;
+    const boot = await createTestApp({});
 
     app = boot.app;
     moduleRef = boot.moduleRef;
-    accessAllowlistModel = moduleRef.get(getModelToken(MODEL_NAMES.ACCESS_ALLOWLIST));
-    authSessionModel = moduleRef.get(getModelToken(MODEL_NAMES.AUTH_SESSION));
-    oauthUserModel = moduleRef.get(getModelToken(MODEL_NAMES.OAUTH_USER));
+    dataSource = getTestDataSource(moduleRef);
   });
 
   beforeEach(async () => {
-    await Promise.all([
-      accessAllowlistModel.deleteMany({}),
-      authSessionModel.deleteMany({}),
-      oauthUserModel.deleteMany({}),
-    ]);
+    await dataSource.getRepository(AccessAllowlistEntity).createQueryBuilder().delete().where('1=1').execute();
+    await dataSource.getRepository(AuthSessionEntity).createQueryBuilder().delete().where('1=1').execute();
+    await dataSource.getRepository(OAuthUserEntity).createQueryBuilder().delete().where('1=1').execute();
   });
 
   afterAll(async () => {
     await app.close();
-    await stopMongo();
+    await db?.stop();
   });
 
   async function createSession(email: string, role: 'admin' | 'owner' = 'admin') {
     return createAuthenticatedSession(moduleRef, { email, role });
   }
 
-  async function createExtraSessionForUser(userId: string | Types.ObjectId): Promise<string> {
+  async function createExtraSessionForUser(userId: string): Promise<string> {
     const sessionId = randomUUID();
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    const sessionRepo = dataSource.getRepository(AuthSessionEntity);
 
-    await authSessionModel.create({
-      sessionId,
-      provider: 'deep-id',
-      userId,
-      accessTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-access-token'),
-      refreshTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-refresh-token'),
-      accessTokenExpiresAt: expiresAt,
-      refreshTokenExpiresAt: expiresAt,
-      scope: ['openid', 'profile', 'email', 'offline_access'],
-      state: `state-${sessionId}`,
-      codeVerifier: `verifier-${sessionId}`,
-      expiresAt,
-    });
+    await sessionRepo.save(
+      sessionRepo.create({
+        sessionId,
+        provider: 'deep-id',
+        userId,
+        accessTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-access-token'),
+        refreshTokenCiphertext: encryptValue(AUTH_TEST_ENV.AUTH_TOKEN_ENCRYPTION_KEY, 'provider-refresh-token'),
+        accessTokenExpiresAt: expiresAt,
+        refreshTokenExpiresAt: expiresAt,
+        scope: ['openid', 'profile', 'email', 'offline_access'],
+        state: `state-${sessionId}`,
+        codeVerifier: `verifier-${sessionId}`,
+        expiresAt,
+      }),
+    );
 
     return sessionId;
   }
@@ -92,15 +90,18 @@ describe('Admin access management e2e', () => {
 
     it('filters by status=revoked and surfaces revokedAt/By', async () => {
       const owner = await createSession('owner@example.com', 'owner');
-      await accessAllowlistModel.create({
-        provider: 'deep-id',
-        email: 'gone@example.com',
-        role: 'admin',
-        invitedBy: null,
-        invitedAt: new Date('2026-04-01T00:00:00.000Z'),
-        revokedAt: new Date('2026-04-15T00:00:00.000Z'),
-        revokedBy: owner.userId,
-      });
+      const allowlistRepo = dataSource.getRepository(AccessAllowlistEntity);
+      await allowlistRepo.save(
+        allowlistRepo.create({
+          provider: 'deep-id',
+          email: 'gone@example.com',
+          role: 'admin',
+          invitedByUserId: null,
+          invitedAt: new Date('2026-04-01T00:00:00.000Z'),
+          revokedAt: new Date('2026-04-15T00:00:00.000Z'),
+          revokedByUserId: owner.userId,
+        }),
+      );
 
       const response = await api(app, owner.cookie).get('/admins?status=revoked').expect(200);
 
@@ -197,13 +198,16 @@ describe('Admin access management e2e', () => {
 
     it('returns 409 instructing restore when a revoked row exists', async () => {
       const owner = await createSession('owner@example.com', 'owner');
-      await accessAllowlistModel.create({
-        provider: 'deep-id',
-        email: 'revoked@example.com',
-        role: 'admin',
-        invitedAt: new Date(),
-        revokedAt: new Date(),
-      });
+      const allowlistRepo = dataSource.getRepository(AccessAllowlistEntity);
+      await allowlistRepo.save(
+        allowlistRepo.create({
+          provider: 'deep-id',
+          email: 'revoked@example.com',
+          role: 'admin',
+          invitedAt: new Date(),
+          revokedAt: new Date(),
+        }),
+      );
 
       await api(app, owner.cookie)
         .post('/admins')
@@ -227,13 +231,16 @@ describe('Admin access management e2e', () => {
   describe('POST /admins/:provider/:email/restore', () => {
     it('restores a revoked row to admin role', async () => {
       const owner = await createSession('owner@example.com', 'owner');
-      await accessAllowlistModel.create({
-        provider: 'deep-id',
-        email: 'restore@example.com',
-        role: 'admin',
-        invitedAt: new Date('2026-01-01T00:00:00.000Z'),
-        revokedAt: new Date('2026-02-01T00:00:00.000Z'),
-      });
+      const allowlistRepo = dataSource.getRepository(AccessAllowlistEntity);
+      await allowlistRepo.save(
+        allowlistRepo.create({
+          provider: 'deep-id',
+          email: 'restore@example.com',
+          role: 'admin',
+          invitedAt: new Date('2026-01-01T00:00:00.000Z'),
+          revokedAt: new Date('2026-02-01T00:00:00.000Z'),
+        }),
+      );
 
       const response = await api(app, owner.cookie)
         .post(`/admins/deep-id/${encodeURIComponent('RESTORE@example.com')}/restore`)
@@ -245,9 +252,11 @@ describe('Admin access management e2e', () => {
         invitedByEmail: 'owner@example.com',
       });
 
-      const row = await accessAllowlistModel.findOne({ email: 'restore@example.com' }).lean();
-      expect(row?.revokedAt).toBeUndefined();
-      expect(row?.revokedBy).toBeUndefined();
+      const row = await allowlistRepo.findOne({
+        where: { provider: 'deep-id', email: 'restore@example.com' },
+      });
+      expect(row?.revokedAt).toBeNull();
+      expect(row?.revokedByUserId).toBeNull();
     });
 
     it('returns 404 when there is no revoked row', async () => {
@@ -341,11 +350,13 @@ describe('Admin access management e2e', () => {
         .delete(`/admins/deep-id/${encodeURIComponent('target@example.com')}`)
         .expect(204);
 
-      const row = await accessAllowlistModel.findOne({ email: 'target@example.com' }).lean();
-      const sessions = await authSessionModel.find({ userId: admin.userId }).lean();
+      const row = await dataSource.getRepository(AccessAllowlistEntity).findOne({
+        where: { provider: 'deep-id', email: 'target@example.com' },
+      });
+      const sessions = await dataSource.getRepository(AuthSessionEntity).find({ where: { userId: admin.userId } });
 
       expect(row?.revokedAt).toBeTruthy();
-      expect(String(row?.revokedBy)).toBe(owner.userId);
+      expect(row?.revokedByUserId).toBe(owner.userId);
       expect(sessions).toHaveLength(2);
       expect(sessions.every((session) => session.revokedAt)).toBe(true);
 
@@ -391,8 +402,10 @@ describe('Admin access management e2e', () => {
         .delete(`/admins/deep-id/${encodeURIComponent('owner@example.com')}`)
         .expect(403);
 
-      const row = await accessAllowlistModel.findOne({ email: 'owner@example.com' }).lean();
-      expect(row?.revokedAt).toBeUndefined();
+      const row = await dataSource.getRepository(AccessAllowlistEntity).findOne({
+        where: { provider: 'deep-id', email: 'owner@example.com' },
+      });
+      expect(row?.revokedAt).toBeNull();
       expect(owner.cookie).toBeTruthy();
     });
   });

@@ -30,7 +30,7 @@ interface UserScoreAccumulator {
 export async function computeProposalEngagement(snapshot: Snapshot, storage: Storage): Promise<AlgorithmResult> {
   const ctx = Context.current();
   const logger = ctx.log;
-  const snapshotId = snapshot._id;
+  const snapshotId = snapshot.id;
   const now = new Date();
 
   const inputs = extractInputs(snapshot.algorithmPresetFrozen.inputs);
@@ -45,16 +45,18 @@ export async function computeProposalEngagement(snapshot: Snapshot, storage: Sto
     subIds.map((subId) => [subId, subIdInputMap.subIds[subId]?.deepProposalPortalId ?? null]),
   );
   const dbPath = await createDeepFundingDb(snapshotId, storage);
-  const db = createDb({ path: dbPath });
+  const db = await createDb({ path: dbPath });
   const repos = createRepos(db);
 
   logger.info('Starting proposal_engagement algorithm', { snapshotId });
   logger.info('Algorithm inputs', inputs);
 
   try {
-    const proposals = repos.proposals.findAll();
-    const reviews = repos.reviews.findAll();
-    const users = repos.users.findAll();
+    const [proposals, reviews, users] = await Promise.all([
+      repos.proposals.findAll(),
+      repos.reviews.findAll(),
+      repos.users.findAll(),
+    ]);
 
     logger.info('Loaded data from DeepFunding Portal database', {
       proposalCount: proposals.length,
@@ -211,7 +213,7 @@ export async function computeProposalEngagement(snapshot: Snapshot, storage: Sto
       },
     };
   } finally {
-    closeDbInstance(db);
+    await closeDbInstance(db);
     await rm(dirname(dbPath), { recursive: true, force: true });
   }
 }

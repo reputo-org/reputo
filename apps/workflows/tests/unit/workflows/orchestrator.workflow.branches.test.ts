@@ -71,13 +71,11 @@ describe('OrchestratorWorkflow branches', () => {
     const { proxyActivities } = await loadWorkflowModule();
     const activities = createProxyActivitiesMock({
       getSnapshot: vi.fn().mockResolvedValue({
-        snapshot: {
-          status: SnapshotStatus.completed,
-          algorithmPresetFrozen: {
-            key: 'algo-key',
-            version: '1.0.0',
-            inputs: [],
-          },
+        status: SnapshotStatus.completed,
+        algorithmPresetFrozen: {
+          key: 'algo-key',
+          version: '1.0.0',
+          inputs: [],
         },
       }),
     });
@@ -99,13 +97,11 @@ describe('OrchestratorWorkflow branches', () => {
     const { proxyActivities } = await loadWorkflowModule();
     const activities = createProxyActivitiesMock({
       getSnapshot: vi.fn().mockResolvedValue({
-        snapshot: {
-          status: SnapshotStatus.queued,
-          algorithmPresetFrozen: {
-            key: '',
-            version: '',
-            inputs: [],
-          },
+        status: SnapshotStatus.queued,
+        algorithmPresetFrozen: {
+          key: '',
+          version: '',
+          inputs: [],
         },
       }),
     });
@@ -134,13 +130,11 @@ describe('OrchestratorWorkflow branches', () => {
     const cancelError = new Error('cancelled by user');
     const activities = createProxyActivitiesMock({
       getSnapshot: vi.fn().mockResolvedValue({
-        snapshot: {
-          status: SnapshotStatus.queued,
-          algorithmPresetFrozen: {
-            key: 'algo-key',
-            version: '1.0.0',
-            inputs: [],
-          },
+        status: SnapshotStatus.queued,
+        algorithmPresetFrozen: {
+          key: 'algo-key',
+          version: '1.0.0',
+          inputs: [],
         },
       }),
       getAlgorithmDefinition: vi.fn().mockResolvedValue({
@@ -188,13 +182,11 @@ describe('OrchestratorWorkflow branches', () => {
     const executionError = new Error('algorithm failed');
     const activities = createProxyActivitiesMock({
       getSnapshot: vi.fn().mockResolvedValue({
-        snapshot: {
-          status: SnapshotStatus.queued,
-          algorithmPresetFrozen: {
-            key: 'algo-key',
-            version: '1.0.0',
-            inputs: [],
-          },
+        status: SnapshotStatus.queued,
+        algorithmPresetFrozen: {
+          key: 'algo-key',
+          version: '1.0.0',
+          inputs: [],
         },
       }),
       getAlgorithmDefinition: vi.fn().mockResolvedValue({

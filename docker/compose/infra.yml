@@ -3,56 +3,16 @@ networks:
         external: true
 
 volumes:
-    mongodb_data:
-        driver: local
-    mongodb_keyfile:
-        driver: local
     temporal_elasticsearch_data:
         driver: local
     temporal_postgresql_data:
         driver: local
     onchain_data_postgresql_data:
         driver: local
+    postgres_data:
+        driver: local
 
 services:
-    mongodb:
-        container_name: mongodb
-        image: mongo:7.0.5
-        restart: unless-stopped
-        networks: [production]
-        user: '0:0'
-        entrypoint: >
-            /bin/bash -c '
-            set -euo pipefail;
-            keyfile=/etc/mongo-keyfile/keyfile.txt;
-            if [ ! -s "$$keyfile" ]; then
-                head -c 756 /dev/urandom | base64 | tr -d "\n" > "$$keyfile";
-            fi;
-            chown 999:999 "$$keyfile";
-            chmod 400 "$$keyfile";
-            exec docker-entrypoint.sh mongod
-            --replSet rs0
-            --keyFile "$$keyfile"
-            --bind_ip_all
-            '
-        ports:
-            - 27017:27017
-        environment:
-            MONGO_INITDB_ROOT_USERNAME: "${MONGO_INITDB_ROOT_USERNAME:?missing MONGO_INITDB_ROOT_USERNAME}"
-            MONGO_INITDB_ROOT_PASSWORD: "${MONGO_INITDB_ROOT_PASSWORD:?missing MONGO_INITDB_ROOT_PASSWORD}"
-            MONGO_INITDB_DATABASE: "${MONGODB_DB_NAME:?missing MONGODB_DB_NAME}"
-        volumes:
-            - ../config/mongo/init.js:/docker-entrypoint-initdb.d/init.js:ro
-            - ../config/mongo/healthcheck.js:/etc/mongo/healthcheck.js:ro
-            - mongodb_keyfile:/etc/mongo-keyfile
-            - mongodb_data:/data/db
-        healthcheck:
-            test: test $(echo $(mongosh -u $$MONGO_INITDB_ROOT_USERNAME -p $$MONGO_INITDB_ROOT_PASSWORD --quiet /etc/mongo/healthcheck.js)) -eq 1
-            interval: 60s
-            timeout: 60s
-            retries: 5
-            start_period: 40s
-
     traefik:
         image: traefik:v3.6
         container_name: traefik
@@ -179,6 +139,27 @@ services:
             - 5433:5432
         volumes:
             - onchain_data_postgresql_data:/var/lib/postgresql/data
+        healthcheck:
+            test:
+                ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 20s
+
+    postgres:
+        container_name: postgres
+        image: postgres:16
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: "${API_POSTGRES_USER:?missing API_POSTGRES_USER}"
+            POSTGRES_PASSWORD: "${API_POSTGRES_PASSWORD:?missing API_POSTGRES_PASSWORD}"
+            POSTGRES_DB: "${API_POSTGRES_DB_NAME:?missing API_POSTGRES_DB_NAME}"
+        networks: [production]
+        ports:
+            - 5434:5432
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
         healthcheck:
             test:
                 ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']

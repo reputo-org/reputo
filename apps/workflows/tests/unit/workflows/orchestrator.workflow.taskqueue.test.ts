@@ -1,6 +1,9 @@
+import { API_SNAPSHOT_ACTIVITIES_TASK_QUEUE } from '@reputo/contracts';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  ACTIVITY_MAX_ATTEMPTS,
   algorithmTypescriptTaskQueue,
+  DB_ACTIVITY_TIMEOUT,
   DEPENDENCY_RESOLUTION_TIMEOUT,
   ONCHAIN_DATA_DEPENDENCY_RESOLUTION_TIMEOUT,
   onchainDataTaskQueue,
@@ -34,13 +37,11 @@ describe('OrchestratorWorkflow task queue routing', () => {
     const recordedOptions: Array<Record<string, unknown>> = [];
 
     const getSnapshot = vi.fn().mockResolvedValue({
-      snapshot: {
-        status: SnapshotStatus.queued,
-        algorithmPresetFrozen: {
-          key: 'algo-key',
-          version: '1.0.0',
-          inputs: [],
-        },
+      status: SnapshotStatus.queued,
+      algorithmPresetFrozen: {
+        key: 'algo-key',
+        version: '1.0.0',
+        inputs: [],
       },
     });
     const updateSnapshot = vi.fn().mockResolvedValue(undefined);
@@ -76,11 +77,16 @@ describe('OrchestratorWorkflow task queue routing', () => {
     });
 
     // Order:
-    // 0: DbActivities (module import)
+    // 0: ApiSnapshotActivities — API task queue (module import)
     // 1: AlgorithmLibraryActivities (module import)
     // 2: DependencyResolverActivities — orchestrator queue (inside workflow)
     // 3: DependencyResolverActivities — onchain queue (inside workflow)
     // 4: TypescriptAlgorithmDispatcherActivities (inside workflow)
+    expect(recordedOptions[0]).toMatchObject({
+      taskQueue: API_SNAPSHOT_ACTIVITIES_TASK_QUEUE,
+      startToCloseTimeout: DB_ACTIVITY_TIMEOUT,
+      retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
+    });
     expect(recordedOptions[2]).toMatchObject({
       taskQueue: 'orchestrator-q',
       startToCloseTimeout: DEPENDENCY_RESOLUTION_TIMEOUT,
@@ -114,13 +120,11 @@ describe('OrchestratorWorkflow task queue routing', () => {
     const recordedOptions: Array<Record<string, unknown>> = [];
 
     const getSnapshot = vi.fn().mockResolvedValue({
-      snapshot: {
-        status: SnapshotStatus.queued,
-        algorithmPresetFrozen: {
-          key: 'algo-key',
-          version: '1.0.0',
-          inputs: [],
-        },
+      status: SnapshotStatus.queued,
+      algorithmPresetFrozen: {
+        key: 'algo-key',
+        version: '1.0.0',
+        inputs: [],
       },
     });
     const updateSnapshot = vi.fn().mockResolvedValue(undefined);
@@ -180,26 +184,24 @@ describe('OrchestratorWorkflow task queue routing', () => {
     } as never);
 
     const getSnapshot = vi.fn().mockResolvedValue({
-      snapshot: {
-        status: SnapshotStatus.queued,
-        algorithmPresetFrozen: {
-          key: 'custom_algorithm',
-          version: '1.0.0',
-          inputs: [
-            { key: 'sub_ids', value: 'uploads/sub_ids.json' },
-            {
-              key: 'sub_algorithms',
-              value: [
-                {
-                  algorithm_key: 'proposal_engagement',
-                  algorithm_version: '1.0.0',
-                  weight: 1,
-                  inputs: [],
-                },
-              ],
-            },
-          ],
-        },
+      status: SnapshotStatus.queued,
+      algorithmPresetFrozen: {
+        key: 'custom_algorithm',
+        version: '1.0.0',
+        inputs: [
+          { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+          {
+            key: 'sub_algorithms',
+            value: [
+              {
+                algorithm_key: 'proposal_engagement',
+                algorithm_version: '1.0.0',
+                weight: 1,
+                inputs: [],
+              },
+            ],
+          },
+        ],
       },
     });
     const updateSnapshot = vi.fn().mockResolvedValue(undefined);
@@ -274,54 +276,52 @@ describe('OrchestratorWorkflow task queue routing', () => {
     } as never);
 
     const getSnapshot = vi.fn().mockResolvedValue({
-      snapshot: {
-        status: SnapshotStatus.queued,
-        algorithmPresetFrozen: {
-          key: 'custom_algorithm',
-          version: '1.0.0',
-          inputs: [
-            { key: 'sub_ids', value: 'uploads/sub_ids.json' },
-            {
-              key: 'sub_algorithms',
-              value: [
-                {
-                  algorithm_key: 'token_value_over_time',
-                  algorithm_version: '1.0.0',
-                  weight: 1,
-                  inputs: [
-                    {
-                      key: 'selected_resources',
-                      value: [
-                        { chain: 'ethereum', resource_key: 'fet_staking_1' },
-                        { chain: 'cardano', resource_key: 'fet_token' },
-                      ],
-                    },
-                  ],
-                },
-                {
-                  algorithm_key: 'proposal_engagement',
-                  algorithm_version: '1.0.0',
-                  weight: 1,
-                  inputs: [],
-                },
-                {
-                  algorithm_key: 'token_value_over_time',
-                  algorithm_version: '1.0.0',
-                  weight: 2,
-                  inputs: [
-                    {
-                      key: 'selected_resources',
-                      value: [
-                        { chain: 'ethereum', resource_key: 'fet_token' },
-                        { chain: 'ethereum', resource_key: 'fet_staking_2' },
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
+      status: SnapshotStatus.queued,
+      algorithmPresetFrozen: {
+        key: 'custom_algorithm',
+        version: '1.0.0',
+        inputs: [
+          { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+          {
+            key: 'sub_algorithms',
+            value: [
+              {
+                algorithm_key: 'token_value_over_time',
+                algorithm_version: '1.0.0',
+                weight: 1,
+                inputs: [
+                  {
+                    key: 'selected_resources',
+                    value: [
+                      { chain: 'ethereum', resource_key: 'fet_staking_1' },
+                      { chain: 'cardano', resource_key: 'fet_token' },
+                    ],
+                  },
+                ],
+              },
+              {
+                algorithm_key: 'proposal_engagement',
+                algorithm_version: '1.0.0',
+                weight: 1,
+                inputs: [],
+              },
+              {
+                algorithm_key: 'token_value_over_time',
+                algorithm_version: '1.0.0',
+                weight: 2,
+                inputs: [
+                  {
+                    key: 'selected_resources',
+                    value: [
+                      { chain: 'ethereum', resource_key: 'fet_token' },
+                      { chain: 'ethereum', resource_key: 'fet_staking_2' },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
       },
     });
     const updateSnapshot = vi.fn().mockResolvedValue(undefined);

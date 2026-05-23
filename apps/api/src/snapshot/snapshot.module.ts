@@ -1,22 +1,21 @@
 import { forwardRef, Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { AlgorithmPresetSchema, MODEL_NAMES, SnapshotSchema } from '@reputo/database';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AlgorithmPresetModule } from '../algorithm-preset/algorithm-preset.module';
+import { SnapshotEntity, SnapshotOutputEntity } from '../persistence';
 import { StorageModule } from '../storage/storage.module';
 import { TemporalModule } from '../temporal';
 import { SnapshotController } from './snapshot.controller';
 import { SnapshotRepository } from './snapshot.repository';
 import { SnapshotService } from './snapshot.service';
 import { SnapshotEventsService } from './snapshot-events.service';
+
+// Persistence (repository, service) is TypeORM-backed via repositories
+// registered with `TypeOrmModule.forFeature(...)`. Real-time SSE consumes
+// `SnapshotListenerService` (PG `LISTEN/NOTIFY`), provided globally by
+// `PersistenceModule`.
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      { name: MODEL_NAMES.SNAPSHOT, schema: SnapshotSchema },
-      {
-        name: MODEL_NAMES.ALGORITHM_PRESET,
-        schema: AlgorithmPresetSchema,
-      },
-    ]),
+    TypeOrmModule.forFeature([SnapshotEntity, SnapshotOutputEntity]),
     forwardRef(() => AlgorithmPresetModule),
     TemporalModule,
     StorageModule,

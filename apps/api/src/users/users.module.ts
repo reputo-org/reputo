@@ -1,18 +1,13 @@
 import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { MODEL_NAMES, OAuthUserSchema } from '@reputo/database';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { OAuthUserEntity } from '../persistence';
 import { OAuthUserRepository } from './oauth-user.repository';
 
+// `PersistenceModule` is registered globally in `src/persistence`; feature
+// modules use `TypeOrmModule.forFeature(...)` to bind their entity repos.
 @Module({
-  imports: [
-    MongooseModule.forFeature([
-      {
-        name: MODEL_NAMES.OAUTH_USER,
-        schema: OAuthUserSchema,
-      },
-    ]),
-  ],
+  imports: [TypeOrmModule.forFeature([OAuthUserEntity])],
   providers: [OAuthUserRepository],
-  exports: [OAuthUserRepository, MongooseModule],
+  exports: [OAuthUserRepository],
 })
 export class UsersModule {}

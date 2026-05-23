@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SNAPSHOT_STATUS } from '@reputo/database';
+import { SNAPSHOT_STATUS, type SnapshotStatus } from '@reputo/contracts';
 
 class AlgorithmPresetFrozenDto {
   @ApiProperty({
@@ -40,16 +40,16 @@ class AlgorithmPresetFrozenDto {
   description?: string;
 
   @ApiPropertyOptional({
-    description: 'Creation timestamp',
+    description: 'Creation timestamp (ISO 8601)',
     example: '2025-10-13T18:22:47.100Z',
   })
-  createdAt?: Date;
+  createdAt?: string;
 
   @ApiPropertyOptional({
-    description: 'Last update timestamp',
+    description: 'Last update timestamp (ISO 8601)',
     example: '2025-10-13T18:22:47.100Z',
   })
-  updatedAt?: Date;
+  updatedAt?: string;
 }
 
 class SnapshotTemporalDto {
@@ -82,8 +82,8 @@ class SnapshotOutputsDto {
 
 export class SnapshotDto {
   @ApiProperty({
-    description: 'Unique identifier',
-    example: '6710be...',
+    description: 'Unique identifier (UUID v7)',
+    example: '01940000-0000-7000-8000-000000000000',
   })
   _id: string;
 
@@ -92,7 +92,7 @@ export class SnapshotDto {
     enum: SNAPSHOT_STATUS,
     example: 'completed',
   })
-  status: (typeof SNAPSHOT_STATUS)[number];
+  status: SnapshotStatus;
 
   @ApiPropertyOptional({
     description: 'Temporal workflow information',
@@ -101,8 +101,8 @@ export class SnapshotDto {
   temporal?: SnapshotTemporalDto;
 
   @ApiProperty({
-    description: 'Reference to the associated AlgorithmPreset',
-    example: '66f9c9...',
+    description: 'Reference to the associated AlgorithmPreset (UUID v7)',
+    example: '01940000-0000-7000-8000-000000000000',
   })
   algorithmPreset: string;
 
@@ -119,26 +119,26 @@ export class SnapshotDto {
   outputs?: SnapshotOutputsDto;
 
   @ApiPropertyOptional({
-    description: 'Timestamp when execution started (status changed to running)',
+    description: 'Timestamp when execution started (status changed to running, ISO 8601)',
     example: '2025-10-13T19:12:05.000Z',
   })
-  startedAt?: Date;
+  startedAt?: string;
 
   @ApiPropertyOptional({
-    description: 'Timestamp when execution completed (status changed to completed or failed)',
+    description: 'Timestamp when execution completed (status changed to completed or failed, ISO 8601)',
     example: '2025-10-13T19:12:44.600Z',
   })
-  completedAt?: Date;
+  completedAt?: string;
 
   @ApiProperty({
-    description: 'Creation timestamp',
+    description: 'Creation timestamp (ISO 8601)',
     example: '2025-10-13T19:12:03.010Z',
   })
-  createdAt: Date;
+  createdAt: string;
 
   @ApiProperty({
-    description: 'Last update timestamp',
+    description: 'Last update timestamp (ISO 8601)',
     example: '2025-10-13T19:12:44.600Z',
   })
-  updatedAt: Date;
+  updatedAt: string;
 }

@@ -1,5 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
-import type { AccessRole } from '@reputo/database';
+import type { AccessRole } from '@reputo/contracts';
 
 export const IS_ROLES_ROUTE = 'auth:roles';
 

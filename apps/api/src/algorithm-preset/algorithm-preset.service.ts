@@ -1,17 +1,19 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectConnection } from '@nestjs/mongoose';
-import type { AlgorithmPreset, AlgorithmPresetWithId, SnapshotWithId } from '@reputo/database';
-import { MODEL_NAMES } from '@reputo/database';
-import type { Connection, FilterQuery } from 'mongoose';
+import { InjectDataSource } from '@nestjs/typeorm';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { DataSource } from 'typeorm';
 import { throwNotFoundError } from '../shared/exceptions';
-import { getAlgorithmDefinitionOrThrow, pick, validateAlgorithmInputs } from '../shared/utils';
+import { getAlgorithmDefinitionOrThrow, validateAlgorithmInputs } from '../shared/utils';
+import type { SnapshotRow } from '../snapshot/snapshot.repository';
 import { SnapshotRepository } from '../snapshot/snapshot.repository';
 import { StorageService } from '../storage/storage.service';
 import { TemporalService } from '../temporal';
+import type { AlgorithmPresetRow } from './algorithm-preset.repository';
 import { AlgorithmPresetRepository } from './algorithm-preset.repository';
 import type { CreateAlgorithmPresetDto, ListAlgorithmPresetsQueryDto, UpdateAlgorithmPresetDto } from './dto';
+
+const ALGORITHM_PRESET_ENTITY = 'AlgorithmPreset';
 
 @Injectable()
 export class AlgorithmPresetService {
@@ -26,7 +28,8 @@ export class AlgorithmPresetService {
     @Inject(forwardRef(() => SnapshotRepository))
     private readonly snapshotRepository: SnapshotRepository,
     private readonly temporalService: TemporalService,
-    @InjectConnection() private readonly connection: Connection,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     configService: ConfigService,
   ) {
     this.storageMaxSizeBytes = configService.get<number>('storage.maxSizeBytes') as number;
@@ -47,16 +50,24 @@ export class AlgorithmPresetService {
   }
 
   list(queryDto: ListAlgorithmPresetsQueryDto) {
-    const filter: FilterQuery<AlgorithmPreset> = pick(queryDto, ['key', 'version']);
-    const paginateOptions = pick(queryDto, ['page', 'limit', 'sortBy']);
-    return this.repository.findAll(filter, paginateOptions);
+    return this.repository.findAll(
+      {
+        key: queryDto.key,
+        version: queryDto.version,
+      },
+      {
+        page: queryDto.page,
+        limit: queryDto.limit,
+        sortBy: queryDto.sortBy,
+      },
+    );
   }
 
   async getById(id: string) {
     const algorithmPreset = await this.repository.findById(id);
 
     if (!algorithmPreset) {
-      throwNotFoundError(id, MODEL_NAMES.ALGORITHM_PRESET);
+      throwNotFoundError(id, ALGORITHM_PRESET_ENTITY);
     }
     return algorithmPreset;
   }
@@ -64,7 +75,7 @@ export class AlgorithmPresetService {
   async updateById(id: string, updateDto: UpdateAlgorithmPresetDto) {
     const existingAlgorithmPreset = await this.repository.findById(id);
     if (!existingAlgorithmPreset) {
-      throwNotFoundError(id, MODEL_NAMES.ALGORITHM_PRESET);
+      throwNotFoundError(id, ALGORITHM_PRESET_ENTITY);
     }
 
     const mergedPreset = {
@@ -87,7 +98,7 @@ export class AlgorithmPresetService {
 
     const updatedAlgorithmPreset = await this.repository.updateById(id, updateDto);
     if (!updatedAlgorithmPreset) {
-      throwNotFoundError(id, MODEL_NAMES.ALGORITHM_PRESET);
+      throwNotFoundError(id, ALGORITHM_PRESET_ENTITY);
     }
     return updatedAlgorithmPreset;
   }
@@ -95,11 +106,9 @@ export class AlgorithmPresetService {
   async deleteById(id: string) {
     const algorithmPreset = await this.repository.findById(id);
     if (!algorithmPreset) {
-      throwNotFoundError(id, MODEL_NAMES.ALGORITHM_PRESET);
+      throwNotFoundError(id, ALGORITHM_PRESET_ENTITY);
     }
-    const snapshots: SnapshotWithId[] = await this.snapshotRepository.find({
-      algorithmPreset: id,
-    });
+    const snapshots = await this.snapshotRepository.find({ algorithmPresetId: id });
 
     // Step 1: Terminate workflows and wait for them to fully stop
     await this.temporalService.terminateSnapshotWorkflows(snapshots, true);
@@ -112,22 +121,17 @@ export class AlgorithmPresetService {
   }
 
   private async deletePresetWithSnapshots(presetId: string, snapshotCount: number): Promise<void> {
-    const session = await this.connection.startSession();
-    try {
-      await session.withTransaction(async () => {
-        if (snapshotCount > 0) {
-          await this.snapshotRepository.deleteMany({ algorithmPreset: presetId }, session);
-          this.logger.info(`Deleted ${snapshotCount} snapshots for algorithm preset ${presetId}`);
-        }
-        await this.repository.deleteById(presetId, session);
-        this.logger.info(`Deleted algorithm preset ${presetId}`);
-      });
-    } finally {
-      await session.endSession();
-    }
+    await this.dataSource.transaction(async (manager) => {
+      if (snapshotCount > 0) {
+        await this.snapshotRepository.deleteMany({ algorithmPresetId: presetId }, manager);
+        this.logger.info(`Deleted ${snapshotCount} snapshots for algorithm preset ${presetId}`);
+      }
+      await this.repository.deleteById(presetId, manager);
+      this.logger.info(`Deleted algorithm preset ${presetId}`);
+    });
   }
 
-  private async deleteS3Objects(algorithmPreset: AlgorithmPresetWithId, snapshots: SnapshotWithId[]): Promise<void> {
+  private async deleteS3Objects(algorithmPreset: AlgorithmPresetRow, snapshots: SnapshotRow[]): Promise<void> {
     const keysToDelete: string[] = [];
 
     try {

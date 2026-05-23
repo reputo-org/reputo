@@ -10,6 +10,7 @@ export { AdminController } from './admin.controller';
 export { AdminModule } from './admin.module';
 export { AdminService, OwnerEmailConflictError } from './admin.service';
 export {
+  type AccessAllowlistRow,
   type AdminAllowlistListFilters,
   type AdminAllowlistListOptions,
   type AdminAllowlistListResult,

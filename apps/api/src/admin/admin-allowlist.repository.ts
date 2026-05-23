@@ -1,16 +1,34 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
+import { InjectRepository } from '@nestjs/typeorm';
+import { ACCESS_ROLE_ADMIN, type AccessRole, type OAuthProvider } from '@reputo/contracts';
 import {
-  ACCESS_ROLE_ADMIN,
-  ACCESS_ROLE_OWNER,
-  type AccessAllowlist,
-  type AccessAllowlistWithId,
-  type AccessRole,
-  MODEL_NAMES,
-  type OAuthProvider,
-} from '@reputo/database';
-import type { FilterQuery, Model, Types } from 'mongoose';
+  type FindOptionsOrder,
+  type FindOptionsWhere,
+  ILike,
+  In,
+  IsNull,
+  Not,
+  QueryFailedError,
+  Repository,
+} from 'typeorm';
+import { AccessAllowlistEntity } from '../persistence';
 import type { AdminAllowlistSortField, AdminAllowlistSortOrder, AdminAllowlistStatus } from './admin.constants';
+
+// Domain shape returned by the repository. Uses `_id` (rather than TypeORM's
+// `id`) so callers above the repository keep using `_id`, with
+// string-shaped invitedBy/revokedBy fields for the HTTP wire format.
+export interface AccessAllowlistRow {
+  _id: string;
+  provider: OAuthProvider;
+  email: string;
+  role: AccessRole;
+  invitedBy: string | null;
+  invitedAt: Date;
+  revokedAt?: Date;
+  revokedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface AdminAllowlistListFilters {
   provider?: OAuthProvider | OAuthProvider[];
@@ -27,187 +45,194 @@ export interface AdminAllowlistListOptions extends AdminAllowlistListFilters {
 }
 
 export interface AdminAllowlistListResult {
-  results: AccessAllowlistWithId[];
+  results: AccessAllowlistRow[];
   total: number;
+}
+
+function mapRow(entity: AccessAllowlistEntity): AccessAllowlistRow {
+  return {
+    _id: entity.id,
+    provider: entity.provider,
+    email: entity.email,
+    role: entity.role,
+    invitedBy: entity.invitedByUserId,
+    invitedAt: entity.invitedAt,
+    // Drop `revokedAt` from the row when null so the JSON response omits the
+    // field rather than emitting `"revokedAt": null`.
+    revokedAt: entity.revokedAt ?? undefined,
+    revokedBy: entity.revokedByUserId,
+    createdAt: entity.createdAt,
+    updatedAt: entity.updatedAt,
+  };
 }
 
 @Injectable()
 export class AdminAllowlistRepository {
   constructor(
-    @InjectModel(MODEL_NAMES.ACCESS_ALLOWLIST)
-    private readonly model: Model<AccessAllowlist>,
+    @InjectRepository(AccessAllowlistEntity)
+    private readonly repo: Repository<AccessAllowlistEntity>,
   ) {}
 
-  async findActiveByProviderEmail(provider: OAuthProvider, email: string): Promise<AccessAllowlistWithId | null> {
+  async findActiveByProviderEmail(provider: OAuthProvider, email: string): Promise<AccessAllowlistRow | null> {
     const normalizedEmail = this.normalizeEmail(email);
+    if (!normalizedEmail) return null;
 
-    if (!normalizedEmail) {
-      return null;
-    }
-
-    return (await this.model
-      .findOne({ provider, email: normalizedEmail, revokedAt: null })
-      .lean()
-      .exec()) as AccessAllowlistWithId | null;
+    const entity = await this.repo.findOne({
+      where: { provider, email: normalizedEmail, revokedAt: IsNull() },
+    });
+    return entity ? mapRow(entity) : null;
   }
 
-  async findByProviderEmail(provider: OAuthProvider, email: string): Promise<AccessAllowlistWithId | null> {
+  async findByProviderEmail(provider: OAuthProvider, email: string): Promise<AccessAllowlistRow | null> {
     const normalizedEmail = this.normalizeEmail(email);
+    if (!normalizedEmail) return null;
 
-    if (!normalizedEmail) {
-      return null;
-    }
-
-    return (await this.model
-      .findOne({ provider, email: normalizedEmail })
-      .lean()
-      .exec()) as AccessAllowlistWithId | null;
+    const entity = await this.repo.findOne({
+      where: { provider, email: normalizedEmail },
+    });
+    return entity ? mapRow(entity) : null;
   }
 
   async countActiveOwners(provider: OAuthProvider): Promise<number> {
-    return this.model.countDocuments({ provider, role: ACCESS_ROLE_OWNER, revokedAt: null }).exec();
+    return this.repo.count({ where: { provider, role: 'owner', revokedAt: IsNull() } });
   }
 
   async list(options: AdminAllowlistListOptions): Promise<AdminAllowlistListResult> {
-    const filter = this.buildFilter(options);
+    const where = this.buildWhere(options);
     const limit = Math.min(Math.max(Number(options.limit ?? 20), 1), 100);
     const page = Math.max(Number(options.page ?? 1), 1);
     const skip = (page - 1) * limit;
     const sortField: AdminAllowlistSortField = options.sortField ?? 'email';
-    const sortOrder: 1 | -1 = options.sortOrder === 'desc' ? -1 : 1;
+    const sortOrder: 'ASC' | 'DESC' = options.sortOrder === 'desc' ? 'DESC' : 'ASC';
     const sortFallback: AdminAllowlistSortField = 'email';
-    const sort: Record<string, 1 | -1> =
-      sortField === sortFallback ? { [sortField]: sortOrder } : { [sortField]: sortOrder, [sortFallback]: 1 };
 
-    const [results, total] = await Promise.all([
-      this.model.find(filter).sort(sort).skip(skip).limit(limit).lean().exec() as Promise<AccessAllowlistWithId[]>,
-      this.model.countDocuments(filter).exec(),
-    ]);
+    const order: FindOptionsOrder<AccessAllowlistEntity> = { [sortField]: sortOrder };
+    if (sortField !== sortFallback) {
+      order[sortFallback] = 'ASC';
+    }
 
-    return { results, total };
+    const [rows, total] = await this.repo.findAndCount({ where, order, skip, take: limit });
+
+    return { results: rows.map(mapRow), total };
   }
 
   async createAdmin(
     provider: OAuthProvider,
     email: string,
     role: AccessRole,
-    actorId: Types.ObjectId | string | null,
+    actorId: string | null,
     invitedAt = new Date(),
-  ): Promise<AccessAllowlistWithId> {
-    const created = await this.model.create({
+  ): Promise<AccessAllowlistRow> {
+    const entity = this.repo.create({
       provider,
       email: this.normalizeEmail(email),
       role,
-      invitedBy: actorId,
+      invitedByUserId: actorId,
       invitedAt,
-    } satisfies AccessAllowlist);
-
-    return created.toObject() as AccessAllowlistWithId;
+      revokedAt: null,
+      revokedByUserId: null,
+    });
+    const saved = await this.repo.save(entity);
+    return mapRow(saved);
   }
 
   async restore(
     provider: OAuthProvider,
     email: string,
-    actorId: Types.ObjectId | string | null,
+    actorId: string | null,
     options: { invitedAt?: Date; role?: AccessRole } = {},
-  ): Promise<AccessAllowlistWithId | null> {
+  ): Promise<AccessAllowlistRow | null> {
     const normalizedEmail = this.normalizeEmail(email);
-
-    if (!normalizedEmail) {
-      return null;
-    }
+    if (!normalizedEmail) return null;
 
     const invitedAt = options.invitedAt ?? new Date();
     const role: AccessRole = options.role ?? ACCESS_ROLE_ADMIN;
 
-    return (await this.model
-      .findOneAndUpdate(
-        { provider, email: normalizedEmail, revokedAt: { $exists: true, $ne: null } },
-        {
-          $set: { invitedBy: actorId, invitedAt, role },
-          $unset: { revokedAt: '', revokedBy: '' },
-        },
-        { lean: true, new: true },
-      )
-      .exec()) as AccessAllowlistWithId | null;
+    // Two-step update: TypeORM's `update(criteria, partial)` returns row
+    // counts only, so we updateMany on the revoked-row filter and then
+    // re-fetch. Returns null when no currently-revoked row exists for this
+    // (provider, email).
+    const result = await this.repo.update(
+      { provider, email: normalizedEmail, revokedAt: Not(IsNull()) },
+      { invitedByUserId: actorId, invitedAt, role, revokedAt: null, revokedByUserId: null },
+    );
+    if (!result.affected) return null;
+
+    const updated = await this.repo.findOne({ where: { provider, email: normalizedEmail } });
+    return updated ? mapRow(updated) : null;
   }
 
-  async updateRole(provider: OAuthProvider, email: string, role: AccessRole): Promise<AccessAllowlistWithId | null> {
+  async updateRole(provider: OAuthProvider, email: string, role: AccessRole): Promise<AccessAllowlistRow | null> {
     const normalizedEmail = this.normalizeEmail(email);
+    if (!normalizedEmail) return null;
 
-    if (!normalizedEmail) {
-      return null;
-    }
+    const result = await this.repo.update({ provider, email: normalizedEmail, revokedAt: IsNull() }, { role });
+    if (!result.affected) return null;
 
-    return (await this.model
-      .findOneAndUpdate(
-        { provider, email: normalizedEmail, revokedAt: null },
-        { $set: { role } },
-        { lean: true, new: true },
-      )
-      .exec()) as AccessAllowlistWithId | null;
+    const updated = await this.repo.findOne({ where: { provider, email: normalizedEmail } });
+    return updated ? mapRow(updated) : null;
   }
 
   async softRevoke(
     provider: OAuthProvider,
     email: string,
-    actorId: Types.ObjectId | string,
+    actorId: string,
     revokedAt = new Date(),
-  ): Promise<AccessAllowlistWithId | null> {
+  ): Promise<AccessAllowlistRow | null> {
     const normalizedEmail = this.normalizeEmail(email);
+    if (!normalizedEmail) return null;
 
-    if (!normalizedEmail) {
-      return null;
-    }
+    const result = await this.repo.update(
+      { provider, email: normalizedEmail, revokedAt: IsNull() },
+      { revokedAt, revokedByUserId: actorId },
+    );
+    if (!result.affected) return null;
 
-    return (await this.model
-      .findOneAndUpdate(
-        { provider, email: normalizedEmail, revokedAt: null },
-        { $set: { revokedAt, revokedBy: actorId } },
-        { lean: true, new: true },
-      )
-      .exec()) as AccessAllowlistWithId | null;
+    const updated = await this.repo.findOne({ where: { provider, email: normalizedEmail } });
+    return updated ? mapRow(updated) : null;
   }
 
+  // P23505 is Postgres' unique-violation SQLSTATE; TypeORM surfaces it via
+  // `QueryFailedError.driverError.code` for the `pg` driver.
   isDuplicateKeyError(error: unknown): boolean {
-    return (
-      typeof error === 'object' && error !== null && 'code' in error && (error as { code: unknown }).code === 11000
-    );
+    if (error instanceof QueryFailedError) {
+      const code = (error.driverError as { code?: string })?.code;
+      return code === '23505';
+    }
+    return false;
   }
 
   private normalizeEmail(email: string): string {
     return email.trim().toLowerCase();
   }
 
-  private buildFilter(options: AdminAllowlistListFilters): FilterQuery<AccessAllowlist> {
-    const filter: FilterQuery<AccessAllowlist> = {};
+  private buildWhere(options: AdminAllowlistListFilters): FindOptionsWhere<AccessAllowlistEntity> {
+    const where: FindOptionsWhere<AccessAllowlistEntity> = {};
 
     if (options.provider) {
-      filter.provider = Array.isArray(options.provider) ? { $in: options.provider } : options.provider;
+      where.provider = Array.isArray(options.provider) ? In(options.provider) : options.provider;
     }
 
     if (options.role) {
-      filter.role = Array.isArray(options.role) ? { $in: options.role } : options.role;
+      where.role = Array.isArray(options.role) ? In(options.role) : options.role;
     }
 
     const status: AdminAllowlistStatus = options.status ?? 'active';
     if (status === 'active') {
-      filter.revokedAt = null;
+      where.revokedAt = IsNull();
     } else if (status === 'revoked') {
-      filter.revokedAt = { $exists: true, $ne: null };
+      where.revokedAt = Not(IsNull());
     }
 
     if (options.q) {
       const trimmed = options.q.trim().toLowerCase();
       if (trimmed) {
-        filter.email = { $regex: `^${escapeRegex(trimmed)}` };
+        // Email is stored already-lowercased, so a case-insensitive prefix
+        // match here behaves as an ignore-case search via PG ILIKE.
+        where.email = ILike(`${trimmed}%`);
       }
     }
 
-    return filter;
+    return where;
   }
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
