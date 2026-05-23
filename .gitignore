@@ -32,6 +32,9 @@ docker-compose.override.yml
 # Canonical Docker envs live under docker/env/examples/*.env.example only.
 docker/compose/.env
 
+# Per-file Docker secrets written by CI for preview deploys; never committed.
+docker/compose/secrets/
+
 #
 # Docker environment files (except local dev files)
 docker/shared.env

@@ -1,6 +1,20 @@
 networks:
     preview:
 
+# Per-file Docker secrets. Source files are written by .github/workflows/pull-preview.yml
+# into docker/compose/secrets/ on the runner, rsync'd to the preview host alongside this
+# compose file, then mounted at /run/secrets/<name>. Values are never placed in
+# environment: blocks and so do not appear in `docker inspect`.
+secrets:
+    aws_access_key_id:
+        file: ./secrets/aws_access_key_id
+    aws_secret_access_key:
+        file: ./secrets/aws_secret_access_key
+    alchemy_api_key:
+        file: ./secrets/alchemy_api_key
+    deepfunding_api_key:
+        file: ./secrets/deepfunding_api_key
+
 volumes:
     temporal_elasticsearch_data:
         driver: local
@@ -34,12 +48,22 @@ services:
     api:
         container_name: api
         image: ghcr.io/reputo-org/reputo/api:${PREVIEW_IMAGE_TAG}
+        # Secrets are mounted as files under /run/secrets and exported into the
+        # process env here so the app keeps reading them via process.env.*, but
+        # the values never appear in `docker inspect` (the env: block has no
+        # secret values).
         command:
-            [
-                '/bin/sh',
-                '-lc',
-                'export AUTH_TOKEN_ENCRYPTION_KEY="$(node -e "process.stdout.write(require(''node:crypto'').randomBytes(32).toString(''hex''))")"; exec pnpm start',
-            ]
+            - /bin/sh
+            - -lc
+            - |
+              set -eu
+              export AUTH_TOKEN_ENCRYPTION_KEY="$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('hex'))")"
+              export AWS_ACCESS_KEY_ID="$(cat /run/secrets/aws_access_key_id)"
+              export AWS_SECRET_ACCESS_KEY="$(cat /run/secrets/aws_secret_access_key)"
+              exec pnpm start
+        secrets:
+            - aws_access_key_id
+            - aws_secret_access_key
         depends_on:
             postgres:
                 condition: service_healthy
@@ -73,8 +97,6 @@ services:
             - API_POSTGRES_USER=reputo_app
             - API_POSTGRES_PASSWORD=reputo_app
             - DATABASE_URL=postgresql://reputo_app:reputo_app@postgres:5432/reputo_preview
-            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
             - AWS_REGION=eu-central-1
             - STORAGE_BUCKET=reputo-pullpreview
             - STORAGE_PRESIGN_PUT_TTL=120
@@ -207,7 +229,21 @@ services:
         depends_on:
             temporal:
                 condition: service_healthy
-        command: ['pnpm', 'start:orchestrator']
+        command:
+            - /bin/sh
+            - -lc
+            - |
+              set -eu
+              export AWS_ACCESS_KEY_ID="$(cat /run/secrets/aws_access_key_id)"
+              export AWS_SECRET_ACCESS_KEY="$(cat /run/secrets/aws_secret_access_key)"
+              export ALCHEMY_API_KEY="$(cat /run/secrets/alchemy_api_key)"
+              export DEEPFUNDING_API_KEY="$(cat /run/secrets/deepfunding_api_key)"
+              exec pnpm start:orchestrator
+        secrets:
+            - aws_access_key_id
+            - aws_secret_access_key
+            - alchemy_api_key
+            - deepfunding_api_key
         restart: unless-stopped
         networks: [preview]
         environment:
@@ -224,11 +260,7 @@ services:
             - STORAGE_PRESIGN_GET_TTL=300
             - STORAGE_MAX_SIZE_BYTES=52428800
             - DEEPFUNDING_API_BASE_URL=https://deep-projects.ai/wp-json/deepfunding/v1
-            - DEEPFUNDING_API_KEY=${DEEPFUNDING_API_KEY}
-            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
             - AWS_REGION=eu-central-1
-            - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
             - ONCHAIN_DATA_POSTGRES_HOST=onchain-data-postgresql
             - ONCHAIN_DATA_POSTGRES_PORT=5432
             - ONCHAIN_DATA_POSTGRES_USER=reputo_onchain
@@ -242,7 +274,21 @@ services:
                 condition: service_healthy
             onchain-data-postgresql:
                 condition: service_healthy
-        command: ['pnpm', 'start:onchain-data']
+        command:
+            - /bin/sh
+            - -lc
+            - |
+              set -eu
+              export AWS_ACCESS_KEY_ID="$(cat /run/secrets/aws_access_key_id)"
+              export AWS_SECRET_ACCESS_KEY="$(cat /run/secrets/aws_secret_access_key)"
+              export ALCHEMY_API_KEY="$(cat /run/secrets/alchemy_api_key)"
+              export DEEPFUNDING_API_KEY="$(cat /run/secrets/deepfunding_api_key)"
+              exec pnpm start:onchain-data
+        secrets:
+            - aws_access_key_id
+            - aws_secret_access_key
+            - alchemy_api_key
+            - deepfunding_api_key
         restart: unless-stopped
         networks: [preview]
         environment:
@@ -259,11 +305,7 @@ services:
             - STORAGE_PRESIGN_GET_TTL=300
             - STORAGE_MAX_SIZE_BYTES=52428800
             - DEEPFUNDING_API_BASE_URL=https://deep-projects.ai/wp-json/deepfunding/v1
-            - DEEPFUNDING_API_KEY=${DEEPFUNDING_API_KEY}
-            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
             - AWS_REGION=eu-central-1
-            - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
             - ONCHAIN_DATA_POSTGRES_HOST=onchain-data-postgresql
             - ONCHAIN_DATA_POSTGRES_PORT=5432
             - ONCHAIN_DATA_POSTGRES_USER=reputo_onchain
@@ -277,7 +319,21 @@ services:
                 condition: service_healthy
             onchain-data-postgresql:
                 condition: service_healthy
-        command: ['pnpm', 'start:algorithm-typescript']
+        command:
+            - /bin/sh
+            - -lc
+            - |
+              set -eu
+              export AWS_ACCESS_KEY_ID="$(cat /run/secrets/aws_access_key_id)"
+              export AWS_SECRET_ACCESS_KEY="$(cat /run/secrets/aws_secret_access_key)"
+              export ALCHEMY_API_KEY="$(cat /run/secrets/alchemy_api_key)"
+              export DEEPFUNDING_API_KEY="$(cat /run/secrets/deepfunding_api_key)"
+              exec pnpm start:algorithm-typescript
+        secrets:
+            - aws_access_key_id
+            - aws_secret_access_key
+            - alchemy_api_key
+            - deepfunding_api_key
         restart: unless-stopped
         networks: [preview]
         environment:
@@ -294,11 +350,7 @@ services:
             - STORAGE_PRESIGN_GET_TTL=300
             - STORAGE_MAX_SIZE_BYTES=52428800
             - DEEPFUNDING_API_BASE_URL=https://deep-projects.ai/wp-json/deepfunding/v1
-            - DEEPFUNDING_API_KEY=${DEEPFUNDING_API_KEY}
-            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
             - AWS_REGION=eu-central-1
-            - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
             - ONCHAIN_DATA_POSTGRES_HOST=onchain-data-postgresql
             - ONCHAIN_DATA_POSTGRES_PORT=5432
             - ONCHAIN_DATA_POSTGRES_USER=reputo_onchain
