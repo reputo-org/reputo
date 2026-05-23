@@ -223,7 +223,6 @@ services:
             - STORAGE_PRESIGN_PUT_TTL=120
             - STORAGE_PRESIGN_GET_TTL=300
             - STORAGE_MAX_SIZE_BYTES=52428800
-            - STORAGE_CONTENT_TYPE_ALLOWLIST=text/csv,text/plain,application/json,application/x-sqlite3
             - DEEPFUNDING_API_BASE_URL=https://deep-projects.ai/wp-json/deepfunding/v1
             - DEEPFUNDING_API_KEY=${DEEPFUNDING_API_KEY}
             - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
@@ -259,7 +258,6 @@ services:
             - STORAGE_PRESIGN_PUT_TTL=120
             - STORAGE_PRESIGN_GET_TTL=300
             - STORAGE_MAX_SIZE_BYTES=52428800
-            - STORAGE_CONTENT_TYPE_ALLOWLIST=text/csv,text/plain,application/json,application/x-sqlite3
             - DEEPFUNDING_API_BASE_URL=https://deep-projects.ai/wp-json/deepfunding/v1
             - DEEPFUNDING_API_KEY=${DEEPFUNDING_API_KEY}
             - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
@@ -295,7 +293,6 @@ services:
             - STORAGE_PRESIGN_PUT_TTL=120
             - STORAGE_PRESIGN_GET_TTL=300
             - STORAGE_MAX_SIZE_BYTES=52428800
-            - STORAGE_CONTENT_TYPE_ALLOWLIST=text/csv,text/plain,application/json,application/x-sqlite3
             - DEEPFUNDING_API_BASE_URL=https://deep-projects.ai/wp-json/deepfunding/v1
             - DEEPFUNDING_API_KEY=${DEEPFUNDING_API_KEY}
             - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
