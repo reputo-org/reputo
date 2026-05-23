@@ -1,6 +1,7 @@
 {
   "name": "@reputo/ui",
   "version": "0.1.0",
+  "description": "Next.js dashboard for the Reputo platform",
   "private": true,
   "scripts": {
     "build:deps": "pnpm --filter @reputo/algorithm-validator --filter @reputo/reputation-algorithms run build",
