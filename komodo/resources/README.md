@@ -139,8 +139,10 @@ For each environment prefix, `STAGING` and `PRODUCTION`, create these secrets:
 - `<ENV>_TEMPORAL_POSTGRES_PASSWORD`
 - `<ENV>_ONCHAIN_DATA_POSTGRES_USER`
 - `<ENV>_ONCHAIN_DATA_POSTGRES_PASSWORD`
+- `<ENV>_ONCHAIN_DATABASE_URL` — the connection URL workers consume, composed once from the three vars above (e.g. `postgresql://<user>:<password>@onchain-data-postgresql:5432/<db_name>`). The discrete vars stay for the postgres container in `infra.yml`.
 - `<ENV>_API_POSTGRES_USER`
 - `<ENV>_API_POSTGRES_PASSWORD`
+- `<ENV>_API_DATABASE_URL` — the connection URL the NestJS API consumes, composed once from the three vars above (e.g. `postgresql://<user>:<password>@postgres:5432/<db_name>`). The discrete vars stay for the postgres container in `infra.yml`.
 - `<ENV>_GRAFANA_ADMIN_PASSWORD`
 - `<ENV>_DEEP_ID_CLIENT_SECRET`
 - `<ENV>_AUTH_TOKEN_ENCRYPTION_KEY`

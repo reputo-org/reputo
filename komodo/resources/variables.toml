@@ -202,6 +202,11 @@ description = "Staging onchain-data Postgres password."
 is_secret = true
 
 [[variable]]
+name = "STAGING_ONCHAIN_DATABASE_URL"
+description = "Staging onchain-data Postgres connection URL consumed by the workflows workers. Compose this from STAGING_ONCHAIN_DATA_POSTGRES_{USER,PASSWORD,DB_NAME} once and store the result here so workers don't reassemble it."
+is_secret = true
+
+[[variable]]
 name = "STAGING_API_POSTGRES_USER"
 description = "Staging API application Postgres user."
 is_secret = true
@@ -209,6 +214,11 @@ is_secret = true
 [[variable]]
 name = "STAGING_API_POSTGRES_PASSWORD"
 description = "Staging API application Postgres password."
+is_secret = true
+
+[[variable]]
+name = "STAGING_API_DATABASE_URL"
+description = "Staging API application Postgres connection URL consumed by the NestJS API. Compose this from STAGING_API_POSTGRES_{USER,PASSWORD,DB_NAME} once and store the result here so the app doesn't reassemble it."
 is_secret = true
 
 [[variable]]
@@ -400,6 +410,11 @@ description = "Production onchain-data Postgres password."
 is_secret = true
 
 [[variable]]
+name = "PRODUCTION_ONCHAIN_DATABASE_URL"
+description = "Production onchain-data Postgres connection URL consumed by the workflows workers. Compose this from PRODUCTION_ONCHAIN_DATA_POSTGRES_{USER,PASSWORD,DB_NAME} once and store the result here so workers don't reassemble it."
+is_secret = true
+
+[[variable]]
 name = "PRODUCTION_API_POSTGRES_USER"
 description = "Production API application Postgres user."
 is_secret = true
@@ -407,6 +422,11 @@ is_secret = true
 [[variable]]
 name = "PRODUCTION_API_POSTGRES_PASSWORD"
 description = "Production API application Postgres password."
+is_secret = true
+
+[[variable]]
+name = "PRODUCTION_API_DATABASE_URL"
+description = "Production API application Postgres connection URL consumed by the NestJS API. Compose this from PRODUCTION_API_POSTGRES_{USER,PASSWORD,DB_NAME} once and store the result here so the app doesn't reassemble it."
 is_secret = true
 
 [[variable]]
