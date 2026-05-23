@@ -1,0 +1,11 @@
+# Opaque auth session cookie name; MUST match the API's AUTH_COOKIE_NAME.
+# Used by Next.js middleware for fast session-cookie gating.
+AUTH_COOKIE_NAME=reputo_auth_session
+
+# Local-dev only: target the Next.js rewrite proxies /api/* to.
+# Leave unset in Docker — Traefik routes /api there.
+API_PROXY_TARGET=http://localhost:3000
+
+# Port `next start` listens on. The Dockerfile defaults to 8080;
+# `pnpm dev` ignores this and uses --port 4000.
+PORT=3000

@@ -1,11 +1,9 @@
 import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
-/**
- * Must match the backend AUTH_COOKIE_NAME value.
- * Read from env so it stays in sync across environments.
- */
-const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME ?? "reputo_auth_session"
+import { env } from "./lib/env"
+
+const AUTH_COOKIE_NAME = env.AUTH_COOKIE_NAME
 
 /** Routes that don't require an auth cookie. */
 const PUBLIC_PATHS = ["/login", "/access-denied"]
