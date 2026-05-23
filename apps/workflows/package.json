@@ -1,7 +1,7 @@
 {
   "name": "@reputo/workflows",
   "version": "2.0.0",
-  "description": "Temporal-based workflow orchestration and algorithm workers for Reputo",
+  "description": "Temporal workflows and workers for the Reputo platform",
   "type": "module",
   "main": "dist/workflows/index.js",
   "types": "dist/workflows/index.d.ts",

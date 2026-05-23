@@ -1,7 +1,7 @@
 {
   "name": "@reputo/api",
   "version": "1.0.0",
-  "description": "API for the Reputo ecosystem",
+  "description": "NestJS HTTP API for the Reputo platform",
   "private": true,
   "scripts": {
     "build:deps": "pnpm --filter @reputo/algorithm-validator --filter @reputo/contracts --filter @reputo/reputation-algorithms --filter @reputo/storage run build",
