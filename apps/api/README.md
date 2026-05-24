@@ -22,10 +22,6 @@ TypeORM via `@nestjs/typeorm` owns the schema. Entities live under
 `LISTEN/NOTIFY` on the `snapshot_updates` channel — every replica listens and
 fans NOTIFY payloads out to in-process SSE subjects.
 
-Cross-workspace conventions (entities, naming strategy, transactions,
-pagination, tests) live in
-[docs/runbooks/typeorm-conventions.md](../../docs/runbooks/typeorm-conventions.md).
-
 Generate and run migrations:
 
 ```bash

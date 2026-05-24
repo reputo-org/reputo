@@ -10,11 +10,10 @@
 
 - `src/config/env.ts` is the single source of truth for this app's environment.
 - Never read `process.env.*` outside that module.
-- Adding or changing an env var: see the root [AGENTS.md](../../AGENTS.md) "Environment variables" section and [docs/runbooks/env-validation.md](../../docs/runbooks/env-validation.md) for the full checklist.
+- Adding or changing an env var: see the root [AGENTS.md](../../AGENTS.md) "Environment variables" section.
 
 ## Persistence
 
-- See [docs/runbooks/typeorm-conventions.md](../../docs/runbooks/typeorm-conventions.md) for the cross-workspace TypeORM conventions (entities, DataSource, migrations, transactions, pagination). The rules below are the API-specific extras layered on top.
 - Persistence lives in `src/persistence` (TypeORM `DataSource`, entity definitions, and the LISTEN/NOTIFY listener) plus per-feature repositories. The API owns the application database; no other workspace opens a connection to it.
 - ORM is **TypeORM** via `@nestjs/typeorm`. The naming strategy is `SnakeNamingStrategy` (snake_case at the DB layer, camelCase in entities); avoid sprinkling per-column `@Column({ name: ... })` overrides.
 - Prefer the repository layer over raw `Repository<Entity>` / `DataSource` access from services so query intent stays testable.

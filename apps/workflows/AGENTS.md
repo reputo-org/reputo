@@ -9,7 +9,7 @@
 
 - `src/config/env.ts` is the single source of truth for this app's environment.
 - Never read `process.env.*` outside that module.
-- Adding or changing an env var: see the root [AGENTS.md](../../AGENTS.md) "Environment variables" section and [docs/runbooks/env-validation.md](../../docs/runbooks/env-validation.md) for the full checklist.
+- Adding or changing an env var: see the root [AGENTS.md](../../AGENTS.md) "Environment variables" section.
 
 ## Persistence boundary
 
