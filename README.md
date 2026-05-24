@@ -22,22 +22,40 @@
 
 ## Getting Started
 
-Use Node 20+ with `pnpm@10.30.3`.
+Use Node 20.6+ with `pnpm@10.30.3`.
+
+First, set up your local environment:
+
+```bash
+cp .env.example .env
+# then fill in placeholders (secrets are empty by default)
+pnpm install
+```
+
+`.env` at the repo root is the single source of env vars for local
+development; `scripts/env/load.ts` loads it before any dev process spawns. See
+[.env.example](.env.example) for the var inventory.
 
 ### Local
 
 ```bash
-pnpm install
 pnpm dev
 ```
+
+Builds the workspace packages, then runs `@reputo/api`, `@reputo/ui`, and
+`@reputo/workflows` concurrently in watch mode. Each app sees the env vars from
+`.env`.
 
 ### Docker
 
 ```bash
-docker compose -f docker/compose/dev.yml up --build
+pnpm docker:dev
 ```
 
-This is the hot-reload local testing stack. The UI is routed at `http://localhost`, the API at `http://localhost/api`, Temporal UI at `http://localhost:8088`, and Grafana at `http://localhost:3001`.
+Hot-reload local testing stack: UI at `http://localhost`, API at
+`http://localhost/api`, Temporal UI at `http://localhost:8088`, Grafana at
+`http://localhost:3001`. Same `.env` source — `pnpm docker:dev` injects it
+into `docker compose` for `${VAR}` interpolation.
 
 See [docker/README.md](docker/README.md).
 
@@ -92,14 +110,21 @@ flowchart LR
 
 ### Environment Files
 
-Tracked files under `docker/env/examples/*.env.example` are the only canonical environment templates. Copy them into `docker/env/*.env` locally before using the Docker stacks.
+- Local dev: the tracked root [.env.example](.env.example) is the sole
+  template. Copy to `.env` and fill in. `scripts/env/load.ts` loads it for
+  both `pnpm dev` and `pnpm docker:dev`.
+- Staging/production: Komodo Variables (defined in
+  [komodo/resources/variables.toml](komodo/resources/variables.toml)) are the
+  sole source. The deploy compose files (`apps.yml`, `infra.yml`,
+  `observability.yml`) carry no `env_file:` directives — every value flows
+  through `${VAR}` interpolation from the Komodo-generated `.env`.
 
 For operational details, image flow, and local infrastructure setup, see
 [docker/README.md](docker/README.md) and [komodo/README.md](komodo/README.md).
 
 ### Access Control
 
-When `AUTH_MODE=oauth`, the API requires `OWNER_EMAIL` and seeds it as the single owner allowlist row. Before rolling this out, follow the operator runbook, including the one-time auth session wipe: [docs/runbooks/access-rollout.md](docs/runbooks/access-rollout.md).
+When `AUTH_MODE=oauth`, the API requires `OWNER_EMAIL` and seeds it as the single owner allowlist row.
 
 ## Algorithm Development
 

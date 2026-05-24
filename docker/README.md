@@ -27,30 +27,42 @@ App `Dockerfile`s for `api`, `ui`, and `workflows` live next to each app at `app
 
 ## Environment Files
 
-Tracked examples under `docker/env/examples/*.env.example` are the source of truth. Runtime files in `docker/env/*.env` are local-only and ignored by Git.
+Local dev uses one file: `.env` at the **repo root**, generated from the
+tracked `.env.example`. There is no `docker/env/` directory anymore.
 
 ```bash
-mkdir -p docker/env
-cp docker/env/examples/shared.env.example docker/env/shared.env
-cp docker/env/examples/grafana.env.example docker/env/grafana.env
-cp docker/env/examples/api.env.example docker/env/api.env
-cp docker/env/examples/ui.env.example docker/env/ui.env
-cp docker/env/examples/workflows.env.example docker/env/workflows.env
-cp docker/env/examples/temporal.env.example docker/env/temporal.env
-cp docker/env/examples/temporal-ui.env.example docker/env/temporal-ui.env
-cp docker/env/examples/temporal-postgresql.env.example docker/env/temporal-postgresql.env
-cp docker/env/examples/onchain-data-postgresql.env.example docker/env/onchain-data-postgresql.env
-cp docker/env/examples/postgres.env.example docker/env/postgres.env
+cp .env.example .env
+# then fill in placeholders (SECRETs are empty by default)
 ```
 
-For htpasswd-style values such as `TRAEFIK_AUTH` and `GRAFANA_AUTH`, keep the doubled dollar signs from the examples. Docker Compose env files require `$` to be escaped as `$$`.
+`scripts/env/load.ts` is the one place that reads `.env` and exposes it to
+child processes. It's wired into `pnpm dev` (for non-docker) and `pnpm
+docker:dev` (for the local hot-reload docker stack). Both fail loudly with a
+clear message when `.env` is missing.
 
-`postgres.env` carries `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` for the application database. The API reads it through `DATABASE_URL` in `api.env` (default `postgresql://reputo_app:reputo_app@localhost:5434/reputo_app` for local dev).
+For htpasswd-style values such as `TRAEFIK_AUTH` and `GRAFANA_AUTH` (only used
+in staging/production via Komodo, not in dev), keep the doubled dollar signs
+from upstream examples. Docker Compose env files require `$` to be escaped as
+`$$`.
+
+Postgres credentials for the dev stack (`postgres` and
+`onchain-data-postgresql` services) are hardcoded inline in
+`docker/compose/dev.yml`. They must agree with the credentials encoded in
+`DATABASE_URL` and `ONCHAIN_DATABASE_URL` inside `.env` — the dev defaults of
+`reputo_app:reputo_app` and `reputo_onchain:reputo_onchain` already match.
 
 ## Local Hot Reload
 
 ```bash
-docker compose -f docker/compose/dev.yml up --build
+pnpm docker:dev
+```
+
+`pnpm docker:dev` is `scripts/env/load.ts docker compose -f docker/compose/dev.yml up --build`.
+You can also invoke compose directly, but you must run the loader first or
+export the `.env` vars manually:
+
+```bash
+node -e "process.loadEnvFile('.env');" && docker compose -f docker/compose/dev.yml up --build
 ```
 
 The dev stack builds `docker/images/Dockerfile.dev`, mounts the repo into `/workspace`, and runs watch-mode commands for the API, UI, and workers. Useful local endpoints:
@@ -76,10 +88,11 @@ production app deploys.
 
 Komodo injects staging and production runtime configuration through the stack
 env files declared under `komodo/resources/stacks/*.toml`. The prod/staging
-Compose files do not load per-service `docker/env/*.env` files because Komodo
-clones this repo and those runtime files are gitignored. If you run these
-Compose files directly for emergency recovery, provide an env file with the
-same keys that Komodo writes to the generated `.komodo-reputo-*.env` files.
+Compose files (`apps.yml`, `infra.yml`, `observability.yml`) have no
+`env_file:` directives — every var flows through compose-level `${VAR}`
+interpolation from the Komodo-generated `.komodo-reputo-*.env` file. If you
+run these Compose files directly for emergency recovery, provide an env file
+with the same keys that Komodo writes.
 
 Main branch builds publish:
 
