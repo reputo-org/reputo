@@ -34,7 +34,7 @@ export function createDeepFundingClient(input: DeepFundingPortalApiConfigInput):
   };
 
   // Create logger using shared logger factory
-  const logger = createLogger();
+  const logger = createLogger(input.logLevel);
 
   const limiter = createLimiter(config);
 

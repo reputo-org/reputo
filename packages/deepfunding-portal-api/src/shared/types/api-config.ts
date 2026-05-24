@@ -38,6 +38,8 @@ export type DeepFundingPortalApiConfigInput = {
   concurrency?: number;
   retry?: Partial<RetryConfig>;
   defaultPageLimit?: number;
+  /** Pino log level; pass from the consuming app's validated env. Defaults to 'info'. */
+  logLevel?: string;
 };
 
 /**

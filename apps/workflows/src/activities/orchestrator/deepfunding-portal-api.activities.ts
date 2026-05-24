@@ -89,6 +89,7 @@ export function createDeepfundingSyncActivity(ctx: DeepfundingSyncContext) {
         maxDelayMs: retryMaxDelayMs,
       },
       defaultPageLimit,
+      logLevel: config.logger.level,
     });
 
     const startedAt = new Date().toISOString();

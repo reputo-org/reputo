@@ -1,11 +1,12 @@
 import pino from 'pino';
 
 /**
- * Create a shared Pino logger instance with redaction for sensitive headers
+ * Create a shared Pino logger instance with redaction for sensitive headers.
+ * Pass `level` from the consuming app's validated env (defaults to 'info').
  */
-export function createLogger(): pino.Logger {
+export function createLogger(level: string = 'info'): pino.Logger {
   return pino({
-    level: process.env.LOG_LEVEL || 'info',
+    level,
     redact: {
       paths: ['headers.authentication-key', 'headers["authentication-key"]'],
       censor: '[REDACTED]',
