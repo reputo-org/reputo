@@ -4,6 +4,7 @@ export const envSchema = z.object({
   AUTH_COOKIE_NAME: z
     .string()
     .min(1)
+    .default("reputo_auth_session")
     .describe(
       "Opaque auth session cookie name; must match the API's AUTH_COOKIE_NAME"
     ),

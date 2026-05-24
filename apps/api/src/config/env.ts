@@ -48,7 +48,12 @@ export const envSchema = z
     DEEP_ID_AUTH_REDIRECT_URI: z.string().url().describe('Deep ID OAuth auth callback URL'),
     DEEP_ID_AUTH_SCOPES: z.string().trim().min(1).describe('Space or comma separated Deep ID auth scopes'),
 
-    AUTH_COOKIE_NAME: z.string().trim().min(1).describe('Opaque auth session cookie name'),
+    AUTH_COOKIE_NAME: z
+      .string()
+      .trim()
+      .min(1)
+      .default('reputo_auth_session')
+      .describe('Opaque auth session cookie name; must match the UI value'),
     AUTH_COOKIE_DOMAIN: z
       .string()
       .optional()
@@ -147,12 +152,15 @@ export const envSchema = z
       .describe('Comma-separated MIME allowlist; consumers split this themselves'),
 
     // Temporal
-    TEMPORAL_ADDRESS: z.string().min(1).optional().describe('Temporal server address (host:port)'),
+    TEMPORAL_ADDRESS: z
+      .string()
+      .regex(/^[^:\s]+:\d+$/, 'TEMPORAL_ADDRESS must be host:port (e.g. temporal:7233)')
+      .describe('Temporal server address (host:port)'),
     TEMPORAL_NAMESPACE: z.string().min(1).default('default').describe('Temporal namespace'),
     TEMPORAL_ORCHESTRATOR_TASK_QUEUE: z
       .string()
       .min(1)
-      .default('workflows')
+      .default('orchestrator-worker')
       .describe('Temporal task queue for orchestrator workflows'),
     TEMPORAL_API_SNAPSHOT_ACTIVITIES_TASK_QUEUE: z
       .string()

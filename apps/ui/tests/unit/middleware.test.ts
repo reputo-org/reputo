@@ -124,11 +124,10 @@ describe("ui middleware", () => {
     expect(config.matcher[0]).toContain("favicon.ico")
   })
 
-  it("throws when AUTH_COOKIE_NAME is missing", async () => {
+  it("falls back to the shared default when AUTH_COOKIE_NAME is unset", async () => {
     vi.resetModules()
     delete process.env.AUTH_COOKIE_NAME
-    await expect(import("../../src/middleware")).rejects.toThrow(
-      /AUTH_COOKIE_NAME/
-    )
+    const mod = await import("../../src/middleware")
+    expect(mod).toBeDefined()
   })
 })

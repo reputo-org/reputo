@@ -8,20 +8,30 @@ export const envSchema = z
     NODE_ENV: z.enum(NODE_ENVS).describe('Node runtime environment'),
     LOG_LEVEL: z.enum(LOG_LEVELS).default('info').describe('Pino log level'),
 
-    TEMPORAL_ADDRESS: z.string().min(1).describe('Temporal server address (host:port)'),
+    TEMPORAL_ADDRESS: z
+      .string()
+      .regex(/^[^:\s]+:\d+$/, 'TEMPORAL_ADDRESS must be host:port (e.g. temporal:7233)')
+      .describe('Temporal server address (host:port)'),
     TEMPORAL_NAMESPACE: z.string().min(1).default('default').describe('Temporal namespace'),
-    TEMPORAL_ORCHESTRATOR_TASK_QUEUE: z.string().min(1).describe('Temporal task queue for orchestrator workflows'),
+    TEMPORAL_ORCHESTRATOR_TASK_QUEUE: z
+      .string()
+      .min(1)
+      .default('orchestrator-worker')
+      .describe('Temporal task queue for orchestrator workflows'),
     TEMPORAL_ALGORITHM_TYPESCRIPT_TASK_QUEUE: z
       .string()
       .min(1)
+      .default('algorithm-typescript-worker')
       .describe('Temporal task queue for TypeScript algorithm workers'),
     TEMPORAL_ALGORITHM_PYTHON_TASK_QUEUE: z
       .string()
       .min(1)
+      .default('algorithm-python-worker')
       .describe('Temporal task queue for Python algorithm workers'),
     TEMPORAL_ONCHAIN_DATA_TASK_QUEUE: z
       .string()
       .min(1)
+      .default('onchain-data-worker')
       .describe('Temporal task queue for onchain-data dependency resolution'),
 
     AWS_REGION: z.string().min(1).describe('AWS region for S3 and other AWS clients'),
@@ -52,7 +62,7 @@ export const envSchema = z
       .default(52_428_800)
       .describe('Maximum object size in bytes'),
 
-    DEEPFUNDING_API_BASE_URL: z.string().min(1).describe('DeepFunding API base URL'),
+    DEEPFUNDING_API_BASE_URL: z.string().url().describe('DeepFunding API base URL'),
     DEEPFUNDING_API_KEY: z.string().min(1).describe('DeepFunding API key (required for the orchestrator worker)'),
     DEEPFUNDING_API_REQUEST_TIMEOUT_MS: z.coerce
       .number()
