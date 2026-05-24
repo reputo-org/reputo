@@ -25,8 +25,6 @@ export const ADMIN_QUERY_DEFAULTS: Required<
   >
 > = {
   status: "active",
-  // Sort by role descending so owners surface above admins by default; the
-  // repository tie-breaks within the same role by email asc.
   sortField: "role",
   sortOrder: "desc",
   page: 1,

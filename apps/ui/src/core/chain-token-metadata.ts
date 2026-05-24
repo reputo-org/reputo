@@ -1,10 +1,3 @@
-/**
- * Display metadata for chains and chain-scoped targets.
- *
- * Icons are a presentation concern and never alter stored runtime inputs,
- * API payload structure, validation keys, or algorithm definition identity.
- */
-
 export interface ChainDisplayMeta {
   label: string
   iconUrl: string

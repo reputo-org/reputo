@@ -2,14 +2,6 @@ import { UnauthorizedException } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-/**
- * Tests the docs protection middleware that gates /docs, /docs-json,
- * /docs-yaml, and /reference behind requireSession.
- *
- * We import the setupSwagger function and validate that it installs
- * middleware on the correct paths that delegates to requireSession.
- */
-
 function createMockRequest(url: string): Request {
   return {
     url,
@@ -55,8 +47,6 @@ describe('docs protection middleware', () => {
             ...rest: ((...args: unknown[]) => unknown)[]
           ) => {
             if (typeof pathOrMiddleware === 'string' && rest.length > 0) {
-              // Only store the first middleware registered per path (the auth guard).
-              // /reference gets two registrations: auth middleware first, then apiReference.
               if (!protectedPaths.has(pathOrMiddleware)) {
                 protectedPaths.set(pathOrMiddleware, rest[0] as any);
               }

@@ -31,9 +31,6 @@ export function DeepIdMark({ height = 14, className }: DeepIdMarkProps) {
       viewBox={`0 0 ${NATIVE_WIDTH} ${NATIVE_HEIGHT}`}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      // `size-auto` makes the className contain "size-", which opts out of the
-      // Button's global `[&_svg:not([class*='size-'])]:size-4` rule that would
-      // otherwise squash the wordmark into a 16x16 box.
       className={cn("inline-block size-auto shrink-0", className)}
       role="img"
       aria-label="DeepID"

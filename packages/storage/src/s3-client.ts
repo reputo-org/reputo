@@ -1,14 +1,5 @@
-/**
- * @reputo/storage/s3-client
- *
- * S3 client factory for consistent client creation across applications.
- */
-
 import { S3Client } from '@aws-sdk/client-s3';
 
-/**
- * Configuration options for creating an S3 client.
- */
 export interface S3ClientConfig {
   /**
    * AWS region for S3 operations.

@@ -126,11 +126,6 @@ describe('AlgorithmPresetService', () => {
       terminateSnapshotWorkflows: vi.fn().mockResolvedValue(undefined),
     } as unknown as TemporalService;
 
-    // `dataSource.transaction(cb)` immediately invokes the callback with an
-    // empty proxy that re-uses the service's existing repository mocks via
-    // passthrough — the same pattern as the old `prisma.$transaction` test
-    // double, just now keyed off the TypeORM EntityManager rather than the
-    // PrismaClient.
     mockDataSource = {
       transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb({})),
     } as unknown as DataSource;

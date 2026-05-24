@@ -25,6 +25,13 @@
 - Adding or changing an env var requires updating, in one PR: the app's Zod schema, the root `.env.example`, the per-service `environment:` block in `docker/compose/dev.yml` (for dev) and `apps.yml`/`infra.yml` (for prod), and `komodo/resources/variables.toml`.
 - Secrets (`*_SECRET`, `*_KEY`, `*_PASSWORD`, `*_TOKEN`) must use `z.string().min(1)` (no empty strings) and must never be logged.
 
+## Comments
+
+- Write code that is self-explanatory; do not narrate it. Comments that restate what the code already says are noise — leave them out.
+- Acceptable comments: substantive JSDoc on exported APIs (`@param`, `@returns`, `@throws`, `@example`, units, domain meaning); `// TODO`, `// FIXME`, `// XXX`, `// HACK`, `// NOTE` markers; tooling directives (`biome-ignore`, `eslint-disable`, `@ts-expect-error`, `prettier-ignore`, etc.); `/// <reference />` paths; shebangs; license headers; codegen markers.
+- Do not add: file-level descriptive headers, section dividers (`// ===== Foo =====`), label comments above import groups, trailing inline comments that just rename a value (`// 1 MB`), JSDoc that only restates a symbol's name, or "why-it-was-done-this-way" prose. If context truly cannot be inferred from the code, put it in the PR description or commit message.
+- In config files (`*.yml`, `*.toml`, `.env*`): keep operational headers, constraint annotations (`# REQUIRED:`, `# OPTIONAL: Default: …`, `# SECRET`), schema directives, and unit notes. Strip section dividers and labels that repeat the key name.
+
 ## Toolchain
 
 - Node 20+ with `pnpm@10.30.3`; Turbo orchestrates workspace builds.

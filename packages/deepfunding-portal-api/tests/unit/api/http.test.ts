@@ -11,12 +11,10 @@ import { HttpError } from '../../../src/shared/errors/index.js';
 import { createLogger } from '../../../src/shared/logging/index.js';
 import type { DeepFundingPortalApiConfig } from '../../../src/shared/types/api-config.js';
 
-// Mock undici
 vi.mock('undici', () => ({
   request: vi.fn(),
 }));
 
-// Mock logger
 vi.mock('../../../src/shared/logging/index.js', () => ({
   createLogger: vi.fn(() => ({
     debug: vi.fn(),
@@ -144,7 +142,7 @@ describe('HTTP Utils', () => {
 
     it('should cap delay at maxDelayMs', () => {
       const delay = calculateDelay(10, 500, 20000);
-      expect(delay).toBeLessThanOrEqual(20000 * 1.5); // Max delay + jitter
+      expect(delay).toBeLessThanOrEqual(20000 * 1.5);
     });
 
     it('should include jitter', () => {
@@ -153,7 +151,6 @@ describe('HTTP Utils', () => {
         delays.push(calculateDelay(2, 500, 20000));
       }
 
-      // All delays should be different due to jitter
       const uniqueDelays = new Set(delays);
       expect(uniqueDelays.size).toBeGreaterThan(1);
     });
@@ -294,7 +291,6 @@ describe('HTTP Utils', () => {
         },
       };
 
-      // First call fails with timeout, second succeeds
       vi.mocked(request)
         .mockRejectedValueOnce(new Error('Request timeout'))
         .mockResolvedValueOnce(mockResponse as never);
@@ -321,7 +317,6 @@ describe('HTTP Utils', () => {
     });
 
     it('should respect maxAttempts', async () => {
-      // All attempts fail with retryable error
       vi.mocked(request).mockRejectedValue(new Error('Request timeout'));
 
       await expect(executeRequest(config, mockLogger, '/test')).rejects.toThrow();

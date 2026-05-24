@@ -58,7 +58,6 @@ describe('SnapshotEventsService', () => {
     notifications$.next('snapshot-1');
     notifications$.next('snapshot-2');
 
-    // Wait two microtask drains so the async repository fetch chain resolves.
     await Promise.resolve();
     await Promise.resolve();
 

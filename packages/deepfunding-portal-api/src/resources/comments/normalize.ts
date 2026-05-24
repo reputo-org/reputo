@@ -1,14 +1,5 @@
-/**
- * Comment normalization - transforms API response to DB record format
- */
 import type { Comment, CommentRecord } from './types.js';
 
-/**
- * Normalize a Comment API response to a database record
- *
- * @param data - The comment data from the API
- * @returns The normalized comment record for database insertion
- */
 export function normalizeCommentToRecord(data: Comment): CommentRecord {
   return {
     commentId: data.comment_id,

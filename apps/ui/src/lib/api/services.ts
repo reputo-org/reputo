@@ -21,8 +21,6 @@ import type {
 
 const API_BASE_PATH = "/api/v1"
 
-// ── Centralised auth-failure handling ─────────────────────────────────
-
 let authFailureHandled = false
 let sessionWasAuthenticated = false
 
@@ -55,8 +53,6 @@ export function handleAuthFailure(): void {
     : "/login"
 }
 
-// Create axios instance with base configuration.
-// Browser requests should always be same-origin (via Traefik / reverse-proxy).
 const api = axios.create({
   baseURL: API_BASE_PATH,
   headers: {
@@ -74,9 +70,7 @@ function redirectToLoginOn401(error: AxiosError): Promise<never> {
 
 api.interceptors.response.use(undefined, redirectToLoginOn401)
 
-// Algorithm Presets API
 export const algorithmPresetsApi = {
-  // Get all algorithm presets with pagination and filtering
   getAll: async (
     params?: AlgorithmPresetQueryParams
   ): Promise<PaginatedAlgorithmPresetResponseDto> => {
@@ -84,13 +78,11 @@ export const algorithmPresetsApi = {
     return response.data
   },
 
-  // Get a single algorithm preset by ID
   getById: async (id: string): Promise<AlgorithmPresetResponseDto> => {
     const response = await api.get(`/algorithm-presets/${id}`)
     return response.data
   },
 
-  // Create a new algorithm preset
   create: async (
     data: CreateAlgorithmPresetDto
   ): Promise<AlgorithmPresetResponseDto> => {
@@ -98,7 +90,6 @@ export const algorithmPresetsApi = {
     return response.data
   },
 
-  // Update an existing algorithm preset
   update: async (
     id: string,
     data: UpdateAlgorithmPresetDto
@@ -107,15 +98,12 @@ export const algorithmPresetsApi = {
     return response.data
   },
 
-  // Delete an algorithm preset
   delete: async (id: string): Promise<void> => {
     await api.delete(`/algorithm-presets/${id}`)
   },
 }
 
-// Snapshots API
 export const snapshotsApi = {
-  // Get all snapshots with pagination and filtering
   getAll: async (
     params?: SnapshotQueryParams
   ): Promise<PaginatedSnapshotResponseDto> => {
@@ -123,24 +111,20 @@ export const snapshotsApi = {
     return response.data
   },
 
-  // Get a single snapshot by ID
   getById: async (id: string): Promise<SnapshotResponseDto> => {
     const response = await api.get(`/snapshots/${id}`)
     return response.data
   },
 
-  // Create a new snapshot
   create: async (data: CreateSnapshotDto): Promise<SnapshotResponseDto> => {
     const response = await api.post("/snapshots", data)
     return response.data
   },
 
-  // Delete a snapshot
   delete: async (id: string): Promise<void> => {
     await api.delete(`/snapshots/${id}`)
   },
 
-  // Subscribe to snapshot events via SSE
   subscribeToEvents: (params?: { algorithmPreset?: string }): EventSource => {
     const url = new URL(
       `${API_BASE_PATH}/snapshots/events`,
@@ -153,9 +137,7 @@ export const snapshotsApi = {
   },
 }
 
-// Storage API
 export const storageApi = {
-  // Create presigned upload URL
   createUpload: async (data: {
     filename: string
     contentType: string
@@ -169,7 +151,6 @@ export const storageApi = {
     const response = await api.post("/storage/downloads", data)
     return response.data
   },
-  // Verify upload and get metadata
   verify: async (data: { key: string }): Promise<StorageVerifyResponseDto> => {
     const response = await api.post("/storage/uploads/verify", data)
     return response.data
@@ -184,7 +165,6 @@ function adminPath(
   return `/admins/${encodeURIComponent(provider)}/${encodeURIComponent(email)}${suffix}`
 }
 
-// Admins API
 export const adminsApi = {
   /** Paginated list with filters. Defaults to active rows sorted by email asc. */
   list: async (

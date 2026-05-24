@@ -69,7 +69,6 @@ describe('AuthSessionRepository', () => {
         expiresAt: new Date(FIXED_NOW.getTime() + 3_600_000),
       });
 
-      // repo.create() is fed the camelCased columns.
       expect(repoMock.create).toHaveBeenCalledWith(
         expect.objectContaining({
           sessionId: 'session-1',
@@ -90,9 +89,6 @@ describe('AuthSessionRepository', () => {
 
       const row = await repository.findActiveBySessionId('session-1');
 
-      // The where clause must include the unrevoked + unexpired guards. We
-      // assert via object containment because TypeORM wraps `IsNull()` /
-      // `MoreThan()` in opaque value objects.
       const call = repoMock.findOne.mock.calls[0][0];
       expect(call.where.sessionId).toBe('session-1');
       expect(call.where.revokedAt).toBeDefined();
@@ -137,8 +133,6 @@ describe('AuthSessionRepository', () => {
         expiresAt: new Date(),
       });
 
-      // The lookup applies revokedAt+expiresAt guards (same `findOne` shape as
-      // findActiveBySessionId), then the mutation lands via `save`.
       const findCall = repoMock.findOne.mock.calls[0][0];
       expect(findCall.where.sessionId).toBe('session-1');
       expect(findCall.where.revokedAt).toBeDefined();
@@ -171,7 +165,6 @@ describe('AuthSessionRepository', () => {
       const where = updateCall[0] as { sessionId: string; revokedAt: unknown };
       const data = updateCall[1] as { revokedAt: Date; expiresAt: Date };
       expect(where.sessionId).toBe('session-1');
-      // revokedAt guard is an IsNull() value — we don't compare it directly.
       expect(where.revokedAt).toBeDefined();
       expect(data.revokedAt).toBe(FIXED_NOW);
       expect(data.expiresAt).toBe(FIXED_NOW);
@@ -244,10 +237,6 @@ describe('AuthSessionRepository', () => {
         groupBy: vi.fn().mockReturnThis(),
         getRawMany: vi.fn().mockResolvedValue([{ userId: TEST_USER_UUID, count: 2 }]),
       };
-      // Two `createQueryBuilder` calls are issued in parallel for the two
-      // groups. Order is stable because they're awaited via `Promise.all` in
-      // the source, but we don't rely on it: we return the same two builders
-      // in order.
       repoMock.createQueryBuilder
         .mockReturnValueOnce(
           lastSignInBuilder as unknown as ReturnType<Repository<AuthSessionEntity>['createQueryBuilder']>,

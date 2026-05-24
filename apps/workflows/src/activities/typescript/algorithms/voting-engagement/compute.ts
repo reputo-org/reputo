@@ -12,13 +12,6 @@ import type { SubIdBenchmarkRecord, VotingEngagementResult } from './types.js';
 import { roundScore } from './types.js';
 import { extractInputKeys, loadVotes } from './utils/index.js';
 
-/**
- * Computes voting engagement scores.
- *
- * @param snapshot - Snapshot document with algorithm configuration
- * @param storage - Storage client for file operations
- * @returns Algorithm result with output file locations
- */
 export async function computeVotingEngagement(snapshot: Snapshot, storage: Storage): Promise<AlgorithmResult> {
   const ctx = Context.current();
   const logger = ctx.log;
@@ -39,12 +32,10 @@ export async function computeVotingEngagement(snapshot: Snapshot, storage: Stora
 
   logger.debug('Resolved input locations', { subIdsKey, votesKey, subIdCount: subIds.length });
 
-  // Load and parse votes
   const votes = await loadVotes(storage, bucket, votesKey);
 
   logger.info('Parsed input votes', { rowCount: votes.length });
 
-  // Group votes by voter for targeted SubIDs only
   const { votesByVoter, stats } = groupVotesByVoter(votes, targetedVoterIds);
 
   logger.info('Vote processing summary', stats);
@@ -54,7 +45,6 @@ export async function computeVotingEngagement(snapshot: Snapshot, storage: Stora
     scoreByVoterId.set(voterId, roundScore(calculateVotingEngagement(voterVotes)));
   }
 
-  // Compute engagement for each SubID
   const results: VotingEngagementResult[] = [];
   const benchmarkRecords: SubIdBenchmarkRecord[] = [];
   const matchedSubIds = new Set<string>();
@@ -90,7 +80,6 @@ export async function computeVotingEngagement(snapshot: Snapshot, storage: Stora
 
   ctx.heartbeat({ phase: 'upload' });
 
-  // Generate and upload CSV output (async to avoid blocking the event loop)
   const csvContent = await stringifyCsvAsync(results, {
     header: true,
     columns: ['sub_id', 'voting_engagement'],
@@ -107,7 +96,6 @@ export async function computeVotingEngagement(snapshot: Snapshot, storage: Stora
 
   logger.info('Uploaded voting engagement results', { outputKey });
 
-  // Generate and upload benchmark details
   const benchmark = formatBenchmarkOutput({
     records: benchmarkRecords,
     snapshotId,

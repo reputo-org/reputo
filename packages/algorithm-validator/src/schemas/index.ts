@@ -1,7 +1,3 @@
-/**
- * Schema exports
- */
-
 export {
   type AlgorithmPresetInputType,
   algorithmPresetInputSchema,

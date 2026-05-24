@@ -1,6 +1,3 @@
-/**
- * HTTP error with status code
- */
 export class HttpError extends Error {
   constructor(
     public readonly statusCode: number,

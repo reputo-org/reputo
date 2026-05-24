@@ -19,8 +19,6 @@ export function roundScore(score: number): number {
   return Math.round(score * 10 ** SCORE_PRECISION) / 10 ** SCORE_PRECISION;
 }
 
-// ── Benchmark types ──
-
 export interface ProposalBenchmarkRecord {
   proposal_id: number;
   round_id: number;

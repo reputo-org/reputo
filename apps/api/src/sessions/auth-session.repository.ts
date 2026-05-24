@@ -4,8 +4,6 @@ import type { OAuthProvider } from '@reputo/contracts';
 import { In, IsNull, MoreThan, Repository } from 'typeorm';
 import { AuthSessionEntity } from '../persistence';
 
-// Public AuthSession shape — non-secret fields only. Used by guards, view
-// models, and any caller that doesn't need to decrypt provider tokens.
 export interface AuthSessionRow {
   _id: string;
   sessionId: string;
@@ -21,9 +19,6 @@ export interface AuthSessionRow {
   updatedAt: Date;
 }
 
-// Full AuthSession shape including encrypted tokens, PKCE verifier, and the
-// CSRF state. Returned only by the privileged helpers used inside the refresh
-// path.
 export interface AuthSessionWithSecrets extends AuthSessionRow {
   accessTokenCiphertext: string;
   refreshTokenCiphertext: string;
@@ -94,9 +89,6 @@ export class AuthSessionRepository {
     private readonly repo: Repository<AuthSessionEntity>,
   ) {}
 
-  // Returned shape includes secrets because the create path is the only one
-  // that already holds the plaintext (callers just minted them) and the
-  // session row is immediately consumed for cookie issuance.
   async create(data: AuthSessionCreateInput): Promise<AuthSessionWithSecrets> {
     const entity = this.repo.create({
       sessionId: data.sessionId,
@@ -117,8 +109,6 @@ export class AuthSessionRepository {
     return mapRowWithSecrets(saved);
   }
 
-  // Overload: callers explicitly opt in to the privileged shape (including
-  // secrets) by passing `true`; everyone else gets the public projection.
   findActiveBySessionId(sessionId: string): Promise<AuthSessionRow | null>;
   findActiveBySessionId(sessionId: string, includeSecrets: true): Promise<AuthSessionWithSecrets | null>;
   findActiveBySessionId(sessionId: string, includeSecrets: false): Promise<AuthSessionRow | null>;
@@ -137,8 +127,6 @@ export class AuthSessionRepository {
     return includeSecrets ? mapRowWithSecrets(entity) : mapPublicRow(entity);
   }
 
-  // Privileged convenience: explicit name so refresh-path callers don't need
-  // to remember the boolean flag.
   async findActiveBySessionIdWithSecrets(sessionId: string): Promise<AuthSessionWithSecrets | null> {
     return this.findActiveBySessionId(sessionId, true);
   }
@@ -186,9 +174,6 @@ export class AuthSessionRepository {
     return { deletedCount: result.affected ?? 0 };
   }
 
-  // Returns Map<userId, { lastSignInAt, activeSessionCount }>. Users with no
-  // sessions are omitted; users whose sessions are all revoked or expired
-  // appear with `activeSessionCount: 0`.
   async aggregateActivityByUserIds(
     userIds: ReadonlyArray<string>,
     now = new Date(),
@@ -197,8 +182,6 @@ export class AuthSessionRepository {
     if (userIds.length === 0) return activity;
 
     const ids = [...userIds];
-    // Two grouped queries — `findAndCount`/`groupBy` over the same column with
-    // different filters isn't expressible in a single QueryBuilder.
     const [lastSignInRows, activeCountRows] = await Promise.all([
       this.repo
         .createQueryBuilder('s')

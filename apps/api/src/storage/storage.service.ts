@@ -31,7 +31,6 @@ export class StorageService {
   constructor(@Inject(S3_CLIENT) s3Client: S3Client, configService: ConfigService) {
     this.storage = new Storage(s3Client);
 
-    // Read config values for use in method calls
     this.bucket = configService.get<string>('storage.bucket') as string;
     this.presignPutTtl = configService.get<number>('storage.presignPutTtl') as number;
     this.presignGetTtl = configService.get<number>('storage.presignGetTtl') as number;

@@ -8,9 +8,6 @@ import { AlgorithmPresetController } from './algorithm-preset.controller';
 import { AlgorithmPresetRepository } from './algorithm-preset.repository';
 import { AlgorithmPresetService } from './algorithm-preset.service';
 
-// `PersistenceModule` is registered globally in `src/persistence`, providing
-// the root TypeORM DataSource. Feature-level entity repositories are wired
-// per-module via `TypeOrmModule.forFeature(...)`.
 @Module({
   imports: [
     TypeOrmModule.forFeature([AlgorithmPresetEntity, AlgorithmPresetInputEntity]),

@@ -1,6 +1,4 @@
-# =============================================================================
 # Env-var policy
-# =============================================================================
 #
 # `pnpm docker:dev` runs `scripts/env/load.ts` first to populate process env
 # from the repo-root `.env` file, then invokes `docker compose -f dev.yml up`.

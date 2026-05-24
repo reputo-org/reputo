@@ -1,9 +1,6 @@
 import { vi } from 'vitest';
 import type { DeepFundingClient } from '../../src/api/client.js';
 
-/**
- * Create a mock DeepFunding client with a mocked get method
- */
 export function createMockClient(
   mockGet?: ReturnType<typeof vi.fn>,
 ): DeepFundingClient & { mockGet: ReturnType<typeof vi.fn> } {
@@ -30,9 +27,6 @@ export function createMockClient(
   return client;
 }
 
-/**
- * Create a mock paginated response
- */
 export function createMockPaginatedResponse<T>(
   data: T[],
   page: number = 1,

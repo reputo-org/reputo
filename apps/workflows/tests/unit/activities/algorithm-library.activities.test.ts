@@ -1,7 +1,3 @@
-/**
- * Unit tests for algorithm library activities.
- */
-
 import { describe, expect, it, vi } from 'vitest';
 import { createAlgorithmLibraryActivities } from '../../../src/activities/orchestrator/reputation-algorithm.activities.js';
 
@@ -17,7 +13,6 @@ vi.mock('@temporalio/activity', () => ({
   },
 }));
 
-// Mock the reputation-algorithms package
 vi.mock('@reputo/reputation-algorithms', () => ({
   getAlgorithmDefinition: vi.fn((filters: { key: string; version?: string }) => {
     if (filters.key === 'voting_engagement') {

@@ -51,7 +51,6 @@ describe('snapshot.activities factory', () => {
       const snapshot = await env.run(activities.getSnapshot, { snapshotId: SNAPSHOT_ID });
 
       expect(snapshotService.findByIdOrNull).toHaveBeenCalledWith(SNAPSHOT_ID);
-      // Dates are serialised to ISO strings so the DTO round-trips through Temporal.
       expect(snapshot.id).toBe(SNAPSHOT_ID);
       expect(snapshot.algorithmPresetId).toBe(PRESET_ID);
       expect(snapshot.createdAt).toBe(FIXED_NOW.toISOString());

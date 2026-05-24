@@ -1,51 +1,17 @@
-/**
- * CSV content validation logic
- * Validates CSV structure and column requirements
- * Works in both browser (File) and Node.js (string/Buffer) environments
- */
-
 import type { CSVValidationResult, CsvIoItem } from './types/index.js';
 
-/**
- * Normalizes a string key for comparison.
- *
- * Handles various edge cases including:
- * - UTF-8 BOM (Byte Order Mark) removal
- * - Non-breaking spaces (NBSP) conversion
- * - Whitespace and dash normalization
- * - Quote stripping
- * - Case-insensitive comparison
- *
- * @param s - The string to normalize
- * @returns Normalized string suitable for key comparison
- *
- * @internal
- */
 function normalizeKey(s: string): string {
   return s
     .toLowerCase()
     .replace(/^\uFEFF/, '')
-    .replace(/\u00a0/g, ' ') // NBSP to space
+    .replace(/\u00a0/g, ' ')
     .trim()
-    .replace(/^["']+|["']+$/g, '') // strip wrapping quotes
-    .replace(/[\s\-\u2011\u2013\u2014]+/g, '_') // spaces and dashes → underscore
-    .replace(/_+/g, '_') // collapse
-    .replace(/^_+|_+$/g, ''); // trim underscores
+    .replace(/^["']+|["']+$/g, '')
+    .replace(/[\s\-\u2011\u2013\u2014]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
 }
 
-/**
- * Reads text content from various input types.
- *
- * Supports multiple input formats to work in both browser and Node.js environments:
- * - File objects (browser)
- * - String content (universal)
- * - Buffer objects (Node.js)
- *
- * @param file - File object, string, or Buffer containing CSV content
- * @returns Object containing the text content and file metadata
- *
- * @internal
- */
 async function readContent(file: File | string | Buffer): Promise<{ text: string; fileInfo: Record<string, unknown> }> {
   if (typeof file === 'string') {
     return { text: file, fileInfo: { kind: 'string' } };
@@ -55,7 +21,6 @@ async function readContent(file: File | string | Buffer): Promise<{ text: string
     return { text: file.toString('utf-8'), fileInfo: { kind: 'buffer' } };
   }
 
-  // Browser File object
   return {
     text: await file.text(),
     fileInfo: {
@@ -115,28 +80,24 @@ export async function validateCSVContent(
   try {
     const { text: rawText, fileInfo } = await readContent(file);
 
-    // Normalize BOM and line endings
     const hadBom = rawText.startsWith('\uFEFF');
-    let text = rawText.replace(/^\uFEFF/, ''); // strip UTF-8 BOM if present
+    let text = rawText.replace(/^\uFEFF/, '');
     text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const rawLines = text.split('\n');
     const lines = rawLines.filter((line) => line.trim().length > 0);
 
-    // Check max rows
     const hasHeader = csvConfig.hasHeader ?? true;
     const dataLines = hasHeader ? lines.slice(1) : lines;
     if (csvConfig.maxRows !== undefined && dataLines.length > csvConfig.maxRows) {
       errors.push(`CSV has ${dataLines.length} rows, but maximum is ${csvConfig.maxRows}`);
     }
 
-    // Parse header
     const headerLine = hasHeader ? lines[0] : null;
     if (!headerLine && hasHeader) {
       errors.push('CSV is missing header row');
       return { valid: false, errors };
     }
 
-    // Detect delimiter (prefer configured, but fall back if header doesn't split)
     const configuredDelimiter = csvConfig.delimiter ?? ',';
     const candidateDelimiters = [configuredDelimiter, ',', ';', '\t', '|'].filter(
       (d, idx, arr) => d !== undefined && arr.indexOf(d) === idx,
@@ -166,7 +127,6 @@ export async function validateCSVContent(
     const headersLower = headersSanitized.map((h) => h.toLowerCase());
     const headersNormalized = headersSanitized.map((h) => normalizeKey(h));
 
-    // Debug logs (only in development/debug mode)
     console.groupCollapsed?.('[CSV Validation] Debug');
     console.log?.('Input', fileInfo);
     console.log?.('Had BOM', hadBom);
@@ -185,7 +145,6 @@ export async function validateCSVContent(
     );
     console.groupEnd?.();
 
-    // Validate required columns
     const requiredColumns = csvConfig.columns.filter((col) => col.required !== false);
 
     for (const column of requiredColumns) {
@@ -205,12 +164,10 @@ export async function validateCSVContent(
       }
     }
 
-    // Validate at least one data row
     if (dataLines.length === 0) {
       errors.push('CSV must contain at least one data row');
     }
 
-    // Sample validate first few rows
     const sampleSize = Math.min(5, dataLines.length);
     for (let i = 0; i < sampleSize; i++) {
       const row = dataLines[i];
@@ -222,7 +179,6 @@ export async function validateCSVContent(
         errors.push(`Row ${i + 1} has ${values.length} values but header has ${headers.length} columns`);
       }
 
-      // Validate enum columns
       for (const col of csvConfig.columns.filter((c) => c.type === 'enum')) {
         const colIndex = headersLower.findIndex((h) =>
           [col.key, ...(col.aliases ?? [])].map((k) => k.toLowerCase()).includes(h),

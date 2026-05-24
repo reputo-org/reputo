@@ -8,11 +8,6 @@
     "noEmit": true,
     "types": ["vitest/globals", "node"]
   },
-  "include": [
-    "vitest.base.ts",
-    "vitest.config.ts",
-    "packages/**/*.{ts,tsx}",
-    "apps/**/*.{ts,tsx}"
-  ],
+  "include": ["vitest.base.ts", "vitest.config.ts", "packages/**/*.{ts,tsx}", "apps/**/*.{ts,tsx}"],
   "exclude": ["**/dist/**", "**/node_modules/**", "**/.next/**"]
 }

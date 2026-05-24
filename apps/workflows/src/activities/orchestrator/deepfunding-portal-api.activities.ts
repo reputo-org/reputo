@@ -98,7 +98,6 @@ export function createDeepfundingSyncActivity(ctx: DeepfundingSyncContext) {
     const repos = createRepos(db);
 
     try {
-      // 1) Rounds
       const rounds = await fetchRounds(client);
       await Promise.all([
         storage.putObject({
@@ -110,7 +109,6 @@ export function createDeepfundingSyncActivity(ctx: DeepfundingSyncContext) {
         repos.rounds.createMany(rounds),
       ]);
 
-      // 2) Proposals (per round)
       await Promise.all(
         rounds.map(async (round: { id: number }) => {
           const proposals = await fetchProposals(client, round.id);
@@ -131,7 +129,6 @@ export function createDeepfundingSyncActivity(ctx: DeepfundingSyncContext) {
         }),
       );
 
-      // 3) Pools
       const pools = await fetchPools(client);
       await Promise.all([
         storage.putObject({
@@ -143,7 +140,6 @@ export function createDeepfundingSyncActivity(ctx: DeepfundingSyncContext) {
         repos.pools.createMany(pools),
       ]);
 
-      // 4) Milestones (paginated)
       for await (const page of fetchMilestones(client)) {
         const pageNumber = page.pagination.current_page;
         await Promise.all([
@@ -157,7 +153,6 @@ export function createDeepfundingSyncActivity(ctx: DeepfundingSyncContext) {
         ]);
       }
 
-      // 5) Reviews (paginated)
       for await (const page of fetchReviews(client)) {
         const pageNumber = page.pagination.current_page;
         await Promise.all([
@@ -171,7 +166,6 @@ export function createDeepfundingSyncActivity(ctx: DeepfundingSyncContext) {
         ]);
       }
 
-      // 6) Comments (paginated)
       for await (const page of fetchComments(client)) {
         const pageNumber = page.pagination.current_page;
         await Promise.all([
@@ -185,7 +179,6 @@ export function createDeepfundingSyncActivity(ctx: DeepfundingSyncContext) {
         ]);
       }
 
-      // 7) Comment votes (paginated)
       for await (const page of fetchCommentVotes(client)) {
         const pageNumber = page.pagination.current_page;
         await Promise.all([
@@ -199,7 +192,6 @@ export function createDeepfundingSyncActivity(ctx: DeepfundingSyncContext) {
         ]);
       }
 
-      // 8) Users (paginated)
       for await (const page of fetchUsers(client)) {
         const pageNumber = page.pagination.current_page;
         await Promise.all([
@@ -213,7 +205,6 @@ export function createDeepfundingSyncActivity(ctx: DeepfundingSyncContext) {
         ]);
       }
 
-      // Upload SQLite DB
       const dbBytes = await readFile(localDbPath);
       await storage.putObject({
         bucket,
@@ -222,7 +213,6 @@ export function createDeepfundingSyncActivity(ctx: DeepfundingSyncContext) {
         contentType: 'application/x-sqlite3',
       });
 
-      // Write manifest marker
       const manifest = {
         snapshotId,
         startedAt,
@@ -252,9 +242,7 @@ export function createDeepfundingSyncActivity(ctx: DeepfundingSyncContext) {
     } finally {
       try {
         await closeDbInstance(db);
-      } catch {
-        // ignore
-      }
+      } catch {}
       await rm(tempDir, { recursive: true, force: true });
     }
   };

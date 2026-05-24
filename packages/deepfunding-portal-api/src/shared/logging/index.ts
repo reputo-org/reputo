@@ -1,8 +1,8 @@
 import pino from 'pino';
 
 /**
- * Create a shared Pino logger instance with redaction for sensitive headers.
- * Pass `level` from the consuming app's validated env (defaults to 'info').
+ * Pino logger with redaction for the upstream API key header. Pass `level`
+ * from the consuming app's validated env (defaults to 'info').
  */
 export function createLogger(level: string = 'info'): pino.Logger {
   return pino({

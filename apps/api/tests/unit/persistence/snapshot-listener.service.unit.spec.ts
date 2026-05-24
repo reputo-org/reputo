@@ -101,7 +101,6 @@ describe('SnapshotListenerService', () => {
 
     first.emit('end');
 
-    // First reconnect delay = 500ms
     await vi.advanceTimersByTimeAsync(500);
 
     expect(second.connect).toHaveBeenCalledOnce();

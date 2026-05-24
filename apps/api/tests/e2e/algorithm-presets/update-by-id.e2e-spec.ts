@@ -139,7 +139,6 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
   });
 
   it('preserves caller-supplied input order across update + read round-trip', async () => {
-    // Seed in `sub_ids, votes` order — the order the factory uses.
     const preset = await insertAlgorithmPreset(dataSource, {
       inputs: [
         { key: 'sub_ids', value: 'uploads/sub_ids.json' },
@@ -147,7 +146,6 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
       ],
     });
 
-    // Update with `votes, sub_ids` — the reverse order.
     const reorderedInputs = [
       { key: 'votes', value: 'uploads/reordered/votes.csv' },
       { key: 'sub_ids', value: 'uploads/reordered/sub_ids.json' },
@@ -160,7 +158,6 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
 
     expect(res.body.inputs.map((i: { key: string }) => i.key)).toEqual(['votes', 'sub_ids']);
 
-    // Round-trip through GET to confirm the read path also returns ordered rows.
     const getRes = await api(app, authCookie).get(`/algorithm-presets/${preset.id}`).expect(200);
     expect(getRes.body.inputs).toEqual(reorderedInputs);
   });

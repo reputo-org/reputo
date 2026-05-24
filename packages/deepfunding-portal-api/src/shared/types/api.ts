@@ -1,6 +1,3 @@
-/**
- * Pagination metadata from API responses
- */
 export type Pagination = {
   total_records: number;
   current_page: number;

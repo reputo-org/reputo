@@ -1,7 +1,3 @@
-/**
- * Database module for DeepFunding Portal API
- */
-
 export type {
   CreateDbOptions,
   DeepFundingPortalDb,

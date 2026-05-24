@@ -1,17 +1,9 @@
-/**
- * ReputoClient - Universal validation client
- * Validates payloads against algorithm definitions on both client and server
- */
-
 import {
   type ValidationResult,
   validatePayload,
 } from "@reputo/algorithm-validator"
 import type { AlgorithmDefinition } from "@reputo/reputation-algorithms"
 
-/**
- * Schema registry for storing known algorithm definitions
- */
 class SchemaRegistry {
   private schemas: Map<string, AlgorithmDefinition> = new Map()
 
@@ -32,23 +24,14 @@ class SchemaRegistry {
   }
 }
 
-/**
- * ReputoClient - Main client for algorithm definition validation
- */
 class ReputoClientClass {
   private registry = new SchemaRegistry()
 
-  /**
-   * Register an algorithm definition for validation
-   */
   registerSchema(definition: AlgorithmDefinition) {
     this.registry.register(definition)
     return this
   }
 
-  /**
-   * Register multiple algorithm definitions
-   */
   registerSchemas(definitions: AlgorithmDefinition[]) {
     for (const def of definitions) {
       this.registry.register(def)
@@ -91,9 +74,6 @@ class ReputoClientClass {
     return validatePayload(definition, payload)
   }
 
-  /**
-   * Validate a payload against an algorithm definition directly
-   */
   validateWithSchema(
     definition: AlgorithmDefinition,
     payload: any
@@ -101,31 +81,18 @@ class ReputoClientClass {
     return validatePayload(definition, payload)
   }
 
-  /**
-   * Get a registered algorithm definition by key
-   */
   getSchema(key: string): AlgorithmDefinition | undefined {
     return this.registry.get(key)
   }
 
-  /**
-   * Check if an algorithm definition is registered
-   */
   hasSchema(key: string): boolean {
     return this.registry.has(key)
   }
 
-  /**
-   * Get all registered algorithm definitions
-   */
   getAllSchemas(): AlgorithmDefinition[] {
     return this.registry.getAll()
   }
 
-  /**
-   * Server-side validation endpoint
-   * Call this from API routes
-   */
   async validateFromRequest(
     schemaKey: string,
     request: Request
@@ -149,12 +116,6 @@ class ReputoClientClass {
   }
 }
 
-/**
- * Singleton instance of ReputoClient
- */
 export const reputoClient = new ReputoClientClass()
 
-/**
- * Export the class for custom instances if needed
- */
 export { ReputoClientClass }

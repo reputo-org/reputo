@@ -22,8 +22,6 @@ export interface AuthConfig {
   ownerProvider: OAuthProvider;
   providers: Record<OAuthProvider, OAuthProviderAuthConfig>;
   refreshLeewaySeconds: number;
-  // Periodic cleanup interval for expired AuthSession rows. Set to 0 to
-  // disable the cron (tests, one-off scripts).
   sessionCleanupIntervalMs: number;
   sessionTtlSeconds: number;
   tokenEncryptionKey: string;

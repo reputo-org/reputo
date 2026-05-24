@@ -43,8 +43,6 @@ describe('SnapshotRepository', () => {
     delete: ReturnType<typeof vi.fn>;
   };
 
-  // EntityManager that is handed to the transaction callback. We expose the
-  // inner repos directly so individual tests can adjust them.
   let txSnapshotRepo: typeof snapshotRepoMock;
   let txOutputRepo: typeof outputRepoMock;
   let txManager: EntityManager & { query: ReturnType<typeof vi.fn> };
@@ -187,8 +185,6 @@ describe('SnapshotRepository', () => {
       expect(call).toMatchObject({
         relations: { outputs: true },
       });
-      // `algorithmPresetFrozen` is wrapped by TypeORM `Raw(...)` — it should
-      // be present on the `where` so the SQL pulls from JSONB.
       const where = call.where as { algorithmPresetFrozen?: unknown };
       expect(where.algorithmPresetFrozen).toBeDefined();
     });
@@ -268,17 +264,13 @@ describe('SnapshotRepository', () => {
     it('runs the update and pg_notify in a single transaction', async () => {
       const initial = createEntity();
       const updated = createEntity({ status: SnapshotStatus.running, startedAt: FIXED_NOW });
-      txSnapshotRepo.findOne
-        // Inside the transaction: first load, then refresh after save.
-        .mockResolvedValueOnce(initial)
-        .mockResolvedValueOnce(updated);
+      txSnapshotRepo.findOne.mockResolvedValueOnce(initial).mockResolvedValueOnce(updated);
 
       const result = await repository.applyExternalUpdate(SNAPSHOT_ID, {
         status: SnapshotStatus.running,
         startedAt: FIXED_NOW,
       });
 
-      // The transaction wrapped both the entity save and the pg_notify call.
       expect(snapshotRepoMock.manager.transaction).toHaveBeenCalledOnce();
       expect(txSnapshotRepo.save).toHaveBeenCalled();
       expect(txManager.query).toHaveBeenCalledWith('SELECT pg_notify($1, $2)', expect.arrayContaining([SNAPSHOT_ID]));
@@ -341,8 +333,6 @@ describe('SnapshotRepository', () => {
 
   describe('deleteMany', () => {
     it('translates the TypeORM affected count into `{ deletedCount }`', async () => {
-      // Default branch resolves the inner repo via `this.snapshots.manager`,
-      // which our mock routes to `txSnapshotRepo`.
       txSnapshotRepo.delete.mockResolvedValue({ affected: 3 });
 
       const result = await repository.deleteMany({ algorithmPresetId: PRESET_ID });

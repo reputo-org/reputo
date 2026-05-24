@@ -4,21 +4,12 @@ import type { DeepFundingPortalApiConfig, DeepFundingPortalApiConfigInput } from
 import { DEFAULT_CONFIG } from '../shared/types/api-config.js';
 import { createLimiter, executeRequest } from './http.js';
 
-/**
- * DeepFunding Portal API client
- */
 export type DeepFundingClient = {
-  /** Full configuration */
   config: DeepFundingPortalApiConfig;
-  /** Concurrency limiter */
   limiter: ReturnType<typeof pLimit>;
-  /** Execute a GET request with retry logic */
   get: <T>(path: string, params?: Record<string, string | number>) => Promise<T>;
 };
 
-/**
- * Create a DeepFunding Portal API client
- */
 export function createDeepFundingClient(input: DeepFundingPortalApiConfigInput): DeepFundingClient {
   const config: DeepFundingPortalApiConfig = {
     baseUrl: input.baseUrl,
@@ -33,7 +24,6 @@ export function createDeepFundingClient(input: DeepFundingPortalApiConfigInput):
     defaultPageLimit: input.defaultPageLimit ?? DEFAULT_CONFIG.defaultPageLimit,
   };
 
-  // Create logger using shared logger factory
   const logger = createLogger(input.logLevel);
 
   const limiter = createLimiter(config);

@@ -7,9 +7,6 @@ import type { Review } from '../../src/resources/reviews/types.js';
 import type { Round } from '../../src/resources/rounds/types.js';
 import type { User } from '../../src/resources/users/types.js';
 
-/**
- * Create a mock milestone
- */
 export function createMockMilestone(overrides?: Partial<Milestone>): Milestone {
   return {
     id: 1,
@@ -26,7 +23,8 @@ export function createMockMilestone(overrides?: Partial<Milestone>): Milestone {
 }
 
 /**
- * Create a mock milestone raw (without proposal metadata)
+ * Milestone shape as it appears nested inside the per-proposal group in the
+ * API response (no proposal metadata yet).
  */
 export function createMockMilestoneRaw(overrides?: Partial<MilestoneRaw>): MilestoneRaw {
   return {
@@ -40,9 +38,6 @@ export function createMockMilestoneRaw(overrides?: Partial<MilestoneRaw>): Miles
   };
 }
 
-/**
- * Create a mock proposal
- */
 export function createMockProposal(overrides?: Partial<ProposalWithRound>): ProposalWithRound {
   return {
     id: 1,
@@ -64,9 +59,6 @@ export function createMockProposal(overrides?: Partial<ProposalWithRound>): Prop
   };
 }
 
-/**
- * Create a mock user
- */
 export function createMockUser(overrides?: Partial<User>): User {
   return {
     id: 1,
@@ -78,9 +70,6 @@ export function createMockUser(overrides?: Partial<User>): User {
   };
 }
 
-/**
- * Create a mock round
- */
 export function createMockRound(overrides?: Partial<Round>): Round {
   return {
     id: 1,
@@ -92,9 +81,6 @@ export function createMockRound(overrides?: Partial<Round>): Round {
   };
 }
 
-/**
- * Create a mock pool
- */
 export function createMockPool(overrides?: Partial<Pool>): Pool {
   return {
     id: 1,
@@ -106,9 +92,6 @@ export function createMockPool(overrides?: Partial<Pool>): Pool {
   };
 }
 
-/**
- * Create a mock comment
- */
 export function createMockComment(overrides?: Partial<Comment>): Comment {
   return {
     comment_id: 1,
@@ -124,9 +107,6 @@ export function createMockComment(overrides?: Partial<Comment>): Comment {
   };
 }
 
-/**
- * Create a mock comment vote
- */
 export function createMockCommentVote(overrides?: Partial<CommentVote>): CommentVote {
   return {
     voter_id: 1,
@@ -137,9 +117,6 @@ export function createMockCommentVote(overrides?: Partial<CommentVote>): Comment
   };
 }
 
-/**
- * Create a mock review
- */
 export function createMockReview(overrides?: Partial<Review>): Review {
   return {
     proposal_id: 1,

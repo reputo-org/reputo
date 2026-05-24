@@ -4,9 +4,6 @@ import { type CreateManyOptions, chunkArray, DEFAULT_CHUNK_SIZE } from '../../sh
 import { normalizeRoundToRecord } from './normalize.js';
 import type { Round, RoundRecord } from './types.js';
 
-/**
- * Create a rounds repository bound to the given database instance.
- */
 export function createRoundsRepo(db: DeepFundingPortalDb) {
   const repo = db.dataSource.getRepository(RoundEntity);
 

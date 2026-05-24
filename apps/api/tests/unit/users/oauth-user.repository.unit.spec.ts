@@ -33,9 +33,6 @@ describe('OAuthUserRepository', () => {
     find: ReturnType<typeof vi.fn>;
     save: ReturnType<typeof vi.fn>;
   };
-  // Repository accessed via the transaction manager — same set of methods as
-  // the outer mock, but we need both so we can drive the upsert paths and
-  // assert calls on the right one.
   let txRepo: typeof repoMock;
   let repository: OAuthUserRepository;
 
@@ -81,8 +78,6 @@ describe('OAuthUserRepository', () => {
       });
 
       expect(txRepo.findOne).toHaveBeenCalledWith({ where: { provider: 'deep-id', sub: 'did:deep-id:abc' } });
-      // A brand-new entity is saved with the camelCased columns expected by
-      // the DB.
       const saved = txRepo.save.mock.calls[0][0] as Record<string, unknown>;
       expect(saved).toMatchObject({
         provider: 'deep-id',
@@ -114,11 +109,9 @@ describe('OAuthUserRepository', () => {
         username: 'mock',
       });
 
-      // Only the explicitly-set fields move; everything else is untouched.
       expect(existing.email).toBe('mock@example.com');
       expect(existing.emailVerified).toBe(true);
       expect(existing.username).toBe('mock');
-      // `aud` was not mentioned so it should remain unchanged.
       expect(existing.aud).toEqual(['old-aud']);
     });
 
@@ -171,11 +164,9 @@ describe('OAuthUserRepository', () => {
         username: 'mock',
       });
 
-      // Things we touched.
       expect(existing.email).toBe('mock@example.com');
       expect(existing.emailVerified).toBe(true);
       expect(existing.username).toBe('mock');
-      // Things we didn't.
       expect(existing.aud).toEqual([]);
       expect(existing.authTime).toBeNull();
     });

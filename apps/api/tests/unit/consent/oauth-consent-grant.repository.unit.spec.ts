@@ -70,7 +70,6 @@ describe('OAuthConsentGrantRepository', () => {
     const [args] = repoMock.findOne.mock.calls[0];
     expect((args as { where: { provider: string; state: string; expiresAt: unknown } }).where.provider).toBe('deep-id');
     expect((args as { where: { state: string } }).where.state).toBe('state');
-    // `expiresAt` is wrapped in `MoreThan()`; we only assert it is present.
     expect((args as { where: { expiresAt: unknown } }).where.expiresAt).toBeDefined();
   });
 

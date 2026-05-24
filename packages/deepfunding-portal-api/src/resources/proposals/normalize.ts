@@ -1,14 +1,5 @@
-/**
- * Proposal normalization - transforms API response to DB record format
- */
 import type { ProposalRecord, ProposalWithRound } from './types.js';
 
-/**
- * Normalize a Proposal API response to a database record
- *
- * @param data - The proposal data from the API with round context
- * @returns The normalized proposal record for database insertion
- */
 export function normalizeProposalToRecord(data: ProposalWithRound): ProposalRecord {
   return {
     id: data.id,

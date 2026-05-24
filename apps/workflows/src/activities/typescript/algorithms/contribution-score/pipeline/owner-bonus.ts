@@ -5,15 +5,6 @@ export interface OwnerBonusResult {
   ownerBonus: number;
 }
 
-/**
- * Check if any project owner upvoted the comment and compute bonus.
- *
- * @param proposalId - The proposal ID
- * @param votes - Vote statistics for the comment
- * @param projectOwnerMap - Map of proposal ID to owner user IDs
- * @param bonusMultiplier - Multiplier to apply when owner upvoted
- * @returns Owner bonus result
- */
 export function computeOwnerBonus(
   proposalId: number,
   votes: VoteStats,

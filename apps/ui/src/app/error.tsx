@@ -12,8 +12,6 @@ interface ErrorPageProps {
 
 export default function ErrorPage({ error, reset }: ErrorPageProps) {
   useEffect(() => {
-    // Surface to the browser console; production error reporting (e.g.
-    // Sentry) would hook in here.
     console.error(error)
   }, [error])
 

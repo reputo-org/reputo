@@ -1,9 +1,6 @@
 import type { SnapshotStatus } from '../enums/snapshot-status.js';
 import type { SnapshotDto, SnapshotError, SnapshotOutputs, SnapshotTemporalInfo } from '../snapshot/snapshot.dto.js';
 
-/**
- * Input to the `getSnapshot` activity.
- */
 export interface GetSnapshotInput {
   snapshotId: string;
 }

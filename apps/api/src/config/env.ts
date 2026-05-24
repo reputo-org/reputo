@@ -8,21 +8,16 @@ export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'] a
 export const AUTH_MODES = [AUTH_MODE_OAUTH, AUTH_MODE_MOCK] as const;
 export const COOKIE_SAME_SITE = ['lax', 'strict', 'none'] as const;
 
-// Joi accepted `'true' | '1' | 'false' | '0' | true | false`; mirror that
-// here so existing `.env` and compose values (which are all strings) keep
-// parsing.
 const truthyStringBoolean = z
   .union([z.boolean(), z.enum(['true', '1', 'false', '0'])])
   .transform((value) => value === true || value === 'true' || value === '1');
 
 export const envSchema = z
   .object({
-    // Runtime
     NODE_ENV: z.enum(NODE_ENVS).describe('Node runtime environment'),
     PORT: z.coerce.number().int().positive().default(3000).describe('HTTP port the Nest application listens on'),
     LOG_LEVEL: z.enum(LOG_LEVELS).default('info').describe('Pino log level'),
 
-    // Auth
     AUTH_MODE: z
       .enum(AUTH_MODES)
       .default(AUTH_MODE_OAUTH)
@@ -91,7 +86,6 @@ export const envSchema = z
       .describe('Secret used to encrypt provider tokens and transient auth flow cookies'),
     APP_PUBLIC_URL: z.string().url().describe('Public application URL used after login'),
 
-    // Consent (Deep ID + voting portal)
     DEEP_ID_CONSENT_REDIRECT_URI: z.string().url().describe('Deep ID OAuth callback URL for consent flows'),
     DEEP_ID_CONSENT_GRANT_TTL_SECONDS: z.coerce
       .number()
@@ -107,7 +101,6 @@ export const envSchema = z
     VOTING_PORTAL_RETURN_URL: z.string().url().describe('Voting Portal return URL after consent'),
     DEEP_ID_VOTING_PORTAL_SCOPES: z.string().min(1).describe('Deep ID scopes requested for Voting Portal consent'),
 
-    // Database
     DATABASE_URL: z
       .string()
       .url()
@@ -116,7 +109,6 @@ export const envSchema = z
       })
       .describe('PostgreSQL connection URL for the API application database (consumed by TypeORM)'),
 
-    // AWS
     AWS_REGION: z.string().min(1).describe('AWS region for S3 and other AWS clients'),
     AWS_ACCESS_KEY_ID: z.string().min(1).optional().describe('AWS access key ID (omit to use IAM role credentials)'),
     AWS_SECRET_ACCESS_KEY: z
@@ -125,7 +117,6 @@ export const envSchema = z
       .optional()
       .describe('AWS secret access key (omit to use IAM role credentials)'),
 
-    // Storage
     STORAGE_BUCKET: z.string().min(1).describe('S3 bucket name for algorithm inputs and outputs'),
     STORAGE_PRESIGN_PUT_TTL: z.coerce
       .number()
@@ -151,7 +142,6 @@ export const envSchema = z
       .default('text/csv,text/plain,application/json')
       .describe('Comma-separated MIME allowlist; consumers split this themselves'),
 
-    // Temporal
     TEMPORAL_ADDRESS: z
       .string()
       .regex(/^[^:\s]+:\d+$/, 'TEMPORAL_ADDRESS must be host:port (e.g. temporal:7233)')
@@ -168,7 +158,6 @@ export const envSchema = z
       .default(API_SNAPSHOT_ACTIVITIES_TASK_QUEUE)
       .describe('Temporal task queue the API worker hosts snapshot activities on'),
   })
-  // Preserve Joi cross-field refines.
   .refine((e) => e.NODE_ENV !== 'production' || e.AUTH_MODE !== AUTH_MODE_MOCK, {
     error: 'AUTH_MODE=mock is not permitted when NODE_ENV=production.',
     path: ['AUTH_MODE'],
@@ -189,8 +178,6 @@ export const envSchema = z
 
 export type Env = z.infer<typeof envSchema>;
 
-// `AUTH_COOKIE_DOMAIN` in compose defaults to "" — treat that the same as
-// unset so consumers downstream don't have to.
 const rawEnv = { ...process.env };
 if (rawEnv.AUTH_COOKIE_DOMAIN === '') {
   delete rawEnv.AUTH_COOKIE_DOMAIN;

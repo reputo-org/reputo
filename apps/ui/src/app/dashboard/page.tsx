@@ -43,8 +43,6 @@ import {
 import { type Algorithm, searchAlgorithms } from "@/core/algorithms"
 import { cn } from "@/lib/utils"
 
-// algorithms imported from shared file
-
 const categories: {
   key: Algorithm["category"]
   title: string
@@ -80,7 +78,6 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
 
-  // Filter algorithms using registry search and category filter
   const filteredAlgorithms = useMemo(() => {
     const searchResults = searchAlgorithms(searchQuery)
     if (categoryFilter === "all") {

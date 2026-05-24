@@ -12,15 +12,6 @@ import { insertAlgorithmPreset } from '../../factories/algorithmPreset.factory';
 import { truncateAllTables } from '../../utils/db';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 
-// Exercises the SSE pipeline against a real Postgres:
-//   - SnapshotRepository.applyExternalUpdate emits NOTIFY inside the txn
-//   - SnapshotListenerService receives it on its dedicated pg.Client
-//   - SnapshotEventsService fetches the row and broadcasts to subscribers
-//
-// The HTTP/SSE transport is a thin `map((event) => ({ data: event }))` wrap in
-// the controller and is not exercised here — the service-level observable is
-// the boundary that matters for propagation correctness.
-
 function makeConfigService(databaseUrl: string): ConfigService {
   return {
     get: vi.fn((key: string) => (key === 'database.url' ? databaseUrl : undefined)),
@@ -121,12 +112,10 @@ describe('Snapshot SSE via PostgreSQL LISTEN/NOTIFY', () => {
 
       const received = firstValueFrom(eventsA.subscribe().pipe(timeout({ first: 5_000 }), take(1)));
 
-      // "Replica B" performs the write; "Replica A" must observe it via PG.
       await repository.applyExternalUpdate(snapshot.id, {
         status: SnapshotStatus.completed,
         completedAt: new Date(),
       });
-      // Touch eventsB to verify both replicas receive the same NOTIFY.
       const receivedB = firstValueFrom(eventsB.subscribe().pipe(timeout({ first: 1_000 }), take(1)));
       await repository.applyExternalUpdate(snapshot.id, { status: SnapshotStatus.failed, completedAt: new Date() });
 
@@ -158,8 +147,6 @@ describe('Snapshot SSE via PostgreSQL LISTEN/NOTIFY', () => {
         events.subscribe({ algorithmPreset: b.preset.id }).pipe(timeout({ first: 5_000 }), take(1), toArray()),
       );
 
-      // First update fires NOTIFY for preset A → should be filtered out by the
-      // subscriber. The second NOTIFY (preset B) is the one we should capture.
       await repository.applyExternalUpdate(a.snapshot.id, {
         status: SnapshotStatus.running,
         startedAt: new Date(),

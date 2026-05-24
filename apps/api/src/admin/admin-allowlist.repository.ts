@@ -14,9 +14,6 @@ import {
 import { AccessAllowlistEntity } from '../persistence';
 import type { AdminAllowlistSortField, AdminAllowlistSortOrder, AdminAllowlistStatus } from './admin.constants';
 
-// Domain shape returned by the repository. Uses `_id` (rather than TypeORM's
-// `id`) so callers above the repository keep using `_id`, with
-// string-shaped invitedBy/revokedBy fields for the HTTP wire format.
 export interface AccessAllowlistRow {
   _id: string;
   provider: OAuthProvider;
@@ -57,8 +54,6 @@ function mapRow(entity: AccessAllowlistEntity): AccessAllowlistRow {
     role: entity.role,
     invitedBy: entity.invitedByUserId,
     invitedAt: entity.invitedAt,
-    // Drop `revokedAt` from the row when null so the JSON response omits the
-    // field rather than emitting `"revokedAt": null`.
     revokedAt: entity.revokedAt ?? undefined,
     revokedBy: entity.revokedByUserId,
     createdAt: entity.createdAt,
@@ -148,10 +143,6 @@ export class AdminAllowlistRepository {
     const invitedAt = options.invitedAt ?? new Date();
     const role: AccessRole = options.role ?? ACCESS_ROLE_ADMIN;
 
-    // Two-step update: TypeORM's `update(criteria, partial)` returns row
-    // counts only, so we updateMany on the revoked-row filter and then
-    // re-fetch. Returns null when no currently-revoked row exists for this
-    // (provider, email).
     const result = await this.repo.update(
       { provider, email: normalizedEmail, revokedAt: Not(IsNull()) },
       { invitedByUserId: actorId, invitedAt, role, revokedAt: null, revokedByUserId: null },
@@ -192,8 +183,6 @@ export class AdminAllowlistRepository {
     return updated ? mapRow(updated) : null;
   }
 
-  // P23505 is Postgres' unique-violation SQLSTATE; TypeORM surfaces it via
-  // `QueryFailedError.driverError.code` for the `pg` driver.
   isDuplicateKeyError(error: unknown): boolean {
     if (error instanceof QueryFailedError) {
       const code = (error.driverError as { code?: string })?.code;
@@ -227,8 +216,6 @@ export class AdminAllowlistRepository {
     if (options.q) {
       const trimmed = options.q.trim().toLowerCase();
       if (trimmed) {
-        // Email is stored already-lowercased, so a case-insensitive prefix
-        // match here behaves as an ignore-case search via PG ILIKE.
         where.email = ILike(`${trimmed}%`);
       }
     }

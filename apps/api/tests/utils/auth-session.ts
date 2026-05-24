@@ -17,9 +17,6 @@ export const AUTH_TEST_ENV = {
   DEEP_ID_AUTH_SCOPES: 'openid profile email offline_access',
   DEEP_ID_CONSENT_REDIRECT_URI: 'http://localhost:3000/api/v1/oauth/consent/deep-id/callback',
   DEEP_ID_CONSENT_GRANT_TTL_SECONDS: '600',
-  // 0 disables the periodic consent cleanup cron so tests never get a stray
-  // tick mid-assertion. Suites that exercise the cleanup path call `runOnce`
-  // directly.
   DEEP_ID_CONSENT_CLEANUP_INTERVAL_MS: '0',
   VOTING_PORTAL_RETURN_URL: 'http://localhost:3001/voting',
   DEEP_ID_VOTING_PORTAL_SCOPES: 'api wallets',
@@ -29,9 +26,6 @@ export const AUTH_TEST_ENV = {
   AUTH_COOKIE_SAME_SITE: 'lax',
   AUTH_SESSION_TTL_SECONDS: '3600',
   AUTH_REFRESH_LEEWAY_SECONDS: '60',
-  // 0 disables the periodic cleanup cron so tests never get a stray tick
-  // mid-assertion. Suites that exercise the cleanup path call `runOnce`
-  // directly.
   AUTH_SESSION_CLEANUP_INTERVAL_MS: '0',
   AUTH_TOKEN_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef',
   APP_PUBLIC_URL: 'http://localhost:5173',
@@ -52,9 +46,6 @@ export function applyAuthTestEnv(overrides: Partial<Record<keyof typeof AUTH_TES
   }
 }
 
-// Seeds an authenticated session for an integration test. OAuthUser,
-// AuthSession, and AccessAllowlist are persisted in Postgres (TypeORM) per
-// tasks 06, 07 and the Phase 6 ORM rewrite.
 export async function createAuthenticatedSession(
   moduleRef: TestingModule,
   options: CreateAuthenticatedSessionOptions = {},

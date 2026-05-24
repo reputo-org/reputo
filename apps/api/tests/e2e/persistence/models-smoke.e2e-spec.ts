@@ -14,9 +14,6 @@ import {
 } from '../../../src/persistence/entities';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 
-// End-to-end smoke covering insert + read for every entity defined under
-// `src/persistence/entities`. Proves the DataSource, FKs, and indexes line
-// up with the migration independently of any feature-level repository.
 describe('TypeORM entities smoke', () => {
   let db: TestDatabase;
   let dataSource: DataSource;

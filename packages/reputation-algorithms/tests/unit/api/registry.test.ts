@@ -439,7 +439,6 @@ describe('API: searchAlgorithmDefinitions', () => {
     const keys = parsed.map((d) => d.key).sort();
     expect(keys).toEqual(['content_moderation', 'engagement_score', 'reputation_rank', 'voting_power']);
 
-    // latest versions per algorithm
     const byKey = Object.fromEntries(parsed.map((d) => [d.key, d.version]));
     expect(byKey.content_moderation).toBe('2.0.0');
     expect(byKey.engagement_score).toBe('1.0.0');
@@ -516,9 +515,6 @@ describe('API: searchAlgorithmDefinitions', () => {
     const parsed = results.map((r) => JSON.parse(r) as { key: string });
     const keys = parsed.map((d) => d.key).sort();
 
-    // matches:
-    // - engagement_score (category: engagement)
-    // - reputation_rank (key includes 'reputation')
     expect(keys).toEqual(['engagement_score', 'reputation_rank']);
   });
 
@@ -842,7 +838,6 @@ describe('API: getAlgorithmDefinition', () => {
       expect(def1).toEqual(def2);
       expect(typeof def1String).toBe('string');
       expect(typeof def2String).toBe('string');
-      // Since we're returning JSON strings, they should be identical for the same definition
       expect(def1String).toBe(def2String);
     });
   });

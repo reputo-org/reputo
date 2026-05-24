@@ -13,10 +13,6 @@ import { truncateAllTables } from '../../utils/db';
 import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { randomUUIDv7 } from '../../utils/uuid';
 
-// Exercises the API-side Temporal activities end-to-end:
-//   - `getSnapshot` / `updateSnapshot` invoked through `MockActivityEnvironment`
-//   - SnapshotService + SnapshotRepository wired against a Postgres testcontainer
-//   - The `NOTIFY` side effect is verified by listening on the channel
 const logger = {
   info: vi.fn(),
   warn: vi.fn(),
@@ -198,7 +194,6 @@ describe('API snapshot activities (integration)', () => {
 
       expect(after1?.status).toBe(SnapshotStatus.completed);
       expect(after2?.status).toBe(SnapshotStatus.completed);
-      // Replay keeps exactly one row per (snapshot, key); no duplicates accumulate.
       expect(after2?.outputs).toHaveLength(1);
       expect(after2?.outputs.map((o) => ({ key: o.key, value: o.value }))).toEqual(
         after1?.outputs.map((o) => ({ key: o.key, value: o.value })),
@@ -220,9 +215,6 @@ describe('API snapshot activities (integration)', () => {
       const { snapshot } = await seedSnapshot();
       const received: string[] = [];
 
-      // Use a raw pg client because TypeORM does not expose LISTEN. A
-      // dedicated connection is required so the LISTEN registers before the
-      // activity commits and we don't miss the notification.
       const { Client: PgClient } = await import('pg');
       const pg = new PgClient({ connectionString: db.databaseUrl });
       await pg.connect();
@@ -235,8 +227,6 @@ describe('API snapshot activities (integration)', () => {
 
       try {
         await env.run(activities.updateSnapshot, { snapshotId: snapshot.id, status: SnapshotStatus.running });
-        // pg emits notifications asynchronously after the writer commits; give
-        // the client a tick to drain.
         await new Promise((r) => setTimeout(r, 250));
       } finally {
         await pg.query('UNLISTEN snapshot_updates');

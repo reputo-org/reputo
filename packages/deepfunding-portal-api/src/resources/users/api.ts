@@ -4,9 +4,6 @@ import type { PaginatedFetcher } from '../../shared/types/index.js';
 import { validatePaginationOptions } from '../../shared/utils/index.js';
 import type { User, UserApiResponse, UserFetchOptions } from './types.js';
 
-/**
- * Fetch all users with pagination
- */
 export async function* fetchUsers(client: DeepFundingClient, options: UserFetchOptions = {}): PaginatedFetcher<User> {
   validatePaginationOptions(options);
 

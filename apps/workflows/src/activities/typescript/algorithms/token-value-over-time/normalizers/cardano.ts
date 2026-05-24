@@ -19,7 +19,6 @@ export function normalizeCardanoTransactions(
   for (const tx of txs) {
     const addressFlows = new Map<string, number>();
 
-    // Sum input amounts (outflows) for tracked addresses
     for (const input of tx.inputs) {
       if (!trackedAddresses.has(input.address)) continue;
       for (const amt of input.amounts) {
@@ -29,7 +28,6 @@ export function normalizeCardanoTransactions(
       }
     }
 
-    // Sum output amounts (inflows) for tracked addresses
     for (const output of tx.outputs) {
       if (!trackedAddresses.has(output.address)) continue;
       for (const amt of output.amounts) {

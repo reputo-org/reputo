@@ -1,6 +1,3 @@
-/**
- * Pool entity from API response
- */
 export type Pool = {
   id: number;
   name: string;
@@ -10,14 +7,8 @@ export type Pool = {
   [key: string]: unknown;
 };
 
-/**
- * Pools API response (array of pools)
- */
 export type PoolApiResponse = Pool[];
 
-/**
- * Pool database record
- */
 export type PoolRecord = {
   id: number;
   name: string;
@@ -27,7 +18,4 @@ export type PoolRecord = {
   rawJson: string;
 };
 
-/**
- * Options for fetching pools
- */
 export type PoolFetchOptions = Record<string, never>;

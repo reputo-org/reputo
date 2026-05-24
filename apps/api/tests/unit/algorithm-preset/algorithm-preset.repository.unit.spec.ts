@@ -49,13 +49,11 @@ describe('AlgorithmPresetRepository', () => {
     save: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
   };
-  // The transaction handler we route through `manager.transaction(cb)`.
   let txPresetRepo: typeof presetRepoMock;
   let txInputRepo: typeof inputRepoMock;
   let txManager: EntityManager;
 
   beforeEach(() => {
-    // Inner repositories used inside the `manager.transaction` callback.
     txPresetRepo = {
       findOne: vi.fn(),
       save: vi.fn(async (entity) => entity),
@@ -70,8 +68,6 @@ describe('AlgorithmPresetRepository', () => {
 
     txManager = {
       getRepository: vi.fn((target) => {
-        // Discriminate by constructor name without importing the entity (which
-        // would pull a TypeORM decorator graph into a unit test).
         const name = (target as { name?: string }).name ?? '';
         if (name.includes('Input')) return txInputRepo;
         return txPresetRepo;
@@ -121,23 +117,17 @@ describe('AlgorithmPresetRepository', () => {
         { id: 'i-1', key: 'first', value: 1, position: 0 },
         { id: 'i-2', key: 'second', value: 'two', position: 1 },
       ];
-      // The save returns the saved preset; the second `findOne` (inside the
-      // transaction) returns the row with persisted inputs that map back out.
       txPresetRepo.save.mockResolvedValue(createEntity({ ...createDto, inputs: persistedInputs }));
       txPresetRepo.findOne.mockResolvedValue(createEntity({ ...createDto, inputs: persistedInputs }));
 
       const result = await repository.create(createDto);
 
-      // `presetRepo.create(...)` should be called with the scalar fields and
-      // null-coerced name/description.
       expect(txPresetRepo.create).toHaveBeenCalledWith({
         key: createDto.key,
         version: createDto.version,
         name: createDto.name,
         description: createDto.description,
       });
-      // Inputs are persisted via the child repo and built with `position`
-      // indexes that mirror the caller's order.
       const savedInputs = txInputRepo.save.mock.calls[0][0] as Array<{
         key: string;
         position: number;
@@ -230,17 +220,12 @@ describe('AlgorithmPresetRepository', () => {
     it('only forwards defined name/description fields when inputs are omitted', async () => {
       const updateDto: UpdateAlgorithmPresetDto = { name: 'New Name' };
       const existing = createEntity({});
-      txPresetRepo.findOne
-        // first call inside the transaction loads the row;
-        .mockResolvedValueOnce(existing)
-        // second call (after save) re-loads with relations
-        .mockResolvedValueOnce(createEntity({ name: 'New Name' }));
+      txPresetRepo.findOne.mockResolvedValueOnce(existing).mockResolvedValueOnce(createEntity({ name: 'New Name' }));
 
       const result = await repository.updateById(TEST_UUID, updateDto);
 
       expect(txPresetRepo.findOne).toHaveBeenCalledWith({ where: { id: TEST_UUID } });
       expect(txPresetRepo.save).toHaveBeenCalled();
-      // No input rewrite for a scalar-only update.
       expect(txInputRepo.delete).not.toHaveBeenCalled();
       expect(txInputRepo.save).not.toHaveBeenCalled();
       expect(result?.name).toBe('New Name');
@@ -265,8 +250,6 @@ describe('AlgorithmPresetRepository', () => {
 
       const result = await repository.updateById(TEST_UUID, updateDto);
 
-      // Old inputs are wiped for the preset id, then the new rows are saved
-      // in declared order so positions match.
       expect(txInputRepo.delete).toHaveBeenCalledWith({ algorithmPresetId: TEST_UUID });
       const savedInputs = txInputRepo.save.mock.calls[0][0] as Array<{
         key: string;
@@ -278,8 +261,6 @@ describe('AlgorithmPresetRepository', () => {
         expect.objectContaining({ key: 'first', position: 1, value: 1 }),
         expect.objectContaining({ key: 'third', position: 2, value: { nested: true } }),
       ]);
-      // Order returned to the caller reflects the persisted positions, which
-      // proves the wire shape mirrors the caller's input order.
       expect(result?.inputs).toEqual([
         { key: 'second', value: 'two' },
         { key: 'first', value: 1 },
@@ -309,15 +290,11 @@ describe('AlgorithmPresetRepository', () => {
 
   describe('deleteById', () => {
     it('uses the default EntityManager when no transactional manager is passed', async () => {
-      // The deleteById default branch uses `this.presets.manager.getRepository(...)`,
-      // which in our test returns `txPresetRepo`. So we mock the transaction-side
-      // repo even though we're not inside a transaction.
       txPresetRepo.findOne.mockResolvedValue(createEntity({}));
       txPresetRepo.delete.mockResolvedValue({ affected: 1 });
 
       const result = await repository.deleteById(TEST_UUID);
 
-      // findOne (via the manager-derived repo) loads the row with relations.
       expect(txPresetRepo.findOne).toHaveBeenCalledWith({
         where: { id: TEST_UUID },
         relations: { inputs: true },

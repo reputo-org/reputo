@@ -1,7 +1,3 @@
-/**
- * API module for DeepFunding Portal
- */
-
 export { HttpError } from '../shared/errors/index.js';
 export type {
   DeepFundingPortalApiConfig,

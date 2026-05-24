@@ -50,7 +50,6 @@ export function useAuthAwareSnapshotEvents(
     }
 
     const connect = () => {
-      // Clean up existing connection
       if (eventSourceRef.current) {
         eventSourceRef.current.close()
       }
@@ -65,12 +64,10 @@ export function useAuthAwareSnapshotEvents(
           const parsedEvent = JSON.parse(event.data) as SnapshotEvent
 
           if (parsedEvent.type === "snapshot:updated") {
-            // Invalidate snapshots queries to trigger a refetch
             queryClient.invalidateQueries({
               queryKey: queryKeys.snapshots.lists(),
             })
 
-            // Also invalidate the specific snapshot detail if it's cached
             queryClient.invalidateQueries({
               queryKey: queryKeys.snapshots.detail(parsedEvent.data._id),
             })
@@ -81,23 +78,17 @@ export function useAuthAwareSnapshotEvents(
       }
 
       eventSource.onerror = () => {
-        // Capture readyState before we close — CLOSED means the server
-        // rejected the connection (e.g. 401); CONNECTING means a transient
-        // network drop where the browser would normally auto-reconnect.
         const serverRejected = eventSource.readyState === EventSource.CLOSED
 
         eventSource.close()
         eventSourceRef.current = null
 
         if (serverRejected) {
-          // Verify whether the rejection was an auth failure before
-          // redirecting — avoids a false redirect on non-auth HTTP errors.
           fetch("/api/v1/auth/me", { credentials: "include" })
             .then((res) => {
               if (!res.ok) {
                 handleAuthFailure()
               } else {
-                // Non-auth server error; retry after delay
                 scheduleReconnect(connect)
               }
             })
@@ -107,7 +98,6 @@ export function useAuthAwareSnapshotEvents(
           return
         }
 
-        // Transient connection loss — reconnect after delay
         scheduleReconnect(connect)
       }
     }

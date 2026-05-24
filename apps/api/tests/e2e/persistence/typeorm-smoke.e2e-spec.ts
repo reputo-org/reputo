@@ -41,9 +41,6 @@ describe('TypeORM bootstrap smoke', () => {
     expect(Number(rows[0].one)).toBe(1);
   });
 
-  // Pins the snake_case DB-layer name. If a future schema edit drops the
-  // explicit table name (or pluralization) for `SnapshotEntity`, this fails
-  // fast.
   it('has the canonical snake_case `snapshots` table in PG', async () => {
     const rows = (await dataSource.query(`SELECT to_regclass('public.snapshots') IS NOT NULL AS exists`)) as Array<{
       exists: boolean;

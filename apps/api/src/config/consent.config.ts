@@ -18,8 +18,6 @@ export interface ConsentProviderConfig {
 }
 
 export interface ConsentConfig {
-  // Periodic cleanup interval for expired OAuthConsentGrant rows. Set to 0
-  // to disable the cron (tests, one-off scripts).
   grantCleanupIntervalMs: number;
   providers: Record<OAuthProvider, ConsentProviderConfig>;
   sources: Record<string, ConsentSourceConfig>;

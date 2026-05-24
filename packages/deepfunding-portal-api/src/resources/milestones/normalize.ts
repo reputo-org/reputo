@@ -1,14 +1,7 @@
-/**
- * Milestone normalization - transforms API response to DB record format
- */
 import type { Milestone, MilestoneRecord } from './types.js';
 
 /**
- * Normalize a Milestone API response to a database record
- *
- * @param data - The milestone data from the API
- * @returns The normalized milestone record for database insertion
- * @note The ID is not included - the database will auto-generate it
+ * The `id` is omitted — the database auto-generates it.
  */
 export function normalizeMilestoneToRecord(data: Milestone): Omit<MilestoneRecord, 'id'> {
   return {

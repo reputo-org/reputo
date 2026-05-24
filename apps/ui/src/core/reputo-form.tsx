@@ -31,8 +31,8 @@ interface ReputoFormProps {
   clientValidate?: boolean
   showResetButton?: boolean
   className?: string
-  hiddenFields?: string[] // Field keys to hide from UI but keep in validation
-  compact?: boolean // Use compact vertical spacing
+  hiddenFields?: string[]
+  compact?: boolean
 }
 
 export function ReputoForm(props: ReputoFormProps) {
@@ -54,28 +54,23 @@ function ReputoFormInner({
   hiddenFields = [],
   compact = false,
 }: ReputoFormProps) {
-  // Build Zod schema from AlgorithmDefinition (if it has the right structure)
   const zodSchema =
     clientValidate && "inputs" in schema && "outputs" in schema
       ? buildZodSchema(schema as AlgorithmDefinition)
       : null
 
-  // Initialize form with react-hook-form
   const form = useForm({
     resolver:
       clientValidate && zodSchema ? zodResolver(zodSchema as any) : undefined,
     defaultValues: getDefaultValues(schema, defaultValues),
-    mode: "onChange", // Validate on change for real-time validity
+    mode: "onChange",
     reValidateMode: "onChange",
   })
 
-  // Get upload state from context
   const { isUploading } = useFormUpload()
 
-  // Watch all values to trigger re-validation
   const watchedValues = useWatch({ control: form.control })
 
-  // Render appropriate field component based on input type
   const renderField = (input: FormInput | any) => {
     const commonProps = {
       input: input as any,
@@ -114,7 +109,6 @@ function ReputoFormInner({
     }
   }
 
-  // Filter out hidden fields from rendering
   const visibleInputs = schema.inputs.filter(
     (input) => !hiddenFields.includes(input.key)
   )
@@ -142,8 +136,6 @@ function ReputoFormInner({
         if (!Array.isArray(value)) return false
         const minItems = (input as any).minItems ?? 1
         if (value.length < minItems) return false
-        // Each entry must at least have an algorithm_key selected and a
-        // positive weight. Deeper checks run through the shared validator.
         return value.every(
           (entry: unknown) =>
             typeof entry === "object" &&
@@ -156,7 +148,6 @@ function ReputoFormInner({
       return true
     })
 
-  // Determine if submit should be disabled
   const isSubmitDisabled =
     form.formState.isSubmitting ||
     isUploading ||
@@ -197,9 +188,6 @@ function ReputoFormInner({
   )
 }
 
-/**
- * Gets default values for form fields based on schema
- */
 function getDefaultValues(
   schema: FormSchema | AlgorithmDefinition,
   userDefaults: Record<string, any>

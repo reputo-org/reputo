@@ -1,9 +1,6 @@
 import type { PaginationOptions } from '../types/fetchers.js';
 
 /**
- * Validate pagination options
- *
- * @param options - Pagination options to validate
  * @throws {Error} If page or limit is invalid (must be >= 1)
  */
 export function validatePaginationOptions(options: PaginationOptions): void {

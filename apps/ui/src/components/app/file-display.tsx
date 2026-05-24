@@ -15,11 +15,9 @@ interface FileMetadata {
 }
 
 interface FileDisplayProps {
-  /** The label/key to display for this file */
   label: string
   /** The storage key (e.g., "uploads/123/file.csv") */
   storageKey: string
-  /** Optional class name for the container */
   className?: string
 }
 
@@ -48,9 +46,6 @@ export async function downloadStorageFile(
   URL.revokeObjectURL(blobUrl)
 }
 
-/**
- * Formats file size in a human-readable format
- */
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return "0 B"
   const k = 1024
@@ -74,7 +69,6 @@ export function FileDisplay({
   const [csvHref, setCsvHref] = useState<string | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
 
-  // Fetch metadata on mount
   useEffect(() => {
     async function fetchMetadata() {
       if (!storageKey) {
@@ -87,7 +81,6 @@ export function FileDisplay({
         setMetadata(result.metadata)
       } catch (err) {
         console.error("Failed to fetch file metadata:", err)
-        // Fallback: extract filename from key
         const fallbackFilename = storageKey.split("/").pop() || storageKey
         setMetadata({
           filename: fallbackFilename,

@@ -12,7 +12,6 @@ import type {
   UpdateAlgorithmPresetDto,
 } from "./types"
 
-// Query keys
 export const queryKeys = {
   algorithmPresets: {
     all: ["algorithmPresets"] as const,
@@ -39,7 +38,6 @@ export const queryKeys = {
   },
 }
 
-// Algorithm Presets hooks
 export const useAlgorithmPresets = (params?: AlgorithmPresetQueryParams) => {
   return useQuery({
     queryKey: queryKeys.algorithmPresets.list(params),
@@ -100,7 +98,6 @@ export const useDeleteAlgorithmPreset = () => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.algorithmPresets.lists(),
       })
-      // Deleting a preset cascade deletes its snapshots, so invalidate snapshots too
       queryClient.invalidateQueries({
         queryKey: queryKeys.snapshots.lists(),
       })
@@ -108,7 +105,6 @@ export const useDeleteAlgorithmPreset = () => {
   })
 }
 
-// Snapshots hooks
 export const useSnapshots = (params?: SnapshotQueryParams) => {
   return useQuery({
     queryKey: queryKeys.snapshots.list(params),
@@ -146,7 +142,6 @@ export const useDeleteSnapshot = () => {
   })
 }
 
-// Admins hooks
 export const useAdmins = (params: ListAdminsQueryParams = {}) => {
   return useQuery({
     queryKey: queryKeys.admins.list(params),

@@ -45,8 +45,6 @@ describe('AuthSessionCleanupService', () => {
     const service = createService(0);
     service.onModuleInit();
 
-    // No timer should have been created when the interval is disabled, so a
-    // synchronous destroy doesn't have anything to clean up.
     expect(() => service.onModuleDestroy()).not.toThrow();
   });
 });

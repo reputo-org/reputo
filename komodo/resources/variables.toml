@@ -14,10 +14,6 @@
 #   - Append the entry here, flip include_variables back to true, sync, then
 #     flip it back to false.
 
-# ---------------------------------------------------------------------------
-# Global
-# ---------------------------------------------------------------------------
-
 [[variable]]
 name = "KOMODO_PASSKEY"
 description = "Shared passkey between Komodo Core and every Periphery agent."
@@ -42,10 +38,6 @@ is_secret = false
 name = "PRODUCTION_PERIPHERY_ADDRESS"
 description = "URL of the production Periphery agent (e.g. http://10.0.0.6:8120)."
 is_secret = false
-
-# ---------------------------------------------------------------------------
-# Staging variables
-# ---------------------------------------------------------------------------
 
 [[variable]]
 name = "STAGING_TRAEFIK_DOMAIN"
@@ -162,10 +154,6 @@ name = "STAGING_API_POSTGRES_DB_NAME"
 description = "Staging API application Postgres database name."
 is_secret = false
 
-# ---------------------------------------------------------------------------
-# Staging secrets
-# ---------------------------------------------------------------------------
-
 [[variable]]
 name = "STAGING_TRAEFIK_AUTH"
 description = "Staging Traefik dashboard htpasswd. Preserve doubled $$ escaping."
@@ -250,10 +238,6 @@ is_secret = true
 name = "STAGING_BLOCKFROST_API_KEY"
 description = "Staging Blockfrost API key."
 is_secret = true
-
-# ---------------------------------------------------------------------------
-# Production variables
-# ---------------------------------------------------------------------------
 
 [[variable]]
 name = "PRODUCTION_TRAEFIK_DOMAIN"
@@ -369,10 +353,6 @@ is_secret = false
 name = "PRODUCTION_API_POSTGRES_DB_NAME"
 description = "Production API application Postgres database name."
 is_secret = false
-
-# ---------------------------------------------------------------------------
-# Production secrets
-# ---------------------------------------------------------------------------
 
 [[variable]]
 name = "PRODUCTION_TRAEFIK_AUTH"

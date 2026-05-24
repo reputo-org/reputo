@@ -6,12 +6,6 @@ import { SnapshotRepository } from '../../../src/snapshot/snapshot.repository';
 import type { StorageService } from '../../../src/storage/storage.service';
 import type { TemporalService } from '../../../src/temporal';
 
-// Focused unit test for `AlgorithmPresetService.deletePresetWithSnapshots`.
-// Verifies that snapshot `deleteMany` and preset `deleteById` are executed
-// inside the same `dataSource.transaction` and that the snapshot deletion
-// happens before the preset deletion (the FK in `snapshot.algorithm_preset_id`
-// is `RESTRICT`, so reversing the order would fail at the DB level).
-
 const PRESET_ID = '01940000-0000-7000-8000-000000000000';
 
 describe('AlgorithmPresetService.deletePresetWithSnapshots (transaction)', () => {
@@ -52,10 +46,6 @@ describe('AlgorithmPresetService.deletePresetWithSnapshots (transaction)', () =>
       }),
     } as unknown as AlgorithmPresetRepository;
 
-    // Sentinel object stands in for the TypeORM `EntityManager`. We don't
-    // need a real one; the service only forwards it into the repository
-    // methods we already mocked, and we want to assert that the same object
-    // ends up at both stops.
     const sentinelManager = { __isTransactionalManager: true };
     mockDataSource = {
       transaction: vi.fn(async (cb: (manager: unknown) => Promise<unknown>) => {

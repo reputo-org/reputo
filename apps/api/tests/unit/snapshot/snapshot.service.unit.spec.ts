@@ -326,9 +326,6 @@ describe('SnapshotService', () => {
       await service.applyExternalUpdate(input);
 
       expect(calls).toHaveLength(2);
-      // Both invocations build the same field set; the timestamps differ in
-      // identity but persist the same status — `completed` is terminal so the
-      // workflow cannot diverge on retry.
       expect(calls[0].status).toBe('completed');
       expect(calls[1].status).toBe('completed');
       expect(calls[0].outputs).toEqual(calls[1].outputs);

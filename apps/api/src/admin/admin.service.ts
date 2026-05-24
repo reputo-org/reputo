@@ -281,7 +281,6 @@ export class AdminService {
     return map;
   }
 
-  /** Single-row variant used by mutation paths where a list lookup would be wasteful. */
   private async resolveActorEmailMap(actor: OAuthUserRow, row: AccessAllowlistRow): Promise<Map<string, string>> {
     const map = this.actorEmailMap(actor);
     const ids: string[] = [];
@@ -304,8 +303,6 @@ export class AdminService {
   }
 
   private async collectSessionActivity(rows: readonly AccessAllowlistRow[]): Promise<ActivityByKey> {
-    // Resolve OAuthUsers per (provider, email) in parallel; the repository has no
-    // batch-by-email lookup, but the page-size cap (max 100) keeps the fan-out bounded.
     const userLookups = await Promise.all(
       rows.map(async (row) => ({
         key: `${row.provider}:${row.email}`,

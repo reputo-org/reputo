@@ -1,10 +1,3 @@
-/**
- * Contribution Score Algorithm Types
- */
-
-/**
- * Algorithm input parameters for contribution scoring.
- */
 export interface ContributionScoreParams {
   subIdsKey: string;
   commentBaseScore: number;
@@ -16,17 +9,11 @@ export interface ContributionScoreParams {
   monthlyDecayRatePercent: number;
 }
 
-/**
- * CSV output row for contribution score.
- */
 export interface ContributionScoreResult {
   sub_id: string;
   contribution_score: number;
 }
 
-/**
- * Per-comment benchmark trace (JSON-serializable).
- */
 export interface CommentBenchmarkRecord {
   comment_id: number;
   user_id: number;
@@ -59,9 +46,6 @@ export interface CommentBenchmarkRecord {
   scored: boolean;
 }
 
-/**
- * Per-user benchmark entry with full comment trace.
- */
 export interface SubIdBenchmarkRecord {
   sub_id: string;
   deep_proposal_portal_id: string | null;
@@ -73,16 +57,11 @@ export interface SubIdBenchmarkRecord {
 /** Score precision for output (2 decimal places). */
 export const SCORE_PRECISION = 2;
 
-/**
- * Round a score to avoid floating-point artifacts.
- */
+/** Round to avoid floating-point artifacts. */
 export function roundScore(score: number): number {
   return Math.round(score * 10 ** SCORE_PRECISION) / 10 ** SCORE_PRECISION;
 }
 
-/**
- * Benchmark metadata with included/excluded users, config, and metrics.
- */
 export interface ContributionScoreBenchmarkMetadata {
   snapshot_id: string;
   computed_at: string;
@@ -100,9 +79,6 @@ export interface ContributionScoreBenchmarkMetadata {
   };
 }
 
-/**
- * Root benchmark output structure.
- */
 export interface ContributionScoreBenchmark {
   sub_ids: SubIdBenchmarkRecord[];
   metadata: ContributionScoreBenchmarkMetadata;

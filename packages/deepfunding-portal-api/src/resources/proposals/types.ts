@@ -1,6 +1,3 @@
-/**
- * Proposal entity from API response
- */
 export type Proposal = {
   id: number;
   pool_id: number;
@@ -19,16 +16,10 @@ export type Proposal = {
   [key: string]: unknown;
 };
 
-/**
- * Proposals API response
- */
 export type ProposalApiResponse = {
   proposals: Proposal[];
 };
 
-/**
- * Proposal database record
- */
 export type ProposalRecord = {
   id: number;
   roundId: number;
@@ -48,15 +39,12 @@ export type ProposalRecord = {
   rawJson: string;
 };
 
-/**
- * Options for fetching proposals
- */
 export type ProposalFetchOptions = {
-  /** Filter by pool ID */
   poolId?: number;
 };
 
 /**
- * Proposal with round context for normalization
+ * Proposal enriched with `round_id` — the per-round endpoint does not embed it
+ * in each item, so callers attach it before persistence.
  */
 export type ProposalWithRound = Proposal & { round_id: number };

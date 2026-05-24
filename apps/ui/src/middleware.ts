@@ -19,18 +19,14 @@ export function middleware(request: NextRequest) {
 
   const hasSession = request.cookies.has(AUTH_COOKIE_NAME)
 
-  // Public routes stay public. The login page verifies the session with `/me`
-  // before redirecting, which avoids a cookie-only redirect loop.
   if (isPublic(pathname)) {
     return NextResponse.next()
   }
 
-  // Root → redirect to dashboard (auth check happens there).
   if (pathname === "/") {
     return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 
-  // Protected routes — require session cookie.
   if (!hasSession) {
     return NextResponse.redirect(new URL("/login", request.url))
   }
@@ -39,14 +35,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    "/((?!api|_next/static|_next/image|favicon.ico).*)",
-  ],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
 }

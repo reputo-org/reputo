@@ -5,7 +5,6 @@ import type { Snapshot } from '../../../src/shared/types/index.js';
 
 describe('dispatchAlgorithm activity', () => {
   beforeAll(() => {
-    // Ensure workflows config validation doesn't fail during module import.
     process.env.NODE_ENV = 'test';
     process.env.LOG_LEVEL = 'info';
     process.env.TEMPORAL_ADDRESS = 'localhost:7233';

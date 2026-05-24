@@ -791,7 +791,6 @@ describe('AuthService', () => {
       expiresAt: new Date(Date.now() + 30 * 60 * 1_000),
       lastRefreshedAt: new Date(Date.now() - 60 * 1_000),
     });
-    // The re-read after invalid_grant returns the same (un-refreshed) row.
     authSessionRepository.findActiveBySessionId.mockResolvedValueOnce({
       _id: randomUUIDv7(),
       sessionId: 'session-invalid-grant',

@@ -32,8 +32,6 @@ if (!parsed.success) {
     return `  - ${key}: ${issue.message}`
   })
   const message = `Invalid environment variables:\n${lines.join("\n")}`
-  // `process.stderr` isn't available in the Edge runtime (middleware.ts),
-  // so use `console.error` which works in both Node and Edge contexts.
   console.error(message)
   throw new Error(message)
 }

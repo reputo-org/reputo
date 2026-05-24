@@ -34,7 +34,6 @@ export function CreatePresetDialog({
 }: CreatePresetDialogProps) {
   const [isOpen, setIsOpen] = useState(false)
 
-  // Generate schema from algorithm
   const schema = useMemo(() => {
     if (!algo) return null
     return buildSchemaFromAlgorithm(algo, "1.0.0")
@@ -61,8 +60,6 @@ export function CreatePresetDialog({
     if (!algo) return
 
     try {
-      // Transform form data to CreateAlgorithmPresetDto format.
-      // Form schema uses algorithm input keys as field names, so resolve by input.key only.
       const createData: CreateAlgorithmPresetDto = {
         key: (data.key as string) || algo.id,
         version: (data.version as string) || "1.0.0",
@@ -91,11 +88,9 @@ export function CreatePresetDialog({
 
       await onCreatePreset(createData)
 
-      // Close dialog on success
       setIsOpen(false)
       toast.success("Preset created successfully")
     } catch (err) {
-      // Show errors as toasts instead of in-modal alerts
       const errorMessages = extractApiErrorMessages(err)
       if (errorMessages.length > 0) {
         errorMessages.forEach((msg) => {
@@ -131,7 +126,6 @@ export function CreatePresetDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Scrollable form area */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <ReputoForm
             schema={schema}

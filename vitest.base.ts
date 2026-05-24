@@ -1,8 +1,6 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig } from 'vitest/config';
 
-type VitestConfig = Awaited<
-  Exclude<Parameters<typeof defineConfig>[0], (...args: never[]) => unknown>
->
+type VitestConfig = Awaited<Exclude<Parameters<typeof defineConfig>[0], (...args: never[]) => unknown>>;
 
 const sharedCoverageExcludes = [
   '**/coverage/**',
@@ -13,23 +11,23 @@ const sharedCoverageExcludes = [
   'src/**/index.ts',
   '**/vitest.config*.ts',
   'vitest.base.ts',
-]
+];
 
 export function extendCoverageExcludes(extraExcludes: string[] = []): string[] {
-  return [...new Set([...sharedCoverageExcludes, ...extraExcludes])]
+  return [...new Set([...sharedCoverageExcludes, ...extraExcludes])];
 }
 
 interface SharedVitestConfigOptions {
-  name?: string
-  include?: string[]
-  coverageInclude?: string[]
-  coverageExclude?: string[]
-  environment?: 'node' | 'jsdom'
-  setupFiles?: string[]
-  testTimeout?: number
-  hookTimeout?: number
-  resolve?: VitestConfig['resolve']
-  plugins?: VitestConfig['plugins']
+  name?: string;
+  include?: string[];
+  coverageInclude?: string[];
+  coverageExclude?: string[];
+  environment?: 'node' | 'jsdom';
+  setupFiles?: string[];
+  testTimeout?: number;
+  hookTimeout?: number;
+  resolve?: VitestConfig['resolve'];
+  plugins?: VitestConfig['plugins'];
 }
 
 export function createVitestConfig({
@@ -63,5 +61,5 @@ export function createVitestConfig({
         exclude: extendCoverageExcludes(coverageExclude),
       },
     },
-  })
+  });
 }

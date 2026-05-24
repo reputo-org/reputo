@@ -4,9 +4,6 @@ import { type CreateManyOptions, chunkArray, DEFAULT_CHUNK_SIZE } from '../../sh
 import { normalizeProposalToRecord } from './normalize.js';
 import type { ProposalRecord, ProposalWithRound } from './types.js';
 
-/**
- * Create a proposals repository bound to the given database instance.
- */
 export function createProposalsRepo(db: DeepFundingPortalDb) {
   const repo = db.dataSource.getRepository(ProposalEntity);
 

@@ -4,8 +4,6 @@ import type { OAuthProvider } from '@reputo/contracts';
 import { LessThan, MoreThan, Repository } from 'typeorm';
 import { OAuthConsentGrantEntity } from '../persistence';
 
-// Domain shape returned by the repository. Uses `_id` (rather than TypeORM's
-// `id`) to match the field name callers above the repository expect.
 export interface OAuthConsentGrantRow {
   _id: string;
   provider: OAuthProvider;

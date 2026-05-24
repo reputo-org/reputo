@@ -30,15 +30,10 @@ export interface AlgorithmPresetFrozen {
   inputs: AlgorithmPresetInput[];
   name?: string;
   description?: string;
-  // JSON-stored, so reads round-trip these as ISO strings; the type stays
-  // `Date` for symmetry with writes (the service freezes the entity `Date`s).
   createdAt?: Date;
   updatedAt?: Date;
 }
 
-// Domain shape returned by the repository. `_id` and `algorithmPreset` are
-// the field names HTTP responses and downstream consumers (TemporalService,
-// S3 cleanup) expect — diverges from the entity's `id` / `algorithmPresetId`.
 export interface SnapshotRow {
   _id: string;
   status: SnapshotStatus;
@@ -68,8 +63,6 @@ export interface SnapshotFilter {
   frozenVersion?: string;
 }
 
-// Domain shape for `applyExternalUpdate`. Hides the relational layout so the
-// service does not have to know that outputs live in a child table.
 export interface SnapshotApplyExternalUpdate {
   status?: SnapshotStatus;
   startedAt?: Date;
@@ -122,15 +115,10 @@ function buildWhere(filter: SnapshotFilter): FindOptionsWhere<SnapshotEntity> {
   if (filter.status !== undefined) where.status = filter.status;
   if (filter.algorithmPresetId !== undefined) where.algorithmPresetId = filter.algorithmPresetId;
 
-  // `algorithmPresetFrozen` is JSONB; filter via PG's `->>` text accessor so
-  // the value is compared as text (the JSON keys are always strings). The
-  // functional index declared in the init migration covers this lookup.
   if (filter.frozenKey !== undefined) {
     where.algorithmPresetFrozen = Raw((alias) => `${alias} ->> 'key' = :frozenKey`, { frozenKey: filter.frozenKey });
   }
   if (filter.frozenVersion !== undefined) {
-    // Compose with the previous Raw expression if both filters are present so
-    // both conditions apply to the same column.
     const previous = where.algorithmPresetFrozen;
     if (previous !== undefined) {
       where.algorithmPresetFrozen = Raw(
@@ -242,11 +230,6 @@ export class SnapshotRepository {
       const snapshotRepo = manager.getRepository(SnapshotEntity);
       const outputRepo = manager.getRepository(SnapshotOutputEntity);
 
-      // Load the snapshot row WITHOUT the `outputs` relation. We replace the
-      // child rows with delete + insert below, and pulling them in here would
-      // make TypeORM try to cascade-save the in-memory copies on
-      // `snapshotRepo.save(entity)` — which would conflict with the new rows
-      // we just inserted (FK violation / dup PK depending on state).
       const entity = await snapshotRepo.findOne({ where: { id } });
       if (!entity) return null;
 
@@ -285,9 +268,6 @@ export class SnapshotRepository {
         }
       }
 
-      // Use `pg_notify(channel, payload)` rather than `NOTIFY` so the channel
-      // name is bound as a parameter (the literal `NOTIFY` statement can't
-      // take placeholders).
       await manager.query('SELECT pg_notify($1, $2)', [SNAPSHOT_UPDATES_CHANNEL, id]);
 
       const refreshed = await snapshotRepo.findOne({ where: { id }, relations: { outputs: true } });

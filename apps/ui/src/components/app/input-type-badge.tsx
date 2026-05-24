@@ -13,7 +13,6 @@ interface InputTypeBadgeProps {
   label: string
 }
 
-// File types that should show an icon instead of text
 const fileTypes = new Set(["csv", "file", "json", "xml"])
 
 export function InputTypeBadge({ type, label }: InputTypeBadgeProps) {

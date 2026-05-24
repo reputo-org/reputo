@@ -74,8 +74,6 @@ export function AdminsTable({
   onChange,
   actorEmail,
 }: AdminsTableProps) {
-  // The parser in lib/admins/url-state.ts always returns sortField + sortOrder
-  // (with ADMIN_QUERY_DEFAULTS as fallback), so these never hit the ??.
   const sortField = query.sortField ?? ADMIN_QUERY_DEFAULTS.sortField
   const sortOrder = query.sortOrder ?? ADMIN_QUERY_DEFAULTS.sortOrder
   const sorting: SortingState = useMemo(

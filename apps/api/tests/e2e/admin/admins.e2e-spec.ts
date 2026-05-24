@@ -372,7 +372,6 @@ describe('Admin access management e2e', () => {
     });
 
     it('forbids removing the last active owner when another owner is the actor', async () => {
-      // Two distinct owners exist; one removes the other and still has one owner left (themselves).
       const owner = await createSession('owner-a@example.com', 'owner');
       await createSession('owner-b@example.com', 'owner');
 
@@ -380,7 +379,6 @@ describe('Admin access management e2e', () => {
         .delete(`/admins/deep-id/${encodeURIComponent('owner-b@example.com')}`)
         .expect(204);
 
-      // owner-a is now the only owner — they cannot remove themselves (self-protect).
       await api(app, owner.cookie)
         .delete(`/admins/deep-id/${encodeURIComponent('owner-a@example.com')}`)
         .expect(403);

@@ -127,9 +127,6 @@ describe('OAuth auth e2e', () => {
     const userRepo = dataSource.getRepository(OAuthUserEntity);
     const sessionRepo = dataSource.getRepository(AuthSessionEntity);
     const allowlistRepo = dataSource.getRepository(AccessAllowlistEntity);
-    // AuthSession FK → OAuthUser cascade clears sessions when their parent
-    // user goes away; deleting sessions first is still cheap and keeps the
-    // intent obvious.
     await sessionRepo.createQueryBuilder().delete().where('1=1').execute();
     await userRepo.createQueryBuilder().delete().where('1=1').execute();
     await allowlistRepo

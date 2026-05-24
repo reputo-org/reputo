@@ -12,7 +12,6 @@ export default function LoginPage() {
   const router = useRouter()
   const [checking, setChecking] = useState(true)
 
-  // If the user already has a valid session, skip login.
   useEffect(() => {
     let cancelled = false
 
@@ -28,9 +27,7 @@ export default function LoginPage() {
             return
           }
         }
-      } catch {
-        // Ignore — show login form
-      }
+      } catch {}
       if (!cancelled) setChecking(false)
     }
 

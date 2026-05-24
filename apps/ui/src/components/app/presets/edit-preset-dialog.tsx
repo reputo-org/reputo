@@ -47,13 +47,11 @@ export function EditPresetDialog({
   >([])
   const isSubmittingRef = useRef(false)
 
-  // Get algorithm from preset
   const algorithm = useMemo(() => {
     if (!preset) return null
     return getAlgorithmById(preset.key)
   }, [preset])
 
-  // Generate schema from algorithm
   const schema = useMemo(() => {
     if (!algorithm) return null
     return buildSchemaFromAlgorithm(algorithm, preset?.version || "1.0.0")
@@ -76,7 +74,6 @@ export function EditPresetDialog({
 
   const needsWideDialog = hasResourceSelector || hasSubAlgorithm
 
-  // Build default values from preset (preset.inputs use algorithm input keys)
   const defaultValues = useMemo(() => {
     if (!preset || !algorithm) return {}
 
@@ -106,13 +103,11 @@ export function EditPresetDialog({
     return defaults
   }, [preset, algorithm])
 
-  // Parse backend errors
   const backendErrors = useMemo(() => {
     if (!backendError) return []
     return extractApiFieldErrors(backendError)
   }, [backendError])
 
-  // Combine form errors and backend errors
   const allErrors = [...formErrors, ...backendErrors]
 
   const handleSubmit = async (data: Record<string, unknown>) => {
@@ -122,7 +117,6 @@ export function EditPresetDialog({
     setFormErrors([])
 
     try {
-      // Build PATCH payload: only include defined fields (API accepts partial update)
       const updateData: UpdateAlgorithmPresetDto = {}
 
       if (data.name !== undefined && data.name !== "") {
@@ -132,8 +126,6 @@ export function EditPresetDialog({
         updateData.description = data.description as string
       }
 
-      // Inputs: use algorithm input keys; send form value or fall back to existing preset value.
-      // Normalize numeric values so "1,2" (locale) is sent as number 1.2 for API validity.
       const inputs = buildPresetInputsFromForm({
         algorithmInputs: algorithm.inputs,
         data,
@@ -197,7 +189,6 @@ export function EditPresetDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Display submit errors */}
         {allErrors.length > 0 && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -213,7 +204,6 @@ export function EditPresetDialog({
           </Alert>
         )}
 
-        {/* Dynamic form - key forces re-mount when preset changes */}
         <ReputoForm
           key={preset._id}
           schema={schema}

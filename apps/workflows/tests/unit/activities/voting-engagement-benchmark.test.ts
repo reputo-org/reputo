@@ -25,20 +25,17 @@ describe('voting-engagement benchmark', () => {
       expect(record.vote_distribution['1']).toBe(1);
       expect(record.vote_distribution['5']).toBe(2);
       expect(record.vote_distribution['10']).toBe(1);
-      // Unused categories should be zero
       expect(record.vote_distribution['2']).toBe(0);
       expect(record.vote_distribution['3']).toBe(0);
       expect(record.voting_engagement).toBe(0.636514);
     });
 
     it('computes raw Shannon entropy and rounds it', () => {
-      // Uniform distribution across all 11 categories → max entropy
       const votes: ValidVote[] = ['skip', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
       const engagement = 1.0;
 
       const record = buildVoterBenchmarkRecord('SubID-Uniform', 'voter-uniform', votes, engagement);
 
-      // With uniform distribution, entropy should equal MAX_VOTING_ENTROPY
       expect(record.entropy).toBeCloseTo(MAX_VOTING_ENTROPY, 5);
       expect(record.voting_engagement).toBe(1.0);
     });
@@ -180,7 +177,6 @@ describe('voting-engagement benchmark', () => {
         matchedSubIds: new Set(['SubID-A', 'SubID-B']),
       });
 
-      // Original order should be preserved
       expect(records[0]?.sub_id).toBe('SubID-B');
       expect(records[1]?.sub_id).toBe('SubID-A');
     });

@@ -1,9 +1,3 @@
-/**
- * @reputo/storage
- *
- * Framework-agnostic S3 storage abstraction.
- */
-
 import { randomUUID } from 'node:crypto';
 import {
   DeleteObjectCommand,
@@ -90,11 +84,6 @@ import { detectKeyType, generateKey, parseStorageKey } from './shared/utils/keys
  * ```
  */
 export class Storage {
-  /**
-   * Creates a new Storage instance.
-   *
-   * @param s3Client - Configured S3Client instance to use for all operations
-   */
   constructor(private readonly s3Client: S3Client) {}
 
   /**
@@ -566,18 +555,7 @@ export class Storage {
     }
   }
 
-  /**
-   * Gets timestamp for metadata.
-   *
-   * Returns the current Unix timestamp for all key types.
-   *
-   * @param _parsed - Parsed storage key (unused, kept for API consistency)
-   * @returns Unix timestamp in seconds
-   *
-   * @private
-   */
   private getTimestampFromParsedKey(_parsed: ParsedStorageKey): number {
-    // Use current timestamp for all key types
     return Math.floor(Date.now() / 1000);
   }
 

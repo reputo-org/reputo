@@ -1,7 +1,3 @@
-// NOTE: `./data-source` is the standalone TypeORM CLI DataSource. The CLI
-// imports it directly via `package.json` scripts. Re-exporting it from this
-// index would couple every runtime/test importer to env validation; consumers
-// who legitimately need it should import `./data-source` directly.
 export {
   AccessAllowlistEntity,
   AlgorithmPresetEntity,

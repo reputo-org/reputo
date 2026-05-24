@@ -17,13 +17,6 @@ export interface CommentScoreResult {
   scored: boolean;
 }
 
-/**
- * Calculate base score from comment metrics and vote weights.
- *
- * @param votes - Vote statistics
- * @param params - Algorithm parameters
- * @returns Base score value
- */
 export function calculateBaseScore(votes: VoteStats, params: ContributionScoreParams): number {
   return (
     params.commentBaseScore +
@@ -32,16 +25,9 @@ export function calculateBaseScore(votes: VoteStats, params: ContributionScorePa
   );
 }
 
-/**
- * Calculate the final comment score.
- *
- * @param input - Scoring input data
- * @returns Comment score and whether it was scored
- */
 export function computeCommentScore(input: CommentScoreInput): CommentScoreResult {
   const { votes, params, timeWeight, selfInteraction, ownerBonus } = input;
 
-  // Skip if time weight is invalid or outside window
   if (!timeWeight.isValid || !timeWeight.isWithinWindow) {
     return { score: 0, scored: false };
   }

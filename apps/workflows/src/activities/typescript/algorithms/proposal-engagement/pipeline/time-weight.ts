@@ -15,19 +15,12 @@ export interface TimeWeightResult {
 }
 
 /**
- * Calculate time weight based on proposal age and decay parameters.
- *
  * The time weight decays in discrete buckets:
  * - Bucket 0: tw = 1.0
  * - Bucket 1: tw = 1.0 - decay_rate
  * - Bucket n: tw = 1.0 - n * decay_rate
  *
  * Proposals outside the engagement window get tw = 0.
- *
- * @param createdAt - Proposal creation date
- * @param now - Current date for age calculation
- * @param params - Time weight parameters
- * @returns Time weight result with tw, age, and bucket info
  */
 export function calculateTimeWeight(createdAt: Date, now: Date, params: TimeWeightParams): TimeWeightResult {
   const { engagementWindowMonths, monthlyDecayRatePercent } = params;
@@ -57,14 +50,6 @@ export function calculateTimeWeight(createdAt: Date, now: Date, params: TimeWeig
   };
 }
 
-/**
- * Parse and validate a date string, computing time weight if valid.
- *
- * @param createdAtStr - ISO date string
- * @param now - Current date
- * @param params - Time weight parameters
- * @returns Time weight result
- */
 export function computeTimeWeightFromString(
   createdAtStr: string,
   now: Date,

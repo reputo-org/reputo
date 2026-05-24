@@ -48,9 +48,6 @@ import { EditPresetDialog } from "./edit-preset-dialog"
 import { PresetDeleteDialog } from "./preset-delete-dialog"
 import { PresetDetailsDialog } from "./preset-details-dialog"
 
-/**
- * Convert snake_case or camelCase to Title Case
- */
 function toTitleCase(str: string): string {
   return str
     .replace(/_/g, " ")
@@ -74,7 +71,6 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
   const [updatingPresetId, setUpdatingPresetId] = useState<string | null>(null)
   const [deletingPresetId, setDeletingPresetId] = useState<string | null>(null)
 
-  // API hooks
   const {
     data: presetsData,
     isLoading,
@@ -145,7 +141,6 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
 
       await createSnapshotMutation.mutateAsync(snapshotData)
 
-      // Navigate to snapshots tab with the preset filter
       const params = new URLSearchParams(searchParams.toString())
       params.set("tab", "snapshots")
       params.set("preset", presetId)
@@ -337,7 +332,6 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
         </div>
       )}
 
-      {/* Dialogs */}
       <PresetDetailsDialog
         isOpen={isDetailsDialogOpen}
         onClose={() => setIsDetailsDialogOpen(false)}

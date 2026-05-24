@@ -1,11 +1,3 @@
-/**
- * Auth context bootstrap / logout / expired-session tests.
- *
- * Because @testing-library/react and jsdom are not in this workspace,
- * we test the fetch-based auth flow logic directly: the same URLs,
- * credentials policy, and response handling that AuthBootstrapProvider
- * and the login page use.
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const BOOTSTRAP_URL = "/api/v1/auth/me"
@@ -43,10 +35,6 @@ afterEach(() => {
 })
 
 describe("auth bootstrap flow (/api/v1/auth/me)", () => {
-  /**
-   * Simulates the bootstrap logic from AuthBootstrapProvider:
-   * fetch /me with credentials → parse response → return routing decision.
-   */
   async function bootstrap(): Promise<{
     session: typeof VALID_SESSION | null
     redirect: string | null
@@ -129,10 +117,6 @@ describe("auth bootstrap flow (/api/v1/auth/me)", () => {
 })
 
 describe("login page session check", () => {
-  /**
-   * Simulates the login page logic: check /me, if already authenticated
-   * redirect to /dashboard, otherwise show the login form.
-   */
   async function loginPageCheck(): Promise<{
     redirect: string | null
     showForm: boolean
@@ -147,9 +131,7 @@ describe("login page session check", () => {
           return { redirect: DASHBOARD_PATH, showForm: false }
         }
       }
-    } catch {
-      // Ignore — show login form
-    }
+    } catch {}
 
     return { redirect: null, showForm: true }
   }
@@ -198,17 +180,10 @@ describe("login page session check", () => {
 })
 
 describe("logout redirect", () => {
-  /**
-   * Simulates the logout logic from AuthBootstrapProvider:
-   * POST /logout → clear state → redirect to /login.
-   * The real component uses try/finally so redirect always happens.
-   */
   async function logout(): Promise<{ redirect: string }> {
     try {
       await fetch(LOGOUT_URL, { method: "POST", credentials: "include" })
-    } catch {
-      // Swallow — redirect happens regardless
-    }
+    } catch {}
 
     return { redirect: LOGIN_PATH }
   }
@@ -253,7 +228,6 @@ describe("expired-session recovery", () => {
       )
     )
 
-    // Same bootstrap logic
     const res = await fetch(BOOTSTRAP_URL, { credentials: "include" })
     const shouldRedirect = !res.ok
 

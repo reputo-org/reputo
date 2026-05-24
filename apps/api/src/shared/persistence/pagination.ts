@@ -1,10 +1,5 @@
 import type { FindManyOptions, FindOptionsOrder, FindOptionsWhere, ObjectLiteral, Repository } from 'typeorm';
 
-// Shared pagination helper. Every repository returns the same
-// `{ results, page, limit, totalPages, totalResults }` shape that the API
-// DTOs and e2e tests expect — TypeORM's `findAndCount()` is mapped to that
-// envelope here so callers don't have to repeat the math.
-
 export interface PaginateOptions {
   page?: number;
   limit?: number;

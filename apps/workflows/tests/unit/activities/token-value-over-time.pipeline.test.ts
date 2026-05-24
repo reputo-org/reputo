@@ -243,8 +243,6 @@ describe('token-value-over-time pipeline', () => {
       snapshotCreatedAt: new Date('2026-04-01T00:00:00.000Z'),
       maturationThresholdDays: 90,
     });
-    // Temporal serializes Date to ISO string across activity boundaries;
-    // the compute entry point normalizes it back to Date via new Date().
     const resultsWithStringCoerced = scoreWalletLots({
       lotsState: state,
       selectedResourceIds: new Set([FET_ETHEREUM]),

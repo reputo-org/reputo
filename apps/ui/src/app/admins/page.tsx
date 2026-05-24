@@ -28,9 +28,6 @@ function AdminsPageContent() {
     [searchParams]
   )
 
-  // While the user is searching, look across all statuses so a typed email
-  // resolves even if it's a revoked row. The toolbar surfaces a hint when the
-  // user's explicit status filter is being bypassed.
   const isSearching = Boolean(query.q)
   const effectiveQuery: ListAdminsQueryParams = isSearching
     ? { ...query, status: "all", includeSessions: true }
@@ -41,7 +38,6 @@ function AdminsPageContent() {
   const updateQuery = useCallback(
     (next: Partial<ListAdminsQueryParams>) => {
       const merged: ListAdminsQueryParams = { ...query, ...next }
-      // Reset page to 1 when filters change but caller didn't override.
       const filterChanged =
         next.q !== undefined ||
         next.role !== undefined ||
