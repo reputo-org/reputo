@@ -24,20 +24,14 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 
-# ENV
+# ENV — local .env files are gitignored; only the tracked root .env.example documents the shape.
 .env*
 **/.env*
 **/*.env
-
-# Canonical Docker envs live under docker/env/examples/*.env.example only.
-docker/compose/.env
+!.env.example
 
 # Per-file Docker secrets written by CI for preview deploys; never committed.
 docker/compose/secrets/
-
-#
-# Docker environment files (except local dev files)
-docker/shared.env
 
 # Husky
 .husky/
