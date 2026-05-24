@@ -1,0 +1,385 @@
+
+################################################################################
+# Cross-cutting defaults
+################################################################################
+
+x-logging: &logging
+    driver: json-file
+    options:
+        max-size: '10m'
+        max-file: '3'
+
+x-service-defaults: &service-defaults
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 15s
+    logging: *logging
+    networks: [dev]
+
+x-pg-healthcheck: &pg-healthcheck
+    test:
+        ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+    interval: 10s
+    timeout: 5s
+    retries: 12
+    start_period: 20s
+
+################################################################################
+# Dev image + bind-mounted node_modules layout
+################################################################################
+
+x-dev-watch: &dev-watch
+    CHOKIDAR_USEPOLLING: 'true'
+    WATCHPACK_POLLING: 'true'
+    TSC_WATCHFILE: UsePolling
+    TSC_WATCHDIRECTORY: UsePolling
+    NEXT_TELEMETRY_DISABLED: '1'
+
+x-dev-volumes: &dev-volumes
+    - ../..:/workspace
+    - repo_node_modules:/workspace/node_modules
+    - repo_pnpm_store:/pnpm/store
+    - apps_api_node_modules:/workspace/apps/api/node_modules
+    - apps_ui_node_modules:/workspace/apps/ui/node_modules
+    - apps_workflows_node_modules:/workspace/apps/workflows/node_modules
+    - packages_algorithm_validator_node_modules:/workspace/packages/algorithm-validator/node_modules
+    - packages_deepfunding_portal_api_node_modules:/workspace/packages/deepfunding-portal-api/node_modules
+    - packages_onchain_data_node_modules:/workspace/packages/onchain-data/node_modules
+    - packages_reputation_algorithms_node_modules:/workspace/packages/reputation-algorithms/node_modules
+    - packages_storage_node_modules:/workspace/packages/storage/node_modules
+
+x-dev-service: &dev-service
+    <<: *service-defaults
+    build:
+        context: ../..
+        dockerfile: docker/images/Dockerfile.dev
+    working_dir: /workspace
+    volumes: *dev-volumes
+
+################################################################################
+# App environment anchors
+################################################################################
+
+x-api-env: &api-env
+    <<: *dev-watch
+    NODE_ENV: development
+    PORT: '3000'
+    LOG_LEVEL:
+    AUTH_MODE:
+    OWNER_EMAIL: '${OWNER_EMAIL:?missing OWNER_EMAIL}'
+    OWNER_PROVIDER:
+    APP_PUBLIC_URL: '${APP_PUBLIC_URL:?missing APP_PUBLIC_URL}'
+    DEEP_ID_ISSUER_URL: '${DEEP_ID_ISSUER_URL:?missing DEEP_ID_ISSUER_URL}'
+    DEEP_ID_CLIENT_ID: '${DEEP_ID_CLIENT_ID:?missing DEEP_ID_CLIENT_ID}'
+    DEEP_ID_CLIENT_SECRET: '${DEEP_ID_CLIENT_SECRET:?missing DEEP_ID_CLIENT_SECRET}'
+    DEEP_ID_AUTH_REDIRECT_URI: '${DEEP_ID_AUTH_REDIRECT_URI:?missing DEEP_ID_AUTH_REDIRECT_URI}'
+    DEEP_ID_AUTH_SCOPES: '${DEEP_ID_AUTH_SCOPES:?missing DEEP_ID_AUTH_SCOPES}'
+    DEEP_ID_CONSENT_REDIRECT_URI: '${DEEP_ID_CONSENT_REDIRECT_URI:?missing DEEP_ID_CONSENT_REDIRECT_URI}'
+    DEEP_ID_CONSENT_GRANT_TTL_SECONDS: '${DEEP_ID_CONSENT_GRANT_TTL_SECONDS:?missing DEEP_ID_CONSENT_GRANT_TTL_SECONDS}'
+    VOTING_PORTAL_RETURN_URL: '${VOTING_PORTAL_RETURN_URL:?missing VOTING_PORTAL_RETURN_URL}'
+    DEEP_ID_VOTING_PORTAL_SCOPES: '${DEEP_ID_VOTING_PORTAL_SCOPES:?missing DEEP_ID_VOTING_PORTAL_SCOPES}'
+    AUTH_COOKIE_NAME:
+    AUTH_COOKIE_DOMAIN:
+    AUTH_COOKIE_SECURE:
+    AUTH_COOKIE_SAME_SITE:
+    AUTH_SESSION_TTL_SECONDS:
+    AUTH_REFRESH_LEEWAY_SECONDS:
+    AUTH_TOKEN_ENCRYPTION_KEY: '${AUTH_TOKEN_ENCRYPTION_KEY:?missing AUTH_TOKEN_ENCRYPTION_KEY}'
+    AUTH_SESSION_CLEANUP_INTERVAL_MS:
+    DEEP_ID_CONSENT_CLEANUP_INTERVAL_MS:
+    DATABASE_URL: postgresql://reputo_app:reputo_app@postgres:5432/reputo_app
+    AWS_REGION: '${AWS_REGION:?missing AWS_REGION}'
+    # Dev stack uses in-stack MinIO; credentials match `minio` service below.
+    AWS_ACCESS_KEY_ID: minio
+    AWS_SECRET_ACCESS_KEY: minio12345
+    STORAGE_BUCKET: '${STORAGE_BUCKET:?missing STORAGE_BUCKET}'
+    STORAGE_ENDPOINT: http://minio:9000
+    STORAGE_FORCE_PATH_STYLE: 'true'
+    STORAGE_PRESIGN_PUT_TTL:
+    STORAGE_PRESIGN_GET_TTL:
+    STORAGE_MAX_SIZE_BYTES:
+    STORAGE_CONTENT_TYPE_ALLOWLIST:
+    TEMPORAL_ADDRESS: temporal:7233
+    TEMPORAL_NAMESPACE:
+    TEMPORAL_ORCHESTRATOR_TASK_QUEUE:
+    TEMPORAL_API_SNAPSHOT_ACTIVITIES_TASK_QUEUE:
+
+x-ui-env: &ui-env
+    <<: *dev-watch
+    NODE_ENV: development
+    PORT: '4000'
+    AUTH_COOKIE_NAME:
+    # In-network address of the api container; Next.js dev rewrites `/api/*`
+    # to this so the browser still sees same-origin requests at
+    # http://localhost:4000/api/*.
+    API_PROXY_TARGET: http://api:3000
+
+x-workflows-env: &workflows-env
+    <<: *dev-watch
+    NODE_ENV: development
+    LOG_LEVEL:
+    TEMPORAL_ADDRESS: temporal:7233
+    TEMPORAL_NAMESPACE:
+    TEMPORAL_ORCHESTRATOR_TASK_QUEUE:
+    TEMPORAL_ALGORITHM_TYPESCRIPT_TASK_QUEUE:
+    TEMPORAL_ALGORITHM_PYTHON_TASK_QUEUE:
+    TEMPORAL_ONCHAIN_DATA_TASK_QUEUE:
+    AWS_REGION: '${AWS_REGION:?missing AWS_REGION}'
+    AWS_ACCESS_KEY_ID: minio
+    AWS_SECRET_ACCESS_KEY: minio12345
+    STORAGE_BUCKET: '${STORAGE_BUCKET:?missing STORAGE_BUCKET}'
+    STORAGE_ENDPOINT: http://minio:9000
+    STORAGE_FORCE_PATH_STYLE: 'true'
+    STORAGE_PRESIGN_PUT_TTL:
+    STORAGE_PRESIGN_GET_TTL:
+    STORAGE_MAX_SIZE_BYTES:
+    DEEPFUNDING_API_BASE_URL: '${DEEPFUNDING_API_BASE_URL:?missing DEEPFUNDING_API_BASE_URL}'
+    DEEPFUNDING_API_KEY: '${DEEPFUNDING_API_KEY:?missing DEEPFUNDING_API_KEY}'
+    DEEPFUNDING_API_REQUEST_TIMEOUT_MS:
+    DEEPFUNDING_API_CONCURRENCY:
+    DEEPFUNDING_API_DEFAULT_PAGE_LIMIT:
+    DEEPFUNDING_API_RETRY_MAX_ATTEMPTS:
+    DEEPFUNDING_API_RETRY_BASE_DELAY_MS:
+    DEEPFUNDING_API_RETRY_MAX_DELAY_MS:
+    ONCHAIN_DATABASE_URL: postgresql://reputo_onchain:reputo_onchain@onchain-data-postgresql:5432/reputo_onchain
+    ALCHEMY_API_KEY: '${ALCHEMY_API_KEY:?missing ALCHEMY_API_KEY}'
+    BLOCKFROST_API_KEY: '${BLOCKFROST_API_KEY:?missing BLOCKFROST_API_KEY}'
+
+################################################################################
+# Networks / volumes
+################################################################################
+
+networks:
+    dev:
+        driver: bridge
+
+volumes:
+    repo_node_modules:
+        driver: local
+    repo_pnpm_store:
+        driver: local
+    apps_api_node_modules:
+        driver: local
+    apps_ui_node_modules:
+        driver: local
+    apps_workflows_node_modules:
+        driver: local
+    packages_algorithm_validator_node_modules:
+        driver: local
+    packages_deepfunding_portal_api_node_modules:
+        driver: local
+    packages_onchain_data_node_modules:
+        driver: local
+    packages_reputation_algorithms_node_modules:
+        driver: local
+    packages_storage_node_modules:
+        driver: local
+    temporal_elasticsearch_data:
+        driver: local
+    temporal_postgresql_data:
+        driver: local
+    onchain_data_postgresql_data:
+        driver: local
+    postgres_data:
+        driver: local
+    minio_data:
+        driver: local
+
+################################################################################
+# Services
+################################################################################
+
+services:
+    api:
+        <<: *dev-service
+        container_name: api
+        command: pnpm --filter @reputo/api dev
+        ports:
+            - '3000:3000'
+        depends_on:
+            postgres:
+                condition: service_healthy
+            temporal:
+                condition: service_healthy
+            minio-init:
+                condition: service_completed_successfully
+        environment: *api-env
+
+    ui:
+        <<: *dev-service
+        container_name: ui
+        command: pnpm --filter @reputo/ui dev
+        ports:
+            - '4000:4000'
+        environment: *ui-env
+
+    temporal:
+        <<: *service-defaults
+        container_name: temporal
+        image: temporalio/auto-setup:1.26.3.0
+        depends_on:
+            - temporal-postgresql
+            - temporal-elasticsearch
+        ports:
+            - '7233:7233'
+        environment:
+            DB: postgres12
+            DB_PORT: '5432'
+            POSTGRES_USER: temporal
+            POSTGRES_PWD: temporal
+            POSTGRES_SEEDS: temporal-postgresql
+            ENABLE_ES: 'false'
+            ES_SEEDS: temporal-elasticsearch
+            ES_VERSION: v7
+        healthcheck:
+            test:
+                - CMD-SHELL
+                - 'temporal operator cluster health --address $$(hostname -i):7233'
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 120s
+
+    temporal-ui:
+        <<: *service-defaults
+        container_name: temporal-ui
+        image: temporalio/ui:2.32.0
+        environment:
+            TEMPORAL_ADDRESS: temporal:7233
+            TEMPORAL_CORS_ORIGINS: '*'
+        depends_on:
+            - temporal
+        ports:
+            - '8088:8080'
+
+    temporal-elasticsearch:
+        <<: *service-defaults
+        container_name: temporal-elasticsearch
+        image: elasticsearch:7.17.23
+        environment:
+            cluster.routing.allocation.disk.threshold_enabled: 'true'
+            cluster.routing.allocation.disk.watermark.low: 512mb
+            cluster.routing.allocation.disk.watermark.high: 256mb
+            cluster.routing.allocation.disk.watermark.flood_stage: 128mb
+            discovery.type: single-node
+            ES_JAVA_OPTS: '-Xms256m -Xmx256m'
+            xpack.security.enabled: 'false'
+        volumes:
+            - temporal_elasticsearch_data:/var/lib/elasticsearch/data
+
+    temporal-postgresql:
+        <<: *service-defaults
+        container_name: temporal-postgresql
+        image: postgres:12.22
+        environment:
+            POSTGRES_USER: temporal
+            POSTGRES_PASSWORD: temporal
+        volumes:
+            - temporal_postgresql_data:/var/lib/postgresql/data
+
+    onchain-data-postgresql:
+        <<: *service-defaults
+        container_name: onchain-data-postgresql
+        image: postgres:16
+        environment:
+            POSTGRES_USER: reputo_onchain
+            POSTGRES_PASSWORD: reputo_onchain
+            POSTGRES_DB: reputo_onchain
+        ports:
+            - 5433:5432
+        volumes:
+            - onchain_data_postgresql_data:/var/lib/postgresql/data
+        healthcheck: *pg-healthcheck
+
+    postgres:
+        <<: *service-defaults
+        container_name: postgres
+        image: postgres:16
+        environment:
+            POSTGRES_USER: reputo_app
+            POSTGRES_PASSWORD: reputo_app
+            POSTGRES_DB: reputo_app
+        ports:
+            - 5434:5432
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        healthcheck: *pg-healthcheck
+
+    minio:
+        <<: *service-defaults
+        container_name: minio
+        image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+        command: server --console-address ":9001" /data
+        environment:
+            MINIO_ROOT_USER: minio
+            MINIO_ROOT_PASSWORD: minio12345
+        ports:
+            - '9000:9000'
+            - '9001:9001'
+        volumes:
+            - minio_data:/data
+        healthcheck:
+            test:
+                - CMD-SHELL
+                - 'curl -fsS http://localhost:9000/minio/health/live || exit 1'
+            interval: 10s
+            timeout: 5s
+            retries: 10
+            start_period: 15s
+
+    # One-shot bucket bootstrap. Idempotent (mb --ignore-existing) and exits
+    # 0 after creating STORAGE_BUCKET, so it stays out of the running set.
+    minio-init:
+        <<: *service-defaults
+        container_name: minio-init
+        image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+        restart: 'no'
+        depends_on:
+            minio:
+                condition: service_healthy
+        environment:
+            STORAGE_BUCKET: '${STORAGE_BUCKET:?missing STORAGE_BUCKET}'
+        entrypoint:
+            - /bin/sh
+            - -lc
+            - |
+              set -eu
+              mc alias set local http://minio:9000 minio minio12345
+              mc mb --ignore-existing local/"$$STORAGE_BUCKET"
+
+    orchestrator-worker:
+        <<: *dev-service
+        container_name: orchestrator-worker
+        command: pnpm --filter @reputo/workflows dev:orchestrator
+        depends_on:
+            temporal:
+                condition: service_healthy
+            minio-init:
+                condition: service_completed_successfully
+        environment: *workflows-env
+
+    onchain-data-worker:
+        <<: *dev-service
+        container_name: onchain-data-worker
+        command: pnpm --filter @reputo/workflows dev:onchain-data
+        depends_on:
+            temporal:
+                condition: service_healthy
+            onchain-data-postgresql:
+                condition: service_healthy
+            minio-init:
+                condition: service_completed_successfully
+        environment: *workflows-env
+
+    typescript-worker:
+        <<: *dev-service
+        container_name: typescript-worker
+        command: pnpm --filter @reputo/workflows dev:algorithm-typescript
+        depends_on:
+            temporal:
+                condition: service_healthy
+            onchain-data-postgresql:
+                condition: service_healthy
+            minio-init:
+                condition: service_completed_successfully
+        environment: *workflows-env
