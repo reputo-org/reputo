@@ -639,9 +639,6 @@ importers:
       concurrently:
         specifier: 'catalog:'
         version: 9.2.1
-      dotenv-cli:
-        specifier: ^7.4.2
-        version: 7.4.4
       nodemon:
         specifier: ^3.1.9
         version: 3.1.11
@@ -5458,14 +5455,6 @@ packages:
   dot-prop@5.3.0:
     resolution: {integrity: sha512-QM8q3zDe58hqUqjraQOmzZ1LIH9SWQJTlEKCH4kJ2oQvLZk7RbQXvtDM2XEq3fwkV9CCvvH4LA0AV+ogFsBM2Q==}
     engines: {node: '>=8'}
-
-  dotenv-cli@7.4.4:
-    resolution: {integrity: sha512-XkBYCG0tPIes+YZr4SpfFv76SQrV/LeCE8CI7JSEMi3VR9MvTihCGTOtbIexD6i2mXF+6px7trb1imVCXSNMDw==}
-    hasBin: true
-
-  dotenv-expand@10.0.0:
-    resolution: {integrity: sha512-GopVGCpVS1UKH75VKHGuQFqS1Gusej0z4FyQkPdwjil2gNIv+LNsqBlboOzpJFZKVT95GkCyWJbBSdFEFUWI2A==}
-    engines: {node: '>=12'}
 
   dotenv-expand@12.0.1:
     resolution: {integrity: sha512-LaKRbou8gt0RNID/9RoI+J2rvXsBRPMV7p+ElHlPhcSARbCPDYcYG2s1TIzAfWv4YSgyY5taidWzzs31lNV3yQ==}
@@ -14090,14 +14079,6 @@ snapshots:
       chai: 5.3.3
       tinyrainbow: 2.0.0
 
-  '@vitest/mocker@3.2.4(vite@7.2.2(@types/node@20.19.25)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.1))':
-    dependencies:
-      '@vitest/spy': 3.2.4
-      estree-walker: 3.0.3
-      magic-string: 0.30.21
-    optionalDependencies:
-      vite: 7.2.2(@types/node@20.19.25)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.1)
-
   '@vitest/mocker@3.2.4(vite@7.2.2(@types/node@22.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.1))':
     dependencies:
       '@vitest/spy': 3.2.4
@@ -15505,15 +15486,6 @@ snapshots:
   dot-prop@5.3.0:
     dependencies:
       is-obj: 2.0.0
-
-  dotenv-cli@7.4.4:
-    dependencies:
-      cross-spawn: 7.0.6
-      dotenv: 16.4.7
-      dotenv-expand: 10.0.0
-      minimist: 1.2.8
-
-  dotenv-expand@10.0.0: {}
 
   dotenv-expand@12.0.1:
     dependencies:
@@ -20513,7 +20485,7 @@ snapshots:
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/expect': 3.2.4
-      '@vitest/mocker': 3.2.4(vite@7.2.2(@types/node@20.19.25)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.1))
+      '@vitest/mocker': 3.2.4(vite@7.2.2(@types/node@22.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.1))
       '@vitest/pretty-format': 3.2.4
       '@vitest/runner': 3.2.4
       '@vitest/snapshot': 3.2.4
