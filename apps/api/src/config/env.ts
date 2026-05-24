@@ -110,14 +110,21 @@ export const envSchema = z
       .describe('PostgreSQL connection URL for the API application database (consumed by TypeORM)'),
 
     AWS_REGION: z.string().min(1).describe('AWS region for S3 and other AWS clients'),
-    AWS_ACCESS_KEY_ID: z.string().min(1).optional().describe('AWS access key ID (omit to use IAM role credentials)'),
-    AWS_SECRET_ACCESS_KEY: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('AWS secret access key (omit to use IAM role credentials)'),
+    // AWS credentials are NOT validated here. The AWS SDK reads
+    // AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY from the container env via its
+    // default credential provider chain (or falls through to IAM in prod).
+    // Compose files inject MinIO creds for dev/preview.
 
     STORAGE_BUCKET: z.string().min(1).describe('S3 bucket name for algorithm inputs and outputs'),
+    STORAGE_ENDPOINT: z
+      .string()
+      .url()
+      .optional()
+      .describe('Custom S3 endpoint URL (e.g. http://minio:9000 for dev/preview MinIO). Omit to use AWS S3.'),
+    STORAGE_FORCE_PATH_STYLE: z
+      .stringbool()
+      .optional()
+      .describe('Use path-style S3 URLs (required by MinIO/LocalStack). Set together with STORAGE_ENDPOINT.'),
     STORAGE_PRESIGN_PUT_TTL: z.coerce
       .number()
       .int()
@@ -165,16 +172,7 @@ export const envSchema = z
   .refine((e) => e.AUTH_MODE !== AUTH_MODE_OAUTH || (e.OWNER_EMAIL !== undefined && e.OWNER_EMAIL.length > 0), {
     error: 'OWNER_EMAIL is required when AUTH_MODE=oauth.',
     path: ['OWNER_EMAIL'],
-  })
-  .refine(
-    (e) =>
-      (e.AWS_ACCESS_KEY_ID === undefined && e.AWS_SECRET_ACCESS_KEY === undefined) ||
-      (e.AWS_ACCESS_KEY_ID !== undefined && e.AWS_SECRET_ACCESS_KEY !== undefined),
-    {
-      error: 'AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set together or both omitted',
-      path: ['AWS_ACCESS_KEY_ID'],
-    },
-  );
+  });
 
 export type Env = z.infer<typeof envSchema>;
 

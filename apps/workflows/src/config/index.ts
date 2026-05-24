@@ -17,11 +17,11 @@ const config = {
   },
   aws: {
     region: env.AWS_REGION,
-    accessKeyId: env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
   },
   storage: {
     bucket: env.STORAGE_BUCKET,
+    endpoint: env.STORAGE_ENDPOINT,
+    forcePathStyle: env.STORAGE_FORCE_PATH_STYLE,
     presignPutTtl: env.STORAGE_PRESIGN_PUT_TTL,
     presignGetTtl: env.STORAGE_PRESIGN_GET_TTL,
     maxSizeBytes: env.STORAGE_MAX_SIZE_BYTES,
