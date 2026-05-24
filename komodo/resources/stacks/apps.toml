@@ -12,9 +12,11 @@ git_https = true
 repo = "reputo-org/reputo"
 branch = "main"
 files_on_host = false
-file_paths = ["docker/compose/apps.yml"]
+file_paths = ["docker/compose/compose.yml"]
 env_file_path = ".komodo-reputo-apps-staging.env"
 environment = """
+COMPOSE_PROFILES=apps
+COMPOSE_NETWORK_NAME=production
 IMAGE_TAG=staging
 UI_DOMAIN=[[STAGING_UI_DOMAIN]]
 API_DOMAIN=[[STAGING_API_DOMAIN]]
@@ -44,11 +46,15 @@ AUTH_TOKEN_ENCRYPTION_KEY=[[STAGING_AUTH_TOKEN_ENCRYPTION_KEY]]
 AUTH_SESSION_CLEANUP_INTERVAL_MS=3600000
 DEEP_ID_CONSENT_CLEANUP_INTERVAL_MS=300000
 # API-owned application database. The discrete STAGING_API_POSTGRES_*
-# values still live in variables.toml because infra.yml's `postgres`
+# values still live in variables.toml because compose.yml's `postgres`
 # service needs them to bootstrap the container; the API only consumes
 # this composed URL.
 DATABASE_URL=[[STAGING_API_DATABASE_URL]]
 AWS_REGION=[[STAGING_AWS_REGION]]
+# App-facing AWS creds use APP_AWS_* (compose.yml maps them to container
+# AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY). Leave unset here so the AWS
+# SDK falls back to its default credential chain (IAM role, etc.). Preview
+# uses MinIO and the pull-preview workflow sets APP_AWS_* to MinIO root creds.
 STORAGE_BUCKET=[[STAGING_STORAGE_BUCKET]]
 STORAGE_PRESIGN_PUT_TTL=120
 STORAGE_PRESIGN_GET_TTL=300
@@ -97,9 +103,11 @@ git_https = true
 repo = "reputo-org/reputo"
 branch = "main"
 files_on_host = false
-file_paths = ["docker/compose/apps.yml"]
+file_paths = ["docker/compose/compose.yml"]
 env_file_path = ".komodo-reputo-apps-production.env"
 environment = """
+COMPOSE_PROFILES=apps
+COMPOSE_NETWORK_NAME=production
 IMAGE_TAG=production
 UI_DOMAIN=[[PRODUCTION_UI_DOMAIN]]
 API_DOMAIN=[[PRODUCTION_API_DOMAIN]]
@@ -129,11 +137,15 @@ AUTH_TOKEN_ENCRYPTION_KEY=[[PRODUCTION_AUTH_TOKEN_ENCRYPTION_KEY]]
 AUTH_SESSION_CLEANUP_INTERVAL_MS=3600000
 DEEP_ID_CONSENT_CLEANUP_INTERVAL_MS=300000
 # API-owned application database. The discrete PRODUCTION_API_POSTGRES_*
-# values still live in variables.toml because infra.yml's `postgres`
+# values still live in variables.toml because compose.yml's `postgres`
 # service needs them to bootstrap the container; the API only consumes
 # this composed URL.
 DATABASE_URL=[[PRODUCTION_API_DATABASE_URL]]
 AWS_REGION=[[PRODUCTION_AWS_REGION]]
+# App-facing AWS creds use APP_AWS_* (compose.yml maps them to container
+# AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY). Leave unset here so the AWS
+# SDK falls back to its default credential chain (IAM role, etc.). Preview
+# uses MinIO and the pull-preview workflow sets APP_AWS_* to MinIO root creds.
 STORAGE_BUCKET=[[PRODUCTION_STORAGE_BUCKET]]
 STORAGE_PRESIGN_PUT_TTL=120
 STORAGE_PRESIGN_GET_TTL=300
@@ -155,7 +167,7 @@ DEEPFUNDING_API_RETRY_BASE_DELAY_MS=500
 DEEPFUNDING_API_RETRY_MAX_DELAY_MS=20000
 # Worker-side on-chain Postgres connection URL. The discrete
 # PRODUCTION_ONCHAIN_DATA_POSTGRES_* values still live in variables.toml because
-# infra.yml's `onchain-data-postgresql` service needs them to bootstrap the
+# compose.yml's `onchain-data-postgresql` service needs them to bootstrap the
 # container; the worker only consumes this composed URL.
 ONCHAIN_DATABASE_URL=[[PRODUCTION_ONCHAIN_DATABASE_URL]]
 ALCHEMY_API_KEY=[[PRODUCTION_ALCHEMY_API_KEY]]

@@ -115,9 +115,11 @@ flowchart LR
   both `pnpm dev` and `pnpm docker:dev`.
 - Staging/production: Komodo Variables (defined in
   [komodo/resources/variables.toml](komodo/resources/variables.toml)) are the
-  sole source. The deploy compose files (`apps.yml`, `infra.yml`,
-  `observability.yml`) carry no `env_file:` directives — every value flows
-  through `${VAR}` interpolation from the Komodo-generated `.env`.
+  sole source. The deploy compose file
+  ([docker/compose/compose.yml](docker/compose/compose.yml)) carries no
+  `env_file:` directives — every value flows through `${VAR}` interpolation
+  from the Komodo-generated `.env`. Service selection per stack is by
+  `COMPOSE_PROFILES` (`apps`, `infra,observability`).
 
 For operational details, image flow, and local infrastructure setup, see
 [docker/README.md](docker/README.md) and [komodo/README.md](komodo/README.md).

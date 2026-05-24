@@ -12,12 +12,13 @@ git_https = true
 repo = "reputo-org/reputo"
 branch = "main"
 files_on_host = false
-file_paths = [
-  "docker/compose/infra.yml",
-  "docker/compose/observability.yml",
-]
+file_paths = ["docker/compose/compose.yml"]
 env_file_path = ".komodo-reputo-infra-staging.env"
 environment = """
+COMPOSE_PROFILES=infra,observability
+COMPOSE_NETWORK_NAME=production
+API_POSTGRES_HOST_BIND=0.0.0.0
+ONCHAIN_DATA_POSTGRES_HOST_BIND=0.0.0.0
 TRAEFIK_DOMAIN=[[STAGING_TRAEFIK_DOMAIN]]
 TEMPORAL_UI_DOMAIN=[[STAGING_TEMPORAL_UI_DOMAIN]]
 TRAEFIK_AUTH=[[STAGING_TRAEFIK_AUTH]]
@@ -62,12 +63,16 @@ git_https = true
 repo = "reputo-org/reputo"
 branch = "main"
 files_on_host = false
-file_paths = [
-  "docker/compose/infra.yml",
-  "docker/compose/observability.yml",
-]
+file_paths = ["docker/compose/compose.yml"]
 env_file_path = ".komodo-reputo-infra-production.env"
 environment = """
+COMPOSE_PROFILES=infra,observability
+COMPOSE_NETWORK_NAME=production
+# Preserve pre-refactor behavior: postgres host ports bound to all interfaces
+# (today's shorthand `5434:5432` and `5433:5432` mappings). Switch to
+# `127.0.0.1` once external DB clients are confirmed unused.
+API_POSTGRES_HOST_BIND=0.0.0.0
+ONCHAIN_DATA_POSTGRES_HOST_BIND=0.0.0.0
 TRAEFIK_DOMAIN=[[PRODUCTION_TRAEFIK_DOMAIN]]
 TEMPORAL_UI_DOMAIN=[[PRODUCTION_TEMPORAL_UI_DOMAIN]]
 TRAEFIK_AUTH=[[PRODUCTION_TRAEFIK_AUTH]]

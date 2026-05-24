@@ -157,7 +157,7 @@ Normal path:
    `staging` tag for affected apps.
 4. The `main` workflow calls the `reputo-apps-staging` Stack webhook.
 5. Komodo updates its Git checkout, pulls the changed images, and deploys
-   `docker/compose/apps.yml` on the staging host.
+   `docker/compose/compose.yml` with `COMPOSE_PROFILES=apps` on the staging host.
 
 Manual path:
 
