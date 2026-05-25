@@ -1,38 +1,58 @@
 {
   "name": "@reputo/api",
   "version": "1.0.0",
-  "description": "NestJS HTTP API for the Reputo platform",
+  "description": "NestJS HTTP API for the Reputo platform.",
+  "keywords": [
+    "nestjs",
+    "api",
+    "reputo",
+    "typeorm",
+    "temporal"
+  ],
+  "license": "GPL-3.0-only",
+  "author": {
+    "name": "Behzad Rabiei",
+    "url": "https://github.com/Behzad-rabiei"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/reputo-org/reputo.git",
+    "directory": "apps/api"
+  },
   "private": true,
+  "files": [
+    "dist/**",
+    "docker-entrypoint.sh"
+  ],
+  "packageManager": "pnpm@10.30.3",
   "scripts": {
-    "build:deps": "pnpm --filter @reputo/algorithm-validator --filter @reputo/contracts --filter @reputo/reputation-algorithms --filter @reputo/storage run build",
-    "dev:deps": "pnpm --filter @reputo/algorithm-validator --filter @reputo/contracts --filter @reputo/reputation-algorithms --filter @reputo/storage --parallel run dev",
     "build": "nest build",
-    "start": "node dist/main",
-    "start:dev": "nest start --watch",
-    "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "build:deps": "pnpm --filter @reputo/algorithm-validator --filter @reputo/contracts --filter @reputo/reputation-algorithms --filter @reputo/storage run build",
+    "clean": "rm -rf coverage dist docs node_modules tsconfig.tsbuildinfo",
     "check": "pnpm exec biome check",
-    "format": "pnpm exec biome format --write",
     "lint": "pnpm exec biome lint",
-    "typeorm": "typeorm-ts-node-commonjs",
-    "typeorm:generate": "typeorm-ts-node-commonjs migration:generate -d src/persistence/data-source.ts",
-    "typeorm:run": "typeorm-ts-node-commonjs migration:run -d src/persistence/data-source.ts",
-    "typeorm:revert": "typeorm-ts-node-commonjs migration:revert -d src/persistence/data-source.ts",
-    "typeorm:show": "typeorm-ts-node-commonjs migration:show -d src/persistence/data-source.ts",
-    "typeorm:run:prod": "typeorm migration:run -d dist/persistence/data-source.js",
+    "format": "pnpm exec biome format --write",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "test:cov": "vitest --coverage",
     "test:e2e": "vitest --config vitest.config.e2e.ts",
     "test:e2e:watch": "vitest --config vitest.config.e2e.ts --watch",
-    "typecheck": "tsc --noEmit",
-    "dev:app": "pnpm run start:dev",
     "dev": "pnpm run build:deps && concurrently --names deps,app --prefix name --kill-others-on-fail \"pnpm run dev:deps\" \"pnpm run dev:app\"",
-    "clean": "rm -rf coverage dist docs node_modules tsconfig.tsbuildinfo"
+    "dev:app": "pnpm run start:dev",
+    "dev:deps": "pnpm --filter @reputo/algorithm-validator --filter @reputo/contracts --filter @reputo/reputation-algorithms --filter @reputo/storage --parallel run dev",
+    "start": "node dist/main",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "typeorm": "typeorm-ts-node-commonjs",
+    "typeorm:generate": "typeorm-ts-node-commonjs migration:generate -d src/persistence/data-source.ts",
+    "typeorm:run": "typeorm-ts-node-commonjs migration:run -d src/persistence/data-source.ts",
+    "typeorm:revert": "typeorm-ts-node-commonjs migration:revert -d src/persistence/data-source.ts",
+    "typeorm:show": "typeorm-ts-node-commonjs migration:show -d src/persistence/data-source.ts",
+    "typeorm:run:prod": "typeorm migration:run -d dist/persistence/data-source.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "catalog:",
-    "@aws-sdk/s3-request-presigner": "catalog:",
     "@nestjs/common": "11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "11.0.1",
@@ -53,7 +73,7 @@
     "nestjs-pino": "4.4.1",
     "pg": "catalog:",
     "pino-pretty": "catalog:",
-    "reflect-metadata": "0.2.2",
+    "reflect-metadata": "catalog:",
     "rxjs": "7.8.2",
     "typeorm": "catalog:",
     "typeorm-naming-strategies": "catalog:",
@@ -65,13 +85,12 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
-    "@swc/cli": "catalog:",
     "@swc/core": "catalog:",
     "@temporalio/testing": "catalog:",
     "@testcontainers/postgresql": "catalog:",
-    "@types/pg": "catalog:",
     "@types/express": "^5.0.0",
     "@types/node": "catalog:",
+    "@types/pg": "catalog:",
     "@types/supertest": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@vitest/spy": "catalog:",
@@ -81,17 +100,7 @@
     "tsconfig-paths": "catalog:",
     "typescript": "catalog:",
     "unplugin-swc": "1.5.5",
-    "vitest": "catalog:",
-    "vite-tsconfig-paths": "^5.1.4"
-  },
-  "files": [
-    "dist/**",
-    "docker-entrypoint.sh"
-  ],
-  "author": {
-    "name": "Behzad Rabiei",
-    "url": "https://github.com/Behzad-rabiei"
-  },
-  "license": "GPL-3.0",
-  "packageManager": "pnpm@10.30.3"
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "catalog:"
+  }
 }
