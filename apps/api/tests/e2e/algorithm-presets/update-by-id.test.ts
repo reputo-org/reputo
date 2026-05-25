@@ -5,7 +5,6 @@ import { insertAlgorithmPreset } from '../../factories/algorithmPreset.factory';
 import { createTestApp } from '../../utils/app-test.module';
 import { createAuthenticatedSession } from '../../utils/auth-session';
 import { getTestDataSource, truncateBusinessTables } from '../../utils/db';
-import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { api } from '../../utils/request';
 import { randomUUIDv7 } from '../../utils/uuid';
 
@@ -13,11 +12,8 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
   let app: INestApplication;
   let authCookie: string;
   let dataSource: DataSource;
-  let db: TestDatabase;
 
   beforeAll(async () => {
-    db = await startTestDatabase();
-    process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({});
     app = boot.app;
     dataSource = getTestDataSource(boot.moduleRef);
@@ -30,7 +26,6 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
 
   afterAll(async () => {
     await app.close();
-    await db?.stop();
   });
 
   it('should update inputs/name/description (200) and bump updatedAt', async () => {

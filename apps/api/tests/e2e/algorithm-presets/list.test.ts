@@ -6,18 +6,14 @@ import { createTestApp } from '../../utils/app-test.module';
 import { createAuthenticatedSession } from '../../utils/auth-session';
 import { getTestDataSource, truncateBusinessTables } from '../../utils/db';
 import { assertPaginationMath, assertPaginationStructure } from '../../utils/pagination';
-import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { api } from '../../utils/request';
 
 describe('GET /api/v1/algorithm-presets', () => {
   let app: INestApplication;
   let authCookie: string;
   let dataSource: DataSource;
-  let db: TestDatabase;
 
   beforeAll(async () => {
-    db = await startTestDatabase();
-    process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({});
     app = boot.app;
     dataSource = getTestDataSource(boot.moduleRef);
@@ -30,7 +26,6 @@ describe('GET /api/v1/algorithm-presets', () => {
 
   afterAll(async () => {
     await app.close();
-    await db?.stop();
   });
 
   it('should list presets with default pagination (200) and PaginationDto shape', async () => {

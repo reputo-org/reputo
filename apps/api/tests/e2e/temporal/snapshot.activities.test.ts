@@ -10,7 +10,7 @@ import { SnapshotService } from '../../../src/snapshot/snapshot.service';
 import { createSnapshotActivities } from '../../../src/temporal/snapshot.activities';
 import { insertAlgorithmPreset } from '../../factories/algorithmPreset.factory';
 import { truncateAllTables } from '../../utils/db';
-import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
+import { getSharedDatabaseUrl } from '../../utils/postgres-testcontainer';
 import { randomUUIDv7 } from '../../utils/uuid';
 
 const logger = {
@@ -23,19 +23,18 @@ const logger = {
 };
 
 describe('API snapshot activities (integration)', () => {
-  let db: TestDatabase;
+  let databaseUrl: string;
   let dataSource: DataSource;
   let service: SnapshotService;
   let activities: ApiSnapshotActivities;
   let env: MockActivityEnvironment;
 
   beforeAll(async () => {
-    db = await startTestDatabase();
-    process.env.DATABASE_URL = db.databaseUrl;
+    databaseUrl = getSharedDatabaseUrl();
 
     dataSource = new DataSource({
       type: 'postgres',
-      url: db.databaseUrl,
+      url: databaseUrl,
       entities: [...ENTITIES],
       namingStrategy: new SnakeNamingStrategy(),
       synchronize: false,
@@ -82,7 +81,6 @@ describe('API snapshot activities (integration)', () => {
     if (dataSource?.isInitialized) {
       await dataSource.destroy();
     }
-    await db?.stop();
   });
 
   async function seedSnapshot() {
@@ -216,7 +214,7 @@ describe('API snapshot activities (integration)', () => {
       const received: string[] = [];
 
       const { Client: PgClient } = await import('pg');
-      const pg = new PgClient({ connectionString: db.databaseUrl });
+      const pg = new PgClient({ connectionString: databaseUrl });
       await pg.connect();
       pg.on('notification', (msg) => {
         if (msg.channel === 'snapshot_updates' && msg.payload) {

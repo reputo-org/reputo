@@ -9,18 +9,14 @@ import { encryptValue } from '../../../src/shared/utils';
 import { createTestApp } from '../../utils/app-test.module';
 import { AUTH_TEST_ENV, createAuthenticatedSession } from '../../utils/auth-session';
 import { getTestDataSource } from '../../utils/db';
-import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { api, base } from '../../utils/request';
 
 describe('Admin access management e2e', () => {
   let app: INestApplication;
   let moduleRef: TestingModule;
   let dataSource: DataSource;
-  let db: TestDatabase;
 
   beforeAll(async () => {
-    db = await startTestDatabase();
-    process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({});
 
     app = boot.app;
@@ -36,7 +32,6 @@ describe('Admin access management e2e', () => {
 
   afterAll(async () => {
     await app.close();
-    await db?.stop();
   });
 
   async function createSession(email: string, role: 'admin' | 'owner' = 'admin') {

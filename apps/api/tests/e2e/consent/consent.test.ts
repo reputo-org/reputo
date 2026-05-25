@@ -17,7 +17,6 @@ import { HttpExceptionFilter } from '../../../src/shared/filters/http-exception.
 import { createPkceChallenge } from '../../../src/shared/utils';
 import { applyAuthTestEnv } from '../../utils/auth-session';
 import { getTestDataSource } from '../../utils/db';
-import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { base } from '../../utils/request';
 
 const DISCOVERY_DOCUMENT = {
@@ -55,7 +54,6 @@ describe('OAuth consent e2e', () => {
   let app: INestApplication;
   let dataSource: DataSource;
   let cleanupService: OAuthConsentGrantCleanupService;
-  let db: TestDatabase;
   let tokenRequests: FetchRequest[] = [];
   let userinfoRequests: FetchRequest[] = [];
   let tokenStatus = 200;
@@ -110,8 +108,6 @@ describe('OAuth consent e2e', () => {
     applyAuthTestEnv();
     vi.stubGlobal('fetch', fetchMock);
 
-    db = await startTestDatabase();
-    process.env.DATABASE_URL = db.databaseUrl;
     const moduleRef = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({
@@ -191,7 +187,6 @@ describe('OAuth consent e2e', () => {
     if (app) {
       await app.close();
     }
-    await db?.stop();
   });
 
   it('rejects missing and unknown sources without redirecting', async () => {

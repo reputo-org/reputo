@@ -17,13 +17,11 @@ import { MIGRATIONS } from '../../../src/persistence/migrations';
 import { HttpExceptionFilter } from '../../../src/shared/filters/http-exception.filter';
 import { AUTH_TEST_ENV, applyAuthTestEnv } from '../../utils/auth-session';
 import { getTestDataSource } from '../../utils/db';
-import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { base } from '../../utils/request';
 
 describe('OAuth auth e2e', () => {
   let app: INestApplication;
   let dataSource: DataSource;
-  let db: TestDatabase;
 
   const mockOAuthService = {
     getScopes: vi.fn(() => ['openid', 'profile', 'email', 'offline_access']),
@@ -64,9 +62,6 @@ describe('OAuth auth e2e', () => {
 
   beforeAll(async () => {
     applyAuthTestEnv();
-
-    db = await startTestDatabase();
-    process.env.DATABASE_URL = db.databaseUrl;
 
     const moduleRef = await Test.createTestingModule({
       imports: [
@@ -139,7 +134,6 @@ describe('OAuth auth e2e', () => {
 
   afterAll(async () => {
     await app.close();
-    await db?.stop();
   });
 
   async function allowlistEmail(email: string, role: AccessRole = 'admin'): Promise<void> {

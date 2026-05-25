@@ -12,17 +12,16 @@ import {
   SnapshotEntity,
   SnapshotOutputEntity,
 } from '../../../src/persistence/entities';
-import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
+import { truncateAllTables } from '../../utils/db';
+import { getSharedDatabaseUrl } from '../../utils/postgres-testcontainer';
 
 describe('TypeORM entities smoke', () => {
-  let db: TestDatabase;
   let dataSource: DataSource;
 
   beforeAll(async () => {
-    db = await startTestDatabase();
     dataSource = new DataSource({
       type: 'postgres',
-      url: db.databaseUrl,
+      url: getSharedDatabaseUrl(),
       entities: [...ENTITIES],
       namingStrategy: new SnakeNamingStrategy(),
       synchronize: false,
@@ -33,9 +32,9 @@ describe('TypeORM entities smoke', () => {
 
   afterAll(async () => {
     if (dataSource?.isInitialized) {
+      await truncateAllTables(dataSource);
       await dataSource.destroy();
     }
-    await db?.stop();
   });
 
   it('round-trips an AlgorithmPreset with relational inputs ordered by position', async () => {

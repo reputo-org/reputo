@@ -10,7 +10,7 @@ import { SnapshotRepository } from '../../../src/snapshot/snapshot.repository';
 import { SnapshotEventsService } from '../../../src/snapshot/snapshot-events.service';
 import { insertAlgorithmPreset } from '../../factories/algorithmPreset.factory';
 import { truncateAllTables } from '../../utils/db';
-import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
+import { getSharedDatabaseUrl } from '../../utils/postgres-testcontainer';
 
 function makeConfigService(databaseUrl: string): ConfigService {
   return {
@@ -19,16 +19,15 @@ function makeConfigService(databaseUrl: string): ConfigService {
 }
 
 describe('Snapshot SSE via PostgreSQL LISTEN/NOTIFY', () => {
-  let db: TestDatabase;
+  let databaseUrl: string;
   let dataSource: DataSource;
   let repository: SnapshotRepository;
 
   beforeAll(async () => {
-    db = await startTestDatabase();
-    process.env.DATABASE_URL = db.databaseUrl;
+    databaseUrl = getSharedDatabaseUrl();
     dataSource = new DataSource({
       type: 'postgres',
-      url: db.databaseUrl,
+      url: databaseUrl,
       entities: [...ENTITIES],
       namingStrategy: new SnakeNamingStrategy(),
       synchronize: false,
@@ -49,7 +48,6 @@ describe('Snapshot SSE via PostgreSQL LISTEN/NOTIFY', () => {
     if (dataSource?.isInitialized) {
       await dataSource.destroy();
     }
-    await db?.stop();
   });
 
   async function seedSnapshot() {
@@ -75,7 +73,7 @@ describe('Snapshot SSE via PostgreSQL LISTEN/NOTIFY', () => {
   }
 
   it('propagates an update from PG NOTIFY to a connected SSE subscriber within ~1s', async () => {
-    const listener = new SnapshotListenerService(makeConfigService(db.databaseUrl));
+    const listener = new SnapshotListenerService(makeConfigService(databaseUrl));
     const events = new SnapshotEventsService(listener, repository);
     await listener.onModuleInit();
     events.onModuleInit();
@@ -98,8 +96,8 @@ describe('Snapshot SSE via PostgreSQL LISTEN/NOTIFY', () => {
   }, 30_000);
 
   it('delivers updates produced from replica B to a subscriber connected on replica A (multi-replica fan-out)', async () => {
-    const listenerA = new SnapshotListenerService(makeConfigService(db.databaseUrl));
-    const listenerB = new SnapshotListenerService(makeConfigService(db.databaseUrl));
+    const listenerA = new SnapshotListenerService(makeConfigService(databaseUrl));
+    const listenerB = new SnapshotListenerService(makeConfigService(databaseUrl));
     const eventsA = new SnapshotEventsService(listenerA, repository);
     const eventsB = new SnapshotEventsService(listenerB, repository);
 
@@ -134,7 +132,7 @@ describe('Snapshot SSE via PostgreSQL LISTEN/NOTIFY', () => {
   }, 30_000);
 
   it('applies the algorithmPreset filter so subscribers only receive matching events', async () => {
-    const listener = new SnapshotListenerService(makeConfigService(db.databaseUrl));
+    const listener = new SnapshotListenerService(makeConfigService(databaseUrl));
     const events = new SnapshotEventsService(listener, repository);
     await listener.onModuleInit();
     events.onModuleInit();

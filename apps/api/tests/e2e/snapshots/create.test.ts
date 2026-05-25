@@ -6,7 +6,6 @@ import { makeSnapshotDto } from '../../factories/snapshot.factory';
 import { createTestApp } from '../../utils/app-test.module';
 import { createAuthenticatedSession } from '../../utils/auth-session';
 import { getTestDataSource, truncateBusinessTables } from '../../utils/db';
-import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { api } from '../../utils/request';
 import { randomUUIDv7 } from '../../utils/uuid';
 
@@ -14,11 +13,8 @@ describe('POST /api/v1/snapshots', () => {
   let app: INestApplication;
   let authCookie: string;
   let dataSource: DataSource;
-  let db: TestDatabase;
 
   beforeAll(async () => {
-    db = await startTestDatabase();
-    process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({});
     app = boot.app;
     dataSource = getTestDataSource(boot.moduleRef);
@@ -31,7 +27,6 @@ describe('POST /api/v1/snapshots', () => {
 
   afterAll(async () => {
     await app.close();
-    await db?.stop();
   });
 
   it('should create snapshot (201) with frozen preset and status defaulting to "queued"', async () => {

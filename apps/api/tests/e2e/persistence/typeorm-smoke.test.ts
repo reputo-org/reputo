@@ -2,17 +2,15 @@ import { DataSource } from 'typeorm';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ENTITIES } from '../../../src/persistence/entities';
-import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
+import { getSharedDatabaseUrl } from '../../utils/postgres-testcontainer';
 
 describe('TypeORM bootstrap smoke', () => {
-  let db: TestDatabase;
   let dataSource: DataSource;
 
   beforeAll(async () => {
-    db = await startTestDatabase();
     dataSource = new DataSource({
       type: 'postgres',
-      url: db.databaseUrl,
+      url: getSharedDatabaseUrl(),
       entities: [...ENTITIES],
       namingStrategy: new SnakeNamingStrategy(),
       synchronize: false,
@@ -25,7 +23,6 @@ describe('TypeORM bootstrap smoke', () => {
     if (dataSource?.isInitialized) {
       await dataSource.destroy();
     }
-    await db?.stop();
   });
 
   it('exposes the DataSource surface used by repositories', () => {

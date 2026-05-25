@@ -5,18 +5,14 @@ import { makeAlgorithmPreset } from '../../factories/algorithmPreset.factory';
 import { createTestApp } from '../../utils/app-test.module';
 import { createAuthenticatedSession } from '../../utils/auth-session';
 import { getTestDataSource, truncateBusinessTables } from '../../utils/db';
-import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { api } from '../../utils/request';
 
 describe('POST /api/v1/algorithm-presets', () => {
   let app: INestApplication;
   let authCookie: string;
   let dataSource: DataSource;
-  let db: TestDatabase;
 
   beforeAll(async () => {
-    db = await startTestDatabase();
-    process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({});
     app = boot.app;
     dataSource = getTestDataSource(boot.moduleRef);
@@ -29,7 +25,6 @@ describe('POST /api/v1/algorithm-presets', () => {
 
   afterAll(async () => {
     await app.close();
-    await db?.stop();
   });
 
   it('should create algorithm preset (201) with required fields only', async () => {

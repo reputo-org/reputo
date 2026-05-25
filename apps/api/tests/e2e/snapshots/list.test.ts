@@ -9,7 +9,6 @@ import { createTestApp } from '../../utils/app-test.module';
 import { createAuthenticatedSession } from '../../utils/auth-session';
 import { getTestDataSource, truncateBusinessTables } from '../../utils/db';
 import { assertPaginationStructure } from '../../utils/pagination';
-import { startTestDatabase, type TestDatabase } from '../../utils/postgres-testcontainer';
 import { api } from '../../utils/request';
 
 type FrozenPreset = {
@@ -44,11 +43,8 @@ describe('GET /api/v1/snapshots', () => {
   let app: INestApplication;
   let authCookie: string;
   let dataSource: DataSource;
-  let db: TestDatabase;
 
   beforeAll(async () => {
-    db = await startTestDatabase();
-    process.env.DATABASE_URL = db.databaseUrl;
     const boot = await createTestApp({});
     app = boot.app;
     dataSource = getTestDataSource(boot.moduleRef);
@@ -61,7 +57,6 @@ describe('GET /api/v1/snapshots', () => {
 
   afterAll(async () => {
     await app.close();
-    await db?.stop();
   });
 
   it('should list snapshots with default pagination (200) and PaginationDto shape', async () => {
