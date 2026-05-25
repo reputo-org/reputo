@@ -1,0 +1,91 @@
+[tools]
+node = "24.14.0"
+pnpm = "10.30.3"
+
+[settings]
+auto_install = false
+
+[tasks.setup]
+description = "First-time setup: install tools, copy .env, install deps"
+run = [
+  "mise install",
+  "test -f .env || cp .env.example .env",
+  "pnpm install",
+]
+
+[tasks.dev]
+description = "Run all apps in watch mode (api, ui, workflows)"
+run = "pnpm dev"
+
+[tasks.build]
+description = "Build all workspaces via Turbo"
+run = "pnpm build"
+
+[tasks.check]
+description = "Biome lint + format check across all workspaces"
+run = "pnpm check"
+
+[tasks.test]
+description = "Run Vitest across all workspaces"
+run = "pnpm test"
+
+[tasks."test:watch"]
+description = "Vitest in watch mode"
+run = "pnpm test:watch"
+
+[tasks."test:cov"]
+description = "Vitest with coverage"
+run = "pnpm test:cov"
+
+[tasks.typecheck]
+description = "Type-check all workspaces"
+run = "pnpm typecheck"
+
+[tasks.clean]
+description = "Remove dist/.turbo/node_modules caches"
+run = "pnpm clean"
+
+[tasks."docker:up"]
+description = "Start the local Docker stack (UI + API + Temporal + Postgres + Grafana)"
+run = "pnpm docker:up"
+
+[tasks."docker:down"]
+description = "Stop the local Docker stack"
+run = "pnpm docker:down"
+
+[tasks."docker:build"]
+description = "Build a single app's production image. Usage: mise run docker:build -- <api|ui|workflows>"
+usage = '''
+arg "<app>" help="App to build" {
+  choices "api" "ui" "workflows"
+}
+'''
+run = 'docker buildx build --build-arg APP_NAME="$usage_app" -f "apps/$usage_app/Dockerfile" -t "ghcr.io/reputo-org/reputo/$usage_app:local" .'
+
+[tasks."db:migrate"]
+description = "Run pending TypeORM migrations against the local DB"
+run = "pnpm db:migrate"
+
+[tasks."db:migrate:show"]
+description = "List pending TypeORM migrations"
+run = "pnpm db:migrate:show"
+
+[tasks."db:migrate:revert"]
+description = "Revert the last TypeORM migration"
+run = "pnpm db:migrate:revert"
+
+[tasks."db:migrate:generate"]
+description = "Generate a TypeORM migration from entity diffs"
+run = "pnpm db:migrate:generate"
+
+[tasks."db:reset"]
+description = "Drop & recreate the public schema, then re-run migrations"
+run = "pnpm db:reset"
+
+[tasks."algorithm:create"]
+description = "Scaffold a new algorithm. Usage: mise run algorithm:create -- <key> <version>"
+run = "pnpm algorithm:create"
+
+[tasks."algorithm:validate"]
+description = "Validate all algorithm registries"
+run = "pnpm algorithm:validate"

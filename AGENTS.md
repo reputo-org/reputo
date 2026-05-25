@@ -34,6 +34,7 @@
 
 ## Toolchain
 
-- Node 20+ with `pnpm@10.30.3`; Turbo orchestrates workspace builds.
+- Node and pnpm versions are pinned in [mise.toml](mise.toml) (Node `24.14.0`, `pnpm@10.30.3`); Turbo orchestrates workspace builds.
+- Contributors should use [mise](https://mise.jdx.dev) to install the toolchain (`mise install` or `mise run setup`). `mise tasks` lists the task facade over `pnpm` scripts.
 - `pnpm check` runs Biome (lint + format), `pnpm test` runs Vitest, `pnpm build` runs the per-workspace build.
 - Use `pnpm --filter <workspace> <script>` to target a single app or package.

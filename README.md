@@ -22,9 +22,14 @@
 
 ## Getting Started
 
-Use Node 20.6+ with `pnpm@10.30.3`.
+Toolchain versions are pinned in [mise.toml](mise.toml) (Node `24.14.0`, `pnpm@10.30.3`). The fastest way to get a working environment is [mise](https://mise.jdx.dev):
 
-First, set up your local environment:
+```bash
+brew install mise   # or see mise.jdx.dev for other platforms
+mise run setup      # installs Node + pnpm, copies .env.example -> .env, runs pnpm install
+```
+
+Without mise, install Node `24.14.0` and `pnpm@10.30.3` yourself, then:
 
 ```bash
 cp .env.example .env
@@ -35,6 +40,8 @@ pnpm install
 `.env` at the repo root is the single source of env vars for local
 development; `scripts/env/load.ts` loads it before any dev process spawns. See
 [.env.example](.env.example) for the var inventory.
+
+All `pnpm` scripts have a `mise run` equivalent (see `mise tasks`).
 
 ### Local
 
