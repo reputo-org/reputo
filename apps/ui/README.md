@@ -1,27 +1,35 @@
 # @reputo/ui
 
-Next.js dashboard for browsing algorithms, creating presets, launching snapshots, and following snapshot progress.
+Next.js dashboard for the Reputo platform. Browse algorithms, create presets, launch snapshots, and follow snapshot progress.
 
-## Surface
+## What it does
 
-- redirects `/` to `/dashboard`
-- loads algorithm definitions from `@reputo/reputation-algorithms`
-- calls the backend through same-origin `/api/v1` requests
-- listens to snapshot status changes over SSE
-- builds as a standalone Next.js server for container runtime
+- Redirects `/` to `/dashboard`.
+- Loads algorithm definitions from [`@reputo/reputation-algorithms`](../../packages/reputation-algorithms).
+- Calls the backend through same-origin `/api/v1` requests.
+- Listens to snapshot status changes over Server-Sent Events.
+- Builds as a standalone Next.js server for container runtime.
 
-## Commands
+## Local commands
 
 ```bash
-pnpm --filter @reputo/ui dev
+pnpm --filter @reputo/ui dev           # build deps, then start Next.js on :4000
 pnpm --filter @reputo/ui build
 pnpm --filter @reputo/ui start
 pnpm --filter @reputo/ui test
 pnpm --filter @reputo/ui typecheck
 ```
 
-`pnpm --filter @reputo/ui dev` builds and watches its shared package dependencies before starting Next.js. `dev:app` is the internal app-only process used by the root monorepo `pnpm dev`.
+Local development listens on <http://localhost:4000>.
 
-## Config
+## Configuration
 
-Local development runs on `http://localhost:4000`. If the API is running separately, set `API_PROXY_TARGET=http://localhost:3000` in `apps/ui/.env` so Next.js rewrites `/api/*` to the API server. Behind Traefik or another reverse proxy, the UI keeps using same-origin `/api` requests.
+The UI validates its environment in [`src/lib/env.ts`](src/lib/env.ts). Most variables are optional in development.
+
+If you run the API on a non-standard host, set `API_PROXY_TARGET` in your root `.env` so Next.js rewrites `/api/*` to the right address. Behind Traefik (the Docker stack), keep `API_PROXY_TARGET` unset — the UI uses same-origin `/api/*`.
+
+## More
+
+- [Documentation](../../docs/README.md)
+- [Local development](../../docs/local-development.md)
+- [Testing strategy](../../docs/testing.md)

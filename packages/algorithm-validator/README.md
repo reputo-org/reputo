@@ -1,15 +1,33 @@
 # @reputo/algorithm-validator
 
-Shared validation workspace package used by the API and UI.
+Shared Zod schemas for algorithm payloads and CSV content. Used by the API and the UI to validate user input against an algorithm definition.
 
-## Public Surface
+## What it exports
 
-- `buildZodSchema` and `validatePayload` for algorithm input validation
-- `validateCSVContent` for CSV checks in both Node.js and browser runtimes
-- `createAlgorithmPresetSchema` and `validateCreateAlgorithmPreset` for preset payloads
-- shared types such as `AlgorithmDefinition`, `CsvIoItem`, `ValidationResult`, and `CSVValidationResult`
+- `buildZodSchema(definition)` — build a Zod schema from an algorithm definition.
+- `validatePayload(definition, payload)` — validate user input against the schema.
+- `validateCSVContent(content)` — CSV checks that work in both Node.js and the browser.
+- `createAlgorithmPresetSchema()` and `validateCreateAlgorithmPreset(payload)` — preset payload validation.
+- Types: `AlgorithmDefinition`, `CsvIoItem`, `ValidationResult`, `CSVValidationResult`.
 
-## Commands
+## Usage
+
+```ts
+import { getAlgorithmDefinition } from '@reputo/reputation-algorithms/api';
+import { validatePayload } from '@reputo/algorithm-validator';
+
+const definition = getAlgorithmDefinition('contribution_score', '1.0.0');
+const result = validatePayload(definition, userInput);
+if (!result.success) {
+  console.error(result.errors);
+}
+```
+
+## Setup
+
+No runtime configuration. The package is framework-agnostic and runs in any TypeScript or JavaScript environment.
+
+## Local commands
 
 ```bash
 pnpm --filter @reputo/algorithm-validator build
@@ -18,6 +36,7 @@ pnpm --filter @reputo/algorithm-validator typecheck
 pnpm --filter @reputo/algorithm-validator docs
 ```
 
-## Docs
+## More
 
+- [Reputation algorithms](../../docs/reputation-algorithms.md)
 - Generated API docs: [docs/README.md](docs/README.md)

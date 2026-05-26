@@ -193,6 +193,7 @@ services:
     api:
         <<: *dev-service
         container_name: api
+        profiles: [apps]
         command: pnpm --filter @reputo/api dev
         ports:
             - '3000:3000'
@@ -203,11 +204,28 @@ services:
                 condition: service_healthy
             minio-init:
                 condition: service_completed_successfully
+            db-migrate:
+                condition: service_completed_successfully
+        environment: *api-env
+
+    # One-shot migration runner. Applies pending TypeORM migrations against the
+    # app database, then exits 0. Idempotent: already-applied migrations are
+    # skipped, so this stays out of the running set on subsequent `docker:up`s.
+    db-migrate:
+        <<: *dev-service
+        container_name: db-migrate
+        profiles: [apps]
+        restart: 'no'
+        command: pnpm --filter @reputo/api typeorm:run
+        depends_on:
+            postgres:
+                condition: service_healthy
         environment: *api-env
 
     ui:
         <<: *dev-service
         container_name: ui
+        profiles: [apps]
         command: pnpm --filter @reputo/ui dev
         ports:
             - '4000:4000'
@@ -216,6 +234,7 @@ services:
     temporal:
         <<: *service-defaults
         container_name: temporal
+        profiles: [infra]
         image: temporalio/auto-setup:1.26.3.0
         depends_on:
             - temporal-postgresql
@@ -243,6 +262,7 @@ services:
     temporal-ui:
         <<: *service-defaults
         container_name: temporal-ui
+        profiles: [infra]
         image: temporalio/ui:2.32.0
         environment:
             TEMPORAL_ADDRESS: temporal:7233
@@ -255,6 +275,7 @@ services:
     temporal-elasticsearch:
         <<: *service-defaults
         container_name: temporal-elasticsearch
+        profiles: [infra]
         image: elasticsearch:7.17.23
         environment:
             cluster.routing.allocation.disk.threshold_enabled: 'true'
@@ -270,6 +291,7 @@ services:
     temporal-postgresql:
         <<: *service-defaults
         container_name: temporal-postgresql
+        profiles: [infra]
         image: postgres:12.22
         environment:
             POSTGRES_USER: temporal
@@ -280,6 +302,7 @@ services:
     onchain-data-postgresql:
         <<: *service-defaults
         container_name: onchain-data-postgresql
+        profiles: [infra]
         image: postgres:16
         environment:
             POSTGRES_USER: reputo_onchain
@@ -294,6 +317,7 @@ services:
     postgres:
         <<: *service-defaults
         container_name: postgres
+        profiles: [infra]
         image: postgres:16
         environment:
             POSTGRES_USER: reputo_app
@@ -308,6 +332,7 @@ services:
     minio:
         <<: *service-defaults
         container_name: minio
+        profiles: [infra]
         image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
         command: server --console-address ":9001" /data
         environment:
@@ -332,6 +357,7 @@ services:
     minio-init:
         <<: *service-defaults
         container_name: minio-init
+        profiles: [infra]
         image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
         restart: 'no'
         depends_on:
@@ -350,6 +376,7 @@ services:
     orchestrator-worker:
         <<: *dev-service
         container_name: orchestrator-worker
+        profiles: [apps]
         command: pnpm --filter @reputo/workflows dev:orchestrator
         depends_on:
             temporal:
@@ -361,6 +388,7 @@ services:
     onchain-data-worker:
         <<: *dev-service
         container_name: onchain-data-worker
+        profiles: [apps]
         command: pnpm --filter @reputo/workflows dev:onchain-data
         depends_on:
             temporal:
@@ -374,6 +402,7 @@ services:
     typescript-worker:
         <<: *dev-service
         container_name: typescript-worker
+        profiles: [apps]
         command: pnpm --filter @reputo/workflows dev:algorithm-typescript
         depends_on:
             temporal:
