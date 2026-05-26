@@ -774,6 +774,7 @@ describe('AuthService', () => {
       configValues['auth.tokenEncryptionKey'] as string,
       'provider-refresh-token',
     );
+    const lastRefreshedAt = new Date(Date.now() - 60 * 1_000);
 
     cookieService.getSessionId.mockReturnValue('session-invalid-grant');
     authSessionRepository.findActiveBySessionId.mockResolvedValueOnce({
@@ -789,7 +790,7 @@ describe('AuthService', () => {
       state: 'state-123',
       codeVerifier: 'verifier-123',
       expiresAt: new Date(Date.now() + 30 * 60 * 1_000),
-      lastRefreshedAt: new Date(Date.now() - 60 * 1_000),
+      lastRefreshedAt,
     });
     authSessionRepository.findActiveBySessionId.mockResolvedValueOnce({
       _id: randomUUIDv7(),
@@ -804,7 +805,7 @@ describe('AuthService', () => {
       state: 'state-123',
       codeVerifier: 'verifier-123',
       expiresAt: new Date(Date.now() + 30 * 60 * 1_000),
-      lastRefreshedAt: new Date(Date.now() - 60 * 1_000),
+      lastRefreshedAt,
     });
     oauthService.refreshTokens.mockRejectedValue(new UnauthorizedException('invalid_grant'));
 
