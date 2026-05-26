@@ -3,41 +3,32 @@
 # These entries provision the variable and secret NAMES only. Values are
 # populated manually in the Komodo UI under Settings > Variables.
 #
+# What belongs here vs. elsewhere:
+#   - HERE: values that are interpolated into Komodo Resources via [[NAME]].
+#     That means stack `environment` blocks and the alerter endpoint URL.
+#   - NOT HERE: Komodo Core / Periphery bootstrap secrets such as
+#     KOMODO_PASSKEY, KOMODO_WEBHOOK_SECRET, KOMODO_JWT_SECRET, and
+#     KOMODO_DATABASE_PASSWORD. Those are read at process startup, before
+#     any Variable exists. They live in core.env and periphery.config.toml.
+#   - NOT HERE: Server addresses. With the outbound Periphery -> Core
+#     connection model, Core auto-fills Server.address when each Periphery
+#     registers itself.
+#
 # Bootstrap workflow:
-#   1. _sync.toml has include_variables = true.
+#   1. resource-sync.toml has include_variables = true.
 #   2. Run the reputo-main sync once to create every entry below.
 #   3. Fill values in the UI.
-#   4. Flip _sync.toml back to include_variables = false so future syncs do
-#      not flag value diffs as pending.
+#   4. Flip resource-sync.toml back to include_variables = false so future
+#      syncs do not flag value diffs as pending.
 #
 # Adding a new variable later:
 #   - Append the entry here, flip include_variables back to true, sync, then
 #     flip it back to false.
 
 [[variable]]
-name = "KOMODO_PASSKEY"
-description = "Shared passkey between Komodo Core and every Periphery agent."
-is_secret = true
-
-[[variable]]
-name = "KOMODO_WEBHOOK_SECRET"
-description = "HMAC secret for GitHub webhooks into Komodo Core."
-is_secret = true
-
-[[variable]]
 name = "KOMODO_DISCORD_WEBHOOK_URL"
-description = "Discord webhook URL for the reputo alerter."
+description = "Discord webhook URL for the reputo alerter resource. Interpolated into alerters.toml."
 is_secret = true
-
-[[variable]]
-name = "STAGING_PERIPHERY_ADDRESS"
-description = "URL of the staging Periphery agent (e.g. http://10.0.0.5:8120)."
-is_secret = false
-
-[[variable]]
-name = "PRODUCTION_PERIPHERY_ADDRESS"
-description = "URL of the production Periphery agent (e.g. http://10.0.0.6:8120)."
-is_secret = false
 
 [[variable]]
 name = "STAGING_TRAEFIK_DOMAIN"

@@ -1,0 +1,165 @@
+name: reputo-observability
+
+x-logging: &logging
+    driver: json-file
+    options:
+        max-size: '10m'
+        max-file: '5'
+
+x-service-defaults: &service-defaults
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    logging: *logging
+    networks: [default]
+    security_opt:
+        - no-new-privileges:true
+
+x-resources-xs: &resources-xs
+    limits:
+        memory: 64M
+        cpus: '0.25'
+    reservations:
+        memory: 32M
+
+x-resources-s: &resources-s
+    limits:
+        memory: 128M
+        cpus: '0.50'
+    reservations:
+        memory: 64M
+
+x-resources-m: &resources-m
+    limits:
+        memory: 256M
+        cpus: '1.00'
+    reservations:
+        memory: 128M
+
+networks:
+    default:
+        name: ${COMPOSE_NETWORK_NAME:-reputo}
+        external: true
+
+volumes:
+    loki_data:
+        driver: local
+    prometheus_data:
+        driver: local
+    grafana_data:
+        driver: local
+
+services:
+    loki:
+        <<: *service-defaults
+        container_name: loki
+        image: grafana/loki:3.6.7
+        command: -config.file=/etc/loki/loki-config.yml
+        volumes:
+            - ./config/loki-config.yml:/etc/loki/loki-config.yml:ro
+            - loki_data:/loki
+        healthcheck:
+            test: ['CMD', '/usr/bin/loki', '-health']
+            interval: 15s
+            timeout: 5s
+            retries: 10
+            start_period: 60s
+        deploy:
+            resources: *resources-m
+
+    promtail:
+        <<: *service-defaults
+        container_name: promtail
+        image: grafana/promtail:3.6.7
+        command: -config.file=/etc/promtail/promtail-config.yml -config.expand-env=true
+        environment:
+            OBSERVABILITY_ENV: '${OBSERVABILITY_ENV:?missing OBSERVABILITY_ENV}'
+        volumes:
+            - ./config/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+            - /var/lib/docker/containers:/var/lib/docker/containers:ro
+        depends_on:
+            loki:
+                condition: service_healthy
+        deploy:
+            resources: *resources-xs
+
+    prometheus:
+        <<: *service-defaults
+        container_name: prometheus
+        image: prom/prometheus:v3.3.0
+        command:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.retention.time=15d
+            - --storage.tsdb.path=/prometheus
+        volumes:
+            - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+            - prometheus_data:/prometheus
+        depends_on:
+            - cadvisor
+            - node-exporter
+        deploy:
+            resources: *resources-m
+
+    cadvisor:
+        <<: *service-defaults
+        container_name: cadvisor
+        image: gcr.io/cadvisor/cadvisor:v0.52.1
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+            - /sys:/sys:ro
+            - /var/lib/docker:/var/lib/docker:ro
+        deploy:
+            resources: *resources-xs
+
+    node-exporter:
+        <<: *service-defaults
+        container_name: node-exporter
+        image: prom/node-exporter:v1.9.0
+        command:
+            - --path.rootfs=/host
+        volumes:
+            - /:/host:ro
+        deploy:
+            resources: *resources-xs
+
+    grafana:
+        <<: *service-defaults
+        container_name: grafana
+        image: grafana/grafana:12.4.0
+        environment:
+            GF_SECURITY_ADMIN_USER: '${GRAFANA_ADMIN_USER:?missing GRAFANA_ADMIN_USER}'
+            GF_SECURITY_ADMIN_PASSWORD: '${GRAFANA_ADMIN_PASSWORD:?missing GRAFANA_ADMIN_PASSWORD}'
+            GF_SERVER_ROOT_URL: 'https://${GRAFANA_DOMAIN:?missing GRAFANA_DOMAIN}'
+            GF_SERVER_SERVE_FROM_SUB_PATH: 'false'
+            GF_USERS_ALLOW_SIGN_UP: 'false'
+            GF_AUTH_ANONYMOUS_ENABLED: 'false'
+            GF_LOG_MODE: console
+            GF_LOG_LEVEL: warn
+        volumes:
+            - grafana_data:/var/lib/grafana
+            - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+        depends_on:
+            loki:
+                condition: service_healthy
+            prometheus:
+                condition: service_started
+        healthcheck:
+            test:
+                - CMD-SHELL
+                - 'wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1'
+            interval: 15s
+            timeout: 5s
+            retries: 5
+            start_period: 30s
+        labels:
+            - traefik.enable=true
+            - traefik.docker.network=${COMPOSE_NETWORK_NAME:-reputo}
+            - traefik.http.routers.grafana.rule=Host(`${GRAFANA_DOMAIN:?missing GRAFANA_DOMAIN}`)
+            - traefik.http.routers.grafana.entrypoints=${PROXY_ENTRYPOINT:-websecure}
+            - traefik.http.routers.grafana.tls=${PROXY_TLS:-true}
+            - traefik.http.routers.grafana.tls.certresolver=${PROXY_CERT_RESOLVER:-cloudflare}
+            - traefik.http.routers.grafana.middlewares=grafana-auth
+            - traefik.http.services.grafana.loadbalancer.server.port=3000
+        deploy:
+            resources: *resources-s

@@ -67,8 +67,8 @@ A new environment variable lands in one PR that updates:
 
 1. The relevant app's Zod schema.
 2. The root [`.env.example`](.env.example).
-3. The `environment:` block in both `docker/compose/compose.dev.yml` and `docker/compose/compose.yml`.
-4. `komodo/resources/variables.toml` and the matching stack `environment` block.
+3. The `environment:` block in `infra/dev/compose.yml` (dev) and the per-stack `infra/komodo/stacks/<name>/compose.yml` (staging + production).
+4. `infra/komodo/resources/variables.toml` and the matching stack `environment` block in `infra/komodo/stacks/<name>/stack.toml`.
 
 See [Environment variables](docs/environment-variables.md) for the full procedure and the secret rules.
 

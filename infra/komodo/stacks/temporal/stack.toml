@@ -1,0 +1,73 @@
+[[stack]]
+name = "reputo-temporal-staging"
+description = "Staging Temporal cluster: server, UI, Postgres, Elasticsearch."
+tags = ["reputo", "env:staging", "temporal"]
+deploy = false
+
+[stack.config]
+server_id = "staging"
+project_name = "reputo-temporal"
+git_provider = "github.com"
+git_https = true
+repo = "reputo-org/reputo"
+branch = "main"
+files_on_host = false
+file_paths = ["infra/komodo/stacks/temporal/compose.yml"]
+env_file_path = ".komodo-reputo-temporal-staging.env"
+environment = """
+COMPOSE_NETWORK_NAME=reputo
+TEMPORAL_POSTGRES_USER=[[STAGING_TEMPORAL_POSTGRES_USER]]
+TEMPORAL_POSTGRES_PASSWORD=[[STAGING_TEMPORAL_POSTGRES_PASSWORD]]
+TEMPORAL_ENABLE_ES=true
+TEMPORAL_UI_DOMAIN=[[STAGING_TEMPORAL_UI_DOMAIN]]
+ALLOWED_ORIGINS=[[STAGING_ALLOWED_ORIGINS]]
+PROXY_ENTRYPOINT=websecure
+PROXY_TLS=true
+PROXY_CERT_RESOLVER=cloudflare
+"""
+auto_pull = false
+run_build = false
+poll_for_updates = false
+auto_update = false
+auto_update_all_services = false
+destroy_before_deploy = false
+send_alerts = true
+webhook_enabled = false
+webhook_force_deploy = false
+
+[[stack]]
+name = "reputo-temporal-production"
+description = "Production Temporal cluster: server, UI, Postgres, Elasticsearch."
+tags = ["reputo", "env:production", "temporal"]
+deploy = false
+
+[stack.config]
+server_id = "production"
+project_name = "reputo-temporal"
+git_provider = "github.com"
+git_https = true
+repo = "reputo-org/reputo"
+branch = "main"
+files_on_host = false
+file_paths = ["infra/komodo/stacks/temporal/compose.yml"]
+env_file_path = ".komodo-reputo-temporal-production.env"
+environment = """
+COMPOSE_NETWORK_NAME=reputo
+TEMPORAL_POSTGRES_USER=[[PRODUCTION_TEMPORAL_POSTGRES_USER]]
+TEMPORAL_POSTGRES_PASSWORD=[[PRODUCTION_TEMPORAL_POSTGRES_PASSWORD]]
+TEMPORAL_ENABLE_ES=true
+TEMPORAL_UI_DOMAIN=[[PRODUCTION_TEMPORAL_UI_DOMAIN]]
+ALLOWED_ORIGINS=[[PRODUCTION_ALLOWED_ORIGINS]]
+PROXY_ENTRYPOINT=websecure
+PROXY_TLS=true
+PROXY_CERT_RESOLVER=cloudflare
+"""
+auto_pull = false
+run_build = false
+poll_for_updates = false
+auto_update = false
+auto_update_all_services = false
+destroy_before_deploy = false
+send_alerts = true
+webhook_enabled = false
+webhook_force_deploy = false

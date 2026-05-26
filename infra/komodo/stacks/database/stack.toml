@@ -1,0 +1,75 @@
+[[stack]]
+name = "reputo-database-staging"
+description = "Staging database stack: API and onchain-data Postgres + on-demand backup."
+tags = ["reputo", "env:staging", "database"]
+deploy = false
+
+[stack.config]
+server_id = "staging"
+project_name = "reputo-database"
+git_provider = "github.com"
+git_https = true
+repo = "reputo-org/reputo"
+branch = "main"
+files_on_host = false
+file_paths = ["infra/komodo/stacks/database/compose.yml"]
+env_file_path = ".komodo-reputo-database-staging.env"
+ignore_services = ["postgres-backup"]
+environment = """
+COMPOSE_NETWORK_NAME=reputo
+API_POSTGRES_HOST_BIND=0.0.0.0
+ONCHAIN_DATA_POSTGRES_HOST_BIND=0.0.0.0
+API_POSTGRES_USER=[[STAGING_API_POSTGRES_USER]]
+API_POSTGRES_PASSWORD=[[STAGING_API_POSTGRES_PASSWORD]]
+API_POSTGRES_DB_NAME=[[STAGING_API_POSTGRES_DB_NAME]]
+ONCHAIN_DATA_POSTGRES_USER=[[STAGING_ONCHAIN_DATA_POSTGRES_USER]]
+ONCHAIN_DATA_POSTGRES_PASSWORD=[[STAGING_ONCHAIN_DATA_POSTGRES_PASSWORD]]
+ONCHAIN_DATA_POSTGRES_DB_NAME=[[STAGING_ONCHAIN_DATA_POSTGRES_DB_NAME]]
+"""
+auto_pull = false
+run_build = false
+poll_for_updates = false
+auto_update = false
+auto_update_all_services = false
+destroy_before_deploy = false
+send_alerts = true
+webhook_enabled = false
+webhook_force_deploy = false
+
+[[stack]]
+name = "reputo-database-production"
+description = "Production database stack: API and onchain-data Postgres + on-demand backup."
+tags = ["reputo", "env:production", "database"]
+deploy = false
+
+[stack.config]
+server_id = "production"
+project_name = "reputo-database"
+git_provider = "github.com"
+git_https = true
+repo = "reputo-org/reputo"
+branch = "main"
+files_on_host = false
+file_paths = ["infra/komodo/stacks/database/compose.yml"]
+env_file_path = ".komodo-reputo-database-production.env"
+ignore_services = ["postgres-backup"]
+environment = """
+COMPOSE_NETWORK_NAME=reputo
+API_POSTGRES_HOST_BIND=0.0.0.0
+ONCHAIN_DATA_POSTGRES_HOST_BIND=0.0.0.0
+API_POSTGRES_USER=[[PRODUCTION_API_POSTGRES_USER]]
+API_POSTGRES_PASSWORD=[[PRODUCTION_API_POSTGRES_PASSWORD]]
+API_POSTGRES_DB_NAME=[[PRODUCTION_API_POSTGRES_DB_NAME]]
+ONCHAIN_DATA_POSTGRES_USER=[[PRODUCTION_ONCHAIN_DATA_POSTGRES_USER]]
+ONCHAIN_DATA_POSTGRES_PASSWORD=[[PRODUCTION_ONCHAIN_DATA_POSTGRES_PASSWORD]]
+ONCHAIN_DATA_POSTGRES_DB_NAME=[[PRODUCTION_ONCHAIN_DATA_POSTGRES_DB_NAME]]
+"""
+auto_pull = false
+run_build = false
+poll_for_updates = false
+auto_update = false
+auto_update_all_services = false
+destroy_before_deploy = false
+send_alerts = true
+webhook_enabled = false
+webhook_force_deploy = false

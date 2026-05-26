@@ -1,0 +1,255 @@
+name: reputo-apps
+
+x-logging: &logging
+    driver: json-file
+    options:
+        max-size: '10m'
+        max-file: '5'
+
+x-service-defaults: &service-defaults
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    logging: *logging
+    networks: [default]
+    security_opt:
+        - no-new-privileges:true
+
+x-resources-xs: &resources-xs
+    limits:
+        memory: 64M
+        cpus: '0.25'
+    reservations:
+        memory: 32M
+
+x-resources-s: &resources-s
+    limits:
+        memory: 128M
+        cpus: '0.50'
+    reservations:
+        memory: 64M
+
+x-resources-m: &resources-m
+    limits:
+        memory: 256M
+        cpus: '1.00'
+    reservations:
+        memory: 128M
+
+x-resources-l: &resources-l
+    limits:
+        memory: 384M
+        cpus: '1.50'
+    reservations:
+        memory: 192M
+
+x-node-tcp-healthcheck: &node-tcp-healthcheck
+    interval: 30s
+    timeout: 5s
+    retries: 5
+    start_period: 30s
+
+x-api-environment: &api-environment
+    NODE_ENV: '${NODE_ENV:-production}'
+    PORT: '3000'
+    LOG_LEVEL:
+    AUTH_MODE:
+    OWNER_EMAIL: '${OWNER_EMAIL:?missing OWNER_EMAIL}'
+    OWNER_PROVIDER:
+    APP_PUBLIC_URL: '${APP_PUBLIC_URL:?missing APP_PUBLIC_URL}'
+    DEEP_ID_ISSUER_URL: '${DEEP_ID_ISSUER_URL:?missing DEEP_ID_ISSUER_URL}'
+    DEEP_ID_CLIENT_ID: '${DEEP_ID_CLIENT_ID:?missing DEEP_ID_CLIENT_ID}'
+    DEEP_ID_CLIENT_SECRET: '${DEEP_ID_CLIENT_SECRET:?missing DEEP_ID_CLIENT_SECRET}'
+    DEEP_ID_AUTH_REDIRECT_URI: '${DEEP_ID_AUTH_REDIRECT_URI:?missing DEEP_ID_AUTH_REDIRECT_URI}'
+    DEEP_ID_AUTH_SCOPES: '${DEEP_ID_AUTH_SCOPES:?missing DEEP_ID_AUTH_SCOPES}'
+    DEEP_ID_CONSENT_REDIRECT_URI: '${DEEP_ID_CONSENT_REDIRECT_URI:?missing DEEP_ID_CONSENT_REDIRECT_URI}'
+    DEEP_ID_CONSENT_GRANT_TTL_SECONDS: '${DEEP_ID_CONSENT_GRANT_TTL_SECONDS:?missing DEEP_ID_CONSENT_GRANT_TTL_SECONDS}'
+    VOTING_PORTAL_RETURN_URL: '${VOTING_PORTAL_RETURN_URL:?missing VOTING_PORTAL_RETURN_URL}'
+    DEEP_ID_VOTING_PORTAL_SCOPES: '${DEEP_ID_VOTING_PORTAL_SCOPES:?missing DEEP_ID_VOTING_PORTAL_SCOPES}'
+    AUTH_COOKIE_NAME:
+    AUTH_COOKIE_DOMAIN:
+    AUTH_COOKIE_SECURE: '${AUTH_COOKIE_SECURE:-true}'
+    AUTH_COOKIE_SAME_SITE:
+    AUTH_SESSION_TTL_SECONDS:
+    AUTH_REFRESH_LEEWAY_SECONDS:
+    AUTH_TOKEN_ENCRYPTION_KEY: '${AUTH_TOKEN_ENCRYPTION_KEY:?missing AUTH_TOKEN_ENCRYPTION_KEY}'
+    AUTH_SESSION_CLEANUP_INTERVAL_MS:
+    DEEP_ID_CONSENT_CLEANUP_INTERVAL_MS:
+    DATABASE_URL: '${DATABASE_URL:?missing DATABASE_URL}'
+    AWS_REGION: '${AWS_REGION:?missing AWS_REGION}'
+    # No AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY: the SDK falls through to
+    # the IAM role / instance profile attached to the host.
+    STORAGE_BUCKET: '${STORAGE_BUCKET:?missing STORAGE_BUCKET}'
+    STORAGE_ENDPOINT:
+    STORAGE_FORCE_PATH_STYLE:
+    STORAGE_PRESIGN_PUT_TTL:
+    STORAGE_PRESIGN_GET_TTL:
+    STORAGE_MAX_SIZE_BYTES:
+    STORAGE_CONTENT_TYPE_ALLOWLIST:
+    TEMPORAL_ADDRESS: '${TEMPORAL_ADDRESS:-temporal:7233}'
+    TEMPORAL_NAMESPACE:
+    TEMPORAL_ORCHESTRATOR_TASK_QUEUE:
+    TEMPORAL_API_SNAPSHOT_ACTIVITIES_TASK_QUEUE:
+
+x-workflows-environment: &workflows-environment
+    NODE_ENV: '${NODE_ENV:-production}'
+    LOG_LEVEL:
+    TEMPORAL_ADDRESS: '${TEMPORAL_ADDRESS:-temporal:7233}'
+    TEMPORAL_NAMESPACE:
+    TEMPORAL_ORCHESTRATOR_TASK_QUEUE:
+    TEMPORAL_ALGORITHM_TYPESCRIPT_TASK_QUEUE:
+    TEMPORAL_ALGORITHM_PYTHON_TASK_QUEUE:
+    TEMPORAL_ONCHAIN_DATA_TASK_QUEUE:
+    AWS_REGION: '${AWS_REGION:?missing AWS_REGION}'
+    STORAGE_BUCKET: '${STORAGE_BUCKET:?missing STORAGE_BUCKET}'
+    STORAGE_ENDPOINT:
+    STORAGE_FORCE_PATH_STYLE:
+    STORAGE_PRESIGN_PUT_TTL:
+    STORAGE_PRESIGN_GET_TTL:
+    STORAGE_MAX_SIZE_BYTES:
+    DEEPFUNDING_API_BASE_URL: '${DEEPFUNDING_API_BASE_URL:?missing DEEPFUNDING_API_BASE_URL}'
+    DEEPFUNDING_API_KEY: '${DEEPFUNDING_API_KEY:?missing DEEPFUNDING_API_KEY}'
+    ALCHEMY_API_KEY: '${ALCHEMY_API_KEY:?missing ALCHEMY_API_KEY}'
+    DEEPFUNDING_API_REQUEST_TIMEOUT_MS:
+    DEEPFUNDING_API_CONCURRENCY:
+    DEEPFUNDING_API_DEFAULT_PAGE_LIMIT:
+    DEEPFUNDING_API_RETRY_MAX_ATTEMPTS:
+    DEEPFUNDING_API_RETRY_BASE_DELAY_MS:
+    DEEPFUNDING_API_RETRY_MAX_DELAY_MS:
+    ONCHAIN_DATABASE_URL: '${ONCHAIN_DATABASE_URL:?missing ONCHAIN_DATABASE_URL}'
+    BLOCKFROST_API_KEY: '${BLOCKFROST_API_KEY:?missing BLOCKFROST_API_KEY}'
+
+networks:
+    default:
+        name: ${COMPOSE_NETWORK_NAME:-reputo}
+        external: true
+
+services:
+    traefik:
+        <<: *service-defaults
+        container_name: traefik
+        image: traefik:v3.6
+        ports:
+            - '${TRAEFIK_HTTP_PORT:-80}:80'
+            - '${TRAEFIK_HTTPS_PORT:-443}:443'
+        environment:
+            CF_DNS_API_TOKEN: '${CF_DNS_API_TOKEN:-}'
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+            - ./config/traefik.yml:/etc/traefik/traefik.yml:ro
+            - ${TRAEFIK_CERTS_PATH:?missing TRAEFIK_CERTS_PATH}:/var/traefik/certs/:rw
+        healthcheck:
+            test:
+                - CMD
+                - traefik
+                - healthcheck
+                - --ping=true
+                - --ping.entrypoint=${TRAEFIK_PING_ENTRYPOINT:-web}
+                - --entrypoints.${TRAEFIK_PING_ENTRYPOINT:-web}.address=:${TRAEFIK_PING_ADDRESS:-80}
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 30s
+        labels:
+            - traefik.enable=true
+            - traefik.docker.network=${COMPOSE_NETWORK_NAME:-reputo}
+            - traefik.http.routers.traefik.rule=Host(`${TRAEFIK_DOMAIN:?missing TRAEFIK_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))
+            - traefik.http.routers.traefik.service=api@internal
+            - traefik.http.routers.traefik.middlewares=auth
+            - traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_AUTH:-}
+            - traefik.http.middlewares.grafana-auth.basicauth.users=${GRAFANA_AUTH:-}
+            - traefik.http.routers.traefik.entrypoints=${PROXY_ENTRYPOINT:-websecure}
+            - traefik.http.routers.traefik.tls=${PROXY_TLS:-true}
+            - traefik.http.routers.traefik.tls.certresolver=${PROXY_CERT_RESOLVER:-cloudflare}
+        deploy:
+            resources: *resources-s
+
+    ui:
+        <<: *service-defaults
+        container_name: ui
+        image: ghcr.io/reputo-org/reputo/ui:${IMAGE_TAG:?missing IMAGE_TAG}
+        pull_policy: always
+        environment:
+            PORT: '8080'
+        healthcheck:
+            <<: *node-tcp-healthcheck
+            test:
+                - CMD-SHELL
+                - >-
+                  node -e "require('net').connect(8080).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
+        labels:
+            - traefik.enable=true
+            - traefik.docker.network=${COMPOSE_NETWORK_NAME:-reputo}
+            - traefik.http.routers.ui.rule=Host(`${UI_DOMAIN:?missing UI_DOMAIN}`)
+            - traefik.http.routers.ui.priority=1
+            - traefik.http.routers.ui.entrypoints=${PROXY_ENTRYPOINT:-websecure}
+            - traefik.http.routers.ui.tls=${PROXY_TLS:-true}
+            - traefik.http.routers.ui.tls.certresolver=${PROXY_CERT_RESOLVER:-cloudflare}
+            - traefik.http.services.ui.loadbalancer.server.port=8080
+        deploy:
+            resources: *resources-s
+
+    api:
+        <<: *service-defaults
+        container_name: api
+        image: ghcr.io/reputo-org/reputo/api:${IMAGE_TAG:?missing IMAGE_TAG}
+        pull_policy: always
+        environment: *api-environment
+        healthcheck:
+            <<: *node-tcp-healthcheck
+            test:
+                - CMD-SHELL
+                - >-
+                  node -e "require('net').connect(3000).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
+        labels:
+            - traefik.enable=true
+            - traefik.docker.network=${COMPOSE_NETWORK_NAME:-reputo}
+            - traefik.http.routers.api.rule=Host(`${API_DOMAIN:?missing API_DOMAIN}`)
+            - traefik.http.routers.api.entrypoints=${PROXY_ENTRYPOINT:-websecure}
+            - traefik.http.routers.api.tls=${PROXY_TLS:-true}
+            - traefik.http.routers.api.tls.certresolver=${PROXY_CERT_RESOLVER:-cloudflare}
+            - traefik.http.routers.api.middlewares=api-cors
+            - traefik.http.routers.api-ui.rule=Host(`${UI_DOMAIN:?missing UI_DOMAIN}`) && PathPrefix(`/api`)
+            - traefik.http.routers.api-ui.priority=100
+            - traefik.http.routers.api-ui.entrypoints=${PROXY_ENTRYPOINT:-websecure}
+            - traefik.http.routers.api-ui.tls=${PROXY_TLS:-true}
+            - traefik.http.routers.api-ui.tls.certresolver=${PROXY_CERT_RESOLVER:-cloudflare}
+            - traefik.http.routers.api-ui.middlewares=api-cors
+            - traefik.http.routers.api-ui.service=api
+            - traefik.http.services.api.loadbalancer.server.port=3000
+            - traefik.http.middlewares.api-cors.headers.accessControlAllowMethods=GET,OPTIONS,PUT,POST,DELETE,PATCH
+            - traefik.http.middlewares.api-cors.headers.accessControlAllowOriginList=${ALLOWED_ORIGINS:-*}
+            - traefik.http.middlewares.api-cors.headers.accessControlAllowHeaders=Content-Type,Authorization,Accept,Origin,X-Requested-With
+            - traefik.http.middlewares.api-cors.headers.accessControlMaxAge=3600
+        deploy:
+            resources: *resources-l
+
+    orchestrator-worker:
+        <<: *service-defaults
+        container_name: orchestrator-worker
+        image: ghcr.io/reputo-org/reputo/workflows:${IMAGE_TAG:?missing IMAGE_TAG}
+        pull_policy: always
+        command: ['pnpm', 'start:orchestrator']
+        environment: *workflows-environment
+        deploy:
+            resources: *resources-m
+
+    onchain-data-worker:
+        <<: *service-defaults
+        container_name: onchain-data-worker
+        image: ghcr.io/reputo-org/reputo/workflows:${IMAGE_TAG:?missing IMAGE_TAG}
+        pull_policy: always
+        command: ['pnpm', 'start:onchain-data']
+        environment: *workflows-environment
+        deploy:
+            resources: *resources-m
+
+    typescript-worker:
+        <<: *service-defaults
+        container_name: typescript-worker
+        image: ghcr.io/reputo-org/reputo/workflows:${IMAGE_TAG:?missing IMAGE_TAG}
+        pull_policy: always
+        command: ['pnpm', 'start:algorithm-typescript']
+        environment: *workflows-environment
+        deploy:
+            resources: *resources-m

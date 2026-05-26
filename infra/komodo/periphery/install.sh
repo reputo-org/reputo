@@ -14,14 +14,14 @@ ALLOW_PUBLIC_BIND=0
 
 usage() {
     cat <<'EOF'
-Usage: komodo/periphery/install.sh [options]
+Usage: infra/komodo/periphery/install.sh [options]
 
 Installs or updates the Komodo Periphery container on a staging/production host.
 Run this on the target host after creating a periphery.env file from
-komodo/periphery/periphery.env.example.
+infra/komodo/periphery/periphery.env.example.
 
 Options:
-  --env-file PATH        Source env file. Default: komodo/periphery/periphery.env
+  --env-file PATH        Source env file. Default: infra/komodo/periphery/periphery.env
   --install-dir PATH     Install directory. Default: /etc/komodo/periphery
   --dry-run             Print actions without changing files or containers
   --no-pull             Skip docker compose pull
@@ -184,7 +184,7 @@ PERIPHERY_PORT_VALUE="${PERIPHERY_PORT_VALUE:-8120}"
 PERIPHERY_ROOT_DIRECTORY_VALUE="$(env_value PERIPHERY_ROOT_DIRECTORY)"
 PERIPHERY_ROOT_DIRECTORY_VALUE="${PERIPHERY_ROOT_DIRECTORY_VALUE:-/etc/komodo}"
 PERIPHERY_NETWORK_VALUE="$(env_value PERIPHERY_DOCKER_NETWORK)"
-PERIPHERY_NETWORK_VALUE="${PERIPHERY_NETWORK_VALUE:-production}"
+PERIPHERY_NETWORK_VALUE="${PERIPHERY_NETWORK_VALUE:-reputo}"
 
 if is_public_bind "$PUBLISH_IP" && [ "$ALLOW_PUBLIC_BIND" -ne 1 ]; then
     die "PERIPHERY_PUBLISH_IP=${PUBLISH_IP} would publish on every interface. Set it to the host private/VPN IP, or pass --allow-public-bind only when an external firewall already limits ${PERIPHERY_PORT_VALUE}/tcp to Core."
@@ -220,9 +220,9 @@ cat > "$tmp_compose" <<'YAML'
 name: komodo-periphery
 
 networks:
-    production:
+    reputo:
         external: true
-        name: ${PERIPHERY_DOCKER_NETWORK:-production}
+        name: ${PERIPHERY_DOCKER_NETWORK:-reputo}
 
 volumes:
     keys:
@@ -261,7 +261,7 @@ services:
             - /proc:/proc
             - ${PERIPHERY_ROOT_DIRECTORY:-/etc/komodo}:${PERIPHERY_ROOT_DIRECTORY:-/etc/komodo}
         networks:
-            - production
+            - reputo
 YAML
 
 cp "$ENV_FILE" "$tmp_env"

@@ -8,7 +8,12 @@ git_provider = "github.com"
 git_https = true
 repo = "reputo-org/reputo"
 branch = "main"
-resource_path = ["komodo/resources"]
+resource_path = [
+  "infra/komodo/resource-sync.toml",
+  "infra/komodo/procedures.toml",
+  "infra/komodo/resources",
+  "infra/komodo/stacks",
+]
 managed = false
 delete = false
 include_resources = true
@@ -16,4 +21,3 @@ include_variables = false
 include_user_groups = true
 pending_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"

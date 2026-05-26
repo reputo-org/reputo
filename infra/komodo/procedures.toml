@@ -1,0 +1,466 @@
+# Procedures, grouped by family:
+#   deploy-database-*       Deploy the database stack on one environment.
+#   deploy-temporal-*       Deploy the temporal stack.
+#   deploy-observability-*  Deploy the observability stack.
+#   deploy-apps-*           Deploy the apps stack.
+#   deploy-infra-*          Sequence: database -> temporal -> observability.
+#   deploy-all-*            Sequence: database -> temporal -> observability -> apps.
+#   restart-apps-*          Restart the apps stack (no pull/recreate volumes).
+#   backup-data-*           One-shot postgres-backup service in the database stack.
+#   promote-production      Production app deploy after GHA digest retag.
+#   prune-images            Daily image prune on staging and production.
+
+################################################################################
+# deploy-database
+################################################################################
+
+[[procedure]]
+name = "deploy-database-staging"
+description = "Deploy the staging database stack (API + onchain Postgres)."
+tags = ["reputo", "env:staging", "deploy"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "Deploy reputo-database-staging"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-database-staging", execution.params.services = [], enabled = true },
+]
+
+[[procedure]]
+name = "deploy-database-production"
+description = "Deploy the production database stack (API + onchain Postgres)."
+tags = ["reputo", "env:production", "deploy"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "Deploy reputo-database-production"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-database-production", execution.params.services = [], enabled = true },
+]
+
+################################################################################
+# deploy-temporal
+################################################################################
+
+[[procedure]]
+name = "deploy-temporal-staging"
+description = "Deploy the staging Temporal cluster."
+tags = ["reputo", "env:staging", "deploy"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "Deploy reputo-temporal-staging"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-temporal-staging", execution.params.services = [], enabled = true },
+]
+
+[[procedure]]
+name = "deploy-temporal-production"
+description = "Deploy the production Temporal cluster."
+tags = ["reputo", "env:production", "deploy"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "Deploy reputo-temporal-production"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-temporal-production", execution.params.services = [], enabled = true },
+]
+
+################################################################################
+# deploy-observability
+################################################################################
+
+[[procedure]]
+name = "deploy-observability-staging"
+description = "Deploy the staging observability stack."
+tags = ["reputo", "env:staging", "deploy"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "Deploy reputo-observability-staging"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-observability-staging", execution.params.services = [], enabled = true },
+]
+
+[[procedure]]
+name = "deploy-observability-production"
+description = "Deploy the production observability stack."
+tags = ["reputo", "env:production", "deploy"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "Deploy reputo-observability-production"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-observability-production", execution.params.services = [], enabled = true },
+]
+
+################################################################################
+# deploy-apps
+################################################################################
+
+[[procedure]]
+name = "deploy-apps-staging"
+description = "Deploy the staging apps stack (Traefik + UI + API + workers)."
+tags = ["reputo", "env:staging", "deploy"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "Deploy reputo-apps-staging"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-apps-staging", execution.params.services = [], enabled = true },
+]
+
+[[procedure]]
+name = "deploy-apps-production"
+description = "Deploy the production apps stack. For a normal release use `promote-production` instead; this is for stack-only re-deploys."
+tags = ["reputo", "env:production", "deploy"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "Deploy reputo-apps-production"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-apps-production", execution.params.services = [], enabled = true },
+]
+
+################################################################################
+# deploy-infra (database -> temporal -> observability)
+################################################################################
+
+[[procedure]]
+name = "deploy-infra-staging"
+description = "Deploy staging infrastructure: database, temporal, observability."
+tags = ["reputo", "env:staging", "deploy", "rollout"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "1. Database"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-database-staging", execution.params.services = [], enabled = true },
+]
+
+[[procedure.config.stage]]
+name = "2. Temporal"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-temporal-staging", execution.params.services = [], enabled = true },
+]
+
+[[procedure.config.stage]]
+name = "3. Observability"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-observability-staging", execution.params.services = [], enabled = true },
+]
+
+[[procedure]]
+name = "deploy-infra-production"
+description = "Deploy production infrastructure: database, temporal, observability."
+tags = ["reputo", "env:production", "deploy", "rollout"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "1. Database"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-database-production", execution.params.services = [], enabled = true },
+]
+
+[[procedure.config.stage]]
+name = "2. Temporal"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-temporal-production", execution.params.services = [], enabled = true },
+]
+
+[[procedure.config.stage]]
+name = "3. Observability"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-observability-production", execution.params.services = [], enabled = true },
+]
+
+################################################################################
+# deploy-all (deploy-infra + apps)
+################################################################################
+
+[[procedure]]
+name = "deploy-all-staging"
+description = "Cold-start staging: database, temporal, observability, then apps."
+tags = ["reputo", "env:staging", "deploy", "rollout", "bootstrap"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "1. Database"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-database-staging", execution.params.services = [], enabled = true },
+]
+
+[[procedure.config.stage]]
+name = "2. Temporal"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-temporal-staging", execution.params.services = [], enabled = true },
+]
+
+[[procedure.config.stage]]
+name = "3. Observability"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-observability-staging", execution.params.services = [], enabled = true },
+]
+
+[[procedure.config.stage]]
+name = "4. Apps"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-apps-staging", execution.params.services = [], enabled = true },
+]
+
+[[procedure]]
+name = "deploy-all-production"
+description = "Cold-start production: database, temporal, observability, then apps."
+tags = ["reputo", "env:production", "deploy", "rollout", "bootstrap"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "1. Database"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-database-production", execution.params.services = [], enabled = true },
+]
+
+[[procedure.config.stage]]
+name = "2. Temporal"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-temporal-production", execution.params.services = [], enabled = true },
+]
+
+[[procedure.config.stage]]
+name = "3. Observability"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-observability-production", execution.params.services = [], enabled = true },
+]
+
+[[procedure.config.stage]]
+name = "4. Apps"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-apps-production", execution.params.services = [], enabled = true },
+]
+
+################################################################################
+# restart-apps
+################################################################################
+
+[[procedure]]
+name = "restart-apps-staging"
+description = "Restart the staging apps stack containers without re-pulling images."
+tags = ["reputo", "env:staging", "restart"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "Restart reputo-apps-staging"
+enabled = true
+executions = [
+  { execution.type = "RestartStack", execution.params.stack = "reputo-apps-staging", execution.params.services = [], enabled = true },
+]
+
+[[procedure]]
+name = "restart-apps-production"
+description = "Restart the production apps stack containers without re-pulling images."
+tags = ["reputo", "env:production", "restart"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "Restart reputo-apps-production"
+enabled = true
+executions = [
+  { execution.type = "RestartStack", execution.params.stack = "reputo-apps-production", execution.params.services = [], enabled = true },
+]
+
+################################################################################
+# backup-data (one-shot pg_dump via the postgres-backup service)
+################################################################################
+
+[[procedure]]
+name = "backup-data-staging"
+description = "Run the postgres-backup service on the staging database stack. Writes to the `backups` volume."
+tags = ["reputo", "env:staging", "backup"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "Backup staging databases"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-database-staging", execution.params.services = ["postgres-backup"], enabled = true },
+]
+
+[[procedure]]
+name = "backup-data-production"
+description = "Run the postgres-backup service on the production database stack. Writes to the `backups` volume."
+tags = ["reputo", "env:production", "backup"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "Backup production databases"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-database-production", execution.params.services = ["postgres-backup"], enabled = true },
+]
+
+################################################################################
+# promote-production (kept from previous setup, called from GitHub Actions)
+################################################################################
+
+[[procedure]]
+name = "promote-production"
+description = "Deploy the production application stack after GitHub Actions promotes immutable image tags to production."
+tags = ["reputo", "env:production", "promotion"]
+
+[procedure.config]
+schedule = ""
+schedule_enabled = false
+schedule_alert = false
+failure_alert = true
+webhook_enabled = true
+
+[[procedure.config.stage]]
+name = "Deploy production apps"
+enabled = true
+executions = [
+  { execution.type = "DeployStack", execution.params.stack = "reputo-apps-production", execution.params.services = [], enabled = true },
+]
+
+################################################################################
+# prune-images (scheduled)
+################################################################################
+
+[[procedure]]
+name = "prune-images"
+description = "Prune unused Docker images on staging and production."
+tags = ["reputo", "env:staging", "env:production", "maintenance", "schedule"]
+
+[procedure.config]
+schedule_format = "English"
+schedule = "Every day at 03:30"
+schedule_enabled = true
+schedule_timezone = "Europe/Vienna"
+schedule_alert = false
+failure_alert = true
+webhook_enabled = false
+
+[[procedure.config.stage]]
+name = "Prune images"
+enabled = true
+executions = [
+  { execution.type = "PruneImages", execution.params.server = "staging", enabled = true },
+  { execution.type = "PruneImages", execution.params.server = "production", enabled = true },
+]

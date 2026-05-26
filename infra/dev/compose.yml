@@ -52,7 +52,7 @@ x-dev-service: &dev-service
     <<: *service-defaults
     build:
         context: ../..
-        dockerfile: docker/images/Dockerfile.dev
+        dockerfile: infra/dev/Dockerfile
     working_dir: /workspace
     volumes: *dev-volumes
 

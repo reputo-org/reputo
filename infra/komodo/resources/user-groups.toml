@@ -1,0 +1,53 @@
+[[user_group]]
+name = "admins"
+everyone = false
+users = []
+all.Server = "Write"
+all.Stack = "Write"
+all.Procedure = "Write"
+all.Alerter = "Write"
+all.ResourceSync = "Write"
+permissions = []
+
+[[user_group]]
+name = "engineers"
+everyone = false
+users = []
+permissions = [
+  { target.type = "Server", target.id = "staging", level = "Read" },
+  { target.type = "Stack", target.id = "reputo-database-staging", level = "Execute" },
+  { target.type = "Stack", target.id = "reputo-temporal-staging", level = "Execute" },
+  { target.type = "Stack", target.id = "reputo-observability-staging", level = "Execute" },
+  { target.type = "Stack", target.id = "reputo-apps-staging", level = "Execute" },
+  { target.type = "Procedure", target.id = "deploy-infra-staging", level = "Execute" },
+  { target.type = "Procedure", target.id = "deploy-apps-staging", level = "Execute" },
+  { target.type = "Procedure", target.id = "deploy-observability-staging", level = "Execute" },
+  { target.type = "Procedure", target.id = "deploy-all-staging", level = "Execute" },
+  { target.type = "Procedure", target.id = "restart-apps-staging", level = "Execute" },
+  { target.type = "Procedure", target.id = "backup-data-staging", level = "Execute" },
+  { target.type = "Server", target.id = "production", level = "Read" },
+  { target.type = "Stack", target.id = "reputo-database-production", level = "Read" },
+  { target.type = "Stack", target.id = "reputo-temporal-production", level = "Read" },
+  { target.type = "Stack", target.id = "reputo-observability-production", level = "Read" },
+  { target.type = "Stack", target.id = "reputo-apps-production", level = "Read" },
+  { target.type = "Procedure", target.id = "promote-production", level = "Read" },
+  { target.type = "Server", target.id = "core", level = "Read" },
+]
+
+[[user_group]]
+name = "release-managers"
+everyone = false
+users = []
+permissions = [
+  { target.type = "Server", target.id = "production", level = "Read" },
+  { target.type = "Stack", target.id = "reputo-database-production", level = "Read" },
+  { target.type = "Stack", target.id = "reputo-temporal-production", level = "Read" },
+  { target.type = "Stack", target.id = "reputo-observability-production", level = "Read" },
+  { target.type = "Stack", target.id = "reputo-apps-production", level = "Read" },
+  { target.type = "Procedure", target.id = "promote-production", level = "Execute" },
+  { target.type = "Procedure", target.id = "deploy-infra-production", level = "Execute" },
+  { target.type = "Procedure", target.id = "deploy-observability-production", level = "Execute" },
+  { target.type = "Procedure", target.id = "restart-apps-production", level = "Execute" },
+  { target.type = "Procedure", target.id = "backup-data-production", level = "Execute" },
+  { target.type = "Server", target.id = "core", level = "Read" },
+]
