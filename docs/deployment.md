@@ -18,7 +18,7 @@ Reputo deploys to staging and production through Komodo. Image builds and tag pr
 2. The quality gate runs lint, tests, and a full build.
 3. `_build-and-push.yml` builds Docker images for the **affected** apps only. It publishes the immutable `sha-<commit>` tag and updates the mutable `staging` tag.
 4. The workflow calls the Komodo staging Stack webhook.
-5. Komodo pulls the new images and runs `docker compose pull && up -d` with `COMPOSE_PROFILES=apps`.
+5. Komodo pulls the new images and runs `docker compose pull && up -d` on `reputo-apps-staging`.
 6. The staging URL is <https://staging.logid.xyz>.
 
 ## Production promotion (manual)
@@ -50,8 +50,8 @@ Reputo deploys to staging and production through Komodo. Image builds and tag pr
 
 ## Configuration
 
-- Komodo Variables are the single source of truth for staging and production. They are declared in [`komodo/resources/variables.toml`](../komodo/resources/variables.toml) and resolved through `[[NAME]]` references in the stack TOML.
-- The deploy Compose file ([`docker/compose/compose.yml`](../docker/compose/compose.yml)) has no `env_file:` directives. Every value flows through `${VAR}` interpolation from the Komodo-generated `.komodo-reputo-*.env` file.
-- Per-stack service selection uses `COMPOSE_PROFILES`.
+- Komodo Variables are the single source of truth for staging and production. They are declared in [`infra/komodo/resources/variables.toml`](../infra/komodo/resources/variables.toml) and resolved through `[[NAME]]` references in [`infra/komodo/resources/stacks.toml`](../infra/komodo/resources/stacks.toml).
+- The deploy Compose files under [`infra/komodo/compose/`](../infra/komodo/compose/) have no `env_file:` directives. Every value flows through `${VAR}` interpolation from the Komodo-generated `.komodo-reputo-*.env` file.
+- Service selection is by stack membership — each of the four stacks ships its own compose file rather than sharing one filtered by `COMPOSE_PROFILES`.
 
 See [Environment variables](environment-variables.md) for the rules on adding or changing a variable.

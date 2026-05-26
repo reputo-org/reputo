@@ -36,7 +36,7 @@ pnpm install
 
 ## Run the apps
 
-The dev Compose file ([`docker/compose/compose.dev.yml`](../docker/compose/compose.dev.yml)) groups services into two profiles:
+The dev Compose file ([`infra/dev/compose.yml`](../infra/dev/compose.yml)) groups services into two profiles:
 
 - `apps` — `api`, `ui`, `db-migrate`, and the three workflow workers. They run in containers with the repo bind-mounted into `/workspace` for hot reload.
 - `infra` — Temporal (server, UI, Postgres, Elasticsearch), the app Postgres, the onchain-data Postgres, MinIO, and `minio-init`.

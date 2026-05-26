@@ -6,7 +6,7 @@
 GitHub Actions -> GHCR image tags -> Komodo webhooks -> Periphery -> Docker Compose
 ```
 
-This page covers operator topics. For day-to-day deploys, see [Deployment](deployment.md).
+This page covers operator topics. For day-to-day deploys, see [Deployment](deployment.md). For the directory layout and stack model, see [infra/komodo/README.md](../infra/komodo/README.md).
 
 ## Host shape
 
@@ -18,10 +18,13 @@ This page covers operator topics. For day-to-day deploys, see [Deployment](deplo
 
 ## Files
 
-- [`komodo/core/docker-compose.komodo.yml`](../komodo/core/docker-compose.komodo.yml) — runs Traefik, Komodo Core, FerretDB, Postgres, and a self-Periphery agent.
-- [`komodo/core/core.env.example`](../komodo/core/core.env.example) — non-secret template. Copy to `core.env` on the host and fill values from the password manager.
-- [`komodo/periphery/install.sh`](../komodo/periphery/install.sh) — installs the Periphery agent on staging and production hosts.
-- [`komodo/resources/`](../komodo/resources/) — declarative ResourceSync input for servers, stacks, procedures, alerters, schedules, and UserGroups.
+- [`infra/komodo/core/docker-compose.komodo.yml`](../infra/komodo/core/docker-compose.komodo.yml) — runs Traefik, Komodo Core, FerretDB, Postgres, and a self-Periphery agent.
+- [`infra/komodo/core/core.env.example`](../infra/komodo/core/core.env.example) — non-secret template. Copy to `core.env` on the host and fill values from the password manager.
+- [`infra/komodo/periphery/install.sh`](../infra/komodo/periphery/install.sh) — installs the Periphery agent on staging and production hosts.
+- [`infra/komodo/resource-sync.toml`](../infra/komodo/resource-sync.toml) — the single `ResourceSync` declaration.
+- [`infra/komodo/procedures.toml`](../infra/komodo/procedures.toml) — every Procedure (deploy-*, restart-*, backup-*).
+- [`infra/komodo/resources/`](../infra/komodo/resources/) — cross-cutting resources (servers, variables, user-groups, alerters).
+- [`infra/komodo/stacks/`](../infra/komodo/stacks/) — one folder per Komodo Stack family. Each folder owns its Stack TOML, Compose file, env contract, and any service configs.
 
 Komodo's Postgres-backed mode runs FerretDB in front of Postgres. Core then talks to a Postgres-backed metadata store through its native document-DB driver.
 
@@ -34,8 +37,8 @@ mkdir -p /opt/reputo
 cd /opt/reputo
 
 # Get this repository onto the host, then:
-cp komodo/core/core.env.example komodo/core/core.env
-chmod 600 komodo/core/core.env
+cp infra/komodo/core/core.env.example infra/komodo/core/core.env
+chmod 600 infra/komodo/core/core.env
 
 # Edit core.env and replace every CHANGE_ME value from the password manager.
 sudo mkdir -p \
@@ -54,23 +57,23 @@ sudo touch /etc/komodo/traefik/certs/cloudflare-acme.json
 sudo chmod 600 /etc/komodo/traefik/certs/cloudflare-acme.json
 
 docker compose \
-  -f komodo/core/docker-compose.komodo.yml \
-  --env-file komodo/core/core.env \
+  -f infra/komodo/core/docker-compose.komodo.yml \
+  --env-file infra/komodo/core/core.env \
   up -d
 ```
 
 ## Install Periphery (per host)
 
 ```bash
-cp komodo/periphery/periphery.env.example komodo/periphery/periphery.env
-chmod 600 komodo/periphery/periphery.env
+cp infra/komodo/periphery/periphery.env.example infra/komodo/periphery/periphery.env
+chmod 600 infra/komodo/periphery/periphery.env
 
 # Edit periphery.env:
 # - KOMODO_PASSKEY: same value as Core's KOMODO_PASSKEY
 # - PERIPHERY_ALLOWED_IPS: Core IP /32 or VPN CIDR
 # - PERIPHERY_PUBLISH_IP: private/VPN host IP reachable from Core
 
-komodo/periphery/install.sh --env-file komodo/periphery/periphery.env
+infra/komodo/periphery/install.sh --env-file infra/komodo/periphery/periphery.env
 ```
 
 Register each host in the Komodo UI:
@@ -97,7 +100,7 @@ From a network that is not Core or the VPN, `nc -vz <host-public-ip> 8120` must 
 
 ## Resource sync
 
-Core syncs the [`komodo/resources/`](../komodo/resources/) tree from `main` through the `reputo-main` ResourceSync defined in [`_sync.toml`](../komodo/resources/_sync.toml). `managed = false` and `delete = false` keep sync runs reviewable and non-destructive.
+Core syncs the [`infra/komodo`](../infra/komodo) tree from `main` through the `reputo-main` ResourceSync defined in [`resource-sync.toml`](../infra/komodo/resource-sync.toml). The sync scans `resource-sync.toml`, `procedures.toml`, the `resources/` folder, and the `stacks/` folder (recursing into each `stacks/<name>/stack.toml`). `managed = false` and `delete = false` keep sync runs reviewable and non-destructive.
 
 After merging resource changes:
 
@@ -108,41 +111,67 @@ After merging resource changes:
 
 The sync includes UserGroups. Apply the RBAC resources after cutover, then add or remove individual users from groups in the UI. User identities are not hard-coded in this repository.
 
-## Stack posture
+## Stack model
 
-- The staging app stack is the source of truth for staging deploys: `poll_for_updates = false`, `webhook_enabled = true`, `webhook_force_deploy = true`, `deploy = false`. GitHub Actions calls the staging Stack webhook after a successful image build.
-- The production app stack has direct stack webhooks disabled. GitHub Actions performs the digest-based production retag, then calls the `promote-production` Procedure webhook.
-- Infra stacks keep polling and webhooks disabled.
+Reputo runs as four Komodo Stacks per environment. Each Stack is a separate Docker Compose project on the host and joins the shared external bridge network `reputo`. See [infra/komodo/README.md](../infra/komodo/README.md) for the split rationale.
+
+- `reputo-database-{env}` — application Postgres + onchain-data Postgres + on-demand `postgres-backup`. Folder: [infra/komodo/stacks/database/](../infra/komodo/stacks/database/).
+- `reputo-temporal-{env}` — Temporal server + UI + Postgres + Elasticsearch. Folder: [infra/komodo/stacks/temporal/](../infra/komodo/stacks/temporal/).
+- `reputo-observability-{env}` — Loki/Promtail/Prometheus/cAdvisor/node-exporter/Grafana. Folder: [infra/komodo/stacks/observability/](../infra/komodo/stacks/observability/).
+- `reputo-apps-{env}` — Traefik + UI + API + workflow workers. Folder: [infra/komodo/stacks/apps/](../infra/komodo/stacks/apps/).
+
+Posture:
+
+- The staging apps stack is the source of truth for staging deploys: `poll_for_updates = false`, `webhook_enabled = true`, `webhook_force_deploy = true`, `deploy = false`. GitHub Actions calls the staging Stack webhook after a successful image build.
+- The production apps stack has direct stack webhooks disabled. GitHub Actions performs the digest-based production retag, then calls the `promote-production` Procedure webhook.
+- Database, temporal, and observability stacks have webhooks and polling disabled. They are deployed manually through the `deploy-*` procedures.
 
 Each stack writes a Komodo-managed env file at deploy time from the TOML `environment` block:
 
-- `.komodo-reputo-infra-staging.env`
-- `.komodo-reputo-infra-production.env`
-- `.komodo-reputo-apps-staging.env`
-- `.komodo-reputo-apps-production.env`
+- `.komodo-reputo-database-{env}.env`
+- `.komodo-reputo-temporal-{env}.env`
+- `.komodo-reputo-observability-{env}.env`
+- `.komodo-reputo-apps-{env}.env`
 
 These files are generated on the target host and passed to Docker Compose with `--env-file`. The checked-in TOML references Komodo variables and secrets by `[[NAME]]` only. Resolved values must never be committed.
 
-The app stacks pin the channel tags:
+The apps stacks pin the channel tags:
 
 - staging: `IMAGE_TAG=staging`
 - production: `IMAGE_TAG=production`
 
+## Procedures
+
+Defined in [`infra/komodo/procedures.toml`](../infra/komodo/procedures.toml):
+
+| Procedure | Purpose |
+| --- | --- |
+| `deploy-database-{env}` | Deploy the database stack on one environment. |
+| `deploy-temporal-{env}` | Deploy the temporal stack. |
+| `deploy-observability-{env}` | Deploy the observability stack. |
+| `deploy-apps-{env}` | Deploy the apps stack (re-deploy only; promote-production is the normal release path for prod). |
+| `deploy-infra-{env}` | Database → temporal → observability. |
+| `deploy-all-{env}` | Database → temporal → observability → apps. |
+| `restart-apps-{env}` | Restart apps containers without re-pulling. |
+| `backup-data-{env}` | One-shot `pg_dump` via the `postgres-backup` service in the database stack. |
+| `promote-production` | Production app deploy after the GitHub Actions digest retag. Webhook-triggered. |
+| `prune-images` | Scheduled image prune on both servers. |
+
 ## RBAC
 
-`_sync.toml` has `include_user_groups = true`, so the three UserGroups in `user-groups.toml` are part of the resource sync. Manage individual membership in the Komodo UI after the groups exist.
+`resource-sync.toml` has `include_user_groups = true`, so the three UserGroups in [`resources/user-groups.toml`](../infra/komodo/resources/user-groups.toml) are part of the resource sync. Manage individual membership in the Komodo UI after the groups exist.
 
 | Group | Permissions |
 | --- | --- |
 | `admins` | `Write` on managed Reputo Servers, Stacks, Procedures, Alerters, and ResourceSyncs. |
-| `engineers` | `Execute` on staging stacks. `Read` on the production server, production stacks, and `promote-production`. |
-| `release-managers` | `Execute` on `promote-production`. `Read` on the production server and production app stack. |
+| `engineers` | `Execute` on staging stacks + every `*-staging` procedure. `Read` on production. |
+| `release-managers` | `Execute` on `promote-production`, `deploy-infra-production`, `deploy-observability-production`, `restart-apps-production`, `backup-data-production`. `Read` on the production server and stacks. |
 
 Komodo platform admin status is separate from the `admins` UserGroup. A super admin grants it in the UI.
 
 ## Variables and secrets
 
-The variable shells listed in [`variables.toml`](../komodo/resources/variables.toml) are created when the sync runs with `include_variables = true`. After the first sync creates the shells, fill the values in the Komodo UI under `Settings > Variables`. Then flip `include_variables` back to `false` so later syncs do not flag value diffs as pending.
+The variable shells listed in [`variables.toml`](../infra/komodo/resources/variables.toml) are created when the sync runs with `include_variables = true`. After the first sync creates the shells, fill the values in the Komodo UI under `Settings > Variables`. Then flip `include_variables` back to `false` so later syncs do not flag value diffs as pending.
 
 ### Shared variables
 
@@ -222,9 +251,9 @@ Configure the GitHub `production` environment secret `KOMODO_WEBHOOK_SECRET` wit
 
 1. Install Docker Engine and the Compose plugin on the target host.
 2. Create or confirm the private/VPN path from Komodo Core to the host.
-3. Copy `komodo/periphery/periphery.env.example` to `periphery.env`, fill the passkey and network values, and run `komodo/periphery/install.sh`.
-4. Add the server to [`komodo/resources/servers.toml`](../komodo/resources/servers.toml) with an `env:<name>` tag and a `[[<ENV>_PERIPHERY_ADDRESS]]` reference.
-5. Add any required Stack resources under [`komodo/resources/stacks/`](../komodo/resources/stacks/).
+3. Copy `infra/komodo/periphery/periphery.env.example` to `periphery.env`, fill the passkey and network values, and run `infra/komodo/periphery/install.sh`.
+4. Add the server to [`infra/komodo/resources/servers.toml`](../infra/komodo/resources/servers.toml) with an `env:<name>` tag and a `[[<ENV>_PERIPHERY_ADDRESS]]` reference.
+5. Add any required Stack resources to the relevant [`infra/komodo/stacks/<name>/stack.toml`](../infra/komodo/stacks/), or create a new stack folder under [`infra/komodo/stacks/`](../infra/komodo/stacks/).
 6. Add the matching Komodo variables and secrets.
 7. Merge, sync `reputo-main`, and verify the server is reachable.
 
@@ -247,12 +276,14 @@ Include these host paths in the VM backup policy:
 
 Komodo v1.19+ creates a daily "Backup Core Database" procedure on new installs when init resources are enabled. The Core container mounts `/etc/komodo/core/backups` to `/backups` for those logical backups.
 
-Explicit Postgres dump:
+Application databases use the `backup-data-{env}` Komodo procedure, which runs the one-shot `postgres-backup` service inside the `reputo-database-{env}` stack. Output is written to the named volume `reputo-database_backups`. Mount or `docker cp` from that volume to copy dumps off-host.
+
+Explicit Komodo Core Postgres dump:
 
 ```bash
 docker compose \
-  -f komodo/core/docker-compose.komodo.yml \
-  --env-file komodo/core/core.env \
+  -f infra/komodo/core/docker-compose.komodo.yml \
+  --env-file infra/komodo/core/core.env \
   --profile backup \
   run --rm postgres-backup
 ```
@@ -261,8 +292,8 @@ docker compose \
 
 ```bash
 docker compose \
-  -f komodo/core/docker-compose.komodo.yml \
-  --env-file komodo/core/core.env \
+  -f infra/komodo/core/docker-compose.komodo.yml \
+  --env-file infra/komodo/core/core.env \
   ps
 
 curl -I https://komodo.logid.xyz/
@@ -284,4 +315,3 @@ Expected:
 - Promoting a known `sha-<commit>` deploys `reputo-apps-production`.
 - Promoting a missing SHA fails before retagging or calling Komodo.
 - The Komodo audit log shows the production Procedure run and the promoted commit SHA from the webhook payload.
-

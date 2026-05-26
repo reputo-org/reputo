@@ -21,12 +21,12 @@
 - That module is the **single source of truth**. No other code may read `process.env.*` directly. No downstream re-validation.
 - All apps use Zod (workspace catalog version). No other validators.
 - Local dev: the tracked root `.env.example` is the only template; copy to `.env`. `scripts/env/load.ts` loads it for `pnpm dev` and the `pnpm docker:*` scripts.
-- Staging/production: Komodo Variables (`komodo/resources/variables.toml`) are authoritative; the prod compose files carry no `env_file:` directives.
+- Staging/production: Komodo Variables (`infra/komodo/resources/variables.toml`) are authoritative; the per-stack `infra/komodo/stacks/<name>/compose.yml` files carry no `env_file:` directives.
 - Adding or changing an env var requires updating, in one PR:
   - the app's Zod schema,
   - the root `.env.example`,
-  - the per-service `environment:` block in `docker/compose/compose.dev.yml` (dev) and `docker/compose/compose.yml` (staging/prod/preview),
-  - `komodo/resources/variables.toml` and the matching stack `environment` block in `komodo/resources/stacks/apps.toml` or `infra.toml`.
+  - the per-service `environment:` block in `infra/dev/compose.yml` (dev), the matching `infra/komodo/stacks/<name>/compose.yml` (staging/prod), and `infra/preview/compose.yml` (preview),
+  - `infra/komodo/resources/variables.toml` and the matching stack `environment` block in `infra/komodo/stacks/<name>/stack.toml`.
 - Secrets (`*_SECRET`, `*_KEY`, `*_PASSWORD`, `*_TOKEN`) must use `z.string().min(1)` (no empty strings) and must never be logged.
 
 ## Comments

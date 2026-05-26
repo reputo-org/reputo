@@ -1,30 +1,36 @@
 # Docker stack
 
-Reputo runs in Docker for local development, preview, staging, and production. The Compose files live under [`docker/compose/`](../docker/compose/).
+Reputo runs in Docker for local development, preview, staging, and production. Each Compose file lives next to whatever consumes it.
 
+| Environment | Compose location | Driver |
+| --- | --- | --- |
+| Local dev | [`infra/dev/compose.yml`](../infra/dev/compose.yml) | `pnpm docker:up` (loads root `.env`) |
+| PullPreview | [`infra/preview/compose.yml`](../infra/preview/compose.yml) | `pullpreview/action` on a Lightsail VM |
+| Staging / production | [`infra/komodo/stacks/<name>/compose.yml`](../infra/komodo/stacks/) | Komodo Stacks |
 
+## Staging / production stacks
 
-## Compose profiles
+Staging and production run four separate Komodo Stacks per environment, each with its own folder under [`infra/komodo/stacks/`](../infra/komodo/stacks/). All four join the shared external bridge network `reputo`.
 
-`compose.yml` is the single source of truth for every non-local environment. Service selection uses `COMPOSE_PROFILES`:
+| Stack | Folder | Services |
+| --- | --- | --- |
+| `reputo-database-{env}` | [`stacks/database/`](../infra/komodo/stacks/database/) | `postgres`, `onchain-data-postgresql`, on-demand `postgres-backup` |
+| `reputo-temporal-{env}` | [`stacks/temporal/`](../infra/komodo/stacks/temporal/) | `temporal`, `temporal-ui`, `temporal-postgresql`, `temporal-elasticsearch` |
+| `reputo-observability-{env}` | [`stacks/observability/`](../infra/komodo/stacks/observability/) | `loki`, `promtail`, `prometheus`, `cadvisor`, `node-exporter`, `grafana` |
+| `reputo-apps-{env}` | [`stacks/apps/`](../infra/komodo/stacks/apps/) | `traefik`, `ui`, `api`, `orchestrator-worker`, `onchain-data-worker`, `typescript-worker` |
+
+Each stack folder contains its `stack.toml` (Komodo Stack definition), `compose.yml` (what Periphery runs), `.env.example` (env contract), and any service config (`config/...`) that only that stack consumes. See [infra/komodo/README.md](../infra/komodo/README.md) for the split rationale and [Komodo operations](komodo.md) for deploy/RBAC details.
+
+## Local development
+
+`infra/dev/compose.yml` still uses profile selection because dev runs everything on one machine:
 
 | Profile | Services |
 | --- | --- |
-| `apps` | `api`, `ui`, `orchestrator-worker`, `onchain-data-worker`, `typescript-worker` |
-| `infra` | `traefik`, `temporal`, `temporal-ui`, `temporal-elasticsearch`, `temporal-postgresql`, `postgres`, `onchain-data-postgresql` |
-| `observability` | `loki`, `promtail`, `prometheus`, `cadvisor`, `node-exporter`, `grafana` |
-| `storage` | `minio` and `minio-init` (S3-compatible storage for dev and preview) |
+| `apps` | api, ui, workers |
+| `infra` | traefik, temporal stack, both Postgres flavours, MinIO |
 
-Profiles per environment:
-
-- `reputo-apps-*` Komodo stacks: `COMPOSE_PROFILES=apps`.
-- `reputo-infra-*` Komodo stacks: `COMPOSE_PROFILES=infra,observability`.
-- PullPreview: `COMPOSE_PROFILES=apps,infra,storage`.
-
-Staging and production do **not** start the `storage` profile. They use real AWS S3 through the SDK default credential chain (IAM role). MinIO exists only in dev (part of the `infra` profile in `compose.dev.yml`, always on) and preview (`storage` profile in `compose.yml`).
-
-
-### Useful local endpoints
+Useful local endpoints:
 
 | Service | URL or command |
 | --- | --- |
