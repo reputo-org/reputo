@@ -171,6 +171,7 @@ services:
         pull_policy: always
         environment:
             PORT: '8080'
+            HOSTNAME: 0.0.0.0
         healthcheck:
             <<: *node-tcp-healthcheck
             test:
