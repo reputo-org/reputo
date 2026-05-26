@@ -21,6 +21,9 @@
   },
   "private": true,
   "type": "module",
+  "files": [
+    "dist/**"
+  ],
   "main": "./dist/workflows/index.js",
   "types": "./dist/workflows/index.d.ts",
   "exports": {
