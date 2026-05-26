@@ -50,8 +50,7 @@ pnpm docker:up               # builds the dev image, starts both profiles
 pnpm docker:down             # stops everything
 ```
 
-
-### Hybrid 
+### Hybrid
 
 Run infrastructure in Docker and the apps natively. You get faster iteration, native debugging, and you can start only the apps you need.
 
@@ -61,7 +60,6 @@ pnpm db:migrate              # apply pending migrations
 pnpm dev                     # run api, ui, workflows in watch mode
 pnpm docker:down             # stop infrastructure when done
 ```
-
 
 ### Local endpoints (both flows)
 
@@ -74,8 +72,6 @@ pnpm docker:down             # stop infrastructure when done
 | MinIO console | <http://localhost:9001> (login `minio` / `minio12345`) |
 | App Postgres | `psql postgresql://reputo_app:reputo_app@localhost:5434/reputo_app` |
 | Onchain Postgres | `psql postgresql://reputo_onchain:reputo_onchain@localhost:5433/reputo_onchain` |
-
-
 
 ## Common commands
 

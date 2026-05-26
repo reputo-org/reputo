@@ -43,8 +43,9 @@ Common types:
 
 [`lefthook`](https://github.com/evilmartians/lefthook) is installed by `pnpm install` (`postinstall`). It runs:
 
+- `prepare-commit-msg` — opens [Commitizen](https://commitizen-tools.github.io/commitizen/) when you run `git commit` without `-m`.
+- `commit-msg` — `commitlint` validates the final message.
 - `pre-commit` — `pnpm check` (Biome lint and format).
-- `commit-msg` — `commitlint`.
 - `pre-push` — `pnpm check` and `pnpm test`.
 
 If a hook fails, fix the underlying issue. Do not bypass it.

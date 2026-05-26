@@ -1,9 +1,9 @@
 ![Reputo](.github/assets/banner.png "Reputo")
 
 <p align="center">
-  <a href="https://logid.xyz">Reputo</a> is a privacy-preserving reputation platform with three main surfaces: a NestJS API, a Next.js UI, and Temporal-based workers that orchestrate snapshot execution and algorithm runs.
+  <a href="https://logid.xyz">Reputo</a> is a privacy-preserving reputation platform. It has three parts: a NestJS API, a Next.js UI, and Temporal workers that run snapshots and algorithms.
   <br/>
-  This repository is the pnpm monorepo for those apps and the shared packages they build on.
+  This is the pnpm monorepo for those apps and the packages they share.
 </p>
 
 <div align="center">
@@ -35,7 +35,7 @@
     mise run setup               # installs Node + pnpm, copies .env.example -> .env, runs pnpm install
     ```
 
-3. Open `.env` and fill in every empty value. See [Environment variables](docs/environment-variables.md).
+3. Open `.env` and fill in every empty value (mainly OAuth credentials and `*_SECRET` / `*_KEY` values). See [Environment variables](docs/environment-variables.md).
 
 4. Run the stack. Pick one:
 

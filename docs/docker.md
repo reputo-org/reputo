@@ -21,7 +21,7 @@ Profiles per environment:
 - `reputo-infra-*` Komodo stacks: `COMPOSE_PROFILES=infra,observability`.
 - PullPreview: `COMPOSE_PROFILES=apps,infra,storage`.
 
-Staging and production do **not** start the `storage` profile. They use real AWS S3 through the SDK default credential chain (IAM role). MinIO exists only in dev (always on in `compose.dev.yml`) and preview (`storage` profile in `compose.yml`).
+Staging and production do **not** start the `storage` profile. They use real AWS S3 through the SDK default credential chain (IAM role). MinIO exists only in dev (part of the `infra` profile in `compose.dev.yml`, always on) and preview (`storage` profile in `compose.yml`).
 
 
 ### Useful local endpoints
