@@ -1,6 +1,6 @@
 {
   "name": "@reputo/workflows",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Temporal workflows and workers for the Reputo platform.",
   "keywords": [
     "temporal",
