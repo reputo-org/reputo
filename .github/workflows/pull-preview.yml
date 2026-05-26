@@ -60,7 +60,7 @@ jobs:
                   label: pullpreview
                   provider: lightsail
                   instance_type: large
-                  compose_files: docker/compose/compose.preview.yml
+                  compose_files: infra/preview/compose.yml
                   compose_options: ''
                   ttl: 24h
               env:
@@ -84,7 +84,7 @@ jobs:
                   label: pullpreview
                   provider: lightsail
                   instance_type: large
-                  compose_files: docker/compose/compose.preview.yml
+                  compose_files: infra/preview/compose.yml
                   compose_options: ''
                   ttl: 24h
               env:

@@ -1,0 +1,133 @@
+name: reputo-temporal
+
+x-logging: &logging
+    driver: json-file
+    options:
+        max-size: '10m'
+        max-file: '5'
+
+x-service-defaults: &service-defaults
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    logging: *logging
+    networks: [default]
+    security_opt:
+        - no-new-privileges:true
+
+x-resources-xs: &resources-xs
+    limits:
+        memory: 64M
+        cpus: '0.25'
+    reservations:
+        memory: 32M
+
+x-resources-s: &resources-s
+    limits:
+        memory: 128M
+        cpus: '0.50'
+    reservations:
+        memory: 64M
+
+x-resources-m: &resources-m
+    limits:
+        memory: 256M
+        cpus: '1.00'
+    reservations:
+        memory: 128M
+
+x-resources-l: &resources-l
+    limits:
+        memory: 384M
+        cpus: '1.50'
+    reservations:
+        memory: 192M
+
+networks:
+    default:
+        name: ${COMPOSE_NETWORK_NAME:-reputo}
+        external: true
+
+volumes:
+    temporal_postgresql_data:
+        driver: local
+    temporal_elasticsearch_data:
+        driver: local
+
+services:
+    temporal:
+        <<: *service-defaults
+        container_name: temporal
+        image: temporalio/auto-setup:1.26.3.0
+        depends_on:
+            - temporal-postgresql
+            - temporal-elasticsearch
+        environment:
+            DB: postgres12
+            DB_PORT: '5432'
+            POSTGRES_USER: '${TEMPORAL_POSTGRES_USER:?missing TEMPORAL_POSTGRES_USER}'
+            POSTGRES_PWD: '${TEMPORAL_POSTGRES_PASSWORD:?missing TEMPORAL_POSTGRES_PASSWORD}'
+            POSTGRES_SEEDS: temporal-postgresql
+            ENABLE_ES: '${TEMPORAL_ENABLE_ES:-true}'
+            ES_SEEDS: temporal-elasticsearch
+            ES_VERSION: v7
+        healthcheck:
+            test:
+                - CMD-SHELL
+                - 'temporal operator cluster health --address $$(hostname -i):7233'
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 120s
+        deploy:
+            resources: *resources-m
+
+    temporal-ui:
+        <<: *service-defaults
+        container_name: temporal-ui
+        image: temporalio/ui:2.32.0
+        depends_on:
+            - temporal
+        environment:
+            TEMPORAL_ADDRESS: temporal:7233
+            TEMPORAL_CORS_ORIGINS: '${ALLOWED_ORIGINS:-*}'
+        labels:
+            - traefik.enable=true
+            - traefik.docker.network=${COMPOSE_NETWORK_NAME:-reputo}
+            - traefik.http.routers.temporal-ui.rule=Host(`${TEMPORAL_UI_DOMAIN:?missing TEMPORAL_UI_DOMAIN}`)
+            - traefik.http.routers.temporal-ui.entrypoints=${PROXY_ENTRYPOINT:-websecure}
+            - traefik.http.routers.temporal-ui.tls=${PROXY_TLS:-true}
+            - traefik.http.routers.temporal-ui.tls.certresolver=${PROXY_CERT_RESOLVER:-cloudflare}
+            - traefik.http.routers.temporal-ui.middlewares=auth
+            - traefik.http.services.temporal-ui.loadbalancer.server.port=8080
+        deploy:
+            resources: *resources-xs
+
+    temporal-elasticsearch:
+        <<: *service-defaults
+        container_name: temporal-elasticsearch
+        image: elasticsearch:7.17.23
+        environment:
+            cluster.routing.allocation.disk.threshold_enabled: 'true'
+            cluster.routing.allocation.disk.watermark.low: 512mb
+            cluster.routing.allocation.disk.watermark.high: 256mb
+            cluster.routing.allocation.disk.watermark.flood_stage: 128mb
+            discovery.type: single-node
+            ES_JAVA_OPTS: '-Xms256m -Xmx256m'
+            xpack.security.enabled: 'false'
+        volumes:
+            - temporal_elasticsearch_data:/var/lib/elasticsearch/data
+        deploy:
+            resources: *resources-l
+
+    temporal-postgresql:
+        <<: *service-defaults
+        container_name: temporal-postgresql
+        image: postgres:12.22
+        environment:
+            POSTGRES_USER: '${TEMPORAL_POSTGRES_USER:?missing TEMPORAL_POSTGRES_USER}'
+            POSTGRES_PASSWORD: '${TEMPORAL_POSTGRES_PASSWORD:?missing TEMPORAL_POSTGRES_PASSWORD}'
+        volumes:
+            - temporal_postgresql_data:/var/lib/postgresql/data
+        deploy:
+            resources: *resources-s

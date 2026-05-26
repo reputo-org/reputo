@@ -1,0 +1,125 @@
+name: reputo-database
+
+x-logging: &logging
+    driver: json-file
+    options:
+        max-size: '10m'
+        max-file: '5'
+
+x-service-defaults: &service-defaults
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    logging: *logging
+    networks: [default]
+    security_opt:
+        - no-new-privileges:true
+
+x-resources-m: &resources-m
+    limits:
+        memory: 256M
+        cpus: '1.00'
+    reservations:
+        memory: 128M
+
+x-resources-l: &resources-l
+    limits:
+        memory: 384M
+        cpus: '1.50'
+    reservations:
+        memory: 192M
+
+x-pg-healthcheck: &pg-healthcheck
+    test:
+        ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+    interval: 10s
+    timeout: 5s
+    retries: 12
+    start_period: 20s
+
+networks:
+    default:
+        name: ${COMPOSE_NETWORK_NAME:-reputo}
+        external: true
+
+volumes:
+    postgres_data:
+        driver: local
+    onchain_data_postgresql_data:
+        driver: local
+    backups:
+        driver: local
+
+services:
+    postgres:
+        <<: *service-defaults
+        container_name: postgres
+        image: postgres:16
+        environment:
+            POSTGRES_USER: '${API_POSTGRES_USER:?missing API_POSTGRES_USER}'
+            POSTGRES_PASSWORD: '${API_POSTGRES_PASSWORD:?missing API_POSTGRES_PASSWORD}'
+            POSTGRES_DB: '${API_POSTGRES_DB_NAME:?missing API_POSTGRES_DB_NAME}'
+        ports:
+            - '${API_POSTGRES_HOST_BIND:-127.0.0.1}:${API_POSTGRES_HOST_PORT:-5434}:5432'
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        healthcheck: *pg-healthcheck
+        deploy:
+            resources: *resources-l
+
+    onchain-data-postgresql:
+        <<: *service-defaults
+        container_name: onchain-data-postgresql
+        image: postgres:16
+        environment:
+            POSTGRES_USER: '${ONCHAIN_DATA_POSTGRES_USER:?missing ONCHAIN_DATA_POSTGRES_USER}'
+            POSTGRES_PASSWORD: '${ONCHAIN_DATA_POSTGRES_PASSWORD:?missing ONCHAIN_DATA_POSTGRES_PASSWORD}'
+            POSTGRES_DB: '${ONCHAIN_DATA_POSTGRES_DB_NAME:?missing ONCHAIN_DATA_POSTGRES_DB_NAME}'
+        ports:
+            - '${ONCHAIN_DATA_POSTGRES_HOST_BIND:-127.0.0.1}:${ONCHAIN_DATA_POSTGRES_HOST_PORT:-5433}:5432'
+        volumes:
+            - onchain_data_postgresql_data:/var/lib/postgresql/data
+        healthcheck: *pg-healthcheck
+        deploy:
+            resources: *resources-m
+
+    # One-shot logical backup. profiles: [backup] keeps it out of the default
+    # start set; `backup-data-*` Komodo procedures trigger it on demand.
+    postgres-backup:
+        <<: *service-defaults
+        container_name: reputo-postgres-backup
+        image: postgres:16-alpine
+        restart: 'no'
+        profiles: [backup]
+        depends_on:
+            postgres:
+                condition: service_healthy
+            onchain-data-postgresql:
+                condition: service_healthy
+        environment:
+            API_PGHOST: postgres
+            API_PGUSER: '${API_POSTGRES_USER:?missing API_POSTGRES_USER}'
+            API_PGPASSWORD: '${API_POSTGRES_PASSWORD:?missing API_POSTGRES_PASSWORD}'
+            API_PGDATABASE: '${API_POSTGRES_DB_NAME:?missing API_POSTGRES_DB_NAME}'
+            ONCHAIN_PGHOST: onchain-data-postgresql
+            ONCHAIN_PGUSER: '${ONCHAIN_DATA_POSTGRES_USER:?missing ONCHAIN_DATA_POSTGRES_USER}'
+            ONCHAIN_PGPASSWORD: '${ONCHAIN_DATA_POSTGRES_PASSWORD:?missing ONCHAIN_DATA_POSTGRES_PASSWORD}'
+            ONCHAIN_PGDATABASE: '${ONCHAIN_DATA_POSTGRES_DB_NAME:?missing ONCHAIN_DATA_POSTGRES_DB_NAME}'
+        volumes:
+            - backups:/backups
+        entrypoint:
+            - /bin/sh
+            - -ec
+            - |
+              ts="$$(date -u +%Y%m%dT%H%M%SZ)"
+              mkdir -p /backups/$$ts
+              PGPASSWORD=$$API_PGPASSWORD pg_dump -h $$API_PGHOST -U $$API_PGUSER -d $$API_PGDATABASE -Fc \
+                | gzip > /backups/$$ts/api-$$API_PGDATABASE.dump.gz
+              PGPASSWORD=$$ONCHAIN_PGPASSWORD pg_dump -h $$ONCHAIN_PGHOST -U $$ONCHAIN_PGUSER -d $$ONCHAIN_PGDATABASE -Fc \
+                | gzip > /backups/$$ts/onchain-$$ONCHAIN_PGDATABASE.dump.gz
+              echo "backup written to /backups/$$ts"
+        deploy:
+            resources:
+                limits:
+                    memory: 256M
+                    cpus: '1.00'

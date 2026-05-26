@@ -1,0 +1,73 @@
+[[stack]]
+name = "reputo-observability-staging"
+description = "Staging observability stack: Loki, Promtail, Prometheus, cAdvisor, node-exporter, Grafana."
+tags = ["reputo", "env:staging", "observability"]
+deploy = false
+
+[stack.config]
+server_id = "staging"
+project_name = "reputo-observability"
+git_provider = "github.com"
+git_https = true
+repo = "reputo-org/reputo"
+branch = "main"
+files_on_host = false
+file_paths = ["infra/komodo/stacks/observability/compose.yml"]
+env_file_path = ".komodo-reputo-observability-staging.env"
+environment = """
+COMPOSE_NETWORK_NAME=reputo
+OBSERVABILITY_ENV=staging
+GRAFANA_DOMAIN=[[STAGING_GRAFANA_DOMAIN]]
+GRAFANA_ADMIN_USER=[[STAGING_GRAFANA_ADMIN_USER]]
+GRAFANA_ADMIN_PASSWORD=[[STAGING_GRAFANA_ADMIN_PASSWORD]]
+PROXY_ENTRYPOINT=websecure
+PROXY_TLS=true
+PROXY_CERT_RESOLVER=cloudflare
+"""
+auto_pull = false
+run_build = false
+poll_for_updates = false
+auto_update = false
+auto_update_all_services = false
+destroy_before_deploy = false
+send_alerts = true
+webhook_enabled = false
+webhook_force_deploy = false
+webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
+
+[[stack]]
+name = "reputo-observability-production"
+description = "Production observability stack: Loki, Promtail, Prometheus, cAdvisor, node-exporter, Grafana."
+tags = ["reputo", "env:production", "observability"]
+deploy = false
+
+[stack.config]
+server_id = "production"
+project_name = "reputo-observability"
+git_provider = "github.com"
+git_https = true
+repo = "reputo-org/reputo"
+branch = "main"
+files_on_host = false
+file_paths = ["infra/komodo/stacks/observability/compose.yml"]
+env_file_path = ".komodo-reputo-observability-production.env"
+environment = """
+COMPOSE_NETWORK_NAME=reputo
+OBSERVABILITY_ENV=production
+GRAFANA_DOMAIN=[[PRODUCTION_GRAFANA_DOMAIN]]
+GRAFANA_ADMIN_USER=[[PRODUCTION_GRAFANA_ADMIN_USER]]
+GRAFANA_ADMIN_PASSWORD=[[PRODUCTION_GRAFANA_ADMIN_PASSWORD]]
+PROXY_ENTRYPOINT=websecure
+PROXY_TLS=true
+PROXY_CERT_RESOLVER=cloudflare
+"""
+auto_pull = false
+run_build = false
+poll_for_updates = false
+auto_update = false
+auto_update_all_services = false
+destroy_before_deploy = false
+send_alerts = true
+webhook_enabled = false
+webhook_force_deploy = false
+webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
