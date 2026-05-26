@@ -1,9 +1,11 @@
-# Unified compose for staging, production, and preview.
+# Compose for staging and production.
 #
 # Service selection is by profile (set COMPOSE_PROFILES):
 #   apps           — api, ui, orchestrator/onchain-data/typescript workers
 #   infra          — traefik, postgres, temporal stack
 #   observability  — loki, promtail, prometheus, cadvisor, node-exporter, grafana
+#
+# Per-PR previews use docker/compose/compose.preview.yml.
 
 ################################################################################
 # Cross-cutting defaults
@@ -105,16 +107,8 @@ x-api-environment: &api-environment
     DEEP_ID_CONSENT_CLEANUP_INTERVAL_MS:
     DATABASE_URL: '${DATABASE_URL:?missing DATABASE_URL}'
     AWS_REGION: '${AWS_REGION:?missing AWS_REGION}'
-    # App-facing AWS creds use APP_AWS_* in the compose env so they don't
-    # collide with the (real) AWS_ACCESS_KEY_ID/SECRET that the PullPreview
-    # GitHub Action uses to provision Lightsail. Container env name is still
-    # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY because that's what the AWS
-    # SDK's default credential chain looks for. The app's Zod schema does NOT
-    # validate these — they're consumed transparently by the SDK. In
-    # prod/staging both are empty, so the SDK skips fromEnv() and falls
-    # through to the IAM role / instance profile.
-    AWS_ACCESS_KEY_ID: '${APP_AWS_ACCESS_KEY_ID-}'
-    AWS_SECRET_ACCESS_KEY: '${APP_AWS_SECRET_ACCESS_KEY-}'
+    # No AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY: the SDK falls through to
+    # the IAM role / instance profile attached to the host.
     STORAGE_BUCKET: '${STORAGE_BUCKET:?missing STORAGE_BUCKET}'
     STORAGE_ENDPOINT:
     STORAGE_FORCE_PATH_STYLE:
@@ -137,9 +131,7 @@ x-workflows-environment: &workflows-environment
     TEMPORAL_ALGORITHM_PYTHON_TASK_QUEUE:
     TEMPORAL_ONCHAIN_DATA_TASK_QUEUE:
     AWS_REGION: '${AWS_REGION:?missing AWS_REGION}'
-    # See note on x-api-environment for why APP_AWS_* is used here.
-    AWS_ACCESS_KEY_ID: '${APP_AWS_ACCESS_KEY_ID-}'
-    AWS_SECRET_ACCESS_KEY: '${APP_AWS_SECRET_ACCESS_KEY-}'
+    # No AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY: see x-api-environment.
     STORAGE_BUCKET: '${STORAGE_BUCKET:?missing STORAGE_BUCKET}'
     STORAGE_ENDPOINT:
     STORAGE_FORCE_PATH_STYLE:
@@ -182,8 +174,6 @@ volumes:
     prometheus_data:
         driver: local
     grafana_data:
-        driver: local
-    minio_data:
         driver: local
 
 ################################################################################
@@ -345,61 +335,6 @@ services:
             resources: *resources-l
 
     ############################################################################
-    # Services — storage profile (dev/preview only; prod uses IAM + real S3)
-    ############################################################################
-
-    minio:
-        <<: *service-defaults
-        profiles: [storage]
-        container_name: minio
-        image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
-        command: server --console-address ":9001" /data
-        environment:
-            MINIO_ROOT_USER: '${MINIO_ROOT_USER:?missing MINIO_ROOT_USER}'
-            MINIO_ROOT_PASSWORD: '${MINIO_ROOT_PASSWORD:?missing MINIO_ROOT_PASSWORD}'
-        ports:
-            - '${MINIO_API_HOST_BIND:-127.0.0.1}:${MINIO_API_HOST_PORT:-9000}:9000'
-            - '${MINIO_CONSOLE_HOST_BIND:-127.0.0.1}:${MINIO_CONSOLE_HOST_PORT:-9001}:9001'
-        volumes:
-            - minio_data:/data
-        healthcheck:
-            test:
-                - CMD-SHELL
-                - 'curl -fsS http://localhost:9000/minio/health/live || exit 1'
-            interval: 10s
-            timeout: 5s
-            retries: 10
-            start_period: 15s
-        deploy:
-            resources: *resources-m
-
-    # One-shot bucket bootstrap. Idempotent (mb --ignore-existing) and exits
-    # 0 after creating STORAGE_BUCKET, so depends_on can wait on
-    # service_completed_successfully without holding the running set.
-    minio-init:
-        <<: *service-defaults
-        profiles: [storage]
-        container_name: minio-init
-        image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
-        restart: 'no'
-        depends_on:
-            minio:
-                condition: service_healthy
-        environment:
-            STORAGE_BUCKET: '${STORAGE_BUCKET:?missing STORAGE_BUCKET}'
-            MINIO_ROOT_USER: '${MINIO_ROOT_USER:?missing MINIO_ROOT_USER}'
-            MINIO_ROOT_PASSWORD: '${MINIO_ROOT_PASSWORD:?missing MINIO_ROOT_PASSWORD}'
-        entrypoint:
-            - /bin/sh
-            - -lc
-            - |
-              set -eu
-              mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
-              mc mb --ignore-existing local/"$$STORAGE_BUCKET"
-        deploy:
-            resources: *resources-xs
-
-    ############################################################################
     # Services — apps profile
     ############################################################################
 
@@ -434,13 +369,6 @@ services:
         container_name: api
         image: ghcr.io/reputo-org/reputo/api:${IMAGE_TAG:?missing IMAGE_TAG}
         pull_policy: always
-        # depends_on entries pointing at services in inactive profiles are
-        # silently dropped, so the minio-init dependency only fires in envs
-        # that activate `storage` (preview, ad-hoc dev). In prod/staging
-        # (apps only) it has no effect.
-        depends_on:
-            minio-init:
-                condition: service_completed_successfully
         environment: *api-environment
         healthcheck:
             <<: *node-tcp-healthcheck
@@ -476,9 +404,6 @@ services:
         container_name: orchestrator-worker
         image: ghcr.io/reputo-org/reputo/workflows:${IMAGE_TAG:?missing IMAGE_TAG}
         pull_policy: always
-        depends_on:
-            minio-init:
-                condition: service_completed_successfully
         command: ['pnpm', 'start:orchestrator']
         environment: *workflows-environment
         deploy:
@@ -490,9 +415,6 @@ services:
         container_name: onchain-data-worker
         image: ghcr.io/reputo-org/reputo/workflows:${IMAGE_TAG:?missing IMAGE_TAG}
         pull_policy: always
-        depends_on:
-            minio-init:
-                condition: service_completed_successfully
         command: ['pnpm', 'start:onchain-data']
         environment: *workflows-environment
         deploy:
@@ -504,9 +426,6 @@ services:
         container_name: typescript-worker
         image: ghcr.io/reputo-org/reputo/workflows:${IMAGE_TAG:?missing IMAGE_TAG}
         pull_policy: always
-        depends_on:
-            minio-init:
-                condition: service_completed_successfully
         command: ['pnpm', 'start:algorithm-typescript']
         environment: *workflows-environment
         deploy:

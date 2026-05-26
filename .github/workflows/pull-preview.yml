@@ -60,114 +60,18 @@ jobs:
                   label: pullpreview
                   provider: lightsail
                   instance_type: large
-                  compose_files: docker/compose/compose.yml
+                  compose_files: docker/compose/compose.preview.yml
                   compose_options: ''
                   ttl: 24h
               env:
-                  # AWS for the Lightsail provisioner (not the app).
+                  # AWS creds for the Lightsail provisioner (not the app).
                   AWS_ACCESS_KEY_ID: '${{ secrets.AWS_ACCESS_KEY_ID }}'
                   AWS_SECRET_ACCESS_KEY: '${{ secrets.AWS_SECRET_ACCESS_KEY }}'
                   AWS_REGION: 'eu-central-1'
 
-                  # Compose routing. `storage` runs MinIO + bucket bootstrap;
-                  # preview never talks to real S3.
-                  COMPOSE_PROFILES: 'apps,infra,storage'
-                  COMPOSE_NETWORK_NAME: 'reputo'
-
-                  # Image tag pushed by the build job.
+                  # Per-deploy values consumed by compose.preview.yml.
                   IMAGE_TAG: 'preview-${{ github.event.pull_request.head.sha }}'
-
-                  # Proxy: HTTP-only Traefik, no Cloudflare ACME.
-                  TRAEFIK_CONFIG_FILE: 'preview.yml'
-                  TRAEFIK_HTTP_PORT: '80'
-                  TRAEFIK_HTTPS_PORT: '8443'
-                  TRAEFIK_PING_ENTRYPOINT: 'web'
-                  TRAEFIK_PING_ADDRESS: '80'
-                  PROXY_ENTRYPOINT: 'web'
-                  PROXY_TLS: 'false'
-                  PROXY_CERT_RESOLVER: 'unused'
-                  CF_DNS_API_TOKEN: ''
-
-                  # Domains and CORS — placeholders; PullPreview rewrites
-                  # routing via its proxy. Traefik labels still need values.
-                  UI_DOMAIN: 'localhost'
-                  API_DOMAIN: 'api.localhost'
-                  TRAEFIK_DOMAIN: 'traefik.localhost'
-                  TEMPORAL_UI_DOMAIN: 'temporal.localhost'
-                  GRAFANA_DOMAIN: 'grafana.localhost'
-                  ALLOWED_ORIGINS: '*'
-                  TRAEFIK_AUTH: ''
-                  GRAFANA_AUTH: ''
-                  GRAFANA_ADMIN_USER: 'admin'
-                  GRAFANA_ADMIN_PASSWORD: 'admin'
-                  OBSERVABILITY_ENV: 'preview'
-
-                  # Auth: mock OAuth (no real Deep ID issuer).
-                  NODE_ENV: 'development'
-                  LOG_LEVEL: 'info'
-                  AUTH_MODE: 'mock'
-                  OWNER_EMAIL: 'preview@example.com'
-                  APP_PUBLIC_URL: 'https://mock.invalid'
-                  DEEP_ID_ISSUER_URL: 'https://mock.invalid'
-                  DEEP_ID_CLIENT_ID: 'mock-client-id'
-                  DEEP_ID_CLIENT_SECRET: 'mock-client-secret'
-                  DEEP_ID_AUTH_REDIRECT_URI: 'https://mock.invalid/api/v1/auth/deep-id/callback'
-                  DEEP_ID_AUTH_SCOPES: 'openid profile email offline_access'
-                  DEEP_ID_CONSENT_REDIRECT_URI: 'https://mock.invalid/api/v1/oauth/consent/deep-id/callback'
-                  DEEP_ID_CONSENT_GRANT_TTL_SECONDS: '600'
-                  VOTING_PORTAL_RETURN_URL: 'https://mock.invalid/voting'
-                  DEEP_ID_VOTING_PORTAL_SCOPES: 'api wallets'
-                  AUTH_COOKIE_NAME: 'reputo_auth_session'
-                  AUTH_COOKIE_SECURE: 'false'
-                  AUTH_COOKIE_SAME_SITE: 'lax'
                   AUTH_TOKEN_ENCRYPTION_KEY: '${{ steps.gen_auth_key.outputs.auth_token_encryption_key }}'
-
-                  # Databases (creds match the URLs below).
-                  DATABASE_URL: 'postgresql://reputo_app:reputo_app@postgres:5432/reputo_preview'
-                  ONCHAIN_DATABASE_URL: 'postgresql://reputo_onchain:reputo_onchain@onchain-data-postgresql:5432/reputo_onchain'
-                  API_POSTGRES_USER: 'reputo_app'
-                  API_POSTGRES_PASSWORD: 'reputo_app'
-                  API_POSTGRES_DB_NAME: 'reputo_preview'
-                  ONCHAIN_DATA_POSTGRES_USER: 'reputo_onchain'
-                  ONCHAIN_DATA_POSTGRES_PASSWORD: 'reputo_onchain'
-                  ONCHAIN_DATA_POSTGRES_DB_NAME: 'reputo_onchain'
-                  TEMPORAL_POSTGRES_USER: 'temporal'
-                  TEMPORAL_POSTGRES_PASSWORD: 'temporal'
-
-                  # Storage — points at in-stack MinIO, not real S3.
-                  # APP_AWS_* are the app's S3 credentials (read by compose
-                  # interpolation, exported into the container as
-                  # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY). They're
-                  # deliberately distinct from the GHA-runner AWS_ACCESS_KEY_ID
-                  # / AWS_SECRET_ACCESS_KEY that the PullPreview action uses
-                  # to talk to AWS Lightsail.
-                  STORAGE_BUCKET: 'reputo-preview'
-                  STORAGE_ENDPOINT: 'http://minio:9000'
-                  STORAGE_FORCE_PATH_STYLE: 'true'
-                  STORAGE_PRESIGN_PUT_TTL: '120'
-                  STORAGE_PRESIGN_GET_TTL: '300'
-                  STORAGE_MAX_SIZE_BYTES: '52428800'
-                  STORAGE_CONTENT_TYPE_ALLOWLIST: 'text/csv,text/plain,application/json,application/x-sqlite3'
-                  APP_AWS_ACCESS_KEY_ID: 'minio'
-                  APP_AWS_SECRET_ACCESS_KEY: 'minio12345preview'
-                  MINIO_ROOT_USER: 'minio'
-                  MINIO_ROOT_PASSWORD: 'minio12345preview'
-                  MINIO_API_HOST_BIND: '127.0.0.1'
-                  MINIO_API_HOST_PORT: '9000'
-                  MINIO_CONSOLE_HOST_BIND: '127.0.0.1'
-                  MINIO_CONSOLE_HOST_PORT: '9001'
-
-                  # Temporal.
-                  TEMPORAL_ADDRESS: 'temporal:7233'
-                  TEMPORAL_NAMESPACE: 'default'
-                  TEMPORAL_ENABLE_ES: 'true'
-                  TEMPORAL_ORCHESTRATOR_TASK_QUEUE: 'orchestrator-worker'
-                  TEMPORAL_ALGORITHM_TYPESCRIPT_TASK_QUEUE: 'algorithm-typescript-worker'
-                  TEMPORAL_ALGORITHM_PYTHON_TASK_QUEUE: 'algorithm-python-worker'
-                  TEMPORAL_ONCHAIN_DATA_TASK_QUEUE: 'onchain-data-worker'
-
-                  # External integrations.
-                  DEEPFUNDING_API_BASE_URL: 'https://deep-projects.ai/wp-json/deepfunding/v1'
                   DEEPFUNDING_API_KEY: '${{ secrets.DEEPFUNDING_API_KEY }}'
                   ALCHEMY_API_KEY: '${{ secrets.ALCHEMY_API_KEY }}'
                   BLOCKFROST_API_KEY: '${{ secrets.BLOCKFROST_API_KEY }}'
@@ -180,7 +84,7 @@ jobs:
                   label: pullpreview
                   provider: lightsail
                   instance_type: large
-                  compose_files: docker/compose/compose.yml
+                  compose_files: docker/compose/compose.preview.yml
                   compose_options: ''
                   ttl: 24h
               env:
@@ -188,77 +92,8 @@ jobs:
                   AWS_SECRET_ACCESS_KEY: '${{ secrets.AWS_SECRET_ACCESS_KEY }}'
                   AWS_REGION: 'eu-central-1'
 
-                  COMPOSE_PROFILES: 'apps,infra'
-                  COMPOSE_NETWORK_NAME: 'reputo'
                   IMAGE_TAG: 'preview-${{ github.event.pull_request.head.sha }}'
-
-                  TRAEFIK_CONFIG_FILE: 'preview.yml'
-                  TRAEFIK_HTTP_PORT: '80'
-                  TRAEFIK_HTTPS_PORT: '8443'
-                  TRAEFIK_PING_ENTRYPOINT: 'web'
-                  TRAEFIK_PING_ADDRESS: '80'
-                  PROXY_ENTRYPOINT: 'web'
-                  PROXY_TLS: 'false'
-                  PROXY_CERT_RESOLVER: 'unused'
-                  CF_DNS_API_TOKEN: ''
-
-                  UI_DOMAIN: 'localhost'
-                  API_DOMAIN: 'api.localhost'
-                  TRAEFIK_DOMAIN: 'traefik.localhost'
-                  TEMPORAL_UI_DOMAIN: 'temporal.localhost'
-                  GRAFANA_DOMAIN: 'grafana.localhost'
-                  ALLOWED_ORIGINS: '*'
-                  TRAEFIK_AUTH: ''
-                  GRAFANA_AUTH: ''
-                  GRAFANA_ADMIN_USER: 'admin'
-                  GRAFANA_ADMIN_PASSWORD: 'admin'
-                  OBSERVABILITY_ENV: 'preview'
-
-                  NODE_ENV: 'development'
-                  LOG_LEVEL: 'info'
-                  AUTH_MODE: 'mock'
-                  OWNER_EMAIL: 'preview@example.com'
-                  APP_PUBLIC_URL: 'https://mock.invalid'
-                  DEEP_ID_ISSUER_URL: 'https://mock.invalid'
-                  DEEP_ID_CLIENT_ID: 'mock-client-id'
-                  DEEP_ID_CLIENT_SECRET: 'mock-client-secret'
-                  DEEP_ID_AUTH_REDIRECT_URI: 'https://mock.invalid/api/v1/auth/deep-id/callback'
-                  DEEP_ID_AUTH_SCOPES: 'openid profile email offline_access'
-                  DEEP_ID_CONSENT_REDIRECT_URI: 'https://mock.invalid/api/v1/oauth/consent/deep-id/callback'
-                  DEEP_ID_CONSENT_GRANT_TTL_SECONDS: '600'
-                  VOTING_PORTAL_RETURN_URL: 'https://mock.invalid/voting'
-                  DEEP_ID_VOTING_PORTAL_SCOPES: 'api wallets'
-                  AUTH_COOKIE_NAME: 'reputo_auth_session'
-                  AUTH_COOKIE_SECURE: 'false'
-                  AUTH_COOKIE_SAME_SITE: 'lax'
                   AUTH_TOKEN_ENCRYPTION_KEY: '${{ steps.gen_auth_key.outputs.auth_token_encryption_key }}'
-
-                  DATABASE_URL: 'postgresql://reputo_app:reputo_app@postgres:5432/reputo_preview'
-                  ONCHAIN_DATABASE_URL: 'postgresql://reputo_onchain:reputo_onchain@onchain-data-postgresql:5432/reputo_onchain'
-                  API_POSTGRES_USER: 'reputo_app'
-                  API_POSTGRES_PASSWORD: 'reputo_app'
-                  API_POSTGRES_DB_NAME: 'reputo_preview'
-                  ONCHAIN_DATA_POSTGRES_USER: 'reputo_onchain'
-                  ONCHAIN_DATA_POSTGRES_PASSWORD: 'reputo_onchain'
-                  ONCHAIN_DATA_POSTGRES_DB_NAME: 'reputo_onchain'
-                  TEMPORAL_POSTGRES_USER: 'temporal'
-                  TEMPORAL_POSTGRES_PASSWORD: 'temporal'
-
-                  STORAGE_BUCKET: 'reputo-pullpreview'
-                  STORAGE_PRESIGN_PUT_TTL: '120'
-                  STORAGE_PRESIGN_GET_TTL: '300'
-                  STORAGE_MAX_SIZE_BYTES: '52428800'
-                  STORAGE_CONTENT_TYPE_ALLOWLIST: 'text/csv,text/plain,application/json,application/x-sqlite3'
-
-                  TEMPORAL_ADDRESS: 'temporal:7233'
-                  TEMPORAL_NAMESPACE: 'default'
-                  TEMPORAL_ENABLE_ES: 'true'
-                  TEMPORAL_ORCHESTRATOR_TASK_QUEUE: 'orchestrator-worker'
-                  TEMPORAL_ALGORITHM_TYPESCRIPT_TASK_QUEUE: 'algorithm-typescript-worker'
-                  TEMPORAL_ALGORITHM_PYTHON_TASK_QUEUE: 'algorithm-python-worker'
-                  TEMPORAL_ONCHAIN_DATA_TASK_QUEUE: 'onchain-data-worker'
-
-                  DEEPFUNDING_API_BASE_URL: 'https://deep-projects.ai/wp-json/deepfunding/v1'
                   DEEPFUNDING_API_KEY: '${{ secrets.DEEPFUNDING_API_KEY }}'
                   ALCHEMY_API_KEY: '${{ secrets.ALCHEMY_API_KEY }}'
                   BLOCKFROST_API_KEY: '${{ secrets.BLOCKFROST_API_KEY }}'
