@@ -43,6 +43,13 @@ x-resources-l: &resources-l
     reservations:
         memory: 192M
 
+x-resources-xl: &resources-xl
+    limits:
+        memory: 768M
+        cpus: '1.50'
+    reservations:
+        memory: 384M
+
 networks:
     default:
         name: ${COMPOSE_NETWORK_NAME:-reputo}
@@ -118,7 +125,7 @@ services:
         volumes:
             - temporal_elasticsearch_data:/var/lib/elasticsearch/data
         deploy:
-            resources: *resources-l
+            resources: *resources-xl
 
     temporal-postgresql:
         <<: *service-defaults
