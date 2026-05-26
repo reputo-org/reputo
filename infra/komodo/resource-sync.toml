@@ -21,4 +21,3 @@ include_variables = false
 include_user_groups = true
 pending_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"

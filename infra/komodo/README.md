@@ -75,13 +75,27 @@ Settings used:
 
 ## Variables and secrets
 
-Every value Komodo injects into a stack comes from Komodo Variables. [resources/variables.toml](resources/variables.toml) declares the *names* and `is_secret` flags; the values are filled in the Komodo UI (`Settings > Variables`). Each stack's TOML interpolates them as `[[NAME]]` references — resolved values never appear in this repo.
+Komodo has three distinct secret locations. Putting the right value in the right place matters because they're read at different times by different processes:
 
-Variable conventions:
+| Location | Read by | What lives here |
+| --- | --- | --- |
+| `infra/komodo/core/core.env` on the Core VM | Komodo Core at startup | `KOMODO_PASSKEY`, `KOMODO_JWT_SECRET`, `KOMODO_WEBHOOK_SECRET`, `KOMODO_DATABASE_PASSWORD`, `KOMODO_GITHUB_OAUTH_*`, `CF_DNS_API_TOKEN` (for Traefik in front of Core). |
+| `/etc/komodo/periphery.config.toml` on each Periphery host | The Periphery agent at startup | The Core public key, the connect-as name, optionally a `[secrets]` block (host-scoped secrets — see [official docs](https://komo.do/docs/resources/variables)). |
+| Komodo Variables ([resources/variables.toml](resources/variables.toml) + UI values) | Komodo Core when materializing Stack / Procedure / Alerter resources | Every `STAGING_*` / `PRODUCTION_*` app environment value, plus `KOMODO_DISCORD_WEBHOOK_URL` (interpolated into the alerter). |
 
-- Per-environment: prefix with `STAGING_` or `PRODUCTION_`.
-- Cross-environment: no prefix (e.g. `KOMODO_PASSKEY`, `KOMODO_WEBHOOK_SECRET`).
+[resources/variables.toml](resources/variables.toml) declares only the *names* + `is_secret` flags; values are set in the Komodo UI (`Settings > Variables`). Each stack's TOML interpolates them as `[[NAME]]` references — resolved values never appear in this repo.
+
+Convention for Variables:
+
+- Per-environment values: prefix `STAGING_` or `PRODUCTION_`.
+- Cross-environment values that are interpolated into a Komodo resource (today: just `KOMODO_DISCORD_WEBHOOK_URL`): no prefix.
 - Secrets: variable name ends in `_SECRET`, `_KEY`, `_PASSWORD`, or `_TOKEN`, and `is_secret = true`.
+
+What does **not** belong in Variables:
+
+- `KOMODO_PASSKEY`, `KOMODO_WEBHOOK_SECRET`, `KOMODO_JWT_SECRET`, `KOMODO_DATABASE_PASSWORD`, the OAuth client ID/secret — these are read at Core process startup, *before* the variable subsystem exists. They live in `core.env`.
+- Per-resource `webhook_secret` overrides. Komodo Core falls back to the global `KOMODO_WEBHOOK_SECRET` from `core.env` automatically, and that's the value GitHub Actions also signs with. Don't reintroduce `webhook_secret = "[[…]]"` on Stacks/Procedures.
+- Periphery server addresses. With the outbound Periphery → Core flow, Core auto-fills `Server.address` when the agent registers.
 
 The runtime contract for each stack is the `environment` block in its `stack.toml`. For local development, the root [`.env.example`](../../.env.example) is the single template. There is no per-stack `.env.example` because it would just duplicate the TOML and drift.
 

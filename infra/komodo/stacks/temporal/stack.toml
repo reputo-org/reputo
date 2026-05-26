@@ -34,7 +34,6 @@ destroy_before_deploy = false
 send_alerts = true
 webhook_enabled = false
 webhook_force_deploy = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[stack]]
 name = "reputo-temporal-production"
@@ -72,4 +71,3 @@ destroy_before_deploy = false
 send_alerts = true
 webhook_enabled = false
 webhook_force_deploy = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"

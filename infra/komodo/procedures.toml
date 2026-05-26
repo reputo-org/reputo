@@ -25,7 +25,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "Deploy reputo-database-staging"
@@ -45,7 +44,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "Deploy reputo-database-production"
@@ -69,7 +67,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "Deploy reputo-temporal-staging"
@@ -89,7 +86,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "Deploy reputo-temporal-production"
@@ -113,7 +109,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "Deploy reputo-observability-staging"
@@ -133,7 +128,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "Deploy reputo-observability-production"
@@ -157,7 +151,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "Deploy reputo-apps-staging"
@@ -177,7 +170,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "Deploy reputo-apps-production"
@@ -201,7 +193,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "1. Database"
@@ -235,7 +226,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "1. Database"
@@ -273,7 +263,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "1. Database"
@@ -314,7 +303,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "1. Database"
@@ -359,7 +347,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "Restart reputo-apps-staging"
@@ -379,7 +366,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "Restart reputo-apps-production"
@@ -403,7 +389,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "Backup staging databases"
@@ -423,7 +408,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "Backup production databases"
@@ -447,7 +431,6 @@ schedule_enabled = false
 schedule_alert = false
 failure_alert = true
 webhook_enabled = true
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "Deploy production apps"
@@ -473,7 +456,6 @@ schedule_timezone = "Europe/Vienna"
 schedule_alert = false
 failure_alert = true
 webhook_enabled = false
-webhook_secret = "[[KOMODO_WEBHOOK_SECRET]]"
 
 [[procedure.config.stage]]
 name = "Prune images"

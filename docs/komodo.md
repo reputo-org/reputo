@@ -171,15 +171,25 @@ Komodo platform admin status is separate from the `admins` UserGroup. A super ad
 
 ## Variables and secrets
 
+Secrets live in three different places, read by different processes at different times. Putting a value in the wrong one means it won't be read.
+
+| Location | Read by | Examples |
+| --- | --- | --- |
+| `infra/komodo/core/core.env` on the Core VM | Komodo Core at startup | `KOMODO_PASSKEY`, `KOMODO_WEBHOOK_SECRET`, `KOMODO_JWT_SECRET`, `KOMODO_DATABASE_PASSWORD`, `KOMODO_GITHUB_OAUTH_*`, `CF_DNS_API_TOKEN` |
+| `/etc/komodo/periphery.config.toml` on each Periphery host | Periphery agent at startup | Core public key, `connect_as` name, optional `[secrets]` block for host-scoped values |
+| Komodo Variables ([`variables.toml`](../infra/komodo/resources/variables.toml) + UI values) | Komodo Core when materializing Stacks / Procedures / Alerters | Every `STAGING_*` / `PRODUCTION_*` stack value, plus `KOMODO_DISCORD_WEBHOOK_URL` |
+
 The variable shells listed in [`variables.toml`](../infra/komodo/resources/variables.toml) are created when the sync runs with `include_variables = true`. After the first sync creates the shells, fill the values in the Komodo UI under `Settings > Variables`. Then flip `include_variables` back to `false` so later syncs do not flag value diffs as pending.
+
+What does **not** go in Komodo Variables:
+
+- `KOMODO_PASSKEY`, `KOMODO_WEBHOOK_SECRET`, `KOMODO_JWT_SECRET`, `KOMODO_DATABASE_PASSWORD`, OAuth client secrets — Core reads these from `core.env` at startup, before any Variable exists.
+- Periphery server addresses — Core auto-fills `Server.address` when the agent registers itself via the outbound flow.
+- Per-resource `webhook_secret` overrides — Komodo falls back to the global `KOMODO_WEBHOOK_SECRET` from `core.env`, which is also the value GitHub Actions signs with.
 
 ### Shared variables
 
-- `KOMODO_PASSKEY`
-- `KOMODO_WEBHOOK_SECRET`
-- `KOMODO_DISCORD_WEBHOOK_URL`
-- `STAGING_PERIPHERY_ADDRESS`
-- `PRODUCTION_PERIPHERY_ADDRESS`
+- `KOMODO_DISCORD_WEBHOOK_URL` — interpolated into [`alerters.toml`](../infra/komodo/resources/alerters.toml).
 
 ### Per-environment variables (prefix `STAGING_` or `PRODUCTION_`)
 
