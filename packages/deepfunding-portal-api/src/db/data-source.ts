@@ -27,14 +27,17 @@ export function buildDataSourceOptions(databasePath: string): DataSourceOptions 
 }
 
 /**
- * Standalone TypeORM `DataSource` used by the CLI (`typeorm migration:generate`,
- * `migration:run`). The runtime DataSource produced by `createDb` mirrors these
- * options exactly so generated SQL stays consistent with what the package opens
- * at sync time.
+ * Standalone TypeORM `DataSource` used by the TypeORM CLI
+ * (`typeorm migration:generate`, `migration:run`). The runtime DataSource
+ * produced by `createDb` mirrors these options exactly so generated SQL stays
+ * consistent with what the package opens at sync time.
  *
- * `DEEPFUNDING_DB_PATH` lets the CLI point at a real file when generating or
- * inspecting migrations; tests and the workflows activity bypass this by
- * calling `createDb` directly with their own path.
+ * The `process.env.DEEPFUNDING_DB_PATH` read below is a deliberate exemption
+ * from the project-wide "no direct process.env reads outside the app env
+ * module" rule: this file is only imported by the TypeORM CLI binary, never by
+ * app runtime code (tests and the workflows activity call `createDb` directly
+ * with their own path). Document the var in the package README, not in any
+ * app's Zod schema.
  */
 const cliDatabasePath = process.env.DEEPFUNDING_DB_PATH ?? ':memory:';
 

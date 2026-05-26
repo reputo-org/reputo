@@ -9,10 +9,6 @@ import { SnapshotRepository } from './snapshot.repository';
 import { SnapshotService } from './snapshot.service';
 import { SnapshotEventsService } from './snapshot-events.service';
 
-// Persistence (repository, service) is TypeORM-backed via repositories
-// registered with `TypeOrmModule.forFeature(...)`. Real-time SSE consumes
-// `SnapshotListenerService` (PG `LISTEN/NOTIFY`), provided globally by
-// `PersistenceModule`.
 @Module({
   imports: [
     TypeOrmModule.forFeature([SnapshotEntity, SnapshotOutputEntity]),

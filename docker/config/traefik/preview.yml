@@ -1,0 +1,32 @@
+global:
+    checkNewVersion: false
+    sendAnonymousUsage: false
+
+log:
+    level: INFO
+
+accessLog:
+    format: json
+    fields:
+        defaultMode: keep
+        names:
+            ClientUsername: drop
+        headers:
+            defaultMode: drop
+            names:
+                User-Agent: keep
+                Content-Type: keep
+                X-Request-Id: keep
+
+api: { dashboard: true, insecure: false }
+ping:
+    entryPoint: web
+
+entryPoints:
+    web:
+        address: ':80'
+
+providers:
+    docker:
+        exposedByDefault: false
+        network: reputo

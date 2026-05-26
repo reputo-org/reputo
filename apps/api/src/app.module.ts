@@ -5,7 +5,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { AdminModule } from './admin';
 import { AlgorithmPresetModule } from './algorithm-preset/algorithm-preset.module';
 import { AuthModule } from './auth';
-import { configModules, configValidationSchema } from './config';
+import { configModules, validateEnv } from './config';
 import { pinoConfig } from './config/pino.config';
 import { ConsentModule } from './consent';
 import { PersistenceModule } from './persistence';
@@ -16,8 +16,9 @@ import { ApiWorkerModule } from './temporal/api-worker.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
+      ignoreEnvFile: true,
       load: configModules,
-      validationSchema: configValidationSchema,
+      validate: validateEnv,
       isGlobal: true,
     }),
     LoggerModule.forRootAsync({

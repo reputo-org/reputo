@@ -68,7 +68,6 @@ export function createCardanoTransferReadRepository(db: DataSource): CardanoTran
 
       params.push(input.limit, offset);
 
-      // Step 1: Find transaction hashes matching the address + asset filter
       const txQuery = `
         SELECT DISTINCT cat.tx_hash, cat.block_height, cat.block_time
         FROM ${CARDANO_ASSET_TRANSACTIONS_TABLE} cat
@@ -101,7 +100,6 @@ export function createCardanoTransferReadRepository(db: DataSource): CardanoTran
       const txHashPlaceholders = txHashes.map((_, idx) => `$${idx + 2}`);
       const txHashList = txHashPlaceholders.join(', ');
 
-      // Step 2: Fetch inputs with amounts for matched transactions
       const inputsQuery = `
         SELECT i.tx_hash, i.input_index, i.address, ia.unit, ia.quantity
         FROM ${CARDANO_TRANSACTION_UTXO_INPUTS_TABLE} i
@@ -119,7 +117,6 @@ export function createCardanoTransferReadRepository(db: DataSource): CardanoTran
         quantity: string;
       }> = await db.query(inputsQuery, [chain, ...txHashes]);
 
-      // Step 3: Fetch outputs with amounts for matched transactions
       const outputsQuery = `
         SELECT o.tx_hash, o.output_index, o.address, oa.unit, oa.quantity
         FROM ${CARDANO_TRANSACTION_UTXO_OUTPUTS_TABLE} o
@@ -137,7 +134,6 @@ export function createCardanoTransferReadRepository(db: DataSource): CardanoTran
         quantity: string;
       }> = await db.query(outputsQuery, [chain, ...txHashes]);
 
-      // Step 4: Assemble denormalized results
       const txMap = new Map<string, CardanoRawTransactionUtxoData>();
       for (const row of txRows) {
         txMap.set(row.tx_hash, {
@@ -149,7 +145,6 @@ export function createCardanoTransferReadRepository(db: DataSource): CardanoTran
         });
       }
 
-      // Group inputs by tx_hash + input_index
       const inputGroupKey = (r: { tx_hash: string; input_index: number }) => `${r.tx_hash}:${r.input_index}`;
       const inputGroups = new Map<string, { address: string; amounts: Array<{ unit: string; quantity: string }> }>();
       for (const row of inputRows) {
@@ -170,7 +165,6 @@ export function createCardanoTransferReadRepository(db: DataSource): CardanoTran
         }
       }
 
-      // Group outputs by tx_hash + output_index
       const outputGroupKey = (r: { tx_hash: string; output_index: number }) => `${r.tx_hash}:${r.output_index}`;
       const outputGroups = new Map<
         string,
@@ -194,7 +188,6 @@ export function createCardanoTransferReadRepository(db: DataSource): CardanoTran
         }
       }
 
-      // Return in order
       return txRows.map((row) => {
         const transaction = txMap.get(row.tx_hash);
         if (!transaction) {

@@ -6,7 +6,6 @@ import addFormatsModule from 'ajv-formats';
 import { ValidationError } from '../errors/index.js';
 import type { ValidationErrorDetail, ValidationResult } from '../types/index.js';
 
-// Handle CJS/ESM interop for nodenext module resolution
 type CjsModule<T> = T & { default?: T };
 const Ajv2020 = (Ajv2020Module as CjsModule<typeof Ajv2020Module>).default ?? Ajv2020Module;
 const addFormats = (addFormatsModule as CjsModule<typeof addFormatsModule>).default ?? addFormatsModule;

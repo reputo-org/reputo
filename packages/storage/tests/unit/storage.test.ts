@@ -9,7 +9,6 @@ import {
 } from '../../src/shared/errors/index.js';
 import { Storage } from '../../src/storage.js';
 
-// Mock AWS SDK
 vi.mock('@aws-sdk/client-s3');
 vi.mock('@aws-sdk/s3-request-presigner');
 
@@ -19,18 +18,15 @@ describe('Storage', () => {
 
   const testBucket = 'test-bucket';
   const testContentTypeAllowlist = ['text/csv', 'application/json', 'text/plain'];
-  const testMaxSizeBytes = 1048576; // 1 MB
+  const testMaxSizeBytes = 1048576;
 
   beforeEach(() => {
-    // Create a mock S3Client
     mockS3Client = {
       send: vi.fn(),
     } as unknown as S3Client;
 
-    // Reset all mocks
     vi.clearAllMocks();
 
-    // Create Storage instance with S3Client
     storage = new Storage(mockS3Client);
   });
 
@@ -114,7 +110,7 @@ describe('Storage', () => {
       const uuid = '550e8400-e29b-41d4-a716-446655440000';
       const key = `uploads/${uuid}/large.csv`;
       const mockHead = {
-        ContentLength: 2097152, // 2 MB
+        ContentLength: 2097152,
         ContentType: 'text/csv',
       };
 
@@ -190,7 +186,6 @@ describe('Storage', () => {
       const key = `uploads/${uuid}/data.bin`;
       const mockHead = {
         ContentLength: 512,
-        // No ContentType provided
       };
 
       vi.mocked(mockS3Client.send).mockResolvedValue(mockHead);
@@ -380,7 +375,6 @@ describe('Storage', () => {
 
       expect(result).toBe(key);
       expect(mockS3Client.send).toHaveBeenCalledTimes(1);
-      // Verify that send was called with a command that has no ContentType
       const callArgs = vi.mocked(mockS3Client.send).mock.calls[0];
       const command = callArgs?.[0] as { input?: { ContentType?: string } };
       expect(command?.input?.ContentType).toBeUndefined();

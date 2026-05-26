@@ -1,66 +1,55 @@
 {
-    "$schema": "https://turborepo.com/schema.json",
-    "ui": "stream",
-    "globalDependencies": [
-        "biome.json",
-        "pnpm-workspace.yaml",
-        "tsconfig.vitest.json",
-        "vitest.base.ts",
-        "vitest.config.ts",
-        ".env",
-        ".env.production"
-    ],
-    "globalPassThroughEnv": ["NODE_ENV", "CI"],
-    "tasks": {
-        "build": {
-            "dependsOn": ["^build"],
-            "outputs": [
-                "dist/**",
-                ".next/**",
-                "!.next/cache/**",
-                "src/registry/**/.generated.json"
-            ],
-            "inputs": [
-                "$TURBO_DEFAULT$",
-                "!**/*.test.ts",
-                "!**/*.spec.ts",
-                "!coverage/**",
-                "!docs/**"
-            ]
-        },
-        "lint": {
-            "outputs": []
-        },
-        "check": {
-            "outputs": []
-        },
-        "format": {
-            "cache": false
-        },
-        "typecheck": {
-            "dependsOn": ["^build"],
-            "outputs": []
-        },
-        "test": {
-            "dependsOn": ["^build"],
-            "outputs": ["coverage/**"],
-            "inputs": ["$TURBO_DEFAULT$"]
-        },
-        "test:cov": {
-            "dependsOn": ["^build"],
-            "outputs": ["coverage/**"]
-        },
-        "dev": {
-            "cache": false,
-            "persistent": true,
-            "dependsOn": ["^build"]
-        },
-        "clean": {
-            "cache": false
-        },
-        "docs": {
-            "dependsOn": ["^build"],
-            "outputs": ["docs/**"]
-        }
+  "$schema": "https://turborepo.com/schema.json",
+  "ui": "stream",
+  "globalDependencies": [
+    "biome.json",
+    "pnpm-workspace.yaml",
+    "tsconfig.vitest.json",
+    "vitest.base.ts",
+    "vitest.config.ts",
+    ".env",
+    ".env.production"
+  ],
+  "globalPassThroughEnv": ["NODE_ENV", "CI"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "src/registry/**/.generated.json"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.test.ts", "!**/*.spec.ts", "!coverage/**", "!docs/**"]
+    },
+    "lint": {
+      "outputs": []
+    },
+    "check": {
+      "outputs": []
+    },
+    "format": {
+      "cache": false
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"],
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "test:cov": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["^build"]
+    },
+    "clean": {
+      "cache": false
+    },
+    "docs": {
+      "dependsOn": ["^build"],
+      "outputs": ["docs/**"]
     }
+  }
 }

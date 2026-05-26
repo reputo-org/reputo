@@ -151,14 +151,12 @@ export function SnapshotDetailsDialog({
                 </h3>
                 <div className="space-y-2 pb-4">
                   {Object.entries(snapshot.outputs).map(([key, value]) => {
-                    // Check if value is a storage key (file)
                     if (isStorageKey(value)) {
                       return (
                         <FileDisplay key={key} label={key} storageKey={value} />
                       )
                     }
 
-                    // Non-file value
                     return (
                       <div key={key} className="p-3 border rounded-lg">
                         <div className="font-medium mb-2">{key}</div>

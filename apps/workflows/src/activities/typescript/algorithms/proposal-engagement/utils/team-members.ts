@@ -1,17 +1,11 @@
 import type { ProposalRecord } from '@reputo/deepfunding-portal-api';
 
-/**
- * Parse team members JSON string to array of user IDs.
- */
 export function parseTeamMembers(teamMembersJson: string): number[] {
   const raw = JSON.parse(teamMembersJson) as number[];
   return raw.map((x) => Number(x));
 }
 
-/**
- * Build set of all owners (proposer + team members) for a proposal.
- * Returns a sorted array for deterministic output.
- */
+/** Returns a sorted array for deterministic output. */
 export function buildProposalOwners(proposal: ProposalRecord): {
   owners: Set<number>;
   ownersArray: number[];

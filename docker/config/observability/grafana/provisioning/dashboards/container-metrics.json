@@ -1,268 +1,268 @@
 {
-    "annotations": { "list": [] },
-    "editable": true,
-    "fiscalYearStartMonth": 0,
-    "graphTooltip": 1,
-    "links": [],
-    "panels": [
-        {
-            "title": "Host CPU Usage",
-            "type": "gauge",
-            "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
-            "datasource": { "type": "prometheus", "uid": "" },
-            "fieldConfig": {
-                "defaults": {
-                    "unit": "percentunit",
-                    "min": 0,
-                    "max": 1,
-                    "thresholds": {
-                        "mode": "absolute",
-                        "steps": [
-                            { "color": "green", "value": null },
-                            { "color": "yellow", "value": 0.7 },
-                            { "color": "red", "value": 0.9 }
-                        ]
-                    }
-                },
-                "overrides": []
-            },
-            "targets": [
-                {
-                    "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[$__rate_interval]))",
-                    "legendFormat": "CPU",
-                    "refId": "A"
-                }
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "Host CPU Usage",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.7 },
+              { "color": "red", "value": 0.9 }
             ]
+          }
         },
+        "overrides": []
+      },
+      "targets": [
         {
-            "title": "Host Memory Usage",
-            "type": "gauge",
-            "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
-            "datasource": { "type": "prometheus", "uid": "" },
-            "fieldConfig": {
-                "defaults": {
-                    "unit": "percentunit",
-                    "min": 0,
-                    "max": 1,
-                    "thresholds": {
-                        "mode": "absolute",
-                        "steps": [
-                            { "color": "green", "value": null },
-                            { "color": "yellow", "value": 0.7 },
-                            { "color": "red", "value": 0.9 }
-                        ]
-                    }
-                },
-                "overrides": []
-            },
-            "targets": [
-                {
-                    "expr": "1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
-                    "legendFormat": "Memory",
-                    "refId": "A"
-                }
-            ]
-        },
-        {
-            "title": "Host Disk Usage",
-            "type": "gauge",
-            "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 },
-            "datasource": { "type": "prometheus", "uid": "" },
-            "fieldConfig": {
-                "defaults": {
-                    "unit": "percentunit",
-                    "min": 0,
-                    "max": 1,
-                    "thresholds": {
-                        "mode": "absolute",
-                        "steps": [
-                            { "color": "green", "value": null },
-                            { "color": "yellow", "value": 0.7 },
-                            { "color": "red", "value": 0.9 }
-                        ]
-                    }
-                },
-                "overrides": []
-            },
-            "targets": [
-                {
-                    "expr": "1 - (node_filesystem_avail_bytes{mountpoint=\"/\",fstype!=\"tmpfs\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!=\"tmpfs\"})",
-                    "legendFormat": "Disk",
-                    "refId": "A"
-                }
-            ]
-        },
-        {
-            "title": "CPU Usage per Container",
-            "type": "timeseries",
-            "gridPos": { "h": 8, "w": 24, "x": 0, "y": 6 },
-            "datasource": { "type": "prometheus", "uid": "" },
-            "fieldConfig": {
-                "defaults": {
-                    "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
-                    "unit": "percentunit"
-                },
-                "overrides": []
-            },
-            "targets": [
-                {
-                    "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"$container\"}[$__rate_interval]))",
-                    "legendFormat": "{{name}}",
-                    "refId": "A"
-                }
-            ]
-        },
-        {
-            "title": "Memory Usage per Container",
-            "type": "timeseries",
-            "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
-            "datasource": { "type": "prometheus", "uid": "" },
-            "fieldConfig": {
-                "defaults": {
-                    "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
-                    "unit": "bytes"
-                },
-                "overrides": []
-            },
-            "targets": [
-                {
-                    "expr": "container_memory_usage_bytes{name=~\"$container\"}",
-                    "legendFormat": "{{name}}",
-                    "refId": "A"
-                }
-            ]
-        },
-        {
-            "title": "Network Received per Container",
-            "type": "timeseries",
-            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
-            "datasource": { "type": "prometheus", "uid": "" },
-            "fieldConfig": {
-                "defaults": {
-                    "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
-                    "unit": "Bps"
-                },
-                "overrides": []
-            },
-            "targets": [
-                {
-                    "expr": "sum by (name) (rate(container_network_receive_bytes_total{name=~\"$container\"}[$__rate_interval]))",
-                    "legendFormat": "{{name}} rx",
-                    "refId": "A"
-                }
-            ]
-        },
-        {
-            "title": "Network Transmitted per Container",
-            "type": "timeseries",
-            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
-            "datasource": { "type": "prometheus", "uid": "" },
-            "fieldConfig": {
-                "defaults": {
-                    "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
-                    "unit": "Bps"
-                },
-                "overrides": []
-            },
-            "targets": [
-                {
-                    "expr": "sum by (name) (rate(container_network_transmit_bytes_total{name=~\"$container\"}[$__rate_interval]))",
-                    "legendFormat": "{{name}} tx",
-                    "refId": "A"
-                }
-            ]
-        },
-        {
-            "title": "Container Status",
-            "type": "table",
-            "gridPos": { "h": 8, "w": 24, "x": 0, "y": 30 },
-            "datasource": { "type": "prometheus", "uid": "" },
-            "fieldConfig": {
-                "defaults": {},
-                "overrides": [
-                    {
-                        "matcher": { "id": "byName", "options": "CPU" },
-                        "properties": [{ "id": "unit", "value": "percentunit" }]
-                    },
-                    {
-                        "matcher": { "id": "byName", "options": "Memory" },
-                        "properties": [{ "id": "unit", "value": "bytes" }]
-                    },
-                    {
-                        "matcher": { "id": "byName", "options": "Net RX" },
-                        "properties": [{ "id": "unit", "value": "Bps" }]
-                    },
-                    {
-                        "matcher": { "id": "byName", "options": "Net TX" },
-                        "properties": [{ "id": "unit", "value": "Bps" }]
-                    }
-                ]
-            },
-            "options": {
-                "showHeader": true,
-                "sortBy": [{ "displayName": "CPU", "desc": true }]
-            },
-            "transformations": [
-                {
-                    "id": "merge",
-                    "options": {}
-                }
-            ],
-            "targets": [
-                {
-                    "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"$container\"}[$__rate_interval]))",
-                    "legendFormat": "CPU",
-                    "refId": "A",
-                    "format": "table",
-                    "instant": true
-                },
-                {
-                    "expr": "container_memory_usage_bytes{name=~\"$container\"}",
-                    "legendFormat": "Memory",
-                    "refId": "B",
-                    "format": "table",
-                    "instant": true
-                },
-                {
-                    "expr": "sum by (name) (rate(container_network_receive_bytes_total{name=~\"$container\"}[$__rate_interval]))",
-                    "legendFormat": "Net RX",
-                    "refId": "C",
-                    "format": "table",
-                    "instant": true
-                },
-                {
-                    "expr": "sum by (name) (rate(container_network_transmit_bytes_total{name=~\"$container\"}[$__rate_interval]))",
-                    "legendFormat": "Net TX",
-                    "refId": "D",
-                    "format": "table",
-                    "instant": true
-                }
-            ]
+          "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[$__rate_interval]))",
+          "legendFormat": "CPU",
+          "refId": "A"
         }
-    ],
-    "schemaVersion": 39,
-    "tags": ["reputo", "metrics"],
-    "templating": {
-        "list": [
-            {
-                "current": { "selected": false, "text": "All", "value": "$__all" },
-                "datasource": { "type": "prometheus", "uid": "" },
-                "definition": "label_values(container_cpu_usage_seconds_total, name)",
-                "includeAll": true,
-                "multi": true,
-                "name": "container",
-                "query": {
-                    "qryType": 1,
-                    "query": "label_values(container_cpu_usage_seconds_total, name)"
-                },
-                "refresh": 2,
-                "type": "query"
-            }
-        ]
+      ]
     },
-    "time": { "from": "now-1h", "to": "now" },
-    "timepicker": {},
-    "timezone": "browser",
-    "title": "Container Metrics",
-    "uid": "reputo-container-metrics"
+    {
+      "title": "Host Memory Usage",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.7 },
+              { "color": "red", "value": 0.9 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+          "legendFormat": "Memory",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Host Disk Usage",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.7 },
+              { "color": "red", "value": 0.9 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "1 - (node_filesystem_avail_bytes{mountpoint=\"/\",fstype!=\"tmpfs\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!=\"tmpfs\"})",
+          "legendFormat": "Disk",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "CPU Usage per Container",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"$container\"}[$__rate_interval]))",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Memory Usage per Container",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "container_memory_usage_bytes{name=~\"$container\"}",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Network Received per Container",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (name) (rate(container_network_receive_bytes_total{name=~\"$container\"}[$__rate_interval]))",
+          "legendFormat": "{{name}} rx",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Network Transmitted per Container",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (name) (rate(container_network_transmit_bytes_total{name=~\"$container\"}[$__rate_interval]))",
+          "legendFormat": "{{name}} tx",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Container Status",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 30 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "CPU" },
+            "properties": [{ "id": "unit", "value": "percentunit" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Memory" },
+            "properties": [{ "id": "unit", "value": "bytes" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Net RX" },
+            "properties": [{ "id": "unit", "value": "Bps" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Net TX" },
+            "properties": [{ "id": "unit", "value": "Bps" }]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "CPU", "desc": true }]
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        }
+      ],
+      "targets": [
+        {
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"$container\"}[$__rate_interval]))",
+          "legendFormat": "CPU",
+          "refId": "A",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "expr": "container_memory_usage_bytes{name=~\"$container\"}",
+          "legendFormat": "Memory",
+          "refId": "B",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "expr": "sum by (name) (rate(container_network_receive_bytes_total{name=~\"$container\"}[$__rate_interval]))",
+          "legendFormat": "Net RX",
+          "refId": "C",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "expr": "sum by (name) (rate(container_network_transmit_bytes_total{name=~\"$container\"}[$__rate_interval]))",
+          "legendFormat": "Net TX",
+          "refId": "D",
+          "format": "table",
+          "instant": true
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["reputo", "metrics"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "All", "value": "$__all" },
+        "datasource": { "type": "prometheus", "uid": "" },
+        "definition": "label_values(container_cpu_usage_seconds_total, name)",
+        "includeAll": true,
+        "multi": true,
+        "name": "container",
+        "query": {
+          "qryType": 1,
+          "query": "label_values(container_cpu_usage_seconds_total, name)"
+        },
+        "refresh": 2,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Container Metrics",
+  "uid": "reputo-container-metrics"
 }

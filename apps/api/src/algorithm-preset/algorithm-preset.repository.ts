@@ -11,9 +11,6 @@ export interface AlgorithmPresetInput {
   value?: unknown;
 }
 
-// Domain shape used by the rest of the API. `_id` (rather than TypeORM's `id`)
-// matches the HTTP wire format, and `inputs` is typed as the structured pair
-// list rather than the entity row shape.
 export interface AlgorithmPresetRow {
   _id: string;
   key: string;
@@ -30,7 +27,6 @@ export interface AlgorithmPresetFilter {
   version?: string;
 }
 
-// Re-exported for callers that want to pass a transactional manager through.
 export type TransactionClient = EntityManager;
 
 const sortInputs = (inputs: AlgorithmPresetInputEntity[]): AlgorithmPresetInputEntity[] =>
@@ -128,9 +124,6 @@ export class AlgorithmPresetRepository {
       if (updateDto.description !== undefined) entity.description = updateDto.description ?? null;
 
       if (updateDto.inputs !== undefined) {
-        // `@UpdateDateColumn` does not fire when only nested relations change;
-        // bump it explicitly so callers see `updatedAt` move whenever a
-        // write touches the preset.
         entity.updatedAt = new Date();
         await inputRepo.delete({ algorithmPresetId: id });
         const inputRows = buildInputRows(id, updateDto.inputs);
@@ -153,8 +146,6 @@ export class AlgorithmPresetRepository {
     return mapAlgorithmPresetRow(entity);
   }
 
-  // P23505 is Postgres' unique-violation SQLSTATE; surfaced by TypeORM via
-  // QueryFailedError.driverError.code for the `pg` driver.
   isDuplicateKeyError(error: unknown): boolean {
     return error instanceof QueryFailedError && (error.driverError as { code?: string })?.code === '23505';
   }

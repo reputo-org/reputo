@@ -39,10 +39,8 @@ export function CSVField({ input, control }: CSVFieldProps) {
   const [isValidating, setIsValidating] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
 
-  // Track the combined busy state
   const isBusy = isUploading || isValidating
 
-  // Notify form context when uploading state changes
   useEffect(() => {
     if (formUpload) {
       formUpload.setFieldUploading(input.key, isBusy)
@@ -53,7 +51,6 @@ export function CSVField({ input, control }: CSVFieldProps) {
     file: File | null,
     onChange: (value: File | string | null) => void
   ) => {
-    // Clear previous validation state
     setValidationResult(null)
     setIsUploading(false)
     clearErrors(input.key)
@@ -63,7 +60,6 @@ export function CSVField({ input, control }: CSVFieldProps) {
       return
     }
 
-    // Set file value first for UI feedback
     onChange(file)
 
     setIsValidating(true)
@@ -72,9 +68,7 @@ export function CSVField({ input, control }: CSVFieldProps) {
       setValidationResult(result)
 
       if (result.valid) {
-        // Clear any previous errors
         clearErrors(input.key)
-        // Upload file after validation passes
         setIsUploading(true)
         try {
           const contentType = file.type || "text/csv"
@@ -90,7 +84,6 @@ export function CSVField({ input, control }: CSVFieldProps) {
           if (putResponse.status < 200 || putResponse.status >= 300) {
             throw new Error(`Upload failed with status ${putResponse.status}`)
           }
-          // Set the storage key as the field value
           onChange(key)
         } catch (uploadError) {
           const errorMessage = `Upload failed: ${
@@ -109,13 +102,11 @@ export function CSVField({ input, control }: CSVFieldProps) {
           setIsUploading(false)
         }
       } else {
-        // Set form error to prevent submission
         const errorMessage = result.errors.join("; ")
         setError(input.key, {
           type: "manual",
           message: errorMessage,
         })
-        // Clear the file value so form won't submit with invalid file
         onChange(null)
       }
     } catch (error) {
@@ -141,7 +132,6 @@ export function CSVField({ input, control }: CSVFieldProps) {
       control={control}
       name={input.key}
       render={({ field: { value, onChange } }) => {
-        // Handle both File objects and string filenames (from backend)
         const fileValue = value instanceof File ? value : null
         const filenameValue = typeof value === "string" && value ? value : null
 
@@ -155,7 +145,6 @@ export function CSVField({ input, control }: CSVFieldProps) {
             </FormLabel>
             <FormControl>
               <div className="space-y-2">
-                {/* Show filename if it's a string (from backend) */}
                 {filenameValue && (
                   <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground bg-muted rounded-md border">
                     <div className="flex-1">{filenameValue}</div>

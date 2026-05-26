@@ -2,7 +2,6 @@ import { _DEFINITIONS, REGISTRY_INDEX } from '../registry/index.gen.js';
 import { NotFoundError } from '../shared/errors/index.js';
 import type { AlgorithmDefinition, SearchAlgorithmFilters } from '../shared/types/algorithm.js';
 
-// ——— internal helpers ———
 function getVersionsOrThrow(key: string): readonly string[] {
   const versions = REGISTRY_INDEX[key as keyof typeof REGISTRY_INDEX] as readonly string[] | undefined;
 
@@ -37,10 +36,8 @@ function matchesField(fieldValue: string | undefined, filterValue: string | unde
   const normalizedFilter = normalize(filterValue);
   if (!normalizedField || !normalizedFilter) return false;
 
-  // exact match (case-insensitive)
   if (normalizedField === normalizedFilter) return true;
 
-  // partial/substring match
   return normalizedField.includes(normalizedFilter);
 }
 
@@ -48,8 +45,6 @@ function getLatestVersion(key: string): string {
   const versions = getVersionsOrThrow(key);
   return versions[versions.length - 1] as string;
 }
-
-// ——— public API ———
 
 /**
  * Retrieves all available algorithm definition keys from the registry.

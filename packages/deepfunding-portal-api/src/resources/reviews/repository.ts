@@ -4,9 +4,6 @@ import { type CreateManyOptions, chunkArray, DEFAULT_CHUNK_SIZE } from '../../sh
 import { normalizeReviewToRecord } from './normalize.js';
 import type { Review, ReviewRecord } from './types.js';
 
-/**
- * Create a reviews repository bound to the given database instance.
- */
 export function createReviewsRepo(db: DeepFundingPortalDb) {
   const repo = db.dataSource.getRepository(ReviewEntity);
 

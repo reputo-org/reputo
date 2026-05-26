@@ -1,10 +1,28 @@
 {
   "name": "@reputo/workflows",
   "version": "2.0.0",
-  "description": "Temporal workflows and workers for the Reputo platform",
+  "description": "Temporal workflows and workers for the Reputo platform.",
+  "keywords": [
+    "temporal",
+    "workflow",
+    "orchestration",
+    "reputation",
+    "algorithms"
+  ],
+  "license": "GPL-3.0-only",
+  "author": {
+    "name": "Behzad Rabiei",
+    "url": "https://github.com/Behzad-rabiei"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/reputo-org/reputo.git",
+    "directory": "apps/workflows"
+  },
+  "private": true,
   "type": "module",
-  "main": "dist/workflows/index.js",
-  "types": "dist/workflows/index.d.ts",
+  "main": "./dist/workflows/index.js",
+  "types": "./dist/workflows/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/workflows/index.d.ts",
@@ -17,30 +35,30 @@
       "default": "./dist/shared/constants/index.js"
     }
   },
-  "private": true,
+  "packageManager": "pnpm@10.30.3",
   "scripts": {
-    "build:deps": "pnpm --filter @reputo/contracts --filter @reputo/deepfunding-portal-api --filter @reputo/onchain-data --filter @reputo/reputation-algorithms --filter @reputo/storage run build",
-    "dev:deps": "pnpm --filter @reputo/contracts --filter @reputo/deepfunding-portal-api --filter @reputo/onchain-data --filter @reputo/reputation-algorithms --filter @reputo/storage --parallel run dev",
     "build": "tsc",
-    "start:orchestrator": "node dist/workers/typescript/orchestrator.worker.js",
-    "start:algorithm-typescript": "node dist/workers/typescript/algorithm.worker.js",
-    "start:onchain-data": "node dist/workers/typescript/onchain-data.worker.js",
-    "dev:app": "concurrently --names orchestrator,algorithm,onchain-data --prefix name --kill-others-on-fail \"pnpm run dev:orchestrator:app\" \"pnpm run dev:algorithm-typescript:app\" \"pnpm run dev:onchain-data:app\"",
-    "dev": "pnpm run build:deps && concurrently --names deps,workers --prefix name --kill-others-on-fail \"pnpm run dev:deps\" \"pnpm run dev:app\"",
-    "dev:orchestrator:app": "dotenv -e .env -- nodemon src/workers/typescript/orchestrator.worker.ts",
-    "dev:algorithm-typescript:app": "dotenv -e .env -- nodemon src/workers/typescript/algorithm.worker.ts",
-    "dev:onchain-data:app": "dotenv -e .env -- nodemon src/workers/typescript/onchain-data.worker.ts",
-    "dev:orchestrator": "pnpm run build:deps && concurrently --names deps,orchestrator --prefix name --kill-others-on-fail \"pnpm run dev:deps\" \"pnpm run dev:orchestrator:app\"",
-    "dev:algorithm-typescript": "pnpm run build:deps && concurrently --names deps,algorithm --prefix name --kill-others-on-fail \"pnpm run dev:deps\" \"pnpm run dev:algorithm-typescript:app\"",
-    "dev:onchain-data": "pnpm run build:deps && concurrently --names deps,onchain-data --prefix name --kill-others-on-fail \"pnpm run dev:deps\" \"pnpm run dev:onchain-data:app\"",
+    "build:deps": "pnpm --filter @reputo/contracts --filter @reputo/deepfunding-portal-api --filter @reputo/onchain-data --filter @reputo/reputation-algorithms --filter @reputo/storage run build",
     "clean": "rm -rf coverage dist docs node_modules tsconfig.tsbuildinfo",
     "check": "pnpm exec biome check",
     "lint": "pnpm exec biome lint",
     "format": "pnpm exec biome format --write",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "test:cov": "vitest --coverage",
-    "typecheck": "tsc --noEmit"
+    "dev": "pnpm run build:deps && concurrently --names deps,workers --prefix name --kill-others-on-fail \"pnpm run dev:deps\" \"pnpm run dev:app\"",
+    "dev:app": "concurrently --names orchestrator,algorithm,onchain-data --prefix name --kill-others-on-fail \"pnpm run dev:orchestrator:app\" \"pnpm run dev:algorithm-typescript:app\" \"pnpm run dev:onchain-data:app\"",
+    "dev:deps": "pnpm --filter @reputo/contracts --filter @reputo/deepfunding-portal-api --filter @reputo/onchain-data --filter @reputo/reputation-algorithms --filter @reputo/storage --parallel run dev",
+    "dev:orchestrator": "pnpm run build:deps && concurrently --names deps,orchestrator --prefix name --kill-others-on-fail \"pnpm run dev:deps\" \"pnpm run dev:orchestrator:app\"",
+    "dev:orchestrator:app": "nodemon src/workers/typescript/orchestrator.worker.ts",
+    "dev:algorithm-typescript": "pnpm run build:deps && concurrently --names deps,algorithm --prefix name --kill-others-on-fail \"pnpm run dev:deps\" \"pnpm run dev:algorithm-typescript:app\"",
+    "dev:algorithm-typescript:app": "nodemon src/workers/typescript/algorithm.worker.ts",
+    "dev:onchain-data": "pnpm run build:deps && concurrently --names deps,onchain-data --prefix name --kill-others-on-fail \"pnpm run dev:deps\" \"pnpm run dev:onchain-data:app\"",
+    "dev:onchain-data:app": "nodemon src/workers/typescript/onchain-data.worker.ts",
+    "start:orchestrator": "node dist/workers/typescript/orchestrator.worker.js",
+    "start:algorithm-typescript": "node dist/workers/typescript/algorithm.worker.js",
+    "start:onchain-data": "node dist/workers/typescript/onchain-data.worker.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "catalog:",
@@ -55,31 +73,17 @@
     "@temporalio/workflow": "catalog:",
     "csv-parse": "^5.6.0",
     "csv-stringify": "^6.5.2",
-    "joi": "^17.13.3",
     "pino": "catalog:",
-    "pino-pretty": "catalog:"
+    "pino-pretty": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
     "@types/node": "catalog:",
     "concurrently": "catalog:",
-    "dotenv-cli": "^7.4.2",
-    "nodemon": "^3.1.9",
+    "nodemon": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
-  },
-  "keywords": [
-    "temporal",
-    "workflow",
-    "orchestration",
-    "reputation",
-    "algorithms"
-  ],
-  "author": {
-    "name": "Behzad Rabiei",
-    "url": "https://github.com/Behzad-rabiei"
-  },
-  "license": "GPL-3.0",
-  "packageManager": "pnpm@10.30.3"
+  }
 }

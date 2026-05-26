@@ -170,7 +170,6 @@ describe('validation', () => {
           type: 'array',
           minItems: 1,
           required: true,
-          // FormSchema uses itemProperties instead of item.properties
           itemProperties: [
             {
               key: 'chain',

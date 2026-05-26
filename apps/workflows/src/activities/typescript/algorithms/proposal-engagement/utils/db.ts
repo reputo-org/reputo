@@ -6,13 +6,6 @@ import type { Storage } from '@reputo/storage';
 import config from '../../../../../config/index.js';
 import { getDeepfundingDbKey } from '../../../../../shared/constants/index.js';
 
-/**
- * Download and create a local copy of the DeepFunding database.
- *
- * @param snapshotId - The snapshot ID to fetch the database for
- * @param storage - Storage client for file operations
- * @returns Path to the local database file
- */
 export async function createDeepFundingDb(snapshotId: string, storage: Storage): Promise<string> {
   const deepfundingDbKey = getDeepfundingDbKey(snapshotId);
   const dbBytes = await storage.getObject({

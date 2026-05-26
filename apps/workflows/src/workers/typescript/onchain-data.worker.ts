@@ -6,31 +6,8 @@ import config from '../../config/index.js';
 import { ONCHAIN_DATA_WORKER_MAX_CONCURRENT_ACTIVITIES } from '../../shared/constants/index.js';
 import { logger } from '../../shared/utils/index.js';
 
-export type OnchainDataWorkerConfig = {
-  alchemyApiKey: string;
-  blockfrostAPIKey: string;
-  databaseUrl: string;
-};
-
-export function getOnchainDataWorkerConfig(): OnchainDataWorkerConfig {
-  if (config.onchainData.alchemyApiKey == null) {
-    throw new Error('Config validation error: ALCHEMY_API_KEY is required for onchain-data worker');
-  }
-
-  if (config.onchainData.blockfrostAPIKey == null) {
-    throw new Error('Config validation error: BLOCKFROST_API_KEY is required for onchain-data worker');
-  }
-
-  return {
-    alchemyApiKey: config.onchainData.alchemyApiKey,
-    blockfrostAPIKey: config.onchainData.blockfrostAPIKey,
-    databaseUrl: config.onchainData.uri,
-  };
-}
-
 export async function runOnchainDataWorker(): Promise<void> {
   logger.info('Starting Onchain Data Worker');
-  const onchainDataConfig = getOnchainDataWorkerConfig();
 
   const connection = await NativeConnection.connect({
     address: config.temporal.address,
@@ -39,9 +16,9 @@ export async function runOnchainDataWorker(): Promise<void> {
   logger.info('Connected to Temporal server');
 
   const activities = createOnchainDataDependencyResolverActivities({
-    databaseUrl: onchainDataConfig.databaseUrl,
-    alchemyApiKey: onchainDataConfig.alchemyApiKey,
-    blockfrostAPIKey: onchainDataConfig.blockfrostAPIKey,
+    databaseUrl: config.onchainData.uri,
+    alchemyApiKey: config.onchainData.alchemyApiKey,
+    blockfrostAPIKey: config.onchainData.blockfrostAPIKey,
   });
 
   logger.info(`Activities initialized: [${Object.keys(activities).join(', ')}]`);

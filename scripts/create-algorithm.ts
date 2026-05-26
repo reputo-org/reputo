@@ -1,114 +1,66 @@
 #!/usr/bin/env tsx
 
-/**
- * Unified CLI for creating algorithm definitions and scaffolding activities.
- *
- * This script orchestrates both:
- * 1. Creating an algorithm definition in packages/reputation-algorithms
- * 2. Scaffolding an activity implementation in apps/workflows
- *
- * Usage:
- *   pnpm algorithm:create <key> <version>
- *
- * Examples:
- *   pnpm algorithm:create voting_engagement 1.0.0
- *   pnpm algorithm:create proposal_engagement 2.0.0
- */
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createAlgorithmTemplate } from '../packages/reputation-algorithms/src/shared/utils/templates.js';
+import { validateKey, validateVersion } from '../packages/reputation-algorithms/src/shared/utils/validation.js';
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import {
-    validateKey,
-    validateVersion,
-} from '../packages/reputation-algorithms/src/shared/utils/validation.js'
-import { createAlgorithmTemplate } from '../packages/reputation-algorithms/src/shared/utils/templates.js'
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const MONOREPO_ROOT = join(__dirname, '..');
 
-// Get monorepo root directory
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-const MONOREPO_ROOT = join(__dirname, '..')
+const REPUTATION_ALGORITHMS_PATH = join(MONOREPO_ROOT, 'packages', 'reputation-algorithms');
+const WORKFLOWS_PATH = join(MONOREPO_ROOT, 'apps', 'workflows');
 
-// Package paths
-const REPUTATION_ALGORITHMS_PATH = join(
-    MONOREPO_ROOT,
-    'packages',
-    'reputation-algorithms'
-)
-const WORKFLOWS_PATH = join(MONOREPO_ROOT, 'apps', 'workflows')
-
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
-/**
- * Convert snake_case to kebab-case for folder names.
- */
 function toKebabCase(key: string): string {
-    return key.replace(/_/g, '-')
+  return key.replace(/_/g, '-');
 }
 
-/**
- * Convert snake_case to PascalCase for function names.
- */
 function toPascalCase(key: string): string {
-    return key
-        .split('_')
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join('')
+  return key
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
 }
-
-// ============================================================================
-// Algorithm Definition Creation
-// ============================================================================
 
 interface CreateDefinitionResult {
-    filePath: string
-    created: boolean
+  filePath: string;
+  created: boolean;
 }
 
-function createAlgorithmDefinition(
-    key: string,
-    version: string
-): CreateDefinitionResult {
-    const registryPath = join(REPUTATION_ALGORITHMS_PATH, 'src', 'registry')
-    const keyDir = join(registryPath, key)
-    const filePath = join(keyDir, `${version}.json`)
+function createAlgorithmDefinition(key: string, version: string): CreateDefinitionResult {
+  const registryPath = join(REPUTATION_ALGORITHMS_PATH, 'src', 'registry');
+  const keyDir = join(registryPath, key);
+  const filePath = join(keyDir, `${version}.json`);
 
-    if (existsSync(filePath)) {
-        throw new Error(`Algorithm definition already exists: ${filePath}`)
-    }
+  if (existsSync(filePath)) {
+    throw new Error(`Algorithm definition already exists: ${filePath}`);
+  }
 
-    mkdirSync(keyDir, { recursive: true })
+  mkdirSync(keyDir, { recursive: true });
 
-    const template = createAlgorithmTemplate(key, version)
-    const content = JSON.stringify(template, null, 4)
+  const template = createAlgorithmTemplate(key, version);
+  const content = JSON.stringify(template, null, 4);
 
-    writeFileSync(filePath, `${content}\n`, 'utf-8')
+  writeFileSync(filePath, `${content}\n`, 'utf-8');
 
-    return { filePath, created: true }
+  return { filePath, created: true };
 }
-
-// ============================================================================
-// Activity Scaffold Generation
-// ============================================================================
 
 interface CreateActivityResult {
-    algorithmDir: string
-    computeFile: string
-    indexFile: string
-    dispatcherUpdated: boolean
-    algorithmsIndexUpdated: boolean
+  algorithmDir: string;
+  computeFile: string;
+  indexFile: string;
+  dispatcherUpdated: boolean;
+  algorithmsIndexUpdated: boolean;
 }
 
-/**
- * Generate the compute.ts scaffold content for a new algorithm.
- */
 function generateComputeScaffold(algorithmKey: string): string {
-    const pascalName = toPascalCase(algorithmKey)
-    const functionName = `compute${pascalName}`
+  const pascalName = toPascalCase(algorithmKey);
+  const functionName = `compute${pascalName}`;
 
-    return `import { generateKey, type Storage } from '@reputo/storage'
+  return `import { generateKey, type Storage } from '@reputo/storage'
 import { Context } from '@temporalio/activity'
 import { parse } from 'csv-parse/sync'
 import { stringify } from 'csv-stringify/sync'
@@ -164,7 +116,6 @@ export async function ${functionName}(
         resultCount: results.length,
     })
 
-    // Generate and upload CSV output
     const outputCsv = stringify(results, {
         header: true,
         columns: ['id', 'score'],
@@ -186,380 +137,276 @@ export async function ${functionName}(
         },
     }
 }
-`
+`;
 }
 
-/**
- * Generate the index.ts content for a new algorithm.
- */
 function generateIndexScaffold(algorithmKey: string): string {
-    const pascalName = toPascalCase(algorithmKey)
-    const functionName = `compute${pascalName}`
+  const pascalName = toPascalCase(algorithmKey);
+  const functionName = `compute${pascalName}`;
 
-    return `export { ${functionName} } from './compute.js';
-`
+  return `export { ${functionName} } from './compute.js';
+`;
 }
 
-/**
- * Update the dispatcher to include the new algorithm.
- */
 function updateDispatcher(algorithmKey: string): boolean {
-    const dispatcherPath = join(
-        WORKFLOWS_PATH,
-        'src',
-        'activities',
-        'typescript',
-        'dispatchAlgorithm.activity.ts'
-    )
+  const dispatcherPath = join(WORKFLOWS_PATH, 'src', 'activities', 'typescript', 'dispatchAlgorithm.activity.ts');
 
-    if (!existsSync(dispatcherPath)) {
-        throw new Error(`Dispatcher file not found: ${dispatcherPath}`)
-    }
+  if (!existsSync(dispatcherPath)) {
+    throw new Error(`Dispatcher file not found: ${dispatcherPath}`);
+  }
 
-    const content = readFileSync(dispatcherPath, 'utf-8')
-    const kebabName = toKebabCase(algorithmKey)
-    const pascalName = toPascalCase(algorithmKey)
-    const functionName = `compute${pascalName}`
+  const content = readFileSync(dispatcherPath, 'utf-8');
+  const kebabName = toKebabCase(algorithmKey);
+  const pascalName = toPascalCase(algorithmKey);
+  const functionName = `compute${pascalName}`;
 
-    // Check if already registered
-    if (content.includes(`${algorithmKey}:`)) {
-        return false
-    }
+  if (content.includes(`${algorithmKey}:`)) {
+    return false;
+  }
 
-    // Add import statement
-    const importLine = `import { ${functionName} } from './algorithms/${kebabName}/compute.js'`
-    const lastImportMatch = content.match(
-        /^import .* from ['"]\.\/algorithms\/.*['"]$/gm
-    )
+  const importLine = `import { ${functionName} } from './algorithms/${kebabName}/compute.js'`;
+  const lastImportMatch = content.match(/^import .* from ['"]\.\/algorithms\/.*['"]$/gm);
 
-    let updatedContent: string
-    if (lastImportMatch && lastImportMatch.length > 0) {
-        const lastImport = lastImportMatch[lastImportMatch.length - 1]
-        updatedContent = content.replace(
-            lastImport,
-            `${lastImport}\n${importLine}`
-        )
+  let updatedContent: string;
+  if (lastImportMatch && lastImportMatch.length > 0) {
+    const lastImport = lastImportMatch[lastImportMatch.length - 1];
+    updatedContent = content.replace(lastImport, `${lastImport}\n${importLine}`);
+  } else {
+    const importsEndMatch = content.match(/^import .* from ['"][^'"]+['"]$/gm);
+    if (importsEndMatch && importsEndMatch.length > 0) {
+      const lastImport = importsEndMatch[importsEndMatch.length - 1];
+      updatedContent = content.replace(lastImport, `${lastImport}\n${importLine}`);
     } else {
-        // Find the imports block and add after it
-        const importsEndMatch = content.match(
-            /^import .* from ['"][^'"]+['"]$/gm
-        )
-        if (importsEndMatch && importsEndMatch.length > 0) {
-            const lastImport = importsEndMatch[importsEndMatch.length - 1]
-            updatedContent = content.replace(
-                lastImport,
-                `${lastImport}\n${importLine}`
-            )
-        } else {
-            throw new Error('Could not find import statements in dispatcher')
-        }
+      throw new Error('Could not find import statements in dispatcher');
     }
+  }
 
-    // Add registry entry
-    const registryMatch = updatedContent.match(
-        /const registry: Record<string, AlgorithmComputeFunction> = \{([^}]*)\}/
-    )
-    if (!registryMatch) {
-        throw new Error('Could not find registry object in dispatcher')
-    }
+  const registryMatch = updatedContent.match(/const registry: Record<string, AlgorithmComputeFunction> = \{([^}]*)\}/);
+  if (!registryMatch) {
+    throw new Error('Could not find registry object in dispatcher');
+  }
 
-    const registryContent = registryMatch[1]
-    const entries = registryContent
-        .trim()
-        .split(',')
-        .filter((e) => e.trim())
-    const lastEntry = entries[entries.length - 1]
+  const registryContent = registryMatch[1];
+  const entries = registryContent
+    .trim()
+    .split(',')
+    .filter((e) => e.trim());
+  const lastEntry = entries[entries.length - 1];
 
-    if (lastEntry) {
-        const newEntry = `    ${algorithmKey}: ${functionName},`
-        updatedContent = updatedContent.replace(
-            registryMatch[0],
-            registryMatch[0].replace(lastEntry, `${lastEntry}\n${newEntry}`)
-        )
-    }
+  if (lastEntry) {
+    const newEntry = `    ${algorithmKey}: ${functionName},`;
+    updatedContent = updatedContent.replace(
+      registryMatch[0],
+      registryMatch[0].replace(lastEntry, `${lastEntry}\n${newEntry}`),
+    );
+  }
 
-    writeFileSync(dispatcherPath, updatedContent, 'utf-8')
-    return true
+  writeFileSync(dispatcherPath, updatedContent, 'utf-8');
+  return true;
 }
 
-/**
- * Update the algorithms index to export the new algorithm.
- */
 function updateAlgorithmsIndex(algorithmKey: string): boolean {
-    const indexPath = join(
-        WORKFLOWS_PATH,
-        'src',
-        'activities',
-        'typescript',
-        'algorithms',
-        'index.ts'
-    )
+  const indexPath = join(WORKFLOWS_PATH, 'src', 'activities', 'typescript', 'algorithms', 'index.ts');
 
-    const kebabName = toKebabCase(algorithmKey)
-    const pascalName = toPascalCase(algorithmKey)
-    const functionName = `compute${pascalName}`
-    const exportLine = `export { ${functionName} } from './${kebabName}/index.js';`
+  const kebabName = toKebabCase(algorithmKey);
+  const pascalName = toPascalCase(algorithmKey);
+  const functionName = `compute${pascalName}`;
+  const exportLine = `export { ${functionName} } from './${kebabName}/index.js';`;
 
-    if (!existsSync(indexPath)) {
-        // Create the index file
-        writeFileSync(indexPath, `${exportLine}\n`, 'utf-8')
-        return true
-    }
+  if (!existsSync(indexPath)) {
+    writeFileSync(indexPath, `${exportLine}\n`, 'utf-8');
+    return true;
+  }
 
-    const content = readFileSync(indexPath, 'utf-8')
+  const content = readFileSync(indexPath, 'utf-8');
 
-    if (content.includes(exportLine)) {
-        return false
-    }
+  if (content.includes(exportLine)) {
+    return false;
+  }
 
-    const updatedContent = `${content.trimEnd()}\n${exportLine}\n`
-    writeFileSync(indexPath, updatedContent, 'utf-8')
-    return true
+  const updatedContent = `${content.trimEnd()}\n${exportLine}\n`;
+  writeFileSync(indexPath, updatedContent, 'utf-8');
+  return true;
 }
 
-/**
- * Create activity scaffold for a TypeScript runtime algorithm.
- */
-function createTypescriptActivityScaffold(
-    algorithmKey: string
-): CreateActivityResult {
-    const algorithmsDir = join(
-        WORKFLOWS_PATH,
-        'src',
-        'activities',
-        'typescript',
-        'algorithms'
-    )
-    const kebabName = toKebabCase(algorithmKey)
-    const algorithmDir = join(algorithmsDir, kebabName)
-    const computeFile = join(algorithmDir, 'compute.ts')
-    const indexFile = join(algorithmDir, 'index.ts')
+function createTypescriptActivityScaffold(algorithmKey: string): CreateActivityResult {
+  const algorithmsDir = join(WORKFLOWS_PATH, 'src', 'activities', 'typescript', 'algorithms');
+  const kebabName = toKebabCase(algorithmKey);
+  const algorithmDir = join(algorithmsDir, kebabName);
+  const computeFile = join(algorithmDir, 'compute.ts');
+  const indexFile = join(algorithmDir, 'index.ts');
 
-    if (existsSync(algorithmDir)) {
-        throw new Error(`Algorithm directory already exists: ${algorithmDir}`)
-    }
+  if (existsSync(algorithmDir)) {
+    throw new Error(`Algorithm directory already exists: ${algorithmDir}`);
+  }
 
-    // Create algorithm directory
-    mkdirSync(algorithmDir, { recursive: true })
+  mkdirSync(algorithmDir, { recursive: true });
 
-    // Generate compute.ts scaffold
-    const computeContent = generateComputeScaffold(algorithmKey)
-    writeFileSync(computeFile, computeContent, 'utf-8')
+  const computeContent = generateComputeScaffold(algorithmKey);
+  writeFileSync(computeFile, computeContent, 'utf-8');
 
-    // Generate index.ts
-    const indexContent = generateIndexScaffold(algorithmKey)
-    writeFileSync(indexFile, indexContent, 'utf-8')
+  const indexContent = generateIndexScaffold(algorithmKey);
+  writeFileSync(indexFile, indexContent, 'utf-8');
 
-    // Update dispatcher
-    const dispatcherUpdated = updateDispatcher(algorithmKey)
+  const dispatcherUpdated = updateDispatcher(algorithmKey);
 
-    // Update algorithms index
-    const algorithmsIndexUpdated = updateAlgorithmsIndex(algorithmKey)
+  const algorithmsIndexUpdated = updateAlgorithmsIndex(algorithmKey);
 
-    return {
-        algorithmDir,
-        computeFile,
-        indexFile,
-        dispatcherUpdated,
-        algorithmsIndexUpdated,
-    }
+  return {
+    algorithmDir,
+    computeFile,
+    indexFile,
+    dispatcherUpdated,
+    algorithmsIndexUpdated,
+  };
 }
-
-// ============================================================================
-// Pre-flight Checks
-// ============================================================================
 
 interface PreflightResult {
-    canProceed: boolean
-    errors: string[]
-    warnings: string[]
+  canProceed: boolean;
+  errors: string[];
+  warnings: string[];
 }
 
 function runPreflightChecks(key: string, version: string): PreflightResult {
-    const errors: string[] = []
-    const warnings: string[] = []
+  const errors: string[] = [];
+  const warnings: string[] = [];
 
-    // Check if definition would already exist
-    const definitionPath = join(
-        REPUTATION_ALGORITHMS_PATH,
-        'src',
-        'registry',
-        key,
-        `${version}.json`
-    )
-    if (existsSync(definitionPath)) {
-        errors.push(`Algorithm definition already exists: ${definitionPath}`)
-    }
+  const definitionPath = join(REPUTATION_ALGORITHMS_PATH, 'src', 'registry', key, `${version}.json`);
+  if (existsSync(definitionPath)) {
+    errors.push(`Algorithm definition already exists: ${definitionPath}`);
+  }
 
-    // Check if activity directory would already exist
-    const kebabName = toKebabCase(key)
-    const activityPath = join(
-        WORKFLOWS_PATH,
-        'src',
-        'activities',
-        'typescript',
-        'algorithms',
-        kebabName
-    )
-    if (existsSync(activityPath)) {
-        errors.push(`Activity directory already exists: ${activityPath}`)
-    }
+  const kebabName = toKebabCase(key);
+  const activityPath = join(WORKFLOWS_PATH, 'src', 'activities', 'typescript', 'algorithms', kebabName);
+  if (existsSync(activityPath)) {
+    errors.push(`Activity directory already exists: ${activityPath}`);
+  }
 
-    // Check if required directories exist
-    if (!existsSync(REPUTATION_ALGORITHMS_PATH)) {
-        errors.push(`Package not found: ${REPUTATION_ALGORITHMS_PATH}`)
-    }
+  if (!existsSync(REPUTATION_ALGORITHMS_PATH)) {
+    errors.push(`Package not found: ${REPUTATION_ALGORITHMS_PATH}`);
+  }
 
-    if (!existsSync(WORKFLOWS_PATH)) {
-        errors.push(`Package not found: ${WORKFLOWS_PATH}`)
-    }
+  if (!existsSync(WORKFLOWS_PATH)) {
+    errors.push(`Package not found: ${WORKFLOWS_PATH}`);
+  }
 
-    return {
-        canProceed: errors.length === 0,
-        errors,
-        warnings,
-    }
+  return {
+    canProceed: errors.length === 0,
+    errors,
+    warnings,
+  };
 }
 
-// ============================================================================
-// CLI
-// ============================================================================
-
 function printUsage(): void {
-    console.log('Usage: pnpm algorithm:create <key> <version>')
-    console.log('')
-    console.log('Creates both an algorithm definition and activity scaffold.')
-    console.log('')
-    console.log('Arguments:')
-    console.log(
-        '  key      Algorithm key in snake_case (e.g., voting_engagement)'
-    )
-    console.log('  version  Semantic version (e.g., 1.0.0)')
-    console.log('')
-    console.log('Examples:')
-    console.log('  pnpm algorithm:create voting_engagement 1.0.0')
-    console.log('  pnpm algorithm:create proposal_engagement 2.1.0')
-    console.log('  pnpm algorithm:create contribution_score 1.0.0-beta')
-    console.log('')
+  console.log('Usage: pnpm algorithm:create <key> <version>');
+  console.log('');
+  console.log('Creates both an algorithm definition and activity scaffold.');
+  console.log('');
+  console.log('Arguments:');
+  console.log('  key      Algorithm key in snake_case (e.g., voting_engagement)');
+  console.log('  version  Semantic version (e.g., 1.0.0)');
+  console.log('');
+  console.log('Examples:');
+  console.log('  pnpm algorithm:create voting_engagement 1.0.0');
+  console.log('  pnpm algorithm:create proposal_engagement 2.1.0');
+  console.log('  pnpm algorithm:create contribution_score 1.0.0-beta');
+  console.log('');
 }
 
 async function main(): Promise<void> {
-    const args = process.argv.slice(2)
+  const args = process.argv.slice(2);
 
-    // Handle help flag
-    if (args.includes('--help') || args.includes('-h')) {
-        printUsage()
-        process.exit(0)
+  if (args.includes('--help') || args.includes('-h')) {
+    printUsage();
+    process.exit(0);
+  }
+
+  if (args.length !== 2) {
+    console.error('✗ Error: Both key and version are required');
+    console.error('');
+    printUsage();
+    process.exit(1);
+  }
+
+  const [key, version] = args;
+
+  if (!key || !version) {
+    console.error('✗ Error: Both key and version are required');
+    console.error('');
+    printUsage();
+    process.exit(1);
+  }
+
+  const keyValidation = validateKey(key);
+  const versionValidation = validateVersion(version);
+
+  const allErrors = [...keyValidation.errors, ...versionValidation.errors];
+  if (allErrors.length > 0) {
+    console.error('✗ Validation failed:');
+    for (const error of allErrors) {
+      console.error(`  - ${error}`);
+    }
+    console.error('');
+    console.error('Examples: voting_engagement, proposal_engagement, contribution_score');
+    process.exit(1);
+  }
+
+  const preflight = runPreflightChecks(key, version);
+  if (!preflight.canProceed) {
+    console.error('✗ Pre-flight checks failed:');
+    for (const error of preflight.errors) {
+      console.error(`  - ${error}`);
+    }
+    process.exit(1);
+  }
+
+  console.log('Creating algorithm...');
+  console.log('');
+
+  try {
+    const definitionResult = createAlgorithmDefinition(key, version);
+    console.log(`✓ Created algorithm definition:`);
+    console.log(`    ${definitionResult.filePath}`);
+  } catch (error) {
+    console.error(`✗ Failed to create algorithm definition: ${(error as Error).message}`);
+    process.exit(1);
+  }
+
+  try {
+    const activityResult = createTypescriptActivityScaffold(key);
+    console.log(`✓ Created activity scaffold:`);
+    console.log(`    ${activityResult.computeFile}`);
+    console.log(`    ${activityResult.indexFile}`);
+
+    if (activityResult.dispatcherUpdated) {
+      console.log(`✓ Updated dispatcher registry`);
     }
 
-    // Validate arguments
-    if (args.length !== 2) {
-        console.error('✗ Error: Both key and version are required')
-        console.error('')
-        printUsage()
-        process.exit(1)
+    if (activityResult.algorithmsIndexUpdated) {
+      console.log(`✓ Updated algorithms index`);
     }
+  } catch (error) {
+    console.error(`✗ Failed to create activity scaffold: ${(error as Error).message}`);
+    process.exit(1);
+  }
 
-    const [key, version] = args
-
-    if (!key || !version) {
-        console.error('✗ Error: Both key and version are required')
-        console.error('')
-        printUsage()
-        process.exit(1)
-    }
-
-    // Validate key and version format
-    const keyValidation = validateKey(key)
-    const versionValidation = validateVersion(version)
-
-    const allErrors = [...keyValidation.errors, ...versionValidation.errors]
-    if (allErrors.length > 0) {
-        console.error('✗ Validation failed:')
-        for (const error of allErrors) {
-            console.error(`  - ${error}`)
-        }
-        console.error('')
-        console.error(
-            'Examples: voting_engagement, proposal_engagement, contribution_score'
-        )
-        process.exit(1)
-    }
-
-    // Run pre-flight checks
-    const preflight = runPreflightChecks(key, version)
-    if (!preflight.canProceed) {
-        console.error('✗ Pre-flight checks failed:')
-        for (const error of preflight.errors) {
-            console.error(`  - ${error}`)
-        }
-        process.exit(1)
-    }
-
-    // Create algorithm definition
-    console.log('Creating algorithm...')
-    console.log('')
-
-    try {
-        const definitionResult = createAlgorithmDefinition(key, version)
-        console.log(`✓ Created algorithm definition:`)
-        console.log(`    ${definitionResult.filePath}`)
-    } catch (error) {
-        console.error(
-            `✗ Failed to create algorithm definition: ${
-                (error as Error).message
-            }`
-        )
-        process.exit(1)
-    }
-
-    // Create activity scaffold (TypeScript runtime by default)
-    try {
-        const activityResult = createTypescriptActivityScaffold(key)
-        console.log(`✓ Created activity scaffold:`)
-        console.log(`    ${activityResult.computeFile}`)
-        console.log(`    ${activityResult.indexFile}`)
-
-        if (activityResult.dispatcherUpdated) {
-            console.log(`✓ Updated dispatcher registry`)
-        }
-
-        if (activityResult.algorithmsIndexUpdated) {
-            console.log(`✓ Updated algorithms index`)
-        }
-    } catch (error) {
-        console.error(
-            `✗ Failed to create activity scaffold: ${(error as Error).message}`
-        )
-        process.exit(1)
-    }
-
-    // Success message
-    console.log('')
-    console.log('✅ Algorithm created successfully!')
-    console.log('')
-    console.log('Next steps:')
-    console.log(`  1. Edit the algorithm definition to define inputs/outputs:`)
-    console.log(
-        `     packages/reputation-algorithms/src/registry/${key}/${version}.json`
-    )
-    console.log('')
-    console.log(`  2. Implement the algorithm logic in the activity:`)
-    console.log(
-        `     apps/workflows/src/activities/typescript/algorithms/${toKebabCase(
-            key
-        )}/compute.ts`
-    )
-    console.log('')
-    console.log('  3. Build and validate:')
-    console.log(
-        '     pnpm --filter @reputo/reputation-algorithms registry:validate'
-    )
-    console.log('     pnpm --filter @reputo/workflows build')
-    console.log('')
+  console.log('');
+  console.log('✅ Algorithm created successfully!');
+  console.log('');
+  console.log('Next steps:');
+  console.log(`  1. Edit the algorithm definition to define inputs/outputs:`);
+  console.log(`     packages/reputation-algorithms/src/registry/${key}/${version}.json`);
+  console.log('');
+  console.log(`  2. Implement the algorithm logic in the activity:`);
+  console.log(`     apps/workflows/src/activities/typescript/algorithms/${toKebabCase(key)}/compute.ts`);
+  console.log('');
+  console.log('  3. Build and validate:');
+  console.log('     pnpm --filter @reputo/reputation-algorithms registry:validate');
+  console.log('     pnpm --filter @reputo/workflows build');
+  console.log('');
 }
 
 main().catch((error) => {
-    console.error('Unexpected error:', error)
-    process.exit(1)
-})
+  console.error('Unexpected error:', error);
+  process.exit(1);
+});

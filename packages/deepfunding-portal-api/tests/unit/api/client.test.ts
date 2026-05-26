@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDeepFundingClient } from '../../../src/api/client.js';
 import { DEFAULT_CONFIG } from '../../../src/shared/types/api-config.js';
 
-// Mock the HTTP module
 vi.mock('../../../src/api/http.js', () => ({
   createLimiter: vi.fn(() => vi.fn((fn) => fn())),
   executeRequest: vi.fn(),

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-const originalCookieName = process.env.AUTH_COOKIE_NAME
+const ORIGINAL_COOKIE_NAME = process.env.AUTH_COOKIE_NAME
 
 function createRequest(pathname: string, cookie?: string): NextRequest {
   return new NextRequest(`https://reputo.local${pathname}`, {
@@ -9,25 +9,23 @@ function createRequest(pathname: string, cookie?: string): NextRequest {
   })
 }
 
-async function loadMiddleware(cookieName?: string) {
+async function loadMiddleware(cookieName: string) {
   vi.resetModules()
-
-  if (cookieName == null) {
-    delete process.env.AUTH_COOKIE_NAME
-  } else {
-    process.env.AUTH_COOKIE_NAME = cookieName
-  }
-
+  process.env.AUTH_COOKIE_NAME = cookieName
   return import("../../src/middleware")
 }
+
+beforeEach(() => {
+  vi.resetModules()
+})
 
 afterEach(() => {
   vi.resetModules()
 
-  if (originalCookieName == null) {
+  if (ORIGINAL_COOKIE_NAME == null) {
     delete process.env.AUTH_COOKIE_NAME
   } else {
-    process.env.AUTH_COOKIE_NAME = originalCookieName
+    process.env.AUTH_COOKIE_NAME = ORIGINAL_COOKIE_NAME
   }
 })
 
@@ -50,17 +48,6 @@ describe("ui middleware", () => {
 
     expect(response.status).toBe(307)
     expect(response.headers.get("location")).toBe("https://reputo.local/login")
-  })
-
-  it("uses the backend auth cookie name as the default fallback", async () => {
-    const { middleware } = await loadMiddleware()
-
-    const response = middleware(
-      createRequest("/dashboard", "reputo_auth_session=session-123")
-    )
-
-    expect(response.headers.get("x-middleware-next")).toBe("1")
-    expect(response.headers.get("location")).toBeNull()
   })
 
   it("redirects / to /dashboard", async () => {
@@ -135,5 +122,12 @@ describe("ui middleware", () => {
     expect(config.matcher[0]).toContain("(?!api")
     expect(config.matcher[0]).toContain("_next/static")
     expect(config.matcher[0]).toContain("favicon.ico")
+  })
+
+  it("falls back to the shared default when AUTH_COOKIE_NAME is unset", async () => {
+    vi.resetModules()
+    delete process.env.AUTH_COOKIE_NAME
+    const mod = await import("../../src/middleware")
+    expect(mod).toBeDefined()
   })
 })

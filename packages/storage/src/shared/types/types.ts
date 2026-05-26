@@ -1,10 +1,4 @@
 /**
- * @reputo/storage/shared/types
- *
- * Type definitions for the storage package.
- */
-
-/**
  * Types of storage keys supported by the system.
  *
  * - 'upload': User-uploaded files (`uploads/{uuid}/{filename}.{ext}`)
@@ -12,140 +6,45 @@
  */
 export type StorageKeyType = 'upload' | 'snapshot';
 
-// ============================================================================
-// Operation-Specific Option Types
-// ============================================================================
-
-/**
- * Options for generating a presigned PUT URL.
- */
 export interface PresignPutOptions {
-  /**
-   * S3 bucket name where the object will be stored.
-   */
   bucket: string;
-
-  /**
-   * Original filename for the upload.
-   */
   filename: string;
-
-  /**
-   * MIME type of the file being uploaded.
-   */
   contentType: string;
-
-  /**
-   * Time-to-live for the presigned URL in seconds.
-   */
+  /** Time-to-live for the presigned URL in seconds. */
   ttl: number;
-
-  /**
-   * Maximum allowed file size in bytes.
-   */
   maxSizeBytes: number;
-
-  /**
-   * Allowed content types (MIME types) for uploads.
-   */
   contentTypeAllowlist: string[];
 }
 
-/**
- * Options for generating a presigned GET URL.
- */
 export interface PresignGetOptions {
-  /**
-   * S3 bucket name where the object is stored.
-   */
   bucket: string;
-
-  /**
-   * S3 key of the object to download.
-   */
   key: string;
-
-  /**
-   * Time-to-live for the presigned URL in seconds.
-   */
+  /** Time-to-live for the presigned URL in seconds. */
   ttl: number;
 }
 
-/**
- * Options for verifying an uploaded object.
- */
 export interface VerifyOptions {
-  /**
-   * S3 bucket name where the object is stored.
-   */
   bucket: string;
-
-  /**
-   * S3 key of the object to verify.
-   */
   key: string;
-
-  /**
-   * Maximum allowed file size in bytes.
-   */
   maxSizeBytes: number;
-
-  /**
-   * Allowed content types (MIME types).
-   * Optional - only validated for upload keys, not snapshot keys.
-   */
+  /** Only validated for upload keys, not snapshot keys. */
   contentTypeAllowlist?: string[];
 }
 
-/**
- * Options for reading an object from S3.
- */
 export interface GetObjectOptions {
-  /**
-   * S3 bucket name where the object is stored.
-   */
   bucket: string;
-
-  /**
-   * S3 key of the object to read.
-   */
   key: string;
 }
 
-/**
- * Options for writing an object to S3.
- */
 export interface PutObjectOptions {
-  /**
-   * S3 bucket name where the object will be stored.
-   */
   bucket: string;
-
-  /**
-   * S3 key where the object should be stored.
-   */
   key: string;
-
-  /**
-   * Object contents to write.
-   */
   body: Buffer | Uint8Array | string;
-
-  /**
-   * Optional MIME type for the object.
-   */
   contentType?: string;
-
-  /**
-   * Optional allowed content types for validation.
-   * Only validated for upload keys, not snapshot keys.
-   */
+  /** Only validated for upload keys, not snapshot keys. */
   contentTypeAllowlist?: string[];
 }
 
-/**
- * Base fields shared by all parsed storage keys.
- */
 interface ParsedStorageKeyBase {
   /**
    * Full filename including extension.
@@ -168,10 +67,6 @@ interface ParsedStorageKeyBase {
  */
 export interface ParsedUploadKey extends ParsedStorageKeyBase {
   type: 'upload';
-
-  /**
-   * UUID v4 identifier for the upload.
-   */
   uuid: string;
 }
 
@@ -181,44 +76,16 @@ export interface ParsedUploadKey extends ParsedStorageKeyBase {
  */
 export interface ParsedSnapshotKey extends ParsedStorageKeyBase {
   type: 'snapshot';
-
-  /**
-   * Unique identifier of the snapshot.
-   */
   snapshotId: string;
 }
 
-/**
- * Parsed components of a storage key.
- * Discriminated union based on the `type` field.
- */
 export type ParsedStorageKey = ParsedUploadKey | ParsedSnapshotKey;
 
-/**
- * Complete metadata about a stored object.
- * Includes both parsed key information and S3 object metadata.
- */
 export interface StorageMetadata {
-  /**
-   * Full filename including extension.
-   */
   filename: string;
-
-  /**
-   * File extension without the dot.
-   */
   ext: string;
-
-  /**
-   * Object size in bytes.
-   */
   size: number;
-
-  /**
-   * Content type (MIME type) of the object.
-   */
   contentType: string;
-
   /**
    * Unix timestamp (seconds since epoch) when the metadata was retrieved.
    * For uploads, this is typically the current time. For snapshots, this is also the current time.
@@ -226,112 +93,39 @@ export interface StorageMetadata {
   timestamp: number;
 }
 
-/**
- * Response from generating a presigned upload URL.
- */
 export interface PresignedUpload {
-  /**
-   * S3 object key where the file should be uploaded.
-   */
   key: string;
-
-  /**
-   * Presigned URL for uploading the file.
-   * Valid for the duration specified in presignPutTtl.
-   */
   url: string;
-
-  /**
-   * Number of seconds until the URL expires.
-   */
+  /** Number of seconds until the URL expires. */
   expiresIn: number;
 }
 
-/**
- * Response from generating a presigned download URL.
- * Includes metadata about the object being downloaded.
- */
 export interface PresignedDownload {
-  /**
-   * Presigned URL for downloading the file.
-   * Valid for the duration specified in presignGetTtl.
-   */
   url: string;
-
-  /**
-   * Number of seconds until the URL expires.
-   */
+  /** Number of seconds until the URL expires. */
   expiresIn: number;
-
-  /**
-   * Complete metadata about the object.
-   */
   metadata: StorageMetadata;
 }
 
-/**
- * Options for deleting a single object from S3.
- */
 export interface DeleteObjectOptions {
-  /**
-   * S3 bucket name where the object is stored.
-   */
   bucket: string;
-
-  /**
-   * S3 key of the object to delete.
-   */
   key: string;
 }
 
-/**
- * Options for listing objects by prefix.
- */
 export interface ListObjectsByPrefixOptions {
-  /**
-   * S3 bucket name where the objects are stored.
-   */
   bucket: string;
-
-  /**
-   * Prefix to filter objects by.
-   */
   prefix: string;
-
-  /**
-   * Maximum number of keys to return per page.
-   * Default is 1000 (S3 maximum).
-   */
+  /** Default is 1000 (S3 maximum). */
   maxKeys?: number;
 }
 
-/**
- * Options for deleting multiple objects from S3.
- */
 export interface DeleteObjectsOptions {
-  /**
-   * S3 bucket name where the objects are stored.
-   */
   bucket: string;
-
-  /**
-   * Array of S3 keys to delete.
-   */
   keys: string[];
 }
 
-/**
- * Result from a batch delete operation.
- */
 export interface DeleteObjectsResult {
-  /**
-   * Keys that were successfully deleted.
-   */
   deleted: string[];
-
-  /**
-   * Keys that failed to delete, with error messages.
-   */
   errors: Array<{
     key: string;
     message: string;

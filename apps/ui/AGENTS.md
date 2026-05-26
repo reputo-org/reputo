@@ -5,3 +5,9 @@
 - Do not leak server-only concerns into browser code.
 - Respect the local `/api` rewrite pattern in `next.config.ts`; do not hardcode alternate internal API hosts in UI code.
 - When behavior changes, keep the affected flow testable and add coverage where the repo already has a testing seam.
+
+## Environment
+
+- `src/lib/env.ts` is the single source of truth for this app's environment.
+- Never read `process.env.*` outside that module.
+- Adding or changing an env var: see the root [AGENTS.md](../../AGENTS.md) "Environment variables" section.

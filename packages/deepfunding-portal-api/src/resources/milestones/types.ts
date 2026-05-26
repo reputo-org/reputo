@@ -1,14 +1,11 @@
 import type { Pagination, PaginationOptions } from '../../shared/types/index.js';
 
-/**
- * Milestone status enum
- */
 export type MilestoneStatus = 'not_started' | 'pending' | 'in_progress' | 'completed';
 
 /**
- * Milestone entity from API response (without proposal-level metadata)
- * Note: Individual milestone objects don't include proposal_id, created_at,
- * or updated_at - these are at the group level in the API response.
+ * Individual milestone object as returned by the API. Does not include
+ * proposal_id/created_at/updated_at — those live at the group level in the API
+ * response and are merged in by {@link fetchMilestones}.
  */
 export type MilestoneRaw = {
   id: number;
@@ -21,7 +18,7 @@ export type MilestoneRaw = {
 };
 
 /**
- * Milestone entity with full metadata (enriched from API response)
+ * Milestone enriched with the group-level proposal metadata.
  */
 export type Milestone = {
   id: number;
@@ -37,8 +34,7 @@ export type Milestone = {
 };
 
 /**
- * Milestones API response
- * Note: The API returns milestones grouped by proposal.
+ * The API returns milestones grouped by proposal.
  */
 export type MilestoneApiResponse = {
   milestones: Array<{
@@ -50,9 +46,6 @@ export type MilestoneApiResponse = {
   pagination: Pagination;
 };
 
-/**
- * Milestone database record
- */
 export type MilestoneRecord = {
   id: number;
   proposalId: number;
@@ -66,12 +59,7 @@ export type MilestoneRecord = {
   rawJson: string;
 };
 
-/**
- * Options for fetching milestones
- */
 export type MilestoneFetchOptions = PaginationOptions & {
-  /** Filter by proposal ID */
   proposalId?: number;
-  /** Filter by status */
   status?: MilestoneStatus;
 };

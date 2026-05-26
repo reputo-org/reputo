@@ -1,14 +1,3 @@
-/**
- * Resources module for DeepFunding Portal API
- *
- * Each resource contains:
- * - types: Entity-specific type definitions
- * - api: Fetch functions for the resource
- * - normalize: Normalization functions to transform API responses to DB records
- * - repository: Database create and read functions
- * - schema: Drizzle schema definitions
- */
-
 import type { DeepFundingPortalDb } from '../shared/types/db.js';
 import { createCommentsRepo } from './comments/repository.js';
 import { createCommentVotesRepo } from './commentVotes/repository.js';

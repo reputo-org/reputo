@@ -25,10 +25,8 @@ export function assertPaginationMath(response: PaginationResponse<any>) {
   const expectedTotalPages = Math.ceil(response.totalResults / response.limit);
   expect(response.totalPages).toBe(expectedTotalPages);
 
-  // Results array length should not exceed limit
   expect(response.results.length).toBeLessThanOrEqual(response.limit);
 
-  // If not on the last page, results should equal limit
   if (response.page < response.totalPages) {
     expect(response.results.length).toBe(response.limit);
   }

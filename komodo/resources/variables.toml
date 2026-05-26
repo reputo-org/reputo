@@ -14,10 +14,6 @@
 #   - Append the entry here, flip include_variables back to true, sync, then
 #     flip it back to false.
 
-# ---------------------------------------------------------------------------
-# Global
-# ---------------------------------------------------------------------------
-
 [[variable]]
 name = "KOMODO_PASSKEY"
 description = "Shared passkey between Komodo Core and every Periphery agent."
@@ -42,10 +38,6 @@ is_secret = false
 name = "PRODUCTION_PERIPHERY_ADDRESS"
 description = "URL of the production Periphery agent (e.g. http://10.0.0.6:8120)."
 is_secret = false
-
-# ---------------------------------------------------------------------------
-# Staging variables
-# ---------------------------------------------------------------------------
 
 [[variable]]
 name = "STAGING_TRAEFIK_DOMAIN"
@@ -162,10 +154,6 @@ name = "STAGING_API_POSTGRES_DB_NAME"
 description = "Staging API application Postgres database name."
 is_secret = false
 
-# ---------------------------------------------------------------------------
-# Staging secrets
-# ---------------------------------------------------------------------------
-
 [[variable]]
 name = "STAGING_TRAEFIK_AUTH"
 description = "Staging Traefik dashboard htpasswd. Preserve doubled $$ escaping."
@@ -202,6 +190,11 @@ description = "Staging onchain-data Postgres password."
 is_secret = true
 
 [[variable]]
+name = "STAGING_ONCHAIN_DATABASE_URL"
+description = "Staging onchain-data Postgres connection URL consumed by the workflows workers. Compose this from STAGING_ONCHAIN_DATA_POSTGRES_{USER,PASSWORD,DB_NAME} once and store the result here so workers don't reassemble it."
+is_secret = true
+
+[[variable]]
 name = "STAGING_API_POSTGRES_USER"
 description = "Staging API application Postgres user."
 is_secret = true
@@ -209,6 +202,11 @@ is_secret = true
 [[variable]]
 name = "STAGING_API_POSTGRES_PASSWORD"
 description = "Staging API application Postgres password."
+is_secret = true
+
+[[variable]]
+name = "STAGING_API_DATABASE_URL"
+description = "Staging API application Postgres connection URL consumed by the NestJS API. Compose this from STAGING_API_POSTGRES_{USER,PASSWORD,DB_NAME} once and store the result here so the app doesn't reassemble it."
 is_secret = true
 
 [[variable]]
@@ -240,10 +238,6 @@ is_secret = true
 name = "STAGING_BLOCKFROST_API_KEY"
 description = "Staging Blockfrost API key."
 is_secret = true
-
-# ---------------------------------------------------------------------------
-# Production variables
-# ---------------------------------------------------------------------------
 
 [[variable]]
 name = "PRODUCTION_TRAEFIK_DOMAIN"
@@ -360,10 +354,6 @@ name = "PRODUCTION_API_POSTGRES_DB_NAME"
 description = "Production API application Postgres database name."
 is_secret = false
 
-# ---------------------------------------------------------------------------
-# Production secrets
-# ---------------------------------------------------------------------------
-
 [[variable]]
 name = "PRODUCTION_TRAEFIK_AUTH"
 description = "Production Traefik dashboard htpasswd. Preserve doubled $$ escaping."
@@ -400,6 +390,11 @@ description = "Production onchain-data Postgres password."
 is_secret = true
 
 [[variable]]
+name = "PRODUCTION_ONCHAIN_DATABASE_URL"
+description = "Production onchain-data Postgres connection URL consumed by the workflows workers. Compose this from PRODUCTION_ONCHAIN_DATA_POSTGRES_{USER,PASSWORD,DB_NAME} once and store the result here so workers don't reassemble it."
+is_secret = true
+
+[[variable]]
 name = "PRODUCTION_API_POSTGRES_USER"
 description = "Production API application Postgres user."
 is_secret = true
@@ -407,6 +402,11 @@ is_secret = true
 [[variable]]
 name = "PRODUCTION_API_POSTGRES_PASSWORD"
 description = "Production API application Postgres password."
+is_secret = true
+
+[[variable]]
+name = "PRODUCTION_API_DATABASE_URL"
+description = "Production API application Postgres connection URL consumed by the NestJS API. Compose this from PRODUCTION_API_POSTGRES_{USER,PASSWORD,DB_NAME} once and store the result here so the app doesn't reassemble it."
 is_secret = true
 
 [[variable]]

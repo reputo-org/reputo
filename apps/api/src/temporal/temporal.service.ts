@@ -4,19 +4,11 @@ import { Client, Connection } from '@temporalio/client';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { WORKFLOW_RUN_TIMEOUT } from '../shared/constants/temporal.constants';
 
-// Minimal projection of a snapshot used by the workflow lifecycle helpers
-// below. The repository's `SnapshotRow` and any equivalent DTO satisfy this
-// shape, so callers do not need a runtime conversion.
 export interface TerminableSnapshot {
   status: string;
   temporal?: { workflowId?: string } | null;
 }
 
-/**
- * Service for interacting with Temporal workflows.
- *
- * Manages Temporal client connection and provides methods to start workflows.
- */
 @Injectable()
 export class TemporalService implements OnModuleInit, OnModuleDestroy {
   private connection: Connection | null = null;
@@ -28,9 +20,6 @@ export class TemporalService implements OnModuleInit, OnModuleDestroy {
     private readonly configService: ConfigService,
   ) {}
 
-  /**
-   * Initialize Temporal connection and client on module initialization.
-   */
   async onModuleInit(): Promise<void> {
     try {
       const address = this.configService.get<string>('temporal.address');
@@ -51,13 +40,9 @@ export class TemporalService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       const err = error as Error;
       this.logger.error(`Failed to connect to Temporal: ${err.message}`, err.stack);
-      // Don't throw - allow app to start even if Temporal is unavailable
     }
   }
 
-  /**
-   * Close Temporal connection on module destruction.
-   */
   async onModuleDestroy(): Promise<void> {
     try {
       if (this.connection) {
@@ -155,7 +140,6 @@ export class TemporalService implements OnModuleInit, OnModuleDestroy {
       this.logger.info(`Workflow ${workflowId} cancelled successfully`);
     } catch (error) {
       const err = error as Error;
-      // WorkflowNotFoundError means workflow already completed or doesn't exist
       if (err.name === 'WorkflowNotFoundError') {
         this.logger.warn(`Workflow ${workflowId} not found, may have already completed`);
         return;
@@ -192,22 +176,18 @@ export class TemporalService implements OnModuleInit, OnModuleDestroy {
       if (waitForCompletion) {
         this.logger.info(`Waiting for workflow ${workflowId} to reach terminal state`);
         try {
-          // Wait for the workflow to complete (will throw when terminated)
           await handle.result();
         } catch (error) {
-          // Expected: terminated workflows throw an error
           const err = error as Error;
           if (err.name === 'WorkflowExecutionTerminatedError' || err.message?.includes('terminated')) {
             this.logger.info(`Workflow ${workflowId} confirmed terminated`);
           } else {
-            // Unexpected error, but workflow is in terminal state
             this.logger.warn(`Workflow ${workflowId} ended with unexpected error: ${err.message}`);
           }
         }
       }
     } catch (error) {
       const err = error as Error;
-      // WorkflowNotFoundError means workflow already completed or doesn't exist
       if (err.name === 'WorkflowNotFoundError') {
         this.logger.warn(`Workflow ${workflowId} not found, may have already completed`);
         return;
@@ -244,9 +224,6 @@ export class TemporalService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /**
-   * Cancels workflows for all running snapshots.
-   */
   async cancelSnapshotWorkflows(snapshots: TerminableSnapshot[]): Promise<void> {
     const runningSnapshots = snapshots.filter(
       (snapshot) => snapshot.status === 'running' && snapshot.temporal?.workflowId,
@@ -282,7 +259,6 @@ export class TemporalService implements OnModuleInit, OnModuleDestroy {
       waitForCompletion,
     });
 
-    // Terminate all workflows in parallel
     await Promise.all(
       runningSnapshots.map((snapshot) => {
         const workflowId = snapshot.temporal?.workflowId;

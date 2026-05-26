@@ -1,143 +1,143 @@
 {
-    "annotations": { "list": [] },
-    "editable": true,
-    "fiscalYearStartMonth": 0,
-    "graphTooltip": 1,
-    "links": [],
-    "panels": [
-        {
-            "title": "Log Volume",
-            "type": "timeseries",
-            "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
-            "datasource": { "type": "loki", "uid": "" },
-            "fieldConfig": {
-                "defaults": {
-                    "custom": {
-                        "drawStyle": "bars",
-                        "fillOpacity": 40,
-                        "stacking": { "mode": "normal" }
-                    }
-                },
-                "overrides": []
-            },
-            "targets": [
-                {
-                    "expr": "sum by (compose_service) (rate({compose_service=~\"$service\", env=~\"$env\"} [$__auto]))",
-                    "legendFormat": "{{compose_service}}",
-                    "refId": "A"
-                }
-            ]
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "Log Volume",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "loki", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 40,
+            "stacking": { "mode": "normal" }
+          }
         },
+        "overrides": []
+      },
+      "targets": [
         {
-            "title": "Error / Warning Count",
-            "type": "timeseries",
-            "gridPos": { "h": 6, "w": 12, "x": 0, "y": 6 },
-            "datasource": { "type": "loki", "uid": "" },
-            "fieldConfig": {
-                "defaults": {
-                    "custom": { "drawStyle": "bars", "fillOpacity": 30 },
-                    "unit": "short",
-                    "color": { "mode": "palette-classic" }
-                },
-                "overrides": []
-            },
-            "targets": [
-                {
-                    "expr": "sum by (compose_service) (count_over_time({compose_service=~\"$service\", env=~\"$env\"} |~ \"(?i)(error|exception|fatal|panic)\" [$__auto]))",
-                    "legendFormat": "{{compose_service}} errors",
-                    "refId": "A"
-                },
-                {
-                    "expr": "sum by (compose_service) (count_over_time({compose_service=~\"$service\", env=~\"$env\"} |~ \"(?i)(warn)\" [$__auto]))",
-                    "legendFormat": "{{compose_service}} warnings",
-                    "refId": "B"
-                }
-            ]
-        },
-        {
-            "title": "Log Level Distribution",
-            "type": "piechart",
-            "gridPos": { "h": 6, "w": 12, "x": 12, "y": 6 },
-            "datasource": { "type": "loki", "uid": "" },
-            "targets": [
-                {
-                    "expr": "sum(count_over_time({compose_service=~\"$service\", env=~\"$env\"} |~ \"(?i)(error|fatal|panic)\" [$__range]))",
-                    "legendFormat": "Error",
-                    "refId": "A"
-                },
-                {
-                    "expr": "sum(count_over_time({compose_service=~\"$service\", env=~\"$env\"} |~ \"(?i)warn\" [$__range]))",
-                    "legendFormat": "Warning",
-                    "refId": "B"
-                },
-                {
-                    "expr": "sum(count_over_time({compose_service=~\"$service\", env=~\"$env\"} !~ \"(?i)(error|fatal|panic|warn)\" [$__range]))",
-                    "legendFormat": "Info / Other",
-                    "refId": "C"
-                }
-            ]
-        },
-        {
-            "title": "Logs",
-            "type": "logs",
-            "gridPos": { "h": 16, "w": 24, "x": 0, "y": 12 },
-            "datasource": { "type": "loki", "uid": "" },
-            "options": {
-                "showTime": true,
-                "showLabels": true,
-                "showCommonLabels": false,
-                "wrapLogMessage": true,
-                "prettifyLogMessage": false,
-                "enableLogDetails": true,
-                "sortOrder": "Descending",
-                "dedupStrategy": "none"
-            },
-            "targets": [
-                {
-                    "expr": "{compose_service=~\"$service\", env=~\"$env\"} |~ \"$search\"",
-                    "legendFormat": "",
-                    "refId": "A"
-                }
-            ]
+          "expr": "sum by (compose_service) (rate({compose_service=~\"$service\", env=~\"$env\"} [$__auto]))",
+          "legendFormat": "{{compose_service}}",
+          "refId": "A"
         }
-    ],
-    "schemaVersion": 39,
-    "tags": ["reputo", "logs"],
-    "templating": {
-        "list": [
-            {
-                "current": { "selected": false, "text": "All", "value": "$__all" },
-                "datasource": { "type": "loki", "uid": "" },
-                "definition": "",
-                "includeAll": true,
-                "multi": false,
-                "name": "env",
-                "query": { "label": "env", "stream": "", "type": 1 },
-                "refresh": 2,
-                "type": "query"
-            },
-            {
-                "current": { "selected": false, "text": "All", "value": "$__all" },
-                "datasource": { "type": "loki", "uid": "" },
-                "definition": "",
-                "includeAll": true,
-                "multi": true,
-                "name": "service",
-                "query": { "label": "compose_service", "stream": "{env=~\"$env\"}", "type": 1 },
-                "refresh": 2,
-                "type": "query"
-            },
-            {
-                "current": { "selected": false, "text": "", "value": "" },
-                "name": "search",
-                "type": "textbox",
-                "label": "Search"
-            }
-        ]
+      ]
     },
-    "time": { "from": "now-1h", "to": "now" },
-    "timepicker": {},
-    "timezone": "browser",
-    "title": "Service Logs",
-    "uid": "reputo-service-logs"
+    {
+      "title": "Error / Warning Count",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "loki", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 30 },
+          "unit": "short",
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (compose_service) (count_over_time({compose_service=~\"$service\", env=~\"$env\"} |~ \"(?i)(error|exception|fatal|panic)\" [$__auto]))",
+          "legendFormat": "{{compose_service}} errors",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (compose_service) (count_over_time({compose_service=~\"$service\", env=~\"$env\"} |~ \"(?i)(warn)\" [$__auto]))",
+          "legendFormat": "{{compose_service}} warnings",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "Log Level Distribution",
+      "type": "piechart",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "loki", "uid": "" },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({compose_service=~\"$service\", env=~\"$env\"} |~ \"(?i)(error|fatal|panic)\" [$__range]))",
+          "legendFormat": "Error",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(count_over_time({compose_service=~\"$service\", env=~\"$env\"} |~ \"(?i)warn\" [$__range]))",
+          "legendFormat": "Warning",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(count_over_time({compose_service=~\"$service\", env=~\"$env\"} !~ \"(?i)(error|fatal|panic|warn)\" [$__range]))",
+          "legendFormat": "Info / Other",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "title": "Logs",
+      "type": "logs",
+      "gridPos": { "h": 16, "w": 24, "x": 0, "y": 12 },
+      "datasource": { "type": "loki", "uid": "" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "expr": "{compose_service=~\"$service\", env=~\"$env\"} |~ \"$search\"",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["reputo", "logs"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "All", "value": "$__all" },
+        "datasource": { "type": "loki", "uid": "" },
+        "definition": "",
+        "includeAll": true,
+        "multi": false,
+        "name": "env",
+        "query": { "label": "env", "stream": "", "type": 1 },
+        "refresh": 2,
+        "type": "query"
+      },
+      {
+        "current": { "selected": false, "text": "All", "value": "$__all" },
+        "datasource": { "type": "loki", "uid": "" },
+        "definition": "",
+        "includeAll": true,
+        "multi": true,
+        "name": "service",
+        "query": { "label": "compose_service", "stream": "{env=~\"$env\"}", "type": 1 },
+        "refresh": 2,
+        "type": "query"
+      },
+      {
+        "current": { "selected": false, "text": "", "value": "" },
+        "name": "search",
+        "type": "textbox",
+        "label": "Search"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Service Logs",
+  "uid": "reputo-service-logs"
 }

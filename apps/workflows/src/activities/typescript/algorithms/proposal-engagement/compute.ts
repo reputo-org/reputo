@@ -162,7 +162,6 @@ export async function computeProposalEngagement(snapshot: Snapshot, storage: Sto
 
     ctx.heartbeat({ phase: 'upload' });
 
-    // Generate and upload CSV output (async to avoid blocking the event loop)
     const csvContent = await stringifyCsvAsync(results, {
       header: true,
       columns: ['sub_id', 'proposal_engagement'],
@@ -179,7 +178,6 @@ export async function computeProposalEngagement(snapshot: Snapshot, storage: Sto
 
     logger.info('Uploaded proposal engagement results', { outputKey });
 
-    // Generate and upload benchmark details
     const benchmark = formatBenchmarkOutput({
       records: benchmarkRecords,
       snapshotId,

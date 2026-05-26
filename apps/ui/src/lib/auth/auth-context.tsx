@@ -14,8 +14,6 @@ import {
   resetSessionAuthenticated,
 } from "@/lib/api/services"
 
-// ── Types ──────────────────────────────────────────────────────────────
-
 /** Access roles surfaced by the API on `/me`. */
 export type AccessRole = "owner" | "admin"
 
@@ -55,11 +53,7 @@ interface AuthContextValue {
   logout: () => Promise<void>
 }
 
-// ── Context ────────────────────────────────────────────────────────────
-
 const AuthContext = createContext<AuthContextValue | null>(null)
-
-// ── Provider ───────────────────────────────────────────────────────────
 
 export function AuthBootstrapProvider({
   children,
@@ -70,7 +64,6 @@ export function AuthBootstrapProvider({
   const [session, setSession] = useState<AuthSession | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Bootstrap: fetch the current session from the backend.
   useEffect(() => {
     let cancelled = false
 
@@ -81,7 +74,6 @@ export function AuthBootstrapProvider({
         })
 
         if (!res.ok) {
-          // 401 or any non-ok → no valid session
           if (!cancelled) {
             setSession(null)
             router.replace("/login")
@@ -101,7 +93,6 @@ export function AuthBootstrapProvider({
           }
         }
       } catch {
-        // Network error → treat as unauthenticated
         if (!cancelled) {
           setSession(null)
           router.replace("/login")
@@ -137,8 +128,6 @@ export function AuthBootstrapProvider({
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
-
-// ── Hook ───────────────────────────────────────────────────────────────
 
 export function useAuthSession(): AuthContextValue {
   const ctx = useContext(AuthContext)

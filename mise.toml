@@ -1,0 +1,14 @@
+[tools]
+node = "24.14.0"
+pnpm = "10.30.3"
+
+[settings]
+auto_install = false
+
+[tasks.setup]
+description = "First-time setup: install tools, copy .env, install deps"
+run = [
+  "mise install",
+  "test -f .env || cp .env.example .env",
+  "pnpm install",
+]

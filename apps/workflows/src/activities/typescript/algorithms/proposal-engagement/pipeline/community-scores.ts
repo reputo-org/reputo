@@ -11,13 +11,7 @@ export interface CommunityScoreResult {
   norm: number | null;
 }
 
-/**
- * Aggregate community review ratings by proposal.
- * Only considers reviews with reviewType === 'community' and valid positive ratings.
- *
- * @param reviews - Array of review records
- * @returns Map of proposal ID to aggregated rating stats
- */
+/** Only considers reviews with reviewType === 'community' and valid positive ratings. */
 export function aggregateCommunityRatings(reviews: ReviewRecord[]): Map<number, CommunityRatingStats> {
   const byProposal = new Map<number, CommunityRatingStats>();
 
@@ -37,13 +31,8 @@ export function aggregateCommunityRatings(reviews: ReviewRecord[]): Map<number, 
 }
 
 /**
- * Compute community score metrics for a proposal.
  * - avg: average rating (sum / count)
  * - norm: normalized score (avg / 5, assuming 5 is max rating)
- *
- * @param proposalId - The proposal ID to look up
- * @param ratingStats - Map of community rating stats
- * @returns Community score result with count, avg, and normalized score
  */
 export function computeCommunityScore(
   proposalId: number,

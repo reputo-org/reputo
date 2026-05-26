@@ -5,6 +5,12 @@
 - Keep activity inputs and outputs explicit, and handle retries, timeouts, and cancellation intentionally.
 - When orchestration or activity behavior changes, update the corresponding workflow or activity tests.
 
+## Environment
+
+- `src/config/env.ts` is the single source of truth for this app's environment.
+- Never read `process.env.*` outside that module.
+- Adding or changing an env var: see the root [AGENTS.md](../../AGENTS.md) "Environment variables" section.
+
 ## Persistence boundary
 
 - The workflows worker has no direct access to the application database. Snapshot reads and writes are proxied to the API via Temporal activities on the `api-snapshot-activities` task queue (`API_SNAPSHOT_ACTIVITIES_TASK_QUEUE` in `@reputo/contracts`).

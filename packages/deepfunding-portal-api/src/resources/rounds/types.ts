@@ -1,6 +1,3 @@
-/**
- * Round entity from API response
- */
 export type Round = {
   id: number;
   name: string;
@@ -10,14 +7,8 @@ export type Round = {
   [key: string]: unknown;
 };
 
-/**
- * Rounds API response (array of rounds)
- */
 export type RoundApiResponse = Round[];
 
-/**
- * Round database record
- */
 export type RoundRecord = {
   id: number;
   name: string;
@@ -27,7 +18,4 @@ export type RoundRecord = {
   rawJson: string;
 };
 
-/**
- * Options for fetching rounds
- */
 export type RoundFetchOptions = Record<string, never>;

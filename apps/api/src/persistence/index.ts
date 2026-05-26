@@ -1,4 +1,3 @@
-export { default as AppDataSource } from './data-source';
 export {
   AccessAllowlistEntity,
   AlgorithmPresetEntity,

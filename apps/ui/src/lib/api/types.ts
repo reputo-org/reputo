@@ -1,5 +1,3 @@
-// API Types generated from OpenAPI spec
-
 export interface SpecDto {
   key: string
   version: string
@@ -103,7 +101,6 @@ export interface PaginatedSnapshotResponseDto {
   totalResults: number
 }
 
-// Query parameters
 export interface AlgorithmPresetQueryParams {
   sortBy?: string
   populate?: string
@@ -143,7 +140,6 @@ export interface StorageVerifyResponseDto {
   metadata: StorageMetadataDto
 }
 
-// Admins
 export type AdminRole = "owner" | "admin"
 export type OAuthProviderId = "deep-id"
 export const OAUTH_PROVIDER_IDS: readonly OAuthProviderId[] = ["deep-id"]

@@ -64,10 +64,8 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
     setIsMounted(true)
   }, [])
 
-  // Get preset filter from URL params
   const presetFilter = searchParams.get("preset")
 
-  // API hooks - filter by algorithmPreset ID if preset is selected, and by algorithm key
   const {
     data: snapshotsData,
     isLoading,
@@ -88,16 +86,14 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
     populate: "algorithmPreset",
   })
 
-  // Fetch all presets for the dropdown
   const { data: presetsData } = useAlgorithmPresets({
     key: algo?.id,
-    limit: 100, // Get more presets for the dropdown
+    limit: 100,
   })
 
-  // Subscribe to real-time snapshot updates via SSE
   useAuthAwareSnapshotEvents({
     algorithmPreset: presetFilter ?? undefined,
-    enabled: isMounted, // Only connect after component is mounted (client-side)
+    enabled: isMounted,
   })
 
   const deleteSnapshotMutation = useDeleteSnapshot()
@@ -153,7 +149,6 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
 
   const formatTimeAgo = (dateString: string) => {
     if (!isMounted) {
-      // Return a stable value during SSR to avoid hydration mismatch
       return "—"
     }
     const date = new Date(dateString)
@@ -178,17 +173,14 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
       return "—"
     }
 
-    // Show dash for running snapshots (duration not yet known)
     if (snapshot.status === "running") {
       return "—"
     }
 
-    // Show "—" for queued or cancelled snapshots
     if (snapshot.status === "queued" || snapshot.status === "cancelled") {
       return "—"
     }
 
-    // Calculate duration for completed or failed snapshots
     if (!snapshot.startedAt || !snapshot.completedAt) {
       return "—"
     }
@@ -228,7 +220,6 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
           onValueChange={(value) => {
             if (value === "all") {
               setSelectedPreset("all")
-              // Clear URL filter
               const params = new URLSearchParams(searchParams.toString())
               params.delete("preset")
               window.history.replaceState(
@@ -238,7 +229,6 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
               )
             } else {
               setSelectedPreset(value)
-              // Set URL filter
               const params = new URLSearchParams(searchParams.toString())
               params.set("preset", value)
               window.history.replaceState(
@@ -344,7 +334,6 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
             </TableHeader>
             <TableBody>
               {snapshotsData?.results.map((snapshot) => {
-                // Handle both string ID and populated object cases
                 let presetName = "Unknown Preset"
                 if (typeof snapshot.algorithmPreset === "string") {
                   presetName = `Preset ${snapshot.algorithmPreset.slice(-8)}`
@@ -415,7 +404,6 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
         </div>
       )}
 
-      {/* Dialogs */}
       <SnapshotDetailsDialog
         isOpen={isDetailsDialogOpen}
         onClose={() => setIsDetailsDialogOpen(false)}

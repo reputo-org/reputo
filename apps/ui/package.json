@@ -1,23 +1,41 @@
 {
   "name": "@reputo/ui",
   "version": "0.1.0",
-  "description": "Next.js dashboard for the Reputo platform",
+  "description": "Next.js dashboard for the Reputo platform.",
+  "keywords": [
+    "nextjs",
+    "react",
+    "ui",
+    "dashboard",
+    "reputo"
+  ],
+  "license": "GPL-3.0-only",
+  "author": {
+    "name": "Behzad Rabiei",
+    "url": "https://github.com/Behzad-rabiei"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/reputo-org/reputo.git",
+    "directory": "apps/ui"
+  },
   "private": true,
+  "packageManager": "pnpm@10.30.3",
   "scripts": {
-    "build:deps": "pnpm --filter @reputo/algorithm-validator --filter @reputo/reputation-algorithms run build",
-    "dev:deps": "pnpm --filter @reputo/algorithm-validator --filter @reputo/reputation-algorithms --parallel run dev",
-    "dev:app": "next dev --turbopack --hostname 0.0.0.0 --port 4000",
-    "dev": "pnpm run build:deps && concurrently --names deps,app --prefix name --kill-others-on-fail \"pnpm run dev:deps\" \"pnpm run dev:app\"",
     "build": "next build --turbopack",
-    "start": "next start",
+    "build:deps": "pnpm --filter @reputo/algorithm-validator --filter @reputo/reputation-algorithms run build",
+    "clean": "rm -rf coverage dist docs node_modules tsconfig.tsbuildinfo",
     "check": "biome check",
     "lint": "biome lint",
     "format": "biome format --write",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "test:cov": "vitest --coverage",
-    "typecheck": "tsc --noEmit",
-    "clean": "rm -rf coverage dist docs node_modules tsconfig.tsbuildinfo"
+    "dev": "pnpm run build:deps && concurrently --names deps,app --prefix name --kill-others-on-fail \"pnpm run dev:deps\" \"pnpm run dev:app\"",
+    "dev:app": "next dev --turbopack --hostname 0.0.0.0 --port 4000",
+    "dev:deps": "pnpm --filter @reputo/algorithm-validator --filter @reputo/reputation-algorithms --parallel run dev",
+    "start": "next start"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -56,12 +74,10 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
-    "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.546.0",
     "next": "15.5.6",
-    "next-themes": "^0.4.6",
     "react": "19.1.0",
     "react-day-picker": "^9.11.1",
     "react-dom": "19.1.0",
@@ -78,8 +94,8 @@
   "devDependencies": {
     "@biomejs/biome": "catalog:",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "concurrently": "catalog:",

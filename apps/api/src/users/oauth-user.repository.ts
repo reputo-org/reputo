@@ -4,9 +4,6 @@ import type { OAuthProvider } from '@reputo/contracts';
 import { In, Repository } from 'typeorm';
 import { OAuthUserEntity } from '../persistence';
 
-// Domain shape returned by the repository. Uses `_id` (instead of TypeORM's
-// `id`) and snake_case JWT-ish field names (`auth_time`, `email_verified`)
-// to match the SessionUserView / `/auth/me` HTTP contract.
 export interface OAuthUserRow {
   _id: string;
   provider: OAuthProvider;
@@ -24,8 +21,6 @@ export interface OAuthUserRow {
   updatedAt: Date;
 }
 
-// Subset of OAuthUserRow that callers may upsert. `provider`/`sub` are the
-// upsert key and never appear here; timestamps are managed by TypeORM.
 export interface OAuthUserUpsertInput {
   aud?: string[];
   auth_time?: number;
@@ -43,8 +38,6 @@ function mapRow(entity: OAuthUserEntity): OAuthUserRow {
     _id: entity.id,
     provider: entity.provider,
     sub: entity.sub,
-    // Collapse the empty array back to undefined so downstream JSON omits the
-    // field rather than emitting `"aud": []`.
     aud: entity.aud.length > 0 ? entity.aud : undefined,
     auth_time: entity.authTime ?? undefined,
     email: entity.email ?? undefined,
@@ -59,8 +52,6 @@ function mapRow(entity: OAuthUserEntity): OAuthUserRow {
   };
 }
 
-// Apply only those properties that are own-enumerable on `input`; callers omit
-// a key to leave it unchanged, or pass `undefined` to clear it.
 function applyUpdate(entity: OAuthUserEntity, input: OAuthUserUpsertInput): void {
   for (const key of Object.keys(input) as (keyof OAuthUserUpsertInput)[]) {
     const value = input[key];

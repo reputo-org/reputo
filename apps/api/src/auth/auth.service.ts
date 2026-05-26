@@ -133,9 +133,6 @@ export class AuthService {
 
     try {
       if (query.error) {
-        // The provider signals user-initiated cancel with `access_denied` per
-        // RFC 6749 §4.1.2.1. Treat that as a benign back-to-login instead of
-        // surfacing a 401 JSON to the browser.
         if (query.error === 'access_denied') {
           return this.denyCallbackAccess('consent_denied', undefined, undefined);
         }
@@ -414,9 +411,6 @@ export class AuthService {
       return null;
     }
 
-    // Coalesce concurrent refreshes for the same session within this process so
-    // parallel requests don't replay a rotated refresh token and trip
-    // invalid_grant on the loser.
     const existing = this.refreshInFlight.get(session.sessionId);
     if (existing) {
       return existing;
@@ -466,9 +460,7 @@ export class AuthService {
           tokenResponse.access_token,
         );
         await this.syncUserFromUserInfo(session.provider, userInfo);
-      } catch {
-        // Preserve session viability even if profile refresh is temporarily unavailable.
-      }
+      } catch {}
 
       return {
         ...updatedSession,
@@ -483,10 +475,6 @@ export class AuthService {
     session: AuthSessionWithSecrets,
     error: unknown,
   ): Promise<AuthSessionWithSecrets | null> {
-    // Only treat provider-rejection errors (invalid_grant / invalid_token) as
-    // terminal — those mean the stored refresh token will never work again.
-    // Everything else (network blips, 5xx, malformed responses) is transient
-    // and must not log the user out.
     if (!(error instanceof UnauthorizedException)) {
       this.logger.warn({
         sessionId: session.sessionId,
@@ -497,9 +485,6 @@ export class AuthService {
       return session;
     }
 
-    // A peer instance (or this one after a restart) may have already rotated
-    // the refresh token. If the persisted session was refreshed after our
-    // in-memory snapshot, adopt the latest copy instead of revoking.
     const latest = await this.authSessionRepository.findActiveBySessionId(session.sessionId, true);
     const latestRefreshedAt = latest?.lastRefreshedAt?.getTime() ?? 0;
     const ourRefreshedAt = session.lastRefreshedAt?.getTime() ?? 0;

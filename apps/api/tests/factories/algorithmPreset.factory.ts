@@ -10,9 +10,6 @@ export type AlgorithmPresetCreate = {
   description?: string;
 };
 
-// `inputs` is materialised from the relational `algorithm_preset_inputs` table
-// so callers (snapshot factories, e2e suites) can build frozen-preset payloads
-// without re-querying the child table themselves.
 export type AlgorithmPresetWithInputs = AlgorithmPresetEntity & {
   inputs: Array<Pick<AlgorithmPresetInputEntity, 'key' | 'value' | 'position'>>;
 };

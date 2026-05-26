@@ -1,8 +1,5 @@
 import type { Pagination, PaginationOptions } from '../../shared/types/index.js';
 
-/**
- * Comment entity from API response
- */
 export type Comment = {
   comment_id: number;
   parent_id: number;
@@ -20,17 +17,11 @@ export type Comment = {
   [key: string]: unknown;
 };
 
-/**
- * Comments API response
- */
 export type CommentApiResponse = {
   comments: Comment[];
   pagination: Pagination;
 };
 
-/**
- * Comment database record
- */
 export type CommentRecord = {
   commentId: number;
   parentId: number;
@@ -44,7 +35,4 @@ export type CommentRecord = {
   rawJson: string;
 };
 
-/**
- * Options for fetching comments
- */
 export type CommentFetchOptions = PaginationOptions;

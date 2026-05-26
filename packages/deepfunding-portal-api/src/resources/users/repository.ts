@@ -4,9 +4,6 @@ import { type CreateManyOptions, chunkArray, DEFAULT_CHUNK_SIZE } from '../../sh
 import { normalizeUserToRecord } from './normalize.js';
 import type { User, UserRecord } from './types.js';
 
-/**
- * Create a users repository bound to the given database instance.
- */
 export function createUsersRepo(db: DeepFundingPortalDb) {
   const repo = db.dataSource.getRepository(UserEntity);
 

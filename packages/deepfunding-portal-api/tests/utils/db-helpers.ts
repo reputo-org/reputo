@@ -1,29 +1,17 @@
 import { closeDbInstance, createDb, type DeepFundingPortalDb } from '../../src/db/client.js';
 
-/**
- * Create an in-memory database for testing
- */
 export async function createTestDb(): Promise<DeepFundingPortalDb> {
   return createDb({ path: ':memory:' });
 }
 
-/**
- * Clean up test database
- */
 export async function cleanupTestDb(db: DeepFundingPortalDb): Promise<void> {
   await closeDbInstance(db);
 }
 
-/**
- * Execute SQL directly against the underlying SQLite connection.
- */
 export async function execSql(db: DeepFundingPortalDb, sql: string): Promise<void> {
   await db.dataSource.query(sql);
 }
 
-/**
- * Check if a table exists in the database.
- */
 export async function tableExists(db: DeepFundingPortalDb, tableName: string): Promise<boolean> {
   const rows = (await db.dataSource.query("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [
     tableName,
@@ -32,8 +20,8 @@ export async function tableExists(db: DeepFundingPortalDb, tableName: string): P
 }
 
 /**
- * Get all user-defined table names in the database (excluding the TypeORM
- * `migrations` bookkeeping table and SQLite-internal tables).
+ * Return user-defined table names — excludes the TypeORM `migrations`
+ * bookkeeping table and SQLite-internal `sqlite_%` tables.
  */
 export async function getTableNames(db: DeepFundingPortalDb): Promise<string[]> {
   const rows = (await db.dataSource.query(
@@ -42,9 +30,6 @@ export async function getTableNames(db: DeepFundingPortalDb): Promise<string[]> 
   return rows.map((r) => r.name);
 }
 
-/**
- * List indexes whose name matches the given LIKE pattern (e.g. `idx_%`).
- */
 export async function getIndexNames(db: DeepFundingPortalDb, likePattern: string): Promise<string[]> {
   const rows = (await db.dataSource.query("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE ?", [
     likePattern,
@@ -52,9 +37,6 @@ export async function getIndexNames(db: DeepFundingPortalDb, likePattern: string
   return rows.map((r) => r.name);
 }
 
-/**
- * Fetch the column metadata that SQLite stores for a given table.
- */
 export async function getColumnInfo(
   db: DeepFundingPortalDb,
   tableName: string,

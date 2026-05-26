@@ -4,9 +4,6 @@ import type { PaginatedFetcher } from '../../shared/types/index.js';
 import { validatePaginationOptions } from '../../shared/utils/index.js';
 import type { Review, ReviewApiResponse, ReviewFetchOptions } from './types.js';
 
-/**
- * Fetch reviews with pagination
- */
 export async function* fetchReviews(
   client: DeepFundingClient,
   options: ReviewFetchOptions = {},

@@ -1,64 +1,69 @@
 {
-    "name": "@reputo/onchain-data",
-    "version": "0.0.0",
-    "description": "Raw EVM and Cardano asset transfer sync package backed by PostgreSQL.",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "private": true,
-    "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "import": "./dist/index.js",
-            "default": "./dist/index.js"
-        }
-    },
-    "type": "module",
-    "module": "dist/index.js",
-    "scripts": {
-        "check": "pnpm exec biome check",
-        "lint": "pnpm exec biome lint",
-        "format": "pnpm exec biome format --write",
-        "test": "vitest run",
-        "test:postgres": "RUN_POSTGRES_TESTS=true vitest run",
-        "test:watch": "vitest --watch",
-        "test:cov": "vitest --coverage",
-        "typecheck": "tsc --noEmit",
-        "dev": "tsc --watch --preserveWatchOutput",
-        "build": "tsc",
-        "docs": "typedoc",
-        "clean": "rm -rf coverage dist docs node_modules tsconfig.tsbuildinfo"
-    },
-    "dependencies": {
-        "@blockfrost/blockfrost-js": "catalog:",
-        "@blockfrost/openapi": "catalog:",
-        "pg": "catalog:",
-        "typeorm": "catalog:",
-        "undici": "catalog:"
-    },
-    "devDependencies": {
-        "@testcontainers/postgresql": "catalog:",
-        "@types/node": "catalog:",
-        "@types/pg": "catalog:",
-        "typedoc": "catalog:",
-        "typedoc-plugin-markdown": "catalog:",
-        "typescript": "catalog:",
-        "vitest": "catalog:"
-    },
-    "keywords": [
-        "typescript",
-        "onchain",
-        "blockchain",
-        "data",
-        "postgresql"
-    ],
-    "files": [
-        "dist",
-        "!dist/**/*.test.*"
-    ],
-    "author": {
-        "name": "Behzad Rabiei",
-        "url": "https://github.com/Behzad-rabiei"
-    },
-    "license": "GPL-3.0",
-    "packageManager": "pnpm@10.30.3"
+  "name": "@reputo/onchain-data",
+  "version": "0.0.0",
+  "description": "Raw EVM and Cardano asset transfer sync package backed by PostgreSQL.",
+  "keywords": [
+    "typescript",
+    "onchain",
+    "blockchain",
+    "data",
+    "postgresql"
+  ],
+  "license": "GPL-3.0-only",
+  "author": {
+    "name": "Behzad Rabiei",
+    "url": "https://github.com/Behzad-rabiei"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/reputo-org/reputo.git",
+    "directory": "packages/onchain-data"
+  },
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*"
+  ],
+  "packageManager": "pnpm@10.30.3",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf coverage dist docs node_modules tsconfig.tsbuildinfo",
+    "check": "pnpm exec biome check",
+    "lint": "pnpm exec biome lint",
+    "format": "pnpm exec biome format --write",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest --watch",
+    "test:cov": "vitest --coverage",
+    "test:integration": "RUN_POSTGRES_TESTS=true vitest run",
+    "dev": "tsc --watch --preserveWatchOutput",
+    "docs": "typedoc"
+  },
+  "dependencies": {
+    "@blockfrost/blockfrost-js": "catalog:",
+    "@blockfrost/openapi": "catalog:",
+    "pg": "catalog:",
+    "typeorm": "catalog:",
+    "undici": "catalog:"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "typedoc": "catalog:",
+    "typedoc-plugin-markdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
 }

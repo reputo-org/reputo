@@ -13,18 +13,11 @@ export interface SelfInteractionResult {
 }
 
 /**
- * Detect self-interaction penalties for a comment.
- *
  * Self-interaction penalty conditions:
  * 1. Author is related to the proposal (proposer or team member)
  * 2. Comment is a reply to another comment by the same author
  *
  * Each condition applies the penalty factor multiplicatively.
- *
- * @param comment - The comment record
- * @param penaltyFactor - Self-interaction penalty factor (0-1)
- * @param context - Context containing relation and author maps
- * @returns Self-interaction detection result
  */
 export function detectSelfInteraction(
   comment: CommentRecord,
@@ -37,13 +30,11 @@ export function detectSelfInteraction(
 
   let discountConditions = 0;
 
-  // Check if author is related to the proposal
   const isRelatedProject = relationMap.get(`${authorId}-${proposalId}`) === true;
   if (isRelatedProject) {
     discountConditions++;
   }
 
-  // Check if this is a reply to the same author's comment
   let isSameAuthorReply = false;
   const isReply = comment.isReply === true;
   if (isReply && comment.parentId > 0) {

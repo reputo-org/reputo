@@ -8,8 +8,6 @@ import { ConsentService } from './consent.service';
 import { OAuthConsentGrantRepository } from './oauth-consent-grant.repository';
 import { OAuthConsentGrantCleanupService } from './oauth-consent-grant-cleanup.service';
 
-// `PersistenceModule` is registered globally in `src/persistence`; feature
-// modules use `TypeOrmModule.forFeature(...)` to bind their entity repos.
 @Module({
   imports: [ConfigModule, TypeOrmModule.forFeature([OAuthConsentGrantEntity])],
   controllers: [ConsentController],

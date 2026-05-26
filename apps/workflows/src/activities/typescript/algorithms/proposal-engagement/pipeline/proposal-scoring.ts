@@ -31,8 +31,6 @@ export interface ProposalScoreResult {
 }
 
 /**
- * Compute proposal reward/penalty score based on classification and community rating.
- *
  * Scoring rules:
  * - funded_concluded: reward = tw * community_norm
  * - unfunded: penalty = tw * (1 - community_norm)
@@ -43,14 +41,10 @@ export interface ProposalScoreResult {
  * 2. outside_engagement_window: Proposal too old (tw = 0)
  * 3. no_community_reviews: No community ratings available
  * 4. not_reward_or_penalty_class: Classification is 'other'
- *
- * @param input - Classification, community score, and time weight data
- * @returns Score result with reward/penalty and skip reason
  */
 export function computeProposalScore(input: ProposalScoreInput): ProposalScoreResult {
   const { roundId, classification, communityScore, timeWeight } = input;
 
-  // Determine skip reason (in order of precedence)
   let skipReason: ProposalSkipReason = null;
 
   if (!SUPPORTED_ROUND_IDS.has(roundId)) {
@@ -65,7 +59,6 @@ export function computeProposalScore(input: ProposalScoreInput): ProposalScoreRe
     skipReason = 'not_reward_or_penalty_class';
   }
 
-  // If skipped, return zero scores
   if (skipReason !== null) {
     return {
       proposalReward: 0,

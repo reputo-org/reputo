@@ -1,55 +1,59 @@
 {
-    "name": "@reputo/contracts",
-    "version": "0.0.0",
-    "description": "Cross-service contracts (enums, DTOs, Temporal activity I/O, task-queue names) shared between the Reputo API and Workflows.",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "private": true,
-    "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "import": "./dist/index.js",
-            "default": "./dist/index.js"
-        }
-    },
-    "type": "module",
-    "module": "dist/index.js",
-    "scripts": {
-        "check": "pnpm exec biome check",
-        "lint": "pnpm exec biome lint",
-        "format": "pnpm exec biome format --write",
-        "test": "vitest run",
-        "test:watch": "vitest --watch",
-        "test:cov": "vitest --coverage",
-        "typecheck": "tsc --noEmit",
-        "dev": "tsc --watch --preserveWatchOutput",
-        "build": "tsc",
-        "docs": "typedoc",
-        "clean": "rm -rf coverage dist docs node_modules tsconfig.tsbuildinfo"
-    },
-    "dependencies": {},
-    "devDependencies": {
-        "@types/node": "catalog:",
-        "tsx": "catalog:",
-        "typedoc": "catalog:",
-        "typedoc-plugin-markdown": "catalog:",
-        "typescript": "catalog:",
-        "vitest": "catalog:"
-    },
-    "keywords": [
-        "typescript",
-        "contracts",
-        "temporal",
-        "dto"
-    ],
-    "files": [
-        "dist",
-        "!dist/**/*.test.*"
-    ],
-    "author": {
-        "name": "Behzad Rabiei",
-        "url": "https://github.com/Behzad-rabiei"
-    },
-    "license": "GPL-3.0",
-    "packageManager": "pnpm@10.30.3"
+  "name": "@reputo/contracts",
+  "version": "0.0.0",
+  "description": "Cross-service contracts (enums, DTOs, Temporal activity I/O, task-queue names) shared between the Reputo API and Workflows.",
+  "keywords": [
+    "typescript",
+    "contracts",
+    "temporal",
+    "dto"
+  ],
+  "license": "GPL-3.0-only",
+  "author": {
+    "name": "Behzad Rabiei",
+    "url": "https://github.com/Behzad-rabiei"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/reputo-org/reputo.git",
+    "directory": "packages/contracts"
+  },
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*"
+  ],
+  "packageManager": "pnpm@10.30.3",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf coverage dist docs node_modules tsconfig.tsbuildinfo",
+    "check": "pnpm exec biome check",
+    "lint": "pnpm exec biome lint",
+    "format": "pnpm exec biome format --write",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest --watch",
+    "test:cov": "vitest --coverage",
+    "dev": "tsc --watch --preserveWatchOutput",
+    "docs": "typedoc"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typedoc": "catalog:",
+    "typedoc-plugin-markdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
 }

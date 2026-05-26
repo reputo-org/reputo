@@ -9,7 +9,7 @@ vi.mock('@temporalio/worker', () => ({
   },
 }));
 
-vi.mock('../../../src/activities/orchestrator/index.js', () => ({
+vi.mock('../../../src/activities/onchain-data/index.js', () => ({
   createOnchainDataDependencyResolverActivities: vi.fn(() => ({})),
 }));
 
@@ -33,19 +33,16 @@ const BASE_ENV = {
   AWS_REGION: 'eu-central-1',
   STORAGE_BUCKET: 'reputo-test',
   DEEPFUNDING_API_BASE_URL: 'https://api.deepfunding.xyz',
-  DEEPFUNDING_API_KEY: '',
-  ONCHAIN_DATA_POSTGRES_HOST: 'localhost',
-  ONCHAIN_DATA_POSTGRES_PORT: '5432',
-  ONCHAIN_DATA_POSTGRES_USER: 'postgres',
-  ONCHAIN_DATA_POSTGRES_PASSWORD: 'postgres',
-  ONCHAIN_DATA_POSTGRES_DB_NAME: 'reputo_onchain_test',
+  DEEPFUNDING_API_KEY: 'test-deepfunding-key',
+  ONCHAIN_DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/reputo_onchain_test',
+  ALCHEMY_API_KEY: 'test-alchemy-key',
+  BLOCKFROST_API_KEY: 'test-blockfrost-key',
 };
 
-describe('onchain-data worker config', () => {
+describe('onchain-data worker module', () => {
   beforeEach(() => {
     vi.resetModules();
     process.env = { ...ORIGINAL_ENV, ...BASE_ENV };
-    delete process.env.ALCHEMY_API_KEY;
   });
 
   afterEach(() => {
@@ -53,28 +50,23 @@ describe('onchain-data worker config', () => {
     vi.resetModules();
   });
 
-  it('requires ALCHEMY_API_KEY for the onchain-data worker', async () => {
+  it('loads with the full env and exposes the worker bootstrap', async () => {
     const workerModule = await import('../../../src/workers/typescript/onchain-data.worker.js');
 
-    expect(() => workerModule.getOnchainDataWorkerConfig()).toThrow(/ALCHEMY_API_KEY/);
+    expect(typeof workerModule.runOnchainDataWorker).toBe('function');
   });
 
-  it('requires BLOCKFROST_API_KEY for the onchain-data worker', async () => {
-    process.env.ALCHEMY_API_KEY = 'test-alchemy-key';
-    const workerModule = await import('../../../src/workers/typescript/onchain-data.worker.js');
+  it('fails to load when ALCHEMY_API_KEY is missing (caught by env schema)', async () => {
+    delete process.env.ALCHEMY_API_KEY;
 
-    expect(() => workerModule.getOnchainDataWorkerConfig()).toThrow(/BLOCKFROST_API_KEY/);
+    await expect(import('../../../src/workers/typescript/onchain-data.worker.js')).rejects.toThrow(/ALCHEMY_API_KEY/);
   });
 
-  it('returns the worker runtime config when ALCHEMY_API_KEY and BLOCKFROST_API_KEY are present', async () => {
-    process.env.ALCHEMY_API_KEY = 'test-alchemy-key';
-    process.env.BLOCKFROST_API_KEY = 'test-blockfrost-api-key';
-    const workerModule = await import('../../../src/workers/typescript/onchain-data.worker.js');
+  it('fails to load when BLOCKFROST_API_KEY is missing (caught by env schema)', async () => {
+    delete process.env.BLOCKFROST_API_KEY;
 
-    expect(workerModule.getOnchainDataWorkerConfig()).toEqual({
-      alchemyApiKey: 'test-alchemy-key',
-      blockfrostAPIKey: 'test-blockfrost-api-key',
-      databaseUrl: 'postgresql://postgres:postgres@localhost:5432/reputo_onchain_test',
-    });
+    await expect(import('../../../src/workers/typescript/onchain-data.worker.js')).rejects.toThrow(
+      /BLOCKFROST_API_KEY/,
+    );
   });
 });

@@ -1,9 +1,0 @@
-:80 {
-  handle /api/* {
-    reverse_proxy api:3000
-  }
-
-  handle {
-    reverse_proxy ui:8080
-  }
-}

@@ -61,13 +61,11 @@ export function extractOnchainSyncTargets(
   const targets: SyncTarget[] = [];
 
   for (const sel of selectedResourcesRaw) {
-    // Find all matching catalog entries (there may be multiple for same key, e.g. two staking contracts)
     for (const chain of catalog.chains) {
       if (chain.key !== sel.chain) continue;
       for (const resource of chain.resources) {
         if (resource.key !== sel.resource_key) continue;
 
-        // Resolve to token identifier for sync (contracts resolve to parent token)
         const syncIdentifier = resource.tokenIdentifier;
         const dedupeKey = `${sel.chain}:${syncIdentifier.toLowerCase()}`;
         if (seen.has(dedupeKey)) continue;

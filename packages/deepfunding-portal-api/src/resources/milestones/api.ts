@@ -5,9 +5,7 @@ import { validatePaginationOptions } from '../../shared/utils/index.js';
 import type { Milestone, MilestoneApiResponse, MilestoneFetchOptions } from './types.js';
 
 /**
- * Fetch milestones with pagination
- *
- * Note: The API returns milestones grouped by proposal. This function flattens
+ * The API returns milestones grouped by proposal. This function flattens
  * the nested structure by extracting individual milestones from each group and
  * enriching them with proposal-level metadata (proposal_id, created_at, updated_at).
  */
@@ -28,12 +26,9 @@ export async function* fetchMilestones(
     };
     const response = await client.get<MilestoneApiResponse>(endpoints.milestones(), params);
 
-    // Flatten the nested structure: extract milestones from each group
-    // and enrich them with proposal-level metadata
     const flattenedMilestones: Milestone[] = [];
     for (const group of response.milestones) {
       for (const milestone of group.milestones) {
-        // Enrich milestone with proposal-level metadata from the group
         flattenedMilestones.push({
           ...milestone,
           proposal_id: group.proposal_id,

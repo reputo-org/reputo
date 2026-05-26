@@ -6,12 +6,6 @@ export interface VoteStats {
   upvoterIds: Set<number>;
 }
 
-/**
- * Aggregate votes by comment ID.
- *
- * @param commentVotes - Array of comment vote records
- * @returns Map of comment ID to vote statistics
- */
 export function aggregateVotesByComment(commentVotes: CommentVoteRecord[]): Map<number, VoteStats> {
   const voteMap = new Map<number, VoteStats>();
 
@@ -33,13 +27,6 @@ export function aggregateVotesByComment(commentVotes: CommentVoteRecord[]): Map<
   return voteMap;
 }
 
-/**
- * Get vote stats for a specific comment.
- *
- * @param commentId - The comment ID
- * @param voteMap - Map of vote statistics
- * @returns Vote stats for the comment
- */
 export function getVoteStats(commentId: number, voteMap: Map<number, VoteStats>): VoteStats {
   return (
     voteMap.get(commentId) ?? {

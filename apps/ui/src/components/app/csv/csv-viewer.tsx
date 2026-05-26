@@ -38,14 +38,13 @@ interface ParsedCSV {
 }
 
 function parseCSV(text: string, delimiter = ",", maxRows?: number): ParsedCSV {
-  // Normalize newlines
   const src = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
   const rows: string[][] = []
   let current: string[] = []
   let field = ""
   let inQuotes = false
   let truncated = false
-  const maxTotalRows = maxRows != null ? Math.max(0, maxRows) + 1 : null // +1 for header row
+  const maxTotalRows = maxRows != null ? Math.max(0, maxRows) + 1 : null
 
   for (let i = 0; i < src.length; i++) {
     const ch = src[i]
@@ -53,7 +52,6 @@ function parseCSV(text: string, delimiter = ",", maxRows?: number): ParsedCSV {
 
     if (inQuotes) {
       if (ch === '"' && next === '"') {
-        // Escaped quote
         field += '"'
         i++
       } else if (ch === '"') {
@@ -81,7 +79,6 @@ function parseCSV(text: string, delimiter = ",", maxRows?: number): ParsedCSV {
       }
     }
   }
-  // Flush last field/row
   if (!truncated) {
     current.push(field)
     if (current.length > 1 || (current.length === 1 && current[0] !== "")) {
@@ -101,7 +98,6 @@ function parseCSV(text: string, delimiter = ",", maxRows?: number): ParsedCSV {
       .replace(/^["']+|["']+$/g, "")
   )
   const dataRows = rows.slice(1)
-  // Normalize each row to headers length
   const normalizedRows = dataRows.map((r) => {
     if (r.length === headers.length) return r
     if (r.length < headers.length)
@@ -160,9 +156,7 @@ async function readTextUpToBytes(
   out += decoder.decode()
   try {
     await reader.cancel()
-  } catch {
-    // ignore
-  }
+  } catch {}
   return { text: out, truncated }
 }
 
@@ -194,8 +188,6 @@ export function CSVViewer({
     setLoading(true)
     setError(null)
     try {
-      // Try a range request first (S3 supports this); if the server ignores it,
-      // we still cap the bytes we read from the stream.
       const res = await fetch(href, {
         cache: "no-store",
         headers: {
@@ -210,7 +202,6 @@ export function CSVViewer({
         maxPreviewBytes
       )
       const parsed = parseCSV(text, delimiter, maxPreviewRows)
-      // If file has no header but hasHeader=false, synthesize headers
       let finalParsed = parsed
       if (!hasHeader && parsed.rows.length > 0) {
         const colCount = Math.max(...parsed.rows.map((r) => r.length))
@@ -273,7 +264,7 @@ export function CSVViewer({
         if (sa < sb) return -1 * sign
         if (sa > sb) return 1 * sign
       }
-      return a.i - b.i // stable
+      return a.i - b.i
     })
     return withIndex.map((x) => x.r)
   }, [filteredRows, sortCol, sortDir])
@@ -292,7 +283,6 @@ export function CSVViewer({
     }
   }, [sortedRows, page, pageCount, pageSize])
 
-  // Keep page in range when filters change
   useEffect(() => {
     setPage((p) => Math.min(Math.max(1, p), pageCount))
   }, [pageCount])
@@ -302,7 +292,6 @@ export function CSVViewer({
       setSortCol(index)
       setSortDir("asc")
     } else {
-      // Cycle asc -> desc -> none
       if (sortDir === "asc") setSortDir("desc")
       else if (sortDir === "desc") {
         setSortDir(null)

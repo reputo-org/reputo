@@ -60,7 +60,6 @@ describe('OrchestratorWorkflow task queue routing', () => {
 
     proxyActivities.mockImplementation((opts) => {
       recordedOptions.push(opts as Record<string, unknown>);
-      // Return a superset of activity functions; callers destructure the ones they need.
       return {
         getSnapshot,
         updateSnapshot,
@@ -76,12 +75,6 @@ describe('OrchestratorWorkflow task queue routing', () => {
       snapshotId: 'snapshot-1',
     });
 
-    // Order:
-    // 0: ApiSnapshotActivities — API task queue (module import)
-    // 1: AlgorithmLibraryActivities (module import)
-    // 2: DependencyResolverActivities — orchestrator queue (inside workflow)
-    // 3: DependencyResolverActivities — onchain queue (inside workflow)
-    // 4: TypescriptAlgorithmDispatcherActivities (inside workflow)
     expect(recordedOptions[0]).toMatchObject({
       taskQueue: API_SNAPSHOT_ACTIVITIES_TASK_QUEUE,
       startToCloseTimeout: DB_ACTIVITY_TIMEOUT,

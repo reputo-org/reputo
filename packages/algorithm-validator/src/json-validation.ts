@@ -1,9 +1,3 @@
-/**
- * JSON content validation logic.
- * Validates JSON structure and wallet-address map requirements.
- * Works in both browser (File) and Node.js (string/Buffer) environments.
- */
-
 import type { JSONValidationResult, JsonIoItem } from './types/index.js';
 
 const ETHEREUM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;

@@ -14,12 +14,6 @@ const KEY_MAP: Record<string, keyof ContributionScoreParams> = {
   monthly_decay_rate_percent: 'monthlyDecayRatePercent',
 };
 
-/**
- * Extract algorithm parameters from snapshot inputs.
- *
- * @param inputs - Raw inputs from the algorithm preset
- * @returns Typed algorithm parameters
- */
 export function extractInputs(inputs: AlgorithmPresetFrozen['inputs']): ContributionScoreParams {
   const raw = Object.fromEntries(inputs.map(({ key, value }) => [key, value])) as Record<string, unknown>;
 

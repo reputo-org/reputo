@@ -26,7 +26,6 @@ export function JsonEditor({
   const handleChange = (newValue: string) => {
     onChange(newValue)
 
-    // Validate JSON
     try {
       const parsed = JSON.parse(newValue)
       setError(null)

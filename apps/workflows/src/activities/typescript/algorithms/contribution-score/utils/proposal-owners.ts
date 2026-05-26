@@ -1,20 +1,11 @@
 import type { ProposalRecord } from '@reputo/deepfunding-portal-api';
 
-/**
- * Parse team members JSON string to array of user IDs.
- */
 export function parseTeamMembers(teamMembersJson: string): number[] {
   const raw = JSON.parse(teamMembersJson) as number[];
   return raw.map((x) => Number(x));
 }
 
-/**
- * Build a map of user-proposal relationships (proposer or team member).
- * Key format: `${userId}-${proposalId}`
- *
- * @param proposals - Array of proposal records
- * @returns Map indicating if a user is related to a proposal
- */
+/** Key format: `${userId}-${proposalId}` */
 export function buildRelationMap(proposals: ProposalRecord[]): Map<string, boolean> {
   const relationMap = new Map<string, boolean>();
 
@@ -30,12 +21,6 @@ export function buildRelationMap(proposals: ProposalRecord[]): Map<string, boole
   return relationMap;
 }
 
-/**
- * Build a map of proposal ID to set of owner user IDs (proposer + team members).
- *
- * @param proposals - Array of proposal records
- * @returns Map of proposal ID to set of owner user IDs
- */
 export function buildProjectOwnerMap(proposals: ProposalRecord[]): Map<number, Set<number>> {
   const ownerMap = new Map<number, Set<number>>();
 

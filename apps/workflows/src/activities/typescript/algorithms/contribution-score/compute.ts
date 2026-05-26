@@ -68,7 +68,6 @@ export async function computeContributionScore(snapshot: Snapshot, storage: Stor
       userCount: users.length,
     });
 
-    // Build lookup maps
     const relationMap = buildRelationMap(proposals);
     const projectOwnerMap = buildProjectOwnerMap(proposals);
     const commentAuthorMap = buildCommentAuthorMap(comments);
@@ -81,8 +80,6 @@ export async function computeContributionScore(snapshot: Snapshot, storage: Stor
     const benchmarkRecords: CommentBenchmarkRecord[] = [];
     let totalCommentsScored = 0;
 
-    // Process each comment through the pipeline
-    // Only score comments whose author exists in the users table
     for (let i = 0; i < comments.length; i++) {
       if (i % HEARTBEAT_INTERVAL === 0) {
         ctx.heartbeat({ phase: 'scoring', processed: i, total: comments.length });
@@ -151,7 +148,6 @@ export async function computeContributionScore(snapshot: Snapshot, storage: Stor
 
     ctx.heartbeat({ phase: 'upload' });
 
-    // Generate and upload CSV output (async to avoid blocking the event loop)
     const csvContent = await stringifyCsvAsync(results, {
       header: true,
       columns: ['sub_id', 'contribution_score'],

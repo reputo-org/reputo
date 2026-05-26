@@ -1,12 +1,12 @@
-import * as Joi from 'joi';
-import appConfig, { appConfigSchema } from './app.config';
-import authConfig, { authConfigSchema } from './auth.config';
-import awsConfig, { awsConfigSchema } from './aws.config';
-import consentConfig, { consentConfigSchema } from './consent.config';
-import databaseConfig, { databaseConfigSchema } from './database.config';
-import loggerConfig, { loggerConfigSchema } from './logger.config';
-import storageConfig, { storageConfigSchema } from './storage.config';
-import temporalConfig, { temporalConfigSchema } from './temporal.config';
+import appConfig from './app.config';
+import authConfig from './auth.config';
+import awsConfig from './aws.config';
+import consentConfig from './consent.config';
+import databaseConfig from './database.config';
+import { env, envSchema } from './env';
+import loggerConfig from './logger.config';
+import storageConfig from './storage.config';
+import temporalConfig from './temporal.config';
 
 export const configModules = [
   appConfig,
@@ -19,13 +19,8 @@ export const configModules = [
   temporalConfig,
 ];
 
-export const configValidationSchema = Joi.object({
-  ...appConfigSchema,
-  ...authConfigSchema,
-  ...awsConfigSchema,
-  ...consentConfigSchema,
-  ...databaseConfigSchema,
-  ...loggerConfigSchema,
-  ...storageConfigSchema,
-  ...temporalConfigSchema,
-});
+export function validateEnv(): Record<string, unknown> {
+  return env as unknown as Record<string, unknown>;
+}
+
+export { envSchema };

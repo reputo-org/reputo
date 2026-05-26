@@ -77,8 +77,6 @@ export function AdminsToolbar({ query, onChange, onAdd }: AdminsToolbarProps) {
   const status: AdminAllowlistStatus =
     query.status ?? ADMIN_QUERY_DEFAULTS.status
   const statusIsDefault = status === ADMIN_QUERY_DEFAULTS.status
-  // Search broadens to all statuses on the data layer; surface that when the
-  // user has a non-"all" filter so the chip isn't silently overridden.
   const searchOverridesStatus = Boolean(searchInput.trim()) && status !== "all"
 
   const activeFilterCount =

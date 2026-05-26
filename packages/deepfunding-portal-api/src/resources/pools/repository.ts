@@ -4,9 +4,6 @@ import { type CreateManyOptions, chunkArray, DEFAULT_CHUNK_SIZE } from '../../sh
 import { normalizePoolToRecord } from './normalize.js';
 import type { Pool, PoolRecord } from './types.js';
 
-/**
- * Create a pools repository bound to the given database instance.
- */
 export function createPoolsRepo(db: DeepFundingPortalDb) {
   const repo = db.dataSource.getRepository(PoolEntity);
 

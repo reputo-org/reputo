@@ -11,9 +11,9 @@ export function getModuleFileAndDir(importMetaUrl: string): {
 }
 
 export function resolveRegistryPath(moduleDir: string, configuredPath?: string): string {
-  return configuredPath ?? process.env.REPUTO_REGISTRY_PATH ?? join(moduleDir, '../registry');
+  return configuredPath ?? join(moduleDir, '../registry');
 }
 
 export function resolveRegistryIndexPath(moduleDir: string, configuredPath?: string): string {
-  return configuredPath ?? process.env.REPUTO_REGISTRY_INDEX_PATH ?? join(moduleDir, '../registry/index.gen.ts');
+  return configuredPath ?? join(moduleDir, '../registry/index.gen.ts');
 }

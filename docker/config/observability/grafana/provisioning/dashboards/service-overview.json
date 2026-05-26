@@ -1,211 +1,211 @@
 {
-    "annotations": { "list": [] },
-    "editable": true,
-    "fiscalYearStartMonth": 0,
-    "graphTooltip": 1,
-    "links": [],
-    "panels": [
-        {
-            "title": "Log Volume by Service",
-            "type": "timeseries",
-            "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
-            "datasource": { "type": "loki", "uid": "" },
-            "fieldConfig": {
-                "defaults": {
-                    "custom": {
-                        "drawStyle": "bars",
-                        "fillOpacity": 40,
-                        "stacking": { "mode": "normal" }
-                    }
-                },
-                "overrides": []
-            },
-            "targets": [
-                {
-                    "expr": "sum by (service) (rate({env=~\"$env\"} | __error__=\"\" [$__auto]))",
-                    "legendFormat": "{{service}}",
-                    "refId": "A"
-                }
-            ]
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "Log Volume by Service",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "loki", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 40,
+            "stacking": { "mode": "normal" }
+          }
         },
+        "overrides": []
+      },
+      "targets": [
         {
-            "title": "Error Rate by Service (5xx / error-level)",
-            "type": "timeseries",
-            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
-            "datasource": { "type": "loki", "uid": "" },
-            "fieldConfig": {
-                "defaults": {
-                    "custom": { "drawStyle": "line", "fillOpacity": 15 },
-                    "unit": "reqps"
-                },
-                "overrides": []
-            },
-            "targets": [
-                {
-                    "expr": "sum by (service) (rate({env=~\"$env\", service=~\"$service\"} |~ \"(?i)(error|err|5\\\\d{2}|status[=:]5)\" [$__auto]))",
-                    "legendFormat": "{{service}}",
-                    "refId": "A"
-                }
-            ]
-        },
-        {
-            "title": "Traefik 5xx Error Rate",
-            "type": "timeseries",
-            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
-            "datasource": { "type": "loki", "uid": "" },
-            "fieldConfig": {
-                "defaults": {
-                    "custom": { "drawStyle": "line", "fillOpacity": 15 },
-                    "unit": "reqps",
-                    "color": { "mode": "fixed", "fixedColor": "red" }
-                },
-                "overrides": []
-            },
-            "targets": [
-                {
-                    "expr": "sum(rate({service=\"traefik\"} | json | OriginStatus >= 500 [$__auto]))",
-                    "legendFormat": "5xx",
-                    "refId": "A"
-                },
-                {
-                    "expr": "sum(rate({service=\"traefik\"} | json | OriginStatus >= 400, OriginStatus < 500 [$__auto]))",
-                    "legendFormat": "4xx",
-                    "refId": "B"
-                }
-            ]
-        },
-        {
-            "title": "Traefik Request Latency (p50 / p95 / p99)",
-            "type": "timeseries",
-            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
-            "datasource": { "type": "loki", "uid": "" },
-            "fieldConfig": {
-                "defaults": {
-                    "custom": { "drawStyle": "line", "fillOpacity": 10 },
-                    "unit": "ms"
-                },
-                "overrides": []
-            },
-            "targets": [
-                {
-                    "expr": "quantile_over_time(0.50, {service=\"traefik\", env=~\"$env\"} | json | unwrap Duration | __error__=\"\" [$__auto]) / 1000000",
-                    "legendFormat": "p50",
-                    "refId": "A"
-                },
-                {
-                    "expr": "quantile_over_time(0.95, {service=\"traefik\", env=~\"$env\"} | json | unwrap Duration | __error__=\"\" [$__auto]) / 1000000",
-                    "legendFormat": "p95",
-                    "refId": "B"
-                },
-                {
-                    "expr": "quantile_over_time(0.99, {service=\"traefik\", env=~\"$env\"} | json | unwrap Duration | __error__=\"\" [$__auto]) / 1000000",
-                    "legendFormat": "p99",
-                    "refId": "C"
-                }
-            ]
-        },
-        {
-            "title": "Slow Requests (> 1s)",
-            "type": "timeseries",
-            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
-            "datasource": { "type": "loki", "uid": "" },
-            "fieldConfig": {
-                "defaults": {
-                    "custom": { "drawStyle": "bars", "fillOpacity": 40 },
-                    "unit": "reqps",
-                    "color": { "mode": "fixed", "fixedColor": "orange" }
-                },
-                "overrides": []
-            },
-            "targets": [
-                {
-                    "expr": "sum by (service) (rate({service=\"traefik\", env=~\"$env\"} | json | Duration > 1000000000 [$__auto]))",
-                    "legendFormat": "{{service}}",
-                    "refId": "A"
-                }
-            ]
-        },
-        {
-            "title": "Top Errors / Recent Exceptions",
-            "type": "logs",
-            "gridPos": { "h": 10, "w": 24, "x": 0, "y": 24 },
-            "datasource": { "type": "loki", "uid": "" },
-            "options": {
-                "showTime": true,
-                "showLabels": true,
-                "showCommonLabels": false,
-                "wrapLogMessage": true,
-                "prettifyLogMessage": false,
-                "enableLogDetails": true,
-                "sortOrder": "Descending",
-                "dedupStrategy": "none"
-            },
-            "targets": [
-                {
-                    "expr": "{env=~\"$env\", service=~\"$service\"} |~ \"(?i)(error|exception|fatal|panic|crash|unhandled|ECONNREFUSED|ETIMEDOUT)\"",
-                    "legendFormat": "",
-                    "refId": "A"
-                }
-            ]
-        },
-        {
-            "title": "Error Count by Service (Top 10)",
-            "type": "barchart",
-            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 34 },
-            "datasource": { "type": "loki", "uid": "" },
-            "targets": [
-                {
-                    "expr": "topk(10, sum by (service) (count_over_time({env=~\"$env\"} |~ \"(?i)(error|exception|fatal)\" [$__auto])))",
-                    "legendFormat": "{{service}}",
-                    "refId": "A"
-                }
-            ]
-        },
-        {
-            "title": "Traefik Requests by Path (Top 10)",
-            "type": "barchart",
-            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 34 },
-            "datasource": { "type": "loki", "uid": "" },
-            "targets": [
-                {
-                    "expr": "topk(10, sum by (RequestPath) (count_over_time({service=\"traefik\", env=~\"$env\"} | json | __error__=\"\" [$__auto])))",
-                    "legendFormat": "{{RequestPath}}",
-                    "refId": "A"
-                }
-            ]
+          "expr": "sum by (service) (rate({env=~\"$env\"} | __error__=\"\" [$__auto]))",
+          "legendFormat": "{{service}}",
+          "refId": "A"
         }
-    ],
-    "schemaVersion": 39,
-    "tags": ["reputo", "observability"],
-    "templating": {
-        "list": [
-            {
-                "current": { "selected": false, "text": "All", "value": "$__all" },
-                "datasource": { "type": "loki", "uid": "" },
-                "definition": "",
-                "includeAll": true,
-                "multi": false,
-                "name": "env",
-                "query": { "label": "env", "stream": "", "type": 1 },
-                "refresh": 2,
-                "type": "query"
-            },
-            {
-                "current": { "selected": false, "text": "All", "value": "$__all" },
-                "datasource": { "type": "loki", "uid": "" },
-                "definition": "",
-                "includeAll": true,
-                "multi": true,
-                "name": "service",
-                "query": { "label": "service", "stream": "{env=~\"$env\"}", "type": 1 },
-                "refresh": 2,
-                "type": "query"
-            }
-        ]
+      ]
     },
-    "time": { "from": "now-1h", "to": "now" },
-    "timepicker": {},
-    "timezone": "browser",
-    "title": "Service Overview",
-    "uid": "reputo-service-overview"
+    {
+      "title": "Error Rate by Service (5xx / error-level)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "loki", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15 },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (service) (rate({env=~\"$env\", service=~\"$service\"} |~ \"(?i)(error|err|5\\\\d{2}|status[=:]5)\" [$__auto]))",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Traefik 5xx Error Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "loki", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15 },
+          "unit": "reqps",
+          "color": { "mode": "fixed", "fixedColor": "red" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(rate({service=\"traefik\"} | json | OriginStatus >= 500 [$__auto]))",
+          "legendFormat": "5xx",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate({service=\"traefik\"} | json | OriginStatus >= 400, OriginStatus < 500 [$__auto]))",
+          "legendFormat": "4xx",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "Traefik Request Latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "loki", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10 },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "quantile_over_time(0.50, {service=\"traefik\", env=~\"$env\"} | json | unwrap Duration | __error__=\"\" [$__auto]) / 1000000",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "quantile_over_time(0.95, {service=\"traefik\", env=~\"$env\"} | json | unwrap Duration | __error__=\"\" [$__auto]) / 1000000",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "quantile_over_time(0.99, {service=\"traefik\", env=~\"$env\"} | json | unwrap Duration | __error__=\"\" [$__auto]) / 1000000",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "title": "Slow Requests (> 1s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "loki", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 40 },
+          "unit": "reqps",
+          "color": { "mode": "fixed", "fixedColor": "orange" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (service) (rate({service=\"traefik\", env=~\"$env\"} | json | Duration > 1000000000 [$__auto]))",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Top Errors / Recent Exceptions",
+      "type": "logs",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 24 },
+      "datasource": { "type": "loki", "uid": "" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "expr": "{env=~\"$env\", service=~\"$service\"} |~ \"(?i)(error|exception|fatal|panic|crash|unhandled|ECONNREFUSED|ETIMEDOUT)\"",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Error Count by Service (Top 10)",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 34 },
+      "datasource": { "type": "loki", "uid": "" },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (service) (count_over_time({env=~\"$env\"} |~ \"(?i)(error|exception|fatal)\" [$__auto])))",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Traefik Requests by Path (Top 10)",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 34 },
+      "datasource": { "type": "loki", "uid": "" },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (RequestPath) (count_over_time({service=\"traefik\", env=~\"$env\"} | json | __error__=\"\" [$__auto])))",
+          "legendFormat": "{{RequestPath}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["reputo", "observability"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "All", "value": "$__all" },
+        "datasource": { "type": "loki", "uid": "" },
+        "definition": "",
+        "includeAll": true,
+        "multi": false,
+        "name": "env",
+        "query": { "label": "env", "stream": "", "type": 1 },
+        "refresh": 2,
+        "type": "query"
+      },
+      {
+        "current": { "selected": false, "text": "All", "value": "$__all" },
+        "datasource": { "type": "loki", "uid": "" },
+        "definition": "",
+        "includeAll": true,
+        "multi": true,
+        "name": "service",
+        "query": { "label": "service", "stream": "{env=~\"$env\"}", "type": 1 },
+        "refresh": 2,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Service Overview",
+  "uid": "reputo-service-overview"
 }

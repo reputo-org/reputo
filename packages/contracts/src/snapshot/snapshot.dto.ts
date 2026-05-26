@@ -10,18 +10,12 @@ export interface SnapshotOutputs {
   [key: string]: string | undefined;
 }
 
-/**
- * Error information captured when a snapshot execution fails.
- */
 export interface SnapshotError {
   message: string;
   timestamp?: string;
   [key: string]: unknown;
 }
 
-/**
- * Temporal workflow coordinates attached to a snapshot.
- */
 export interface SnapshotTemporalInfo {
   workflowId?: string;
   runId?: string;

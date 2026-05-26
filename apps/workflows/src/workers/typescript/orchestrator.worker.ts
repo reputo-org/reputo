@@ -23,14 +23,11 @@ async function run(): Promise<void> {
 
   logger.info('Connected to Temporal server');
 
-  const s3Client = createS3Client(
-    {
-      region: config.aws.region,
-      accessKeyId: config.aws.accessKeyId,
-      secretAccessKey: config.aws.secretAccessKey,
-    },
-    config.app.nodeEnv,
-  );
+  const s3Client = createS3Client({
+    region: config.aws.region,
+    endpoint: config.storage.endpoint,
+    forcePathStyle: config.storage.forcePathStyle,
+  });
   const storage = new Storage(s3Client);
   const storageConfig = {
     bucket: config.storage.bucket,

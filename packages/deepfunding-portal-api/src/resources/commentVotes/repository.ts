@@ -4,9 +4,6 @@ import { type CreateManyOptions, chunkArray, DEFAULT_CHUNK_SIZE } from '../../sh
 import { normalizeCommentVoteToRecord } from './normalize.js';
 import type { CommentVote, CommentVoteRecord } from './types.js';
 
-/**
- * Create a comment-votes repository bound to the given database instance.
- */
 export function createCommentVotesRepo(db: DeepFundingPortalDb) {
   const repo = db.dataSource.getRepository(CommentVoteEntity);
 

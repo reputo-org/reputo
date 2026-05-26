@@ -1,7 +1,3 @@
-/**
- * Schema builder utilities for generating form schemas from Algorithm objects
- */
-
 import {
   type AlgorithmDefinition,
   type ArrayIoItem,
@@ -18,7 +14,6 @@ export interface ArrayPreset {
   value: Array<Record<string, unknown>>
 }
 
-/** Value/label pair for select options. */
 export interface SelectOption {
   value: string
   label: string
@@ -48,10 +43,6 @@ export interface FormInputProperty {
   filterBy?: string
 }
 
-/**
- * Form input type for UI forms.
- * Extended from AlgorithmDefinition to support UI-specific form fields.
- */
 export interface FormInput {
   key: string
   label: string
@@ -93,10 +84,6 @@ export interface FormInput {
   [key: string]: any
 }
 
-/**
- * Form schema for UI forms.
- * Based on AlgorithmDefinition but adapted for form generation.
- */
 export interface FormSchema {
   key: string
   name: string
@@ -115,7 +102,6 @@ export function buildSchemaFromAlgorithm(
   algorithm: Algorithm,
   version: string = "1.0.0"
 ): FormSchema {
-  // Fetch full algorithm definition to get CSV config details
   let fullDefinition: AlgorithmDefinition | null = null
   try {
     const definitionJson = getAlgorithmDefinition({ key: algorithm.id })
@@ -124,12 +110,10 @@ export function buildSchemaFromAlgorithm(
     console.warn(`Could not fetch full definition for ${algorithm.id}:`, error)
   }
 
-  // Transform algorithm inputs to form inputs
   const formInputs: FormInput[] = algorithm.inputs.map((algoInput) => {
     return transformInputToFormInput(algoInput, fullDefinition)
   })
 
-  // Add metadata fields for preset creation
   const nameInput: FormInput = {
     key: "name",
     label: "Preset Name",
@@ -166,7 +150,6 @@ export function buildSchemaFromAlgorithm(
     required: true,
   }
 
-  // Build outputs from algorithm definition if available
   const outputs = fullDefinition?.outputs || []
 
   return {
@@ -209,17 +192,12 @@ export function buildAlgorithmInputFormFields(
     )
 }
 
-/**
- * Transforms an algorithm input to a form input
- */
 function transformInputToFormInput(
   algoInput: { key: string; type: string; label: string },
   fullDefinition: AlgorithmDefinition | null
 ): FormInput {
-  // Use the key from algoInput directly since we now pass it through
   const inputKey = algoInput.key
 
-  // Try to find matching input in full definition for additional config
   const fullInput = fullDefinition?.inputs.find(
     (input) => input.key === inputKey || input.label === algoInput.label
   )
@@ -486,9 +464,6 @@ function transformObjectPropertyToFormProperty(prop: any): FormInputProperty {
   }
 }
 
-/**
- * Re-export validation functions from the validator package
- */
 export {
   buildZodSchema,
   type InferSchemaType,

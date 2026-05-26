@@ -4,9 +4,6 @@ import { type CreateManyOptions, chunkArray, DEFAULT_CHUNK_SIZE } from '../../sh
 import { normalizeMilestoneToRecord } from './normalize.js';
 import type { Milestone, MilestoneRecord } from './types.js';
 
-/**
- * Create a milestones repository bound to the given database instance.
- */
 export function createMilestonesRepo(db: DeepFundingPortalDb) {
   const repo = db.dataSource.getRepository(MilestoneEntity);
 

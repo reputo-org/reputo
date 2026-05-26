@@ -1,17 +1,5 @@
-/**
- * Zod schemas for Algorithm Preset validation.
- *
- * These schemas are used by both frontend and backend to ensure consistent
- * validation of algorithm preset creation payloads.
- */
-
 import { z } from 'zod/v4';
 
-/**
- * Zod schema for validating a single algorithm preset input.
- *
- * Each input must have a key (string) and a value (any non-null/undefined value).
- */
 export const algorithmPresetInputSchema: z.ZodObject<{
   key: z.ZodString;
   value: z.ZodUnknown;
@@ -22,16 +10,6 @@ export const algorithmPresetInputSchema: z.ZodObject<{
   }),
 });
 
-/**
- * Zod schema for validating algorithm preset creation payloads.
- *
- * Validates the complete structure required to create an algorithm preset:
- * - key: Algorithm key (required, non-empty string)
- * - version: Algorithm version (required, non-empty string)
- * - inputs: Array of inputs (required, at least one)
- * - name: Optional name (3-100 characters if provided)
- * - description: Optional description (10-500 characters if provided)
- */
 export const createAlgorithmPresetSchema: z.ZodObject<{
   key: z.ZodString;
   version: z.ZodString;
@@ -54,29 +32,11 @@ export const createAlgorithmPresetSchema: z.ZodObject<{
     .optional(),
 });
 
-/**
- * TypeScript type inferred from the create algorithm preset Zod schema.
- *
- * Use this type for type-safe algorithm preset creation payloads.
- */
 export type CreateAlgorithmPresetInput = z.infer<typeof createAlgorithmPresetSchema>;
 
-/**
- * TypeScript type for a single algorithm preset input.
- *
- * Represents one input in the inputs array of a preset.
- */
 export type AlgorithmPresetInputType = z.infer<typeof algorithmPresetInputSchema>;
 
 /**
- * Validates algorithm preset creation payload using Zod schema.
- *
- * This is a convenience function that wraps the Zod schema's safeParse method,
- * providing a consistent validation interface for algorithm preset creation.
- *
- * @param data - The data to validate against the algorithm preset schema
- * @returns Zod's SafeParseReturnType containing either the validated data or error details
- *
  * @example
  * ```typescript
  * const result = validateCreateAlgorithmPreset({
@@ -89,7 +49,6 @@ export type AlgorithmPresetInputType = z.infer<typeof algorithmPresetInputSchema
  *
  * if (result.success) {
  *   const preset: CreateAlgorithmPresetInput = result.data
- *   // Use validated preset data
  * } else {
  *   console.error('Validation errors:', result.error)
  * }

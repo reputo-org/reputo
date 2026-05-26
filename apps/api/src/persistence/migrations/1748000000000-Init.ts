@@ -72,9 +72,6 @@ export class Init1748000000000 implements MigrationInterface {
       )
     `);
     await queryRunner.query(`CREATE INDEX "snapshots_algorithm_preset_id_idx" ON "snapshots" ("algorithm_preset_id")`);
-    // Functional index supporting Snapshot lookups by the frozen preset's
-    // key/version. TypeORM cannot model JSON path indexes on entities, so we
-    // declare it in raw SQL here.
     await queryRunner.query(
       `CREATE INDEX "snapshots_frozen_key_version_idx" ON "snapshots" (("algorithm_preset_frozen" ->> 'key'), ("algorithm_preset_frozen" ->> 'version'))`,
     );

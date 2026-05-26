@@ -4,26 +4,11 @@ import { request } from 'undici';
 import { HttpError } from '../shared/errors/index.js';
 import type { DeepFundingPortalApiConfig } from '../shared/types/api-config.js';
 
-// ============================================================================
-// Concurrency Limiter
-// ============================================================================
-
-/**
- * Create a concurrency limiter for the client
- */
 export function createLimiter(config: DeepFundingPortalApiConfig): ReturnType<typeof pLimit> {
   return pLimit(config.concurrency);
 }
 
-// ============================================================================
-// Retry Utilities
-// ============================================================================
-
-/**
- * Check if an error is retryable
- */
 export function isRetryableError(error: unknown): boolean {
-  // Network errors are retryable
   if (error instanceof Error) {
     const message = error.message.toLowerCase();
     if (
@@ -37,7 +22,6 @@ export function isRetryableError(error: unknown): boolean {
     }
   }
 
-  // HTTP errors: retry on 429 and 5xx
   if (error instanceof HttpError) {
     return error.statusCode === 429 || error.statusCode >= 500;
   }
@@ -46,7 +30,7 @@ export function isRetryableError(error: unknown): boolean {
 }
 
 /**
- * Check if an error is non-retryable (4xx except 429)
+ * Non-retryable 4xx (except 429, which is rate-limit and retryable).
  */
 export function isNonRetryableError(error: unknown): boolean {
   if (error instanceof HttpError) {
@@ -56,31 +40,17 @@ export function isNonRetryableError(error: unknown): boolean {
   return false;
 }
 
-/**
- * Calculate delay with exponential backoff and jitter
- */
 export function calculateDelay(attempt: number, baseDelayMs: number, maxDelayMs: number): number {
   const exponentialDelay = baseDelayMs * 2 ** attempt;
   const cappedDelay = Math.min(exponentialDelay, maxDelayMs);
-  // Add jitter: random value between 0 and 50% of delay
   const jitter = Math.random() * cappedDelay * 0.5;
   return cappedDelay + jitter;
 }
 
-/**
- * Sleep for a given duration
- */
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// ============================================================================
-// HTTP Request Execution
-// ============================================================================
-
-/**
- * Execute an HTTP GET request with retry logic
- */
 export async function executeRequest<T>(
   config: DeepFundingPortalApiConfig,
   logger: Logger,

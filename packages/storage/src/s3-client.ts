@@ -1,14 +1,5 @@
-/**
- * @reputo/storage/s3-client
- *
- * S3 client factory for consistent client creation across applications.
- */
-
 import { S3Client } from '@aws-sdk/client-s3';
 
-/**
- * Configuration options for creating an S3 client.
- */
 export interface S3ClientConfig {
   /**
    * AWS region for S3 operations.
@@ -18,63 +9,60 @@ export interface S3ClientConfig {
   region: string;
 
   /**
-   * AWS access key ID.
-   * Only used in non-production environments when explicitly provided.
+   * Custom S3 endpoint URL. Used to point at an S3-compatible service
+   * (MinIO, LocalStack, etc.) instead of AWS. Omit for AWS S3.
+   *
+   * @example 'http://minio:9000'
    */
-  accessKeyId?: string;
+  endpoint?: string;
 
   /**
-   * AWS secret access key.
-   * Only used in non-production environments when explicitly provided.
+   * Use path-style URLs (`https://endpoint/bucket/key`) instead of
+   * virtual-hosted-style (`https://bucket.endpoint/key`). Required by most
+   * S3-compatible services such as MinIO.
+   *
+   * @default false
    */
-  secretAccessKey?: string;
+  forcePathStyle?: boolean;
 }
 
 /**
  * Creates a configured S3 client instance.
  *
- * In production environments, credentials are obtained from the environment
- * (IAM roles, environment variables, etc.) and explicit credentials are ignored.
- *
- * In non-production environments, explicit credentials can be provided for
- * local development with services like LocalStack or MinIO.
+ * Credentials are always sourced from the AWS SDK's default credential
+ * provider chain (env vars `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`,
+ * shared credentials file, IAM role, container/EC2 metadata, etc.). Callers
+ * never pass credentials directly — set the env vars in the container instead
+ * (compose files do this for dev/preview MinIO; prod relies on the IAM role).
  *
  * @param config - S3 client configuration options
- * @param nodeEnv - Current Node.js environment (e.g., 'production', 'development', 'test')
  * @returns Configured S3Client instance
  *
  * @example
  * ```typescript
- * // Production - uses IAM role or environment credentials
- * const client = createS3Client({ region: 'us-east-1' }, 'production');
+ * // Production - SDK uses IAM role / instance profile / env creds.
+ * const client = createS3Client({ region: 'us-east-1' });
  *
- * // Development with explicit credentials
+ * // MinIO or LocalStack — set AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY in
+ * // the container env; the SDK picks them up automatically.
  * const client = createS3Client({
  *   region: 'us-east-1',
- *   accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
- *   secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
- * }, 'development');
- *
- * // LocalStack or MinIO
- * const client = createS3Client({
- *   region: 'us-east-1',
- *   endpoint: 'http://localhost:4566',
+ *   endpoint: 'http://minio:9000',
  *   forcePathStyle: true,
- *   accessKeyId: 'test',
- *   secretAccessKey: 'test',
- * }, 'development');
+ * });
  * ```
  */
-export function createS3Client(config: S3ClientConfig, nodeEnv: string): S3Client {
+export function createS3Client(config: S3ClientConfig): S3Client {
   const s3ClientConfig: ConstructorParameters<typeof S3Client>[0] = {
     region: config.region,
   };
 
-  if (nodeEnv !== 'production') {
-    s3ClientConfig.credentials = {
-      accessKeyId: config.accessKeyId as string,
-      secretAccessKey: config.secretAccessKey as string,
-    };
+  if (config.endpoint) {
+    s3ClientConfig.endpoint = config.endpoint;
+  }
+
+  if (config.forcePathStyle) {
+    s3ClientConfig.forcePathStyle = true;
   }
 
   return new S3Client(s3ClientConfig);

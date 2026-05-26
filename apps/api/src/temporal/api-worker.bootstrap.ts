@@ -51,9 +51,6 @@ export class ApiWorkerBootstrap implements OnApplicationBootstrap, OnApplication
         activities: createSnapshotActivities(this.snapshotService),
       });
 
-      // worker.run() resolves when the worker drains. Track the promise so
-      // shutdown can await full drain; swallow errors after logging so a
-      // poll failure does not bring down the HTTP server.
       this.runPromise = this.worker.run().catch((err) => {
         const e = err as Error;
         this.logger.error(`API snapshot activities worker exited with error: ${e.message}`, e.stack);

@@ -110,10 +110,6 @@ export async function createTestApp(options: TestAppOptions) {
       }),
     } satisfies TestAppOptions['oauthProviderService']);
 
-  // No-op `SnapshotListenerService` overrides the real one so SSE-driving
-  // services have a stub to depend on without opening a real LISTEN
-  // connection. Suites that need a real listener can build their own DataSource
-  // separately (see `tests/e2e/snapshots/sse-events.e2e-spec.ts`).
   const noopListener = {
     notifications$: { subscribe: () => ({ unsubscribe: () => undefined }) },
     onModuleInit: async () => undefined,
@@ -150,7 +146,6 @@ export async function createTestApp(options: TestAppOptions) {
 
   const app = moduleRef.createNestApplication();
 
-  // Apply global pipes matching production
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalPipes(
     new ValidationPipe({
@@ -160,7 +155,6 @@ export async function createTestApp(options: TestAppOptions) {
     }),
   );
 
-  // Enable versioning with /api/v1 prefix
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',

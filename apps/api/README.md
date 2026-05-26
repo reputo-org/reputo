@@ -1,62 +1,43 @@
 # @reputo/api
 
-NestJS application that exposes the Reputo HTTP API and owns the application
-PostgreSQL database.
+NestJS application that serves the Reputo HTTP API. It owns the application Postgres database and hosts a Temporal worker for snapshot activities.
 
-## Surface
+## What it does
 
-- URI-versioned routes under `/api/v1`
-- algorithm preset CRUD at `/algorithm-presets`
-- snapshot create/list/get/delete plus SSE updates at `/snapshots` and `/snapshots/events`
-- storage upload verification, presigned downloads, and attachment streaming at `/storage`
-- health check at `/healthz`
-- interactive docs at `/reference` and `/api/docs`
-- Temporal worker on the `api-snapshot-activities` task queue (`API_SNAPSHOT_ACTIVITIES_TASK_QUEUE` in `@reputo/contracts`) that exposes the `getSnapshot` and `updateSnapshot` activities the orchestrator workflow proxies to.
+- URI-versioned routes under `/api/v1`.
+- Algorithm preset CRUD at `/algorithm-presets`.
+- Snapshot create/list/get/delete and SSE updates at `/snapshots` and `/snapshots/events`.
+- Storage upload verification, presigned downloads, and attachment streaming at `/storage`.
+- Health check at `/healthz`.
+- Interactive API reference at `/reference` and `/api/docs`.
+- Temporal worker on the `api-snapshot-activities` task queue that exposes the `getSnapshot` and `updateSnapshot` activities the orchestrator workflow proxies to.
 
-## Persistence
-
-TypeORM via `@nestjs/typeorm` owns the schema. Entities live under
-`src/persistence/entities/`, the standalone CLI DataSource is
-`src/persistence/data-source.ts`, and migrations live under
-`src/persistence/migrations/`. Snapshot SSE is driven by PostgreSQL
-`LISTEN/NOTIFY` on the `snapshot_updates` channel — every replica listens and
-fans NOTIFY payloads out to in-process SSE subjects.
-
-Cross-workspace conventions (entities, naming strategy, transactions,
-pagination, tests) live in
-[docs/runbooks/typeorm-conventions.md](../../docs/runbooks/typeorm-conventions.md).
-
-Generate and run migrations:
+## Local commands
 
 ```bash
-pnpm --filter @reputo/api typeorm:generate src/persistence/migrations/<Name>
-pnpm --filter @reputo/api typeorm:run      # apply pending migrations
-pnpm --filter @reputo/api typeorm:revert   # roll back the last migration
-pnpm --filter @reputo/api typeorm:show     # list applied/pending
-```
-
-`pnpm --filter @reputo/api test:e2e` spins up a Postgres container via
-`@testcontainers/postgresql` and runs `dataSource.runMigrations()` so tests
-exercise the same SQL production runs.
-
-## Commands
-
-```bash
-pnpm --filter @reputo/api dev
+pnpm --filter @reputo/api dev          # build deps, watch and run Nest
 pnpm --filter @reputo/api build
-pnpm --filter @reputo/api start
+pnpm --filter @reputo/api start        # run the built dist/main
 pnpm --filter @reputo/api test
 pnpm --filter @reputo/api test:e2e
 pnpm --filter @reputo/api typecheck
 ```
 
-`pnpm --filter @reputo/api dev` builds and watches its shared package dependencies before starting Nest. `dev:app` is the internal app-only process used by the root monorepo `pnpm dev`.
+Local development listens on <http://localhost:3000>.
 
-## Config
+## Configuration
 
-Use `apps/api/envs.example` as the local reference file. The API expects
-`DATABASE_URL` (Postgres), storage/AWS, DeepID, and Temporal settings before
-startup. `TEMPORAL_API_SNAPSHOT_ACTIVITIES_TASK_QUEUE` defaults to
-`api-snapshot-activities` from `@reputo/contracts` and rarely needs an
-override. Local development listens on `http://localhost:3000` unless `PORT`
-overrides it.
+The API validates its environment in [`src/config/env.ts`](src/config/env.ts). Required variables include `DATABASE_URL`, the Deep ID OIDC settings, AWS / storage settings, and Temporal settings. The full list is in the root [`.env.example`](../../.env.example).
+
+## Database
+
+TypeORM owns the schema. Entities live under `src/persistence/entities/`. Migrations live under `src/persistence/migrations/`. Snapshot SSE is driven by PostgreSQL `LISTEN/NOTIFY` on the `snapshot_updates` channel.
+
+Run migrations from the repo root with `pnpm db:migrate`. See the [Docker stack guide](../../docs/docker.md#database-migrations) for the full command list.
+
+## More
+
+- [Documentation](../../docs/README.md)
+- [Reputation algorithms](../../docs/reputation-algorithms.md)
+- [Local development](../../docs/local-development.md)
+- [Testing strategy](../../docs/testing.md)

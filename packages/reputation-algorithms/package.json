@@ -1,73 +1,78 @@
 {
-    "name": "@reputo/reputation-algorithms",
-    "version": "0.0.0",
-    "description": "Framework-agnostic TypeScript library for describing, validating, and discovering versioned algorithm definitions via a read-only registry. JSON Schema–driven, Ajv-validated, identical API in Node and the browser; no code execution.",
-    "main": "dist/index.js",
-    "types": "dist/index.d.ts",
-    "private": true,
-    "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "import": "./dist/index.js",
-            "default": "./dist/index.js"
-        },
-        "./api": {
-            "types": "./dist/api/index.d.ts",
-            "import": "./dist/api/index.js",
-            "default": "./dist/api/index.js"
-        },
-        "./api/registry": {
-            "types": "./dist/api/registry.d.ts",
-            "import": "./dist/api/registry.js",
-            "default": "./dist/api/registry.js"
-        }
+  "name": "@reputo/reputation-algorithms",
+  "version": "0.0.0",
+  "description": "Framework-agnostic TypeScript library for describing, validating, and discovering versioned algorithm definitions via a read-only registry. JSON Schema–driven, Ajv-validated, identical API in Node and the browser; no code execution.",
+  "keywords": [
+    "typescript",
+    "algorithms",
+    "reputation"
+  ],
+  "license": "GPL-3.0-only",
+  "author": {
+    "name": "Behzad Rabiei",
+    "url": "https://github.com/Behzad-rabiei"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/reputo-org/reputo.git",
+    "directory": "packages/reputation-algorithms"
+  },
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
-    "type": "module",
-    "module": "dist/index.js",
-    "scripts": {
-        "check": "pnpm exec biome check",
-        "lint": "pnpm exec biome lint",
-        "format": "pnpm exec biome format --write",
-        "registry:build": "tsx src/cli/build-registry.ts",
-        "algorithm:create": "tsx src/cli/create-algorithm.ts",
-        "registry:validate": "tsx src/cli/validate-registry.ts",
-        "test": "vitest run",
-        "test:watch": "vitest --watch",
-        "test:cov": "vitest --coverage",
-        "typecheck": "tsc --noEmit",
-        "dev:types": "tsc --watch --preserveWatchOutput",
-        "dev:registry": "nodemon -L --on-change-only --watch src/registry --ext json --exec \"pnpm registry:validate && pnpm registry:build\"",
-        "dev": "pnpm registry:validate && pnpm registry:build && concurrently --names types,registry --prefix name --kill-others-on-fail \"pnpm run dev:types\" \"pnpm run dev:registry\"",
-        "prebuild": "pnpm registry:validate && pnpm registry:build",
-        "build": "tsc",
-        "docs": "typedoc",
-        "clean": "rm -rf coverage dist docs node_modules tsconfig.tsbuildinfo"
+    "./api": {
+      "types": "./dist/api/index.d.ts",
+      "import": "./dist/api/index.js",
+      "default": "./dist/api/index.js"
     },
-    "devDependencies": {
-        "@types/node": "catalog:",
-        "ajv": "catalog:",
-        "ajv-formats": "catalog:",
-        "concurrently": "catalog:",
-        "nodemon": "^3.1.9",
-        "tsx": "catalog:",
-        "typedoc": "catalog:",
-        "typedoc-plugin-markdown": "catalog:",
-        "typescript": "catalog:",
-        "vitest": "catalog:"
-    },
-    "keywords": [
-        "typescript",
-        "algorithms",
-        "reputation"
-    ],
-    "files": [
-        "dist",
-        "!dist/**/*.test.*"
-    ],
-    "author": {
-        "name": "Behzad Rabiei",
-        "url": "https://github.com/Behzad-rabiei"
-    },
-    "license": "GPL-3.0",
-    "packageManager": "pnpm@10.30.3"
+    "./api/registry": {
+      "types": "./dist/api/registry.d.ts",
+      "import": "./dist/api/registry.js",
+      "default": "./dist/api/registry.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*"
+  ],
+  "packageManager": "pnpm@10.30.3",
+  "scripts": {
+    "prebuild": "pnpm registry:validate && pnpm registry:build",
+    "build": "tsc",
+    "clean": "rm -rf coverage dist docs node_modules tsconfig.tsbuildinfo",
+    "check": "pnpm exec biome check",
+    "lint": "pnpm exec biome lint",
+    "format": "pnpm exec biome format --write",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest --watch",
+    "test:cov": "vitest --coverage",
+    "dev": "pnpm registry:validate && pnpm registry:build && concurrently --names types,registry --prefix name --kill-others-on-fail \"pnpm run dev:types\" \"pnpm run dev:registry\"",
+    "dev:types": "tsc --watch --preserveWatchOutput",
+    "dev:registry": "nodemon -L --on-change-only --watch src/registry --ext json --exec \"pnpm registry:validate && pnpm registry:build\"",
+    "algorithm:create": "tsx src/cli/create-algorithm.ts",
+    "registry:build": "tsx src/cli/build-registry.ts",
+    "registry:validate": "tsx src/cli/validate-registry.ts",
+    "docs": "typedoc"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "ajv": "catalog:",
+    "ajv-formats": "catalog:",
+    "concurrently": "catalog:",
+    "nodemon": "catalog:",
+    "tsx": "catalog:",
+    "typedoc": "catalog:",
+    "typedoc-plugin-markdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
 }

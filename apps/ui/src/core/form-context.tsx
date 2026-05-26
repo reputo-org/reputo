@@ -21,9 +21,7 @@ export function FormUploadProvider({
 }: {
   children: React.ReactNode
 }) {
-  // Use a ref to track uploading fields to avoid re-renders on every change
   const uploadingFieldsRef = useRef<Set<string>>(new Set())
-  // State to track if any field is uploading - this triggers re-renders
   const [uploadCount, setUploadCount] = useState(0)
 
   const setFieldUploading = useCallback(
@@ -37,12 +35,10 @@ export function FormUploadProvider({
         uploadingFieldsRef.current.delete(fieldKey)
         setUploadCount((prev) => Math.max(0, prev - 1))
       }
-      // If no change, don't update
     },
     []
   )
 
-  // Compute isUploading from the count (which triggers re-renders)
   const isUploading = uploadCount > 0
 
   const contextValue = useMemo(

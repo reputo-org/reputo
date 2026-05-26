@@ -4,9 +4,6 @@ import type { PaginatedFetcher } from '../../shared/types/index.js';
 import { validatePaginationOptions } from '../../shared/utils/index.js';
 import type { Comment, CommentApiResponse, CommentFetchOptions } from './types.js';
 
-/**
- * Fetch comments with pagination
- */
 export async function* fetchComments(
   client: DeepFundingClient,
   options: CommentFetchOptions = {},

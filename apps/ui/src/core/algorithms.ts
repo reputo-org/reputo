@@ -23,7 +23,6 @@ const ALGORITHM_META: Record<string, { duration: string; level: string }> = {
 
 const DEFAULT_META = { duration: "~2-5 min", level: "Intermediate" }
 
-// Transform the AlgorithmDefinition from the package to match the UI's expected format
 export interface Algorithm {
   id: string
   title: string
@@ -47,7 +46,6 @@ function formatInputSummary(inputCount: number): string {
   return `${inputCount} configurable input${inputCount !== 1 ? "s" : ""}`
 }
 
-// Transform AlgorithmDefinition to UI Algorithm format
 function transformAlgorithm(definition: AlgorithmDefinition): Algorithm {
   const dependencyLabels =
     definition.dependencies
@@ -59,7 +57,7 @@ function transformAlgorithm(definition: AlgorithmDefinition): Algorithm {
   return {
     id: definition.key,
     title: definition.name,
-    category: definition.category, // Preserve original category
+    category: definition.category,
     summary: definition.summary,
     description: definition.description,
     duration: meta.duration,
@@ -75,11 +73,6 @@ function transformAlgorithm(definition: AlgorithmDefinition): Algorithm {
   }
 }
 
-/**
- * Get all algorithms from the registry.
- *
- * @returns Array of all algorithms
- */
 function getAllAlgorithms(): Algorithm[] {
   try {
     const keys = getAlgorithmDefinitionKeys()
@@ -102,10 +95,8 @@ function getAllAlgorithms(): Algorithm[] {
   }
 }
 
-// Get all algorithms from the registry (cached for initial load)
 export const algorithms: Algorithm[] = getAllAlgorithms()
 
-// Helper function to get algorithm by ID
 export function getAlgorithmById(id: string): Algorithm | undefined {
   return algorithms.find((algo) => algo.id === id)
 }
@@ -123,7 +114,6 @@ export function searchAlgorithms(query: string): Algorithm[] {
   }
 
   try {
-    // Search using OR logic - algorithm matches if any field matches
     const results = searchAlgorithmDefinitions({
       key: query,
       name: query,
@@ -139,9 +129,3 @@ export function searchAlgorithms(query: string): Algorithm[] {
     return []
   }
 }
-
-// Note: Form schemas are not registered in the reputoClient as they are UI-specific.
-// Validation happens through buildZodSchema in the form component.
-// To register actual algorithm definitions, use:
-// const definition = getAlgorithmDefinition({ key: algorithm.id })
-// reputoClient.registerSchema(JSON.parse(definition) as AlgorithmDefinition)

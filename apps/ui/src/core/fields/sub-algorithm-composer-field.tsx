@@ -78,8 +78,6 @@ export function SubAlgorithmComposerField({
   const rowValues =
     (useWatch({ control, name: fieldName }) as RowValue[] | undefined) ?? []
 
-  // Track which rows are expanded. Newly appended rows open automatically; on
-  // mount rows start collapsed so the user sees a compact summary first.
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
 
   const toggleExpanded = (id: string) => {
@@ -101,8 +99,6 @@ export function SubAlgorithmComposerField({
       weight: 1,
       inputs: [],
     })
-    // The new row is the last one — its id is assigned by RHF after append, so
-    // we flip a flag and let the effect below open whatever just got added.
     setPendingExpand(true)
   }
 
@@ -123,8 +119,6 @@ export function SubAlgorithmComposerField({
     setPendingExpand(false)
   }, [fields, pendingExpand])
 
-  // Collect algorithm keys picked in other rows so each row can filter out
-  // duplicates in its own <Select>.
   const selectedKeysByIndex = rowValues.map((row) => row?.algorithm_key ?? "")
 
   return (
@@ -241,7 +235,6 @@ function SubAlgorithmRow({
     return definition ? { definition } : null
   }, [selectedKey, selectedVersion])
 
-  // When the algorithm key changes, auto-select the latest version if none set
   useEffect(() => {
     if (!selectedKey) return
     if (selectedVersion && availableVersions.includes(selectedVersion)) return
@@ -256,9 +249,6 @@ function SubAlgorithmRow({
 
   const { getValues } = useFormContext()
 
-  // When the selected child algorithm changes, align the inputs array with
-  // the algorithm's definition. Preserves existing values when the shape
-  // already matches (edit flow).
   useEffect(() => {
     if (!childDefinition) {
       return
@@ -400,7 +390,6 @@ function SubAlgorithmRow({
                   <Select
                     onValueChange={(value) => {
                       field.onChange(value)
-                      // Reset version so the effect above picks the latest one.
                       setValue(`${rowPrefix}.algorithm_version`, "", {
                         shouldDirty: true,
                         shouldValidate: true,
@@ -504,10 +493,6 @@ function SubAlgorithmRow({
                 renderScalarField(
                   {
                     ...childField,
-                    // Rebind the form path to the composer array slot. The
-                    // internal `.value` is what the API payload stores; we keep
-                    // the original `key` on the sibling `.key` field (set by the
-                    // parent's buildChildInputsArray helper).
                     key: `${rowPrefix}.inputs.${childIndex}.value`,
                   },
                   control
