@@ -29,6 +29,13 @@ x-resources-l: &resources-l
     reservations:
         memory: 192M
 
+x-resources-xl: &resources-xl
+    limits:
+        memory: 768M
+        cpus: '1.50'
+    reservations:
+        memory: 384M
+
 x-pg-healthcheck: &pg-healthcheck
     test:
         ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
@@ -81,7 +88,7 @@ services:
             - onchain_data_postgresql_data:/var/lib/postgresql/data
         healthcheck: *pg-healthcheck
         deploy:
-            resources: *resources-m
+            resources: *resources-xl
 
     # One-shot logical backup. profiles: [backup] keeps it out of the default
     # start set; `backup-data-*` Komodo procedures trigger it on demand.
