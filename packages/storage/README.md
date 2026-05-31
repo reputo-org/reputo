@@ -25,7 +25,7 @@ const { url } = await storage.createPresignedPutUrl({ bucket: 'reputo', key });
 
 Pass an `S3Client` to the `Storage` constructor. The SDK reads AWS credentials from the standard credential chain (environment, shared config files, IAM role).
 
-For local MinIO or LocalStack, pass `endpoint` and `forcePathStyle: true` to `createS3Client`. In the Reputo Docker stack, this is wired through `STORAGE_ENDPOINT` and `STORAGE_FORCE_PATH_STYLE`. See [Docker stack — object storage](../../docs/docker.md#object-storage).
+For local MinIO or LocalStack, pass `endpoint` and `forcePathStyle: true` to `createS3Client`. In the Reputo Docker stack, this is wired through `STORAGE_ENDPOINT` and `STORAGE_FORCE_PATH_STYLE`. See [Docker stack — local development](../../docs/docker.md#local-development).
 
 ## Local commands
 

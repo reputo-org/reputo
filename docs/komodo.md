@@ -6,7 +6,7 @@
 GitHub Actions -> GHCR image tags -> Komodo webhooks -> Periphery -> Docker Compose
 ```
 
-This page covers operator topics. For day-to-day deploys, see [Deployment](deployment.md). For the directory layout and stack model, see [infra/komodo/README.md](../infra/komodo/README.md).
+This page covers operator topics: install, RBAC, variables, webhooks, and backups. For day-to-day deploys, see [Deployment](deployment.md). The repository layout is under [Files](#files) below.
 
 ## Host shape
 
@@ -113,7 +113,7 @@ The sync includes UserGroups. Apply the RBAC resources after cutover, then add o
 
 ## Stack model
 
-Reputo runs as four Komodo Stacks per environment. Each Stack is a separate Docker Compose project on the host and joins the shared external bridge network `reputo`. See [infra/komodo/README.md](../infra/komodo/README.md) for the split rationale.
+Reputo runs as four Komodo Stacks per environment. Each Stack is a separate Docker Compose project on the host and joins the shared external bridge network `reputo`. The split is by lifecycle: each datastore (application Postgres, Temporal's cluster, observability TSDBs) gets its own stack so restarting one does not bounce the others, while the stateless apps stack redeploys on every merge. Traefik ships with the apps stack because its routing labels are reissued on each routing change.
 
 - `reputo-database-{env}` — application Postgres + onchain-data Postgres + on-demand `postgres-backup`. Folder: [infra/komodo/stacks/database/](../infra/komodo/stacks/database/).
 - `reputo-temporal-{env}` — Temporal server + UI + Postgres + Elasticsearch. Folder: [infra/komodo/stacks/temporal/](../infra/komodo/stacks/temporal/).
@@ -126,14 +126,7 @@ Posture:
 - The production apps stack has direct stack webhooks disabled. GitHub Actions performs the digest-based production retag, then calls the `promote-production` Procedure webhook.
 - Database, temporal, and observability stacks have webhooks and polling disabled. They are deployed manually through the `deploy-*` procedures.
 
-Each stack writes a Komodo-managed env file at deploy time from the TOML `environment` block:
-
-- `.komodo-reputo-database-{env}.env`
-- `.komodo-reputo-temporal-{env}.env`
-- `.komodo-reputo-observability-{env}.env`
-- `.komodo-reputo-apps-{env}.env`
-
-These files are generated on the target host and passed to Docker Compose with `--env-file`. The checked-in TOML references Komodo variables and secrets by `[[NAME]]` only. Resolved values must never be committed.
+At deploy time each stack writes a Komodo-managed env file (`.komodo-reputo-<stack>-{env}.env`) from its TOML `environment` block and passes it to Docker Compose with `--env-file`. The checked-in TOML references variables and secrets by `[[NAME]]` only; resolved values must never be committed.
 
 The apps stacks pin the channel tags:
 
@@ -193,51 +186,13 @@ What does **not** go in Komodo Variables:
 
 ### Per-environment variables (prefix `STAGING_` or `PRODUCTION_`)
 
-Non-secret:
+The full list lives in [`variables.toml`](../infra/komodo/resources/variables.toml): domains and origins, Deep ID OIDC settings, AWS and storage, DeepFunding, Grafana, and the Postgres credentials for each database. A few need care:
 
-- `<ENV>_TRAEFIK_DOMAIN`, `<ENV>_UI_DOMAIN`, `<ENV>_API_DOMAIN`, `<ENV>_TEMPORAL_UI_DOMAIN`, `<ENV>_GRAFANA_DOMAIN`
-- `<ENV>_ALLOWED_ORIGINS`, `<ENV>_APP_PUBLIC_URL`, `<ENV>_AUTH_COOKIE_DOMAIN`
-- `<ENV>_OWNER_EMAIL` — required while `AUTH_MODE=oauth`. The API fails to start if missing or out of sync with the active owner allowlist row.
-- `<ENV>_GRAFANA_ADMIN_USER`
-- `<ENV>_DEEP_ID_ISSUER_URL`, `<ENV>_DEEP_ID_CLIENT_ID`, `<ENV>_DEEP_ID_AUTH_REDIRECT_URI`, `<ENV>_DEEP_ID_AUTH_SCOPES`, `<ENV>_DEEP_ID_CONSENT_REDIRECT_URI`, `<ENV>_DEEP_ID_CONSENT_GRANT_TTL_SECONDS`, `<ENV>_DEEP_ID_VOTING_PORTAL_SCOPES`
-- `<ENV>_VOTING_PORTAL_RETURN_URL`
-- `<ENV>_AWS_REGION`, `<ENV>_STORAGE_BUCKET`
-- `<ENV>_DEEPFUNDING_API_BASE_URL`
-- `<ENV>_API_POSTGRES_DB_NAME`, `<ENV>_ONCHAIN_DATA_POSTGRES_DB_NAME`
+- `<ENV>_TRAEFIK_AUTH`, `<ENV>_GRAFANA_AUTH` — keep the doubled `$$` htpasswd escaping exactly.
+- `<ENV>_API_DATABASE_URL`, `<ENV>_ONCHAIN_DATABASE_URL` — composed from the per-database user, password, and name vars, e.g. `postgresql://<user>:<password>@postgres:5432/<db_name>`.
+- `<ENV>_OWNER_EMAIL` — required while `AUTH_MODE=oauth`; the API fails to start if it is missing or out of sync with the owner allowlist row.
 
-Secrets:
-
-- `<ENV>_TRAEFIK_AUTH`, `<ENV>_GRAFANA_AUTH` — keep doubled `$$` escaping exactly as the upstream htpasswd examples do.
-- `<ENV>_CF_DNS_API_TOKEN`
-- `<ENV>_GRAFANA_ADMIN_PASSWORD`
-- `<ENV>_DEEP_ID_CLIENT_SECRET`
-- `<ENV>_AUTH_TOKEN_ENCRYPTION_KEY`
-- `<ENV>_DEEPFUNDING_API_KEY`
-- `<ENV>_ALCHEMY_API_KEY`
-- `<ENV>_BLOCKFROST_API_KEY`
-- `<ENV>_TEMPORAL_POSTGRES_USER`, `<ENV>_TEMPORAL_POSTGRES_PASSWORD`
-- `<ENV>_ONCHAIN_DATA_POSTGRES_USER`, `<ENV>_ONCHAIN_DATA_POSTGRES_PASSWORD`
-- `<ENV>_ONCHAIN_DATABASE_URL` — composed from the three onchain DB vars, e.g. `postgresql://<user>:<password>@onchain-data-postgresql:5432/<db_name>`.
-- `<ENV>_API_POSTGRES_USER`, `<ENV>_API_POSTGRES_PASSWORD`
-- `<ENV>_API_DATABASE_URL` — composed from the three API DB vars, e.g. `postgresql://<user>:<password>@postgres:5432/<db_name>`.
-
-Configure the GHCR PAT in Komodo under `Settings > Providers` as a Docker registry account for `ghcr.io`. Attach that registry account to the stacks if image pulls need authentication. Do not model the PAT as a stack environment variable.
-
-### Recommended tags
-
-- `env:staging` or `env:production`
-- `scope:cloudflare`, `scope:traefik`, `scope:grafana`, `scope:postgres`, `scope:aws`, `scope:deep-id`, `scope:deepfunding`, `scope:onchain`, `scope:ghcr`
-
-### Cutover order
-
-1. With `include_variables = true`, run the sync once to create variable and secret shells. Fill the values in the UI, then flip `include_variables` back to `false`.
-2. Sync resources and UserGroups.
-3. Add users to UserGroups in the UI.
-4. Deploy through Komodo and confirm all services start.
-5. Compare selected container env values before and after migration. Do not print secrets to logs.
-6. Manually delete or disable any legacy alerter. ResourceSync has `delete = false`.
-
-Keep secret values in Komodo or the password manager only. Never commit resolved values.
+Configure the GHCR PAT in Komodo under `Settings > Providers` as a Docker registry account for `ghcr.io`, and attach it to stacks that need authenticated pulls. Do not model the PAT as a stack environment variable. Keep secret values in Komodo or the password manager only; never commit resolved values.
 
 ## Webhooks
 
@@ -311,17 +266,10 @@ curl -I https://komodo.logid.xyz/
 
 Expected:
 
-- `https://komodo.logid.xyz/` shows a valid Cloudflare/Let's Encrypt TLS certificate.
-- A fresh browser can complete GitHub OAuth login.
-- The first successful login becomes the initial admin.
+- `https://komodo.logid.xyz/` shows a valid TLS certificate, and a fresh browser can complete GitHub OAuth login. The first successful login becomes the initial admin.
 - Restarting `komodo-core` keeps users, sessions, and resources.
-- Power-cycling the VM brings Traefik, Postgres, FerretDB, Core, and Periphery back up with `restart: unless-stopped`.
 - The webhook secret in `core.env` matches the GitHub staging and production environment secrets.
 - Running the ResourceSync creates or updates the three UserGroups.
-- An `engineers` member can execute `reputo-apps-staging` but cannot execute `promote-production`.
-- A `release-managers` member can execute `promote-production`.
+- An `engineers` member can execute `reputo-apps-staging` but not `promote-production`; a `release-managers` member can execute `promote-production`.
 - `reputo-apps-production` has direct stack webhooks disabled.
-- A Discord test alert from Komodo succeeds.
-- Promoting a known `sha-<commit>` deploys `reputo-apps-production`.
-- Promoting a missing SHA fails before retagging or calling Komodo.
-- The Komodo audit log shows the production Procedure run and the promoted commit SHA from the webhook payload.
+- Promoting a known `sha-<commit>` deploys `reputo-apps-production`; a missing SHA fails before retagging.

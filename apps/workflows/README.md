@@ -44,4 +44,3 @@ The onchain-data Postgres instance belongs to [`@reputo/onchain-data`](../../pac
 - [Documentation](../../docs/README.md)
 - [Reputation algorithms](../../docs/reputation-algorithms.md)
 - [Local development](../../docs/local-development.md)
-- [Testing strategy](../../docs/testing.md)

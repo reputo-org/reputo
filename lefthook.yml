@@ -1,10 +1,10 @@
-prepare-commit-msg:
-    commands:
-        commitizen:
-            interactive: true
-            run: pnpm run cz --hook
-            env:
-                LEFTHOOK: 0
+# prepare-commit-msg:
+#     commands:
+#         commitizen:
+#             interactive: true
+#             run: pnpm run cz --hook
+#             env:
+#                 LEFTHOOK: 0
 
 commit-msg:
     commands:

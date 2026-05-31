@@ -11,7 +11,7 @@ Without mise, install the exact Node and pnpm versions yourself. Other versions 
 
 ## First-time setup
 
-Install mise:
+Install mise, then activate it in your shell so `node` and `pnpm` resolve to the pinned versions (see the [mise docs](https://mise.jdx.dev)):
 
 ```bash
 brew install mise            # macOS
@@ -19,9 +19,10 @@ brew install mise            # macOS
 # winget install jdx.mise    # Windows
 ```
 
-Run the setup task:
+Open a new shell, then trust this repo's config and run the setup task:
 
 ```bash
+mise trust                   # trust this repo's mise config (first run only)
 mise run setup               # installs Node + pnpm, copies .env.example -> .env, runs pnpm install
 ```
 

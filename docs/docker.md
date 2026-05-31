@@ -19,7 +19,7 @@ Staging and production run four separate Komodo Stacks per environment, each wit
 | `reputo-observability-{env}` | [`stacks/observability/`](../infra/komodo/stacks/observability/) | `loki`, `promtail`, `prometheus`, `cadvisor`, `node-exporter`, `grafana` |
 | `reputo-apps-{env}` | [`stacks/apps/`](../infra/komodo/stacks/apps/) | `traefik`, `ui`, `api`, `orchestrator-worker`, `onchain-data-worker`, `typescript-worker` |
 
-Each stack folder contains its `stack.toml` (Komodo Stack definition), `compose.yml` (what Periphery runs), `.env.example` (env contract), and any service config (`config/...`) that only that stack consumes. See [infra/komodo/README.md](../infra/komodo/README.md) for the split rationale and [Komodo operations](komodo.md) for deploy/RBAC details.
+Each stack folder contains its `stack.toml` (Komodo Stack definition), `compose.yml` (what Periphery runs), and any service config (`config/...`) that only that stack consumes. See [Komodo operations](komodo.md) for the split rationale and deploy/RBAC details.
 
 ## Local development
 
@@ -30,13 +30,4 @@ Each stack folder contains its `stack.toml` (Komodo Stack definition), `compose.
 | `apps` | api, ui, workers |
 | `infra` | traefik, temporal stack, both Postgres flavours, MinIO |
 
-Useful local endpoints:
-
-| Service | URL or command |
-| --- | --- |
-| UI | <http://localhost:4000> |
-| API | <http://localhost:3000> |
-| Temporal UI | <http://localhost:8088> |
-| MinIO console | <http://localhost:9001> (login `minio` / `minio12345`) |
-| App Postgres | `psql postgresql://reputo_app:reputo_app@localhost:5434/reputo_app` |
-| Onchain Postgres | `psql postgresql://reputo_onchain:reputo_onchain@localhost:5433/reputo_onchain` |
+For local endpoints (UI, API, Temporal UI, MinIO, Postgres), see [Local development](local-development.md#local-endpoints-both-flows).
