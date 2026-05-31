@@ -50,8 +50,8 @@ Reputo deploys to staging and production through Komodo. Image builds and tag pr
 
 ## Configuration
 
-- Komodo Variables are the single source of truth for staging and production. They are declared in [`infra/komodo/resources/variables.toml`](../infra/komodo/resources/variables.toml) and resolved through `[[NAME]]` references in [`infra/komodo/resources/stacks.toml`](../infra/komodo/resources/stacks.toml).
-- The deploy Compose files under [`infra/komodo/compose/`](../infra/komodo/compose/) have no `env_file:` directives. Every value flows through `${VAR}` interpolation from the Komodo-generated `.komodo-reputo-*.env` file.
+- Komodo Variables are the single source of truth for staging and production. They are declared in [`infra/komodo/resources/variables.toml`](../infra/komodo/resources/variables.toml) and resolved through `[[NAME]]` references in each stack's [`stack.toml`](../infra/komodo/stacks/).
+- The deploy Compose files under [`infra/komodo/stacks/`](../infra/komodo/stacks/) have no `env_file:` directives. Every value flows through `${VAR}` interpolation from the Komodo-generated `.komodo-reputo-*.env` file.
 - Service selection is by stack membership — each of the four stacks ships its own compose file rather than sharing one filtered by `COMPOSE_PROFILES`.
 
 See [Environment variables](environment-variables.md) for the rules on adding or changing a variable.
