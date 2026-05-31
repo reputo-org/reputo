@@ -21,7 +21,7 @@
 
 ## Quick start
 
-1. Install [mise](https://mise.jdx.dev):
+1. Install [mise](https://mise.jdx.dev) and activate it in your shell, so `node` and `pnpm` use the pinned versions:
 
     ```bash
     brew install mise            # macOS
@@ -32,6 +32,7 @@
 2. Bootstrap the repo:
 
     ```bash
+    mise trust                   # trust this repo's mise config (first run only)
     mise run setup               # installs Node + pnpm, copies .env.example -> .env, runs pnpm install
     ```
 
