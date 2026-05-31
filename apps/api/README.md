@@ -8,8 +8,7 @@ NestJS application that serves the Reputo HTTP API. It owns the application Post
 - Algorithm preset CRUD at `/algorithm-presets`.
 - Snapshot create/list/get/delete and SSE updates at `/snapshots` and `/snapshots/events`.
 - Storage upload verification, presigned downloads, and attachment streaming at `/storage`.
-- Health check at `/healthz`.
-- Interactive API reference at `/reference` and `/api/docs`.
+- Interactive API reference at `/reference` and `/docs`.
 - Temporal worker on the `api-snapshot-activities` task queue that exposes the `getSnapshot` and `updateSnapshot` activities the orchestrator workflow proxies to.
 
 ## Local commands
@@ -33,11 +32,10 @@ The API validates its environment in [`src/config/env.ts`](src/config/env.ts). R
 
 TypeORM owns the schema. Entities live under `src/persistence/entities/`. Migrations live under `src/persistence/migrations/`. Snapshot SSE is driven by PostgreSQL `LISTEN/NOTIFY` on the `snapshot_updates` channel.
 
-Run migrations from the repo root with `pnpm db:migrate`. See the [Docker stack guide](../../docs/docker.md#database-migrations) for the full command list.
+Run migrations from the repo root with `pnpm db:migrate`.
 
 ## More
 
 - [Documentation](../../docs/README.md)
 - [Reputation algorithms](../../docs/reputation-algorithms.md)
 - [Local development](../../docs/local-development.md)
-- [Testing strategy](../../docs/testing.md)

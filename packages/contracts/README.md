@@ -40,7 +40,3 @@ pnpm --filter @reputo/contracts test
 pnpm --filter @reputo/contracts typecheck
 pnpm --filter @reputo/contracts docs
 ```
-
-## More
-
-- Generated API docs: [docs/README.md](docs/README.md)

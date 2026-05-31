@@ -32,4 +32,3 @@ If you run the API on a non-standard host, set `API_PROXY_TARGET` in your root `
 
 - [Documentation](../../docs/README.md)
 - [Local development](../../docs/local-development.md)
-- [Testing strategy](../../docs/testing.md)

@@ -44,9 +44,6 @@ In Reputo, these are wired through `DEEPFUNDING_API_BASE_URL` and `DEEPFUNDING_A
 pnpm --filter @reputo/deepfunding-portal-api build
 pnpm --filter @reputo/deepfunding-portal-api test
 pnpm --filter @reputo/deepfunding-portal-api typecheck
-pnpm --filter @reputo/deepfunding-portal-api sync
-pnpm --filter @reputo/deepfunding-portal-api validate
-pnpm --filter @reputo/deepfunding-portal-api fetch-api
 pnpm --filter @reputo/deepfunding-portal-api docs
 ```
 

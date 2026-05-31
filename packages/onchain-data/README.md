@@ -48,12 +48,12 @@ In Reputo, these are wired through `ONCHAIN_DATABASE_URL`, `ALCHEMY_API_KEY`, an
 ```bash
 pnpm --filter @reputo/onchain-data build
 pnpm --filter @reputo/onchain-data test
-pnpm --filter @reputo/onchain-data test:postgres
+pnpm --filter @reputo/onchain-data test:integration
 pnpm --filter @reputo/onchain-data typecheck
 pnpm --filter @reputo/onchain-data docs
 ```
 
-`test:postgres` runs the integration suite against a real Postgres container.
+`test:integration` runs the integration suite against a real Postgres container.
 
 ## More
 
