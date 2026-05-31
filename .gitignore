@@ -30,12 +30,6 @@ docker-compose.override.yml
 **/*.env
 !.env.example
 
-# Per-file Docker secrets written by CI for preview deploys; never committed.
-docker/compose/secrets/
-
-# Husky
-.husky/
-
 # Changesets
 changeset/
 
