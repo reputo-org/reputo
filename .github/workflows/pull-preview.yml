@@ -1,15 +1,19 @@
 name: Pull Preview 👀
 run-name: Pull Preview 👀
+
 on:
     pull_request:
         branches: [main]
-        types: [labeled, unlabeled, synchronize, reopened, opened, closed]
+        types: [opened, reopened, synchronize, labeled, unlabeled, closed]
+    schedule:
+        - cron: '0 * * * *'
 
-concurrency: ${{ github.ref }}
+concurrency: preview-${{ github.event.pull_request.number || github.ref }}
 
 jobs:
     build:
         if: |
+            github.event_name == 'pull_request' &&
             github.event.action != 'closed' &&
             github.event.action != 'unlabeled' &&
             contains(github.event.pull_request.labels.*.name, 'pullpreview')
@@ -17,75 +21,52 @@ jobs:
         with:
             ref: ${{ github.event.pull_request.head.sha }}
             push: true
-            # Preview compose references every image by tag, so always build
-            # all apps here regardless of which were affected.
             affected: false
             tags: |
                 type=raw,value=preview-${{ github.event.pull_request.head.sha }}
 
-    deploy:
-        name: deploy
+    preview:
+        name: preview
         needs: build
+        permissions:
+            contents: read
+            pull-requests: write
+            statuses: write
+
         if: |
             !cancelled() &&
             (needs.build.result == 'success' || needs.build.result == 'skipped') &&
-            (github.event.label.name == 'pullpreview' ||
+            (github.event_name == 'schedule' ||
+             github.event.action == 'closed' ||
+             github.event.label.name == 'pullpreview' ||
              contains(github.event.pull_request.labels.*.name, 'pullpreview'))
         runs-on: ubuntu-22.04
         timeout-minutes: 30
-        permissions:
-            contents: read
-            deployments: write
-            pull-requests: write
-            statuses: write
         environment:
             name: preview
-            url: ${{ steps.preview_result.outputs.url }}
+            url: ${{ steps.preview.outputs.url }}
         steps:
             - uses: actions/checkout@v4
 
             - name: Generate per-deploy auth token encryption key
-              if: github.event.action != 'closed' && github.event.action != 'unlabeled'
+              if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.action != 'unlabeled'
               id: gen_auth_key
               run: |
                   key="$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('hex'))")"
                   echo "::add-mask::$key"
                   echo "auth_token_encryption_key=$key" >> "$GITHUB_OUTPUT"
 
-            - id: pullpreview_primary
+            - id: preview
               name: Deploy preview
-              continue-on-error: true
-              uses: pullpreview/action@v6
+              uses: pullpreview/action@v6.2.0
               with:
                   label: pullpreview
                   provider: lightsail
                   instance_type: large
+                  region: eu-central-1
                   compose_files: infra/preview/compose.yml
                   compose_options: ''
-                  ttl: 24h
-              env:
-                  # AWS creds for the Lightsail provisioner (not the app).
-                  AWS_ACCESS_KEY_ID: '${{ secrets.AWS_ACCESS_KEY_ID }}'
-                  AWS_SECRET_ACCESS_KEY: '${{ secrets.AWS_SECRET_ACCESS_KEY }}'
-                  AWS_REGION: 'eu-central-1'
-
-                  # Per-deploy values consumed by compose.preview.yml.
-                  IMAGE_TAG: 'preview-${{ github.event.pull_request.head.sha }}'
-                  AUTH_TOKEN_ENCRYPTION_KEY: '${{ steps.gen_auth_key.outputs.auth_token_encryption_key }}'
-                  DEEPFUNDING_API_KEY: '${{ secrets.DEEPFUNDING_API_KEY }}'
-                  ALCHEMY_API_KEY: '${{ secrets.ALCHEMY_API_KEY }}'
-                  BLOCKFROST_API_KEY: '${{ secrets.BLOCKFROST_API_KEY }}'
-
-            - id: pullpreview_retry
-              name: Retry preview deploy after transient failure
-              if: steps.pullpreview_primary.outcome == 'failure'
-              uses: pullpreview/action@v6
-              with:
-                  label: pullpreview
-                  provider: lightsail
-                  instance_type: large
-                  compose_files: infra/preview/compose.yml
-                  compose_options: ''
+                  proxy_tls: traefik:80
                   ttl: 24h
               env:
                   AWS_ACCESS_KEY_ID: '${{ secrets.AWS_ACCESS_KEY_ID }}'
@@ -97,20 +78,3 @@ jobs:
                   DEEPFUNDING_API_KEY: '${{ secrets.DEEPFUNDING_API_KEY }}'
                   ALCHEMY_API_KEY: '${{ secrets.ALCHEMY_API_KEY }}'
                   BLOCKFROST_API_KEY: '${{ secrets.BLOCKFROST_API_KEY }}'
-
-            - id: preview_result
-              if: always()
-              name: Resolve preview URL
-              run: |
-                  if [ "${{ steps.pullpreview_primary.outcome }}" = 'success' ]; then
-                      echo "url=${{ steps.pullpreview_primary.outputs.url }}" >> "$GITHUB_OUTPUT"
-                      exit 0
-                  fi
-
-                  if [ "${{ steps.pullpreview_retry.outcome }}" = 'success' ]; then
-                      echo "url=${{ steps.pullpreview_retry.outputs.url }}" >> "$GITHUB_OUTPUT"
-                  fi
-
-            - name: Fail if preview deployment did not succeed
-              if: steps.pullpreview_primary.outcome != 'success' && steps.pullpreview_retry.outcome != 'success'
-              run: exit 1
