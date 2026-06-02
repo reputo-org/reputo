@@ -47,8 +47,7 @@ x-resources-l: &resources-l
         memory: 192M
 
 x-pg-healthcheck: &pg-healthcheck
-    test:
-        ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+    test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
     interval: 10s
     timeout: 5s
     retries: 12
@@ -63,7 +62,7 @@ x-node-tcp-healthcheck: &node-tcp-healthcheck
 ################################################################################
 
 x-api-environment: &api-environment
-    NODE_ENV: production
+    NODE_ENV: development
     PORT: '3000'
     LOG_LEVEL: info
     AUTH_MODE: mock
@@ -99,7 +98,7 @@ x-api-environment: &api-environment
     TEMPORAL_API_SNAPSHOT_ACTIVITIES_TASK_QUEUE: api-snapshot-activities
 
 x-workflows-environment: &workflows-environment
-    NODE_ENV: production
+    NODE_ENV: development
     LOG_LEVEL: info
     TEMPORAL_ADDRESS: temporal:7233
     TEMPORAL_NAMESPACE: default
@@ -295,7 +294,6 @@ services:
         deploy:
             resources: *resources-m
 
-
     minio-init:
         <<: *service-defaults
         container_name: minio-init
@@ -308,9 +306,9 @@ services:
             - /bin/sh
             - -lc
             - |
-              set -eu
-              mc alias set local http://minio:9000 minio minio12345preview
-              mc mb --ignore-existing local/reputo-preview
+                set -eu
+                mc alias set local http://minio:9000 minio minio12345preview
+                mc mb --ignore-existing local/reputo-preview
         deploy:
             resources: *resources-xs
 
@@ -331,7 +329,7 @@ services:
             test:
                 - CMD-SHELL
                 - >-
-                  node -e "require('net').connect(8080).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
+                    node -e "require('net').connect(8080).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
         deploy:
             resources: *resources-s
 
@@ -351,7 +349,7 @@ services:
             test:
                 - CMD-SHELL
                 - >-
-                  node -e "require('net').connect(3000).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
+                    node -e "require('net').connect(3000).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
         deploy:
             resources: *resources-l
 
