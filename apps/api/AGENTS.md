@@ -1,28 +1,26 @@
-# API Instructions
+# @reputo/api
 
-- Keep Nest features layered: controllers map HTTP, services own business logic, repositories own persistence and queries.
-- Follow the existing feature structure: `*.controller.ts`, `*.service.ts`, `*.repository.ts`, `dto/`, and `*.module.ts`.
-- Validate inbound request data at the DTO boundary using the existing Nest validation patterns.
-- Keep HTTP concerns at the edge. Services may raise domain errors; controllers and filters should translate them into HTTP responses.
-- When endpoint behavior or request/response contracts change, update the relevant unit or e2e tests.
+NestJS HTTP API served under `/api/v1`. It owns the application Postgres database and hosts a Temporal
+worker for snapshot activities.
 
-## Environment
+It is the system's front door and the sole owner of the application database — `@reputo/workflows`
+reaches that data only by calling this app's `getSnapshot` / `updateSnapshot` activities (task queue
+defined in `@reputo/contracts`). Features are organised controller → service → repository, one folder
+per area (`auth`, `consent`, `snapshot`, `algorithm-preset`, `storage`, `users`, `sessions`, `admin`).
+Persistence (TypeORM `DataSource`, entities, migrations) lives in `src/persistence`; the Temporal worker
+in `src/temporal`; env validation in `src/config/env.ts`.
 
-- `src/config/env.ts` is the single source of truth for this app's environment.
-- Never read `process.env.*` outside that module.
-- Adding or changing an env var: see the root [AGENTS.md](../../AGENTS.md) "Environment variables" section.
+Snapshot updates reach the UI as Server-Sent Events, driven by Postgres `LISTEN/NOTIFY` on the
+`snapshot_updates` channel.
 
-## Persistence
+## How to run, test, migrate
 
-- Persistence lives in `src/persistence` (TypeORM `DataSource`, entity definitions, and the LISTEN/NOTIFY listener) plus per-feature repositories. The API owns the application database; no other workspace opens a connection to it.
-- ORM is **TypeORM** via `@nestjs/typeorm`. The naming strategy is `SnakeNamingStrategy` (snake_case at the DB layer, camelCase in entities); avoid sprinkling per-column `@Column({ name: ... })` overrides.
-- Prefer the repository layer over raw `Repository<Entity>` / `DataSource` access from services so query intent stays testable.
-- Snapshot real-time updates use PostgreSQL `LISTEN/NOTIFY` on `snapshot_updates`. Always pair a snapshot mutation with the matching `pg_notify` in the same transaction (use `manager.query('SELECT pg_notify($1, $2)', [SNAPSHOT_UPDATES_CHANNEL, id])` inside the surrounding `dataSource.transaction(...)`).
-- Multi-table writes use `dataSource.transaction(async (manager) => { ... })`; never call repositories from two unrelated contexts inside one logical write.
-- Entity files live under `src/persistence/entities/`. The standalone CLI DataSource for migrations is `src/persistence/data-source.ts`. Migrations live under `src/persistence/migrations/`. Generate a new migration with `pnpm --filter @reputo/api typeorm:generate src/persistence/migrations/<Name>` and apply it with `pnpm --filter @reputo/api typeorm:run`. `synchronize: true` is forbidden outside test fixtures.
+```bash
+pnpm --filter @reputo/api dev        # build deps, watch + run Nest on :3000
+pnpm --filter @reputo/api test       # unit (Vitest)
+pnpm --filter @reputo/api test:e2e   # e2e (separate Vitest config)
 
-## Temporal worker
-
-- The API hosts a Temporal worker on the `api-snapshot-activities` task queue (`API_SNAPSHOT_ACTIVITIES_TASK_QUEUE` in `@reputo/contracts`).
-- Wire any new cross-service activity here: add the activity implementation under `src/temporal`, expose its I/O type in `@reputo/contracts`, and register it on the API worker. Workflows pull DB-touching work through this queue.
-- Activity I/O DTOs stay framework-agnostic in `@reputo/contracts` so Workflows can import them without dragging Nest in.
+# TypeORM migrations (DataSource: src/persistence/data-source.ts)
+pnpm --filter @reputo/api typeorm:generate src/persistence/migrations/<Name>
+pnpm db:migrate                      # apply pending migrations (from repo root)
+```

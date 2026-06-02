@@ -14,7 +14,6 @@ GitHub Actions runs the quality gate on every pull request and the full build-te
 | [`_quality-gate.yml`](../.github/workflows/_quality-gate.yml) | Called by other workflows | Reusable: install deps, Biome check, tests with coverage, Codecov upload, build. |
 | [`_build-and-push.yml`](../.github/workflows/_build-and-push.yml) | Called by other workflows | Reusable: compute affected apps via Turbo, build per-app images, optionally push to GHCR. |
 
-
 ## Secrets
 
 In the GitHub `staging` and `production` environments:

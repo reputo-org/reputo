@@ -1,8 +1,12 @@
-# Workflow Code Instructions
+# workflows/
 
-- Workflow code must stay deterministic and replay-safe.
-- Do not perform direct network, filesystem, random, or wall-clock operations here. The workflows worker also has no direct DB access — snapshot persistence flows through the API's Temporal activities.
-- Use Temporal workflow APIs for timers, cancellation, logging, signals, queries, and activity proxies.
-- Keep workflow state explicit and serializable.
-- Put all side effects in activities and keep workflow files focused on coordination and state transitions.
-- Cross-service activity I/O comes from `@reputo/contracts`; deep imports from `apps/api` are not allowed.
+The orchestration layer. These files define how a snapshot run proceeds — coordinating activities and
+holding the run's state.
+
+Temporal replays this code, so it stays deterministic: no direct network, filesystem, randomness, or
+wall-clock reads, and no DB access (all of that is in `activities/`, and DB work is proxied to the API).
+Time, signals, queries, cancellation, and activity calls go through Temporal's workflow APIs. Cross-service
+activity I/O types come from `@reputo/contracts`.
+
+Tests use the Temporal test environment under `tests/unit/workflows`; run with
+`pnpm --filter @reputo/workflows test`. See [../../README.md](../../README.md) and [../../AGENTS.md](../../AGENTS.md).

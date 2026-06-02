@@ -1,44 +1,44 @@
-# Reputo Instructions
+# Reputo
 
-- `apps/` are deployables: `api`, `ui`, and `workflows`.
-- `packages/` are reusable libraries.
-- Run workspace scripts from the repo root with `pnpm --filter <workspace> ...`.
-- `packages/` must never import from `apps/`.
-- `apps/` may depend on `packages/`, but not on sibling apps.
-- Prefer package public entrypoints over deep internal imports.
-- Keep explicit types at public boundaries.
-- If behavior changes, update or add tests.
-- Never put secrets, tokens, or credentials in code or logs.
-- Keep diffs focused and PR-sized.
-- TypeORM is the standard ORM across `@reputo/api`, `@reputo/onchain-data`, and `@reputo/deepfunding-portal-api`.
+Reputo is Monorepo of modular, privacy‑preserving reputation platform. A user defines an
+algorithm _preset_, starts a _snapshot_, and Temporal workers compute a reputation score off the
+request path and store the result; the API and UI surface it. This is a pnpm + Turbo monorepo for
+the three apps and the libraries they share.
 
-## Environment variables
+## Layout
 
-- Each app validates its environment in exactly one module:
-  - `apps/api/src/config/env.ts`
-  - `apps/workflows/src/config/env.ts`
-  - `apps/ui/src/lib/env.ts`
-- That module is the **single source of truth**. No other code may read `process.env.*` directly. No downstream re-validation.
-- All apps use Zod (workspace catalog version). No other validators.
-- Local dev: the tracked root `.env.example` is the only template; copy to `.env`. `scripts/env/load.ts` loads it for `pnpm dev` and the `pnpm docker:*` scripts.
-- Staging/production: Komodo Variables (`infra/komodo/resources/variables.toml`) are authoritative; the per-stack `infra/komodo/stacks/<name>/compose.yml` files carry no `env_file:` directives.
-- Adding or changing an env var requires updating, in one PR:
-  - the app's Zod schema,
-  - the root `.env.example`,
-  - the per-service `environment:` block in `infra/dev/compose.yml` (dev), the matching `infra/komodo/stacks/<name>/compose.yml` (staging/prod), and `infra/preview/compose.yml` (preview),
-  - `infra/komodo/resources/variables.toml` and the matching stack `environment` block in `infra/komodo/stacks/<name>/stack.toml`.
-- Secrets (`*_SECRET`, `*_KEY`, `*_PASSWORD`, `*_TOKEN`) must use `z.string().min(1)` (no empty strings) and must never be logged.
+- `apps/` — deployables. Each has its own `AGENTS.md` and `README.md`.
+    - `@reputo/api` — NestJS HTTP API; owns the application Postgres DB; hosts the snapshot Temporal worker.
+    - `@reputo/ui` — Next.js dashboard; talks to the API over same-origin and SSE.
+    - `@reputo/workflows` — Temporal workers that orchestrate snapshots and run algorithms.
+- `packages/` — standalone libraries the apps build on. Each has its own `AGENTS.md` and `README.md`.
 
-## Comments
-
-- Write code that is self-explanatory; do not narrate it. Comments that restate what the code already says are noise — leave them out.
-- Acceptable comments: substantive JSDoc on exported APIs (`@param`, `@returns`, `@throws`, `@example`, units, domain meaning); `// TODO`, `// FIXME`, `// XXX`, `// HACK`, `// NOTE` markers; tooling directives (`biome-ignore`, `eslint-disable`, `@ts-expect-error`, `prettier-ignore`, etc.); `/// <reference />` paths; shebangs; license headers; codegen markers.
-- Do not add: file-level descriptive headers, section dividers (`// ===== Foo =====`), label comments above import groups, trailing inline comments that just rename a value (`// 1 MB`), JSDoc that only restates a symbol's name, or "why-it-was-done-this-way" prose. If context truly cannot be inferred from the code, put it in the PR description or commit message.
-- In config files (`*.yml`, `*.toml`, `.env*`): keep operational headers, constraint annotations (`# REQUIRED:`, `# OPTIONAL: Default: …`, `# SECRET`), schema directives, and unit notes. Strip section dividers and labels that repeat the key name.
+Full app/package table: [docs/monorepo-structure.md](docs/monorepo-structure.md).
 
 ## Toolchain
 
-- Node and pnpm versions are pinned in [mise.toml](mise.toml) (Node `24.14.0`, `pnpm@10.30.3`); Turbo orchestrates workspace builds.
-- Contributors should use [mise](https://mise.jdx.dev) to install the toolchain (`mise install` or `mise run setup`). All other commands run through `pnpm`.
-- `pnpm check` runs Biome (lint + format), `pnpm test` runs Vitest, `pnpm build` runs the per-workspace build.
-- Use `pnpm --filter <workspace> <script>` to target a single app or package.
+- **mise** pins the Node and pnpm versions — install them with `mise install` (or `mise run setup`). Use **pnpm**, never npm.
+- **Turbo** runs per-workspace `build`/`test`/`check`; **Biome** does lint + format; **Vitest** runs tests.
+- **Temporal** orchestrates work; **TypeORM** is the ORM wherever a workspace owns a database; **Zod** validates env.
+- Shared dependency versions live in the pnpm **catalog** (`pnpm-workspace.yaml`) and are referenced as `catalog:`.
+
+## Common commands (from the repo root)
+
+```bash
+mise run setup          # first time: install tools, copy .env.example -> .env, pnpm install
+pnpm dev                # run api + ui + workflows in watch mode (loads .env)
+pnpm docker:up          # whole stack in Docker (docker:up:infra for just Temporal/Postgres/MinIO)
+pnpm db:migrate         # apply API database migrations
+pnpm check              # Biome lint + format
+pnpm test               # Vitest across the repo
+pnpm build              # Turbo build of every workspace
+pnpm --filter <ws> <s>  # run script <s> in one workspace, e.g. pnpm --filter @reputo/api test
+pnpm algorithm:create <key> <version>   # scaffold a new reputation algorithm
+```
+
+Verify a change with `pnpm check && pnpm test`.
+Environment is validated per app (see each app's README); the template is `.env.example`.
+
+## Docs
+
+Guides live in [docs/](docs/README.md), read each if it is relevant to task.

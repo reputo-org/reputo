@@ -1,9 +1,11 @@
-# Activity Code Instructions
+# activities/
 
-- Activities own the side effects that workflows cannot: network, storage, filesystem, randomness, and wall-clock reads.
-- Application-database reads and writes are owned by the API. Do not open a DB client here — invoke the API's snapshot activities (`getSnapshot`, `updateSnapshot`) on the `api-snapshot-activities` task queue (`API_SNAPSHOT_ACTIVITIES_TASK_QUEUE` from `@reputo/contracts`) from the orchestrator workflow.
-- Keep activity inputs and outputs explicit and serializable; workflows pass them across replay boundaries.
-- Use the Temporal activity `Context` for logging, heartbeats, and cancellation; do not invent parallel logging or cancellation channels.
-- Make activities idempotent where retries are possible, or document why they cannot be.
-- Translate external errors into typed errors from `src/shared/errors` so workflows can branch on intent, not on stack traces.
-- When activity behavior or signatures change, update the corresponding activity tests and the shared types they flow through.
+The side-effecting layer. Activities hold everything workflow code cannot: network calls, S3 storage,
+filesystem, randomness, wall-clock reads, and the algorithm compute functions. Temporal retries and
+times them out, so they are written to be idempotent where retries are possible.
+
+Application-database access does not happen here — the orchestrator calls the API's `getSnapshot` /
+`updateSnapshot` activities for that. External failures are translated into typed errors from
+`src/shared/errors` so workflows can branch on intent rather than stack traces.
+
+Tests live under `tests/unit/activities`; run with `pnpm --filter @reputo/workflows test`.

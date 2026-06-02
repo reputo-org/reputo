@@ -1,10 +1,14 @@
-# Package Instructions
+# packages/
 
-- `packages/` are reusable libraries, not app glue.
-- Never import from `apps/`.
-- Export stable public APIs from `src/index.ts`.
-- Prefer cross-package imports from package entrypoints instead of deep internal paths.
-- Stay framework-agnostic unless a package is intentionally framework-specific.
-- Keep explicit types at exported boundaries.
-- When exported behavior changes, update the relevant package tests.
-- Persistence-owning packages (`@reputo/onchain-data`, `@reputo/deepfunding-portal-api`) use TypeORM.
+Reusable libraries the apps build on. Each package is framework-agnostic (no Nest or Next), exposes
+its public API from `src/index.ts`, and is consumed by the apps under its `@reputo/*` name.
+
+Every package shares the same workflow:
+
+```bash
+pnpm --filter <pkg> build      # tsc -> dist/
+pnpm --filter <pkg> test       # Vitest
+pnpm --filter <pkg> docs       # typedoc API reference -> docs/
+```
+
+Each package has its own `AGENTS.md` and `README.md`.
