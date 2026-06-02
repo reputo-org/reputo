@@ -1,10 +1,4 @@
-# Compose for PullPreview per-PR previews on Lightsail.
-#
-# Self-contained: declares every service the preview needs (apps, infra,
-# in-stack MinIO for object storage). No profile labels — every service
-# always starts. The github action only injects truly dynamic values
-# (image tag, per-deploy auth key, third-party secrets).
-
+# Compose for PullPreview per-PR previews on AWS Lightsail (pullpreview/action@v6.2).
 ################################################################################
 # Cross-cutting defaults
 ################################################################################
@@ -67,16 +61,14 @@ x-node-tcp-healthcheck: &node-tcp-healthcheck
     start_period: 30s
 
 ################################################################################
-# App environment anchors
-################################################################################
 
 x-api-environment: &api-environment
-    NODE_ENV: development
+    NODE_ENV: production
     PORT: '3000'
     LOG_LEVEL: info
     AUTH_MODE: mock
     OWNER_EMAIL: preview@example.com
-    APP_PUBLIC_URL: https://mock.invalid
+    APP_PUBLIC_URL: '${PULLPREVIEW_URL:?missing PULLPREVIEW_URL}'
     DEEP_ID_ISSUER_URL: https://mock.invalid
     DEEP_ID_CLIENT_ID: mock-client-id
     DEEP_ID_CLIENT_SECRET: mock-client-secret
@@ -87,7 +79,7 @@ x-api-environment: &api-environment
     VOTING_PORTAL_RETURN_URL: https://mock.invalid/voting
     DEEP_ID_VOTING_PORTAL_SCOPES: api wallets
     AUTH_COOKIE_NAME: reputo_auth_session
-    AUTH_COOKIE_SECURE: 'false'
+    AUTH_COOKIE_SECURE: 'true'
     AUTH_COOKIE_SAME_SITE: lax
     AUTH_TOKEN_ENCRYPTION_KEY: '${AUTH_TOKEN_ENCRYPTION_KEY:?missing AUTH_TOKEN_ENCRYPTION_KEY}'
     DATABASE_URL: postgresql://reputo_app:reputo_app@postgres:5432/reputo_preview
@@ -107,7 +99,7 @@ x-api-environment: &api-environment
     TEMPORAL_API_SNAPSHOT_ACTIVITIES_TASK_QUEUE: api-snapshot-activities
 
 x-workflows-environment: &workflows-environment
-    NODE_ENV: development
+    NODE_ENV: production
     LOG_LEVEL: info
     TEMPORAL_ADDRESS: temporal:7233
     TEMPORAL_NAMESPACE: default
@@ -151,18 +143,11 @@ volumes:
     minio_data:
         driver: local
 
-################################################################################
-# Services — proxy
-################################################################################
-
 services:
     traefik:
         <<: *service-defaults
         container_name: traefik
         image: traefik:v3.6
-        ports:
-            - '80:80'
-            - '8443:443'
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock:ro
             - ./traefik.yml:/etc/traefik/traefik.yml:ro
@@ -178,16 +163,11 @@ services:
             timeout: 10s
             retries: 3
             start_period: 30s
-        labels:
-            - traefik.enable=true
-            - traefik.http.routers.traefik.rule=Host(`traefik.localhost`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))
-            - traefik.http.routers.traefik.service=api@internal
-            - traefik.http.routers.traefik.entrypoints=web
         deploy:
             resources: *resources-s
 
     ############################################################################
-    # Services — datastores
+    # Datastores
     ############################################################################
 
     postgres:
@@ -219,7 +199,7 @@ services:
             resources: *resources-m
 
     ############################################################################
-    # Services — temporal stack
+    # Temporal stack
     ############################################################################
 
     temporal:
@@ -258,11 +238,6 @@ services:
         environment:
             TEMPORAL_ADDRESS: temporal:7233
             TEMPORAL_CORS_ORIGINS: '*'
-        labels:
-            - traefik.enable=true
-            - traefik.http.routers.temporal-ui.rule=Host(`temporal.localhost`)
-            - traefik.http.routers.temporal-ui.entrypoints=web
-            - traefik.http.services.temporal-ui.loadbalancer.server.port=8080
         deploy:
             resources: *resources-xs
 
@@ -296,7 +271,7 @@ services:
             resources: *resources-s
 
     ############################################################################
-    # Services — object storage (in-stack MinIO; preview never talks to real S3)
+    # Object storage — in-stack MinIO (preview's S3 stand-in)
     ############################################################################
 
     minio:
@@ -320,9 +295,7 @@ services:
         deploy:
             resources: *resources-m
 
-    # One-shot bucket bootstrap. Idempotent (mb --ignore-existing) and exits
-    # 0 after creating STORAGE_BUCKET, so depends_on can wait on
-    # service_completed_successfully without holding the running set.
+
     minio-init:
         <<: *service-defaults
         container_name: minio-init
@@ -342,7 +315,7 @@ services:
             resources: *resources-xs
 
     ############################################################################
-    # Services — apps
+    # Apps — same prebuilt images as staging/prod, pulled by preview-<sha> tag
     ############################################################################
 
     ui:
@@ -352,6 +325,7 @@ services:
         pull_policy: always
         environment:
             PORT: '8080'
+            HOSTNAME: 0.0.0.0
         healthcheck:
             <<: *node-tcp-healthcheck
             test:
@@ -360,7 +334,8 @@ services:
                   node -e "require('net').connect(8080).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
         labels:
             - traefik.enable=true
-            - traefik.http.routers.ui.rule=Host(`localhost`)
+            - traefik.docker.network=reputo
+            - traefik.http.routers.ui.rule=PathPrefix(`/`)
             - traefik.http.routers.ui.priority=1
             - traefik.http.routers.ui.entrypoints=web
             - traefik.http.services.ui.loadbalancer.server.port=8080
@@ -373,6 +348,8 @@ services:
         image: ghcr.io/reputo-org/reputo/api:${IMAGE_TAG:?missing IMAGE_TAG}
         pull_policy: always
         depends_on:
+            postgres:
+                condition: service_healthy
             minio-init:
                 condition: service_completed_successfully
         environment: *api-environment
@@ -384,19 +361,11 @@ services:
                   node -e "require('net').connect(3000).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
         labels:
             - traefik.enable=true
-            - traefik.http.routers.api.rule=Host(`api.localhost`)
+            - traefik.docker.network=reputo
+            - traefik.http.routers.api.rule=PathPrefix(`/api`)
+            - traefik.http.routers.api.priority=100
             - traefik.http.routers.api.entrypoints=web
-            - traefik.http.routers.api.middlewares=api-cors
-            - traefik.http.routers.api-ui.rule=Host(`localhost`) && PathPrefix(`/api`)
-            - traefik.http.routers.api-ui.priority=100
-            - traefik.http.routers.api-ui.entrypoints=web
-            - traefik.http.routers.api-ui.middlewares=api-cors
-            - traefik.http.routers.api-ui.service=api
             - traefik.http.services.api.loadbalancer.server.port=3000
-            - traefik.http.middlewares.api-cors.headers.accessControlAllowMethods=GET,OPTIONS,PUT,POST,DELETE,PATCH
-            - traefik.http.middlewares.api-cors.headers.accessControlAllowOriginList=*
-            - traefik.http.middlewares.api-cors.headers.accessControlAllowHeaders=Content-Type,Authorization,Accept,Origin,X-Requested-With
-            - traefik.http.middlewares.api-cors.headers.accessControlMaxAge=3600
         deploy:
             resources: *resources-l
 
@@ -406,6 +375,8 @@ services:
         image: ghcr.io/reputo-org/reputo/workflows:${IMAGE_TAG:?missing IMAGE_TAG}
         pull_policy: always
         depends_on:
+            temporal:
+                condition: service_healthy
             minio-init:
                 condition: service_completed_successfully
         command: ['pnpm', 'start:orchestrator']
@@ -419,6 +390,10 @@ services:
         image: ghcr.io/reputo-org/reputo/workflows:${IMAGE_TAG:?missing IMAGE_TAG}
         pull_policy: always
         depends_on:
+            temporal:
+                condition: service_healthy
+            onchain-data-postgresql:
+                condition: service_healthy
             minio-init:
                 condition: service_completed_successfully
         command: ['pnpm', 'start:onchain-data']
@@ -432,6 +407,8 @@ services:
         image: ghcr.io/reputo-org/reputo/workflows:${IMAGE_TAG:?missing IMAGE_TAG}
         pull_policy: always
         depends_on:
+            temporal:
+                condition: service_healthy
             minio-init:
                 condition: service_completed_successfully
         command: ['pnpm', 'start:algorithm-typescript']

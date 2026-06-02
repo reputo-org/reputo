@@ -6,7 +6,7 @@ Reputo deploys to staging and production through Komodo. Image builds and tag pr
 
 | Channel | Image tag | Where it deploys | How it gets there |
 | --- | --- | --- | --- |
-| Preview | `preview-<commit>` | PullPreview Lightsail VM per PR | `pullpreview` label on a PR |
+| Preview | `preview-<commit>` | Per-PR HTTPS preview on a Lightsail VM (PullPreview) | `pullpreview` label on a PR |
 | Staging | `staging` (mutable) and `sha-<commit>` (immutable) | `reputo-apps-staging` Komodo stack | every push to `main` |
 | Production | `production` (mutable) and `prod-<commit>` (immutable) | `reputo-apps-production` Komodo stack | manual `Promote to Production` workflow |
 

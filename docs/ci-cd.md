@@ -7,7 +7,7 @@ GitHub Actions runs the quality gate on every pull request and the full build-te
 | Workflow | Trigger | What it does |
 | --- | --- | --- |
 | [`pull-request.yml`](../.github/workflows/pull-request.yml) | PR opened, updated, or reopened against `main` | Runs the quality gate and a no-push Docker build for affected apps. |
-| [`pull-preview.yml`](../.github/workflows/pull-preview.yml) | PR labelled `pullpreview` | Builds preview images and deploys a Lightsail VM for the PR. |
+| [`pull-preview.yml`](../.github/workflows/pull-preview.yml) | PR labelled `pullpreview`, plus an hourly cleanup schedule | Builds preview images and deploys a per-PR HTTPS preview on a Lightsail VM via PullPreview v6.2. |
 | [`main.yml`](../.github/workflows/main.yml) | Push to `main` | Quality gate, build and push affected images with `staging` and `sha-<commit>` tags, semantic-release, then Komodo staging deploy. |
 | [`release.yml`](../.github/workflows/release.yml) | Called by `main.yml` | Runs `semantic-release` to create GitHub releases. |
 | [`promote-production.yml`](../.github/workflows/promote-production.yml) | Manual `workflow_dispatch` | Retags `sha-<commit>` images to `production` and `prod-<commit>`, then calls the `promote-production` Komodo Procedure. |
@@ -24,3 +24,8 @@ Repository secrets used by the build:
 
 - `CODECOV_TOKEN` — coverage upload.
 - `GITHUB_TOKEN` — provided by GitHub Actions.
+
+Secrets used by `pull-preview.yml`:
+
+- `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` — provision the Lightsail preview VM (region `eu-central-1`).
+- `DEEPFUNDING_API_KEY`, `ALCHEMY_API_KEY`, `BLOCKFROST_API_KEY` — passed into the preview so the workers can run snapshots end to end.

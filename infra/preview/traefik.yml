@@ -1,3 +1,4 @@
+# Internal Traefik for PullPreview previews.
 global:
     checkNewVersion: false
     sendAnonymousUsage: false
@@ -18,7 +19,6 @@ accessLog:
                 Content-Type: keep
                 X-Request-Id: keep
 
-api: { dashboard: true, insecure: false }
 ping:
     entryPoint: web
 
