@@ -88,4 +88,3 @@ pnpm docker:down             # stop infrastructure when done
 | `pnpm clean` | Remove `dist/`, `.turbo/`, and caches. |
 | `pnpm algorithm:create <key> <version>` | Scaffold a new algorithm. See [Reputation algorithms](reputation-algorithms.md). |
 | `pnpm algorithm:validate` | Validate the algorithm registry. |
-

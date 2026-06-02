@@ -2,8 +2,6 @@
 
 Reputo deploys to staging and production through Komodo. Image builds and tag promotion run in GitHub Actions. The deploy step is a webhook to Komodo, which pulls the new images and runs `docker compose up -d` on the target host.
 
-
-
 ## Channels
 
 | Channel | Image tag | Where it deploys | How it gets there |
@@ -30,7 +28,6 @@ Reputo deploys to staging and production through Komodo. Image builds and tag pr
 5. Komodo deploys `reputo-apps-production` with `IMAGE_TAG=production`.
 6. The production URL is <https://logid.xyz>.
 
-
 ## Rollback
 
 ### Staging
@@ -46,7 +43,6 @@ Reputo deploys to staging and production through Komodo. Image builds and tag pr
 2. Run the `Promote to Production` workflow with that SHA.
 3. Check that the workflow retagged the affected images and called Komodo.
 4. Check the `promote-production` Procedure run and the production stack.
-
 
 ## Configuration
 
