@@ -1,0 +1,23 @@
+# Traefik dynamic config for previews (file provider — no Docker socket).
+
+http:
+    routers:
+        api:
+            rule: 'PathPrefix(`/api`)'
+            priority: 100
+            entryPoints: [web]
+            service: api
+        ui:
+            rule: 'PathPrefix(`/`)'
+            priority: 1
+            entryPoints: [web]
+            service: ui
+    services:
+        api:
+            loadBalancer:
+                servers:
+                    - url: 'http://api:3000'
+        ui:
+            loadBalancer:
+                servers:
+                    - url: 'http://ui:8080'

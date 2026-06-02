@@ -149,8 +149,8 @@ services:
         container_name: traefik
         image: traefik:v3.6
         volumes:
-            - /var/run/docker.sock:/var/run/docker.sock:ro
             - ./traefik.yml:/etc/traefik/traefik.yml:ro
+            - ./dynamic.yml:/etc/traefik/dynamic.yml:ro
         healthcheck:
             test:
                 - CMD
@@ -332,13 +332,6 @@ services:
                 - CMD-SHELL
                 - >-
                   node -e "require('net').connect(8080).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
-        labels:
-            - traefik.enable=true
-            - traefik.docker.network=reputo
-            - traefik.http.routers.ui.rule=PathPrefix(`/`)
-            - traefik.http.routers.ui.priority=1
-            - traefik.http.routers.ui.entrypoints=web
-            - traefik.http.services.ui.loadbalancer.server.port=8080
         deploy:
             resources: *resources-s
 
@@ -359,13 +352,6 @@ services:
                 - CMD-SHELL
                 - >-
                   node -e "require('net').connect(3000).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
-        labels:
-            - traefik.enable=true
-            - traefik.docker.network=reputo
-            - traefik.http.routers.api.rule=PathPrefix(`/api`)
-            - traefik.http.routers.api.priority=100
-            - traefik.http.routers.api.entrypoints=web
-            - traefik.http.services.api.loadbalancer.server.port=3000
         deploy:
             resources: *resources-l
 
