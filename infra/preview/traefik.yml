@@ -1,4 +1,5 @@
 # Internal Traefik for PullPreview previews.
+
 global:
     checkNewVersion: false
     sendAnonymousUsage: false
@@ -27,6 +28,5 @@ entryPoints:
         address: ':80'
 
 providers:
-    docker:
-        exposedByDefault: false
-        network: reputo
+    file:
+        filename: /etc/traefik/dynamic.yml

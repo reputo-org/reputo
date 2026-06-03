@@ -72,7 +72,6 @@ jobs:
                   AWS_ACCESS_KEY_ID: '${{ secrets.AWS_ACCESS_KEY_ID }}'
                   AWS_SECRET_ACCESS_KEY: '${{ secrets.AWS_SECRET_ACCESS_KEY }}'
                   AWS_REGION: 'eu-central-1'
-
                   IMAGE_TAG: 'preview-${{ github.event.pull_request.head.sha }}'
                   AUTH_TOKEN_ENCRYPTION_KEY: '${{ steps.gen_auth_key.outputs.auth_token_encryption_key }}'
                   DEEPFUNDING_API_KEY: '${{ secrets.DEEPFUNDING_API_KEY }}'
