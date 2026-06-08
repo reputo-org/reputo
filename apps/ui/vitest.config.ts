@@ -1,21 +1,11 @@
 import { resolve } from "node:path"
+import { defineConfig, mergeConfig } from "vitest/config"
 import { createVitestConfig } from "../../vitest.base"
 
-export default createVitestConfig({
+const config = createVitestConfig({
   name: "@reputo/ui",
+  setupFiles: ["./tests/setup.ts"],
   coverageInclude: ["src/**/*.ts", "src/**/*.tsx"],
-  coverageExclude: [
-    "src/app/**",
-    "src/components/**",
-    "src/core/fields/**",
-    "src/core/form-context.tsx",
-    "src/core/reputo-form.tsx",
-    "src/hooks/**",
-    "src/lib/api/hooks.ts",
-    "src/lib/api/use-snapshot-events.ts",
-    "src/lib/utils.ts",
-    "src/middleware.ts",
-  ],
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
@@ -30,3 +20,12 @@ export default createVitestConfig({
     },
   },
 })
+
+export default mergeConfig(
+  config,
+  defineConfig({
+    esbuild: {
+      jsx: "automatic",
+    },
+  })
+)

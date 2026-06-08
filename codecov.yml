@@ -1,0 +1,33 @@
+coverage:
+  precision: 2
+  round: down
+  range: "20...80"
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+
+component_management:
+  individual_components:
+    - component_id: ui
+      name: ui
+      paths: [apps/ui/**]
+    - component_id: api
+      name: api
+      paths: [apps/api/**]
+    - component_id: workflows
+      name: workflows
+      paths: [apps/workflows/**]
+    - component_id: packages
+      name: packages
+      paths: [packages/**]
+
+ignore:
+  - "apps/ui/src/components/ui/**"
+  - "**/*.d.ts"
+  - "**/dist/**"
+  - "**/migrations/**"
