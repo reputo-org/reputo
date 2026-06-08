@@ -116,7 +116,7 @@ The sync includes UserGroups. Apply the RBAC resources after cutover, then add o
 Reputo runs as four Komodo Stacks per environment. Each Stack is a separate Docker Compose project on the host and joins the shared external bridge network `reputo`. The split is by lifecycle: each datastore (application Postgres, Temporal's cluster, observability TSDBs) gets its own stack so restarting one does not bounce the others, while the stateless apps stack redeploys on every merge. Traefik ships with the apps stack because its routing labels are reissued on each routing change.
 
 - `reputo-database-{env}` — application Postgres + onchain-data Postgres + on-demand `postgres-backup`. Folder: [infra/komodo/stacks/database/](../infra/komodo/stacks/database/).
-- `reputo-temporal-{env}` — Temporal server + UI + Postgres + Elasticsearch. Folder: [infra/komodo/stacks/temporal/](../infra/komodo/stacks/temporal/).
+- `reputo-temporal-{env}` — Temporal server + UI + Postgres (Postgres visibility store). Folder: [infra/komodo/stacks/temporal/](../infra/komodo/stacks/temporal/).
 - `reputo-observability-{env}` — Loki/Promtail/Prometheus/cAdvisor/node-exporter/Grafana. Folder: [infra/komodo/stacks/observability/](../infra/komodo/stacks/observability/).
 - `reputo-apps-{env}` — Traefik + UI + API + workflow workers. Folder: [infra/komodo/stacks/apps/](../infra/komodo/stacks/apps/).
 

@@ -9,6 +9,7 @@ export default defineConfig({
       provider: 'v8',
       reportsDirectory: './coverage',
       reporter: ['text', 'html', 'lcov'],
+      include: ['**/src/**/*.ts', '**/src/**/*.tsx'],
       exclude: extendCoverageExcludes(['commitlint.config.mjs', 'scripts/**']),
     },
   },

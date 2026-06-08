@@ -8,6 +8,7 @@ const sharedCoverageExcludes = [
   '**/dist/**',
   '**/node_modules/**',
   '**/.next/**',
+  '**/components/ui/**',
   '**/*.d.ts',
   '**/index.ts',
   '**/index.gen.ts',
