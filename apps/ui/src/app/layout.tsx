@@ -24,9 +24,18 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    // Browser extensions and pre-hydration scripts (Scribe, Grammarly, password
+    // managers) mutate <html>/<body> before React hydrates. <html> suppression is
+    // dev-only: a constant `true` there breaks `next build --turbopack`
+    // (/_not-found, Next 15.5), and production users do not run the recorder
+    // extension, so it is not needed in prod. <body> suppression is always safe.
+    <html
+      lang="en"
+      suppressHydrationWarning={process.env.NODE_ENV === "development"}
+    >
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
       >
         <Providers>{children}</Providers>
       </body>

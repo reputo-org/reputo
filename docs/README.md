@@ -8,19 +8,23 @@ Guides for the Reputo monorepo.
 - [Environment variables](environment-variables.md) — what each variable does and how to add one.
 - [Monorepo structure](monorepo-structure.md) — apps, packages, and import rules.
 
+## Understand the system
+
+- [Architecture](architecture.md) — how the apps fit together and the snapshot flow.
+- [Data model](data-model.md) — the application database tables.
+
 ## Build features
 
 - [Reputation algorithms](reputation-algorithms.md) — concepts and how to add one.
 
-## Ship code
+## Ship and operate
 
 - [CI/CD](ci-cd.md) — GitHub Actions workflows.
 - [Docker stack](docker.md) — Compose files for local and production.
 - [Deployment](deployment.md) — staging and production through Komodo.
-- [Komodo operations](komodo.md) — install, RBAC, secrets, and day-to-day operations.
+- [Komodo operations](komodo.md) — install, RBAC, secrets, and operations.
+- [Observability](observability.md) — metrics, logs, and dashboards.
 
-## See also
+## Use the app
 
-- [Root README](../README.md) — overview and quick start.
-- [CONTRIBUTING](../CONTRIBUTING.md) — branching, commits, and pull requests.
-- [AGENTS.md](../AGENTS.md) — workspace rules for contributors.
+- [Guides](guides.md) — walkthroughs for the main tasks.
