@@ -1,6 +1,6 @@
 [[stack]]
 name = "reputo-temporal-staging"
-description = "Staging Temporal cluster: server, UI, Postgres, Elasticsearch."
+description = "Staging Temporal cluster: server, UI, Postgres (Postgres visibility store)."
 tags = ["reputo", "env:staging", "temporal"]
 deploy = false
 
@@ -18,7 +18,6 @@ environment = """
 COMPOSE_NETWORK_NAME=reputo
 TEMPORAL_POSTGRES_USER=[[STAGING_TEMPORAL_POSTGRES_USER]]
 TEMPORAL_POSTGRES_PASSWORD=[[STAGING_TEMPORAL_POSTGRES_PASSWORD]]
-TEMPORAL_ENABLE_ES=true
 TEMPORAL_UI_DOMAIN=[[STAGING_TEMPORAL_UI_DOMAIN]]
 ALLOWED_ORIGINS=[[STAGING_ALLOWED_ORIGINS]]
 PROXY_ENTRYPOINT=websecure
@@ -37,7 +36,7 @@ webhook_force_deploy = false
 
 [[stack]]
 name = "reputo-temporal-production"
-description = "Production Temporal cluster: server, UI, Postgres, Elasticsearch."
+description = "Production Temporal cluster: server, UI, Postgres (Postgres visibility store)."
 tags = ["reputo", "env:production", "temporal"]
 deploy = false
 
@@ -55,7 +54,6 @@ environment = """
 COMPOSE_NETWORK_NAME=reputo
 TEMPORAL_POSTGRES_USER=[[PRODUCTION_TEMPORAL_POSTGRES_USER]]
 TEMPORAL_POSTGRES_PASSWORD=[[PRODUCTION_TEMPORAL_POSTGRES_PASSWORD]]
-TEMPORAL_ENABLE_ES=true
 TEMPORAL_UI_DOMAIN=[[PRODUCTION_TEMPORAL_UI_DOMAIN]]
 ALLOWED_ORIGINS=[[PRODUCTION_ALLOWED_ORIGINS]]
 PROXY_ENTRYPOINT=websecure

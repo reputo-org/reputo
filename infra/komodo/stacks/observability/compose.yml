@@ -18,21 +18,18 @@ x-service-defaults: &service-defaults
 x-resources-xs: &resources-xs
     limits:
         memory: 64M
-        cpus: '0.25'
     reservations:
         memory: 32M
 
 x-resources-s: &resources-s
     limits:
         memory: 128M
-        cpus: '0.50'
     reservations:
         memory: 64M
 
 x-resources-m: &resources-m
     limits:
         memory: 256M
-        cpus: '1.00'
     reservations:
         memory: 128M
 

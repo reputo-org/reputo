@@ -15,7 +15,7 @@ Staging and production run four separate Komodo Stacks per environment, each wit
 | Stack | Folder | Services |
 | --- | --- | --- |
 | `reputo-database-{env}` | [`stacks/database/`](../infra/komodo/stacks/database/) | `postgres`, `onchain-data-postgresql`, on-demand `postgres-backup` |
-| `reputo-temporal-{env}` | [`stacks/temporal/`](../infra/komodo/stacks/temporal/) | `temporal`, `temporal-ui`, `temporal-postgresql`, `temporal-elasticsearch` |
+| `reputo-temporal-{env}` | [`stacks/temporal/`](../infra/komodo/stacks/temporal/) | `temporal`, `temporal-ui`, `temporal-postgresql` |
 | `reputo-observability-{env}` | [`stacks/observability/`](../infra/komodo/stacks/observability/) | `loki`, `promtail`, `prometheus`, `cadvisor`, `node-exporter`, `grafana` |
 | `reputo-apps-{env}` | [`stacks/apps/`](../infra/komodo/stacks/apps/) | `traefik`, `ui`, `api`, `orchestrator-worker`, `onchain-data-worker`, `typescript-worker` |
 
