@@ -7,6 +7,7 @@ import { PreAuthShell } from "@/components/auth/pre-auth-shell"
 import { ProviderLogo } from "@/components/providers/provider-logo"
 import { Spinner } from "@/components/ui/spinner"
 import { SIGN_IN_PROVIDERS } from "@/lib/auth/sign-in-providers"
+import { getGuide, guideViewerUrl } from "@/lib/guides"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -59,7 +60,18 @@ export default function LoginPage() {
           </>
         }
       >
-        <ProviderStack />
+        <div className="flex flex-col gap-4">
+          <ProviderStack />
+          <p className="rp-legal" style={{ textAlign: "center", margin: 0 }}>
+            <a
+              href={guideViewerUrl(getGuide("sign-in").slug)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              See how to sign in
+            </a>
+          </p>
+        </div>
       </Hero>
     </PreAuthShell>
   )

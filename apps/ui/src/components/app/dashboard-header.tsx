@@ -15,6 +15,7 @@ interface NavItem {
 const NAV_ITEMS: readonly NavItem[] = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/admins", label: "Admins", ownerOnly: true },
+  { href: "/guides", label: "Guides" },
 ]
 
 export function DashboardHeader() {
