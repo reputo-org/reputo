@@ -34,8 +34,14 @@ komodo() {
 }
 
 echo "Pinning ${VARIABLE_NAME} to ${IMAGE_TAG}"
-komodo /write "$(jq -cn --arg name "$VARIABLE_NAME" --arg value "$IMAGE_TAG" \
-    '{ type: "UpdateVariableValue", params: { name: $name, value: $value } }')" >/dev/null
+if ! komodo /write "$(jq -cn --arg name "$VARIABLE_NAME" --arg value "$IMAGE_TAG" \
+    '{ type: "UpdateVariableValue", params: { name: $name, value: $value } }')" >/dev/null; then
+    echo "Failed to update the Komodo variable ${VARIABLE_NAME}." >&2
+    echo "401: check KOMODO_API_KEY / KOMODO_API_SECRET in the GitHub environment." >&2
+    echo "Other errors: check the variable exists in Komodo (Settings > Variables)" >&2
+    echo "and that the API key's user may write variables and deploy stacks." >&2
+    exit 1
+fi
 
 echo "Deploying stack ${STACK_NAME}"
 update="$(komodo /execute "$(jq -cn --arg stack "$STACK_NAME" \
