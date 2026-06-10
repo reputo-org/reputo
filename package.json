@@ -65,6 +65,7 @@
     "@commitlint/cli": "catalog:",
     "@commitlint/config-conventional": "catalog:",
     "@semantic-release/commit-analyzer": "catalog:",
+    "@semantic-release/exec": "catalog:",
     "@semantic-release/github": "catalog:",
     "@semantic-release/release-notes-generator": "catalog:",
     "@types/node": "catalog:",
