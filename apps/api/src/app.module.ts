@@ -8,6 +8,7 @@ import { AuthModule } from './auth';
 import { configModules, validateEnv } from './config';
 import { pinoConfig } from './config/pino.config';
 import { ConsentModule } from './consent';
+import { HealthModule } from './health';
 import { PersistenceModule } from './persistence';
 import { SnapshotModule } from './snapshot/snapshot.module';
 import { StorageModule } from './storage/storage.module';
@@ -27,6 +28,7 @@ import { ApiWorkerModule } from './temporal/api-worker.module';
       useFactory: pinoConfig,
     }),
     PersistenceModule,
+    HealthModule,
     AuthModule,
     AdminModule,
     ConsentModule,

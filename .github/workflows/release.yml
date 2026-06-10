@@ -1,42 +1,55 @@
 name: Release 📝
 run-name: Release 📝
 
-
 on:
     workflow_call:
+        outputs:
+            version:
+                description: Release tag created by semantic-release for this commit (empty if none)
+                value: ${{ jobs.release.outputs.version }}
+
+permissions:
+    contents: read
 
 jobs:
     release:
         name: Release
-        runs-on: ubuntu-22.04
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
         permissions:
-          contents: write
-          issues: write
-          pull-requests: write
-          id-token: write
+            contents: write
+            issues: write
+            pull-requests: write
+            id-token: write
+        outputs:
+            version: ${{ steps.version.outputs.version }}
         steps:
-            - name: Checkout 
-              uses: actions/checkout@v4
+            - name: Checkout
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:
                   fetch-depth: 0
 
-            - name: Setup pnpm
-              uses: pnpm/action-setup@v4
-              with:
-                  version: '10.30.3'
-                  run_install: false
-
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: '24.14.0'
-                  cache: pnpm
-                  cache-dependency-path: pnpm-lock.yaml
-
-            - name: Install dependencies
-              run: pnpm install --frozen-lockfile
+            - name: Setup toolchain
+              uses: ./.github/actions/setup
 
             - name: Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: pnpm exec semantic-release
+
+            - id: version
+              name: Resolve the tag released for this commit
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  set -euo pipefail
+                  version=""
+                  tag="$(gh release list --limit 1 --json tagName --jq '.[0].tagName' || true)"
+                  if [ -n "$tag" ]; then
+                      tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha 2>/dev/null || true)"
+                      if [ "$tag_sha" = "$GITHUB_SHA" ]; then
+                          version="$tag"
+                      fi
+                  fi
+                  echo "Released version for this commit: ${version:-<none>}"
+                  echo "version=$version" >> "$GITHUB_OUTPUT"

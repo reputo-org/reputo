@@ -4,32 +4,37 @@ run-name: Quality Gate 🛡️
 on:
     workflow_call:
 
+permissions:
+    contents: read
+
 jobs:
-    quality-gate:
-        name: 'Quality Gate 🛡️'
-        runs-on: ubuntu-22.04
+    check:
+        name: 'Lint & typecheck 🧹'
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-            - name: Setup pnpm
-              uses: pnpm/action-setup@v4
-              with:
-                  version: '10.30.3'
-                  run_install: false
-
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: '24.14.0'
-                  cache: pnpm
-                  cache-dependency-path: pnpm-lock.yaml
-
-            - name: Install dependencies
-              run: pnpm install --frozen-lockfile
+            - name: Setup toolchain
+              uses: ./.github/actions/setup
 
             - name: Run code quality checks
               run: pnpm run check
+
+            - name: Typecheck
+              run: pnpm run typecheck
+
+    test:
+        name: 'Tests 🧪'
+        runs-on: ubuntu-24.04
+        timeout-minutes: 20
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+            - name: Setup toolchain
+              uses: ./.github/actions/setup
 
             - name: Run tests
               run: pnpm run ci:test
@@ -37,10 +42,72 @@ jobs:
                   CI: 'true'
 
             - name: Upload results to Codecov
-              uses: codecov/codecov-action@v5
+              uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
               with:
-                token: ${{ secrets.CODECOV_TOKEN }}
-                slug: reputo-org/reputo
+                  token: ${{ secrets.CODECOV_TOKEN }}
+                  slug: reputo-org/reputo
+                  fail_ci_if_error: true
+
+    build:
+        name: 'Build 📦'
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+            - name: Setup toolchain
+              uses: ./.github/actions/setup
 
             - name: Build project
               run: pnpm run build
+
+    migrations:
+        name: 'Database migrations 🗄️'
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        services:
+            postgres:
+                image: postgres:16
+                env:
+                    POSTGRES_USER: reputo_app
+                    POSTGRES_PASSWORD: reputo_app
+                    POSTGRES_DB: reputo_app
+                ports:
+                    # .env.example points DATABASE_URL at localhost:5434.
+                    - 5434:5432
+                options: >-
+                    --health-cmd "pg_isready -U reputo_app"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 12
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+            - name: Setup toolchain
+              uses: ./.github/actions/setup
+
+            - name: Create .env from the template
+              run: |
+                  cp .env.example .env
+                  # The API env schema requires these to be non-empty, but
+                  # migrations only use DATABASE_URL. Placeholders never
+                  # reach a real service.
+                  {
+                      echo "DEEP_ID_CLIENT_ID=ci-placeholder"
+                      echo "DEEP_ID_CLIENT_SECRET=ci-placeholder"
+                      echo "AUTH_TOKEN_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000"
+                  } >> .env
+
+            - name: Build workspace packages
+              run: pnpm run build:packages
+
+            - name: Apply all migrations to a fresh database
+              run: pnpm run db:migrate
+
+            - name: Revert the latest migration
+              run: pnpm run db:migrate:revert
+
+            - name: Re-apply migrations
+              run: pnpm run db:migrate

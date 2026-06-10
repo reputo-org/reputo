@@ -8,7 +8,8 @@
 #   docker buildx build --build-arg APP_NAME=workflows -f apps/workflows/Dockerfile .
 #
 ARG APP_NAME=workflows
-ARG NODE_VERSION=22.20.0
+# Default mirrors mise.toml; CI passes the value parsed from mise.toml.
+ARG NODE_VERSION=24.14.0
 ARG TURBO_VERSION=2.9.6
 
 # ---------- base ------------------------------------------------------------
@@ -50,4 +51,7 @@ FROM base AS runtime
 ENV NODE_ENV=production
 WORKDIR /prod/app
 COPY --from=builder /prod/app ./
+# Build commit, kept for ops (docker inspect / process env).
+ARG GIT_SHA=""
+ENV GIT_SHA=${GIT_SHA}
 CMD ["pnpm", "start:orchestrator"]

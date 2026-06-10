@@ -4,174 +4,138 @@ run-name: Promote to Production 🚀
 on:
     workflow_dispatch:
         inputs:
-            commit:
-                description: 'Commit SHA whose immutable sha-<commit> images should be promoted'
+            ref:
+                description: 'Commit SHA or release tag (e.g. v1.4.2) to promote to production'
                 required: true
                 type: string
 
+# Promotions get their own queue: they must never share a concurrency group
+# with the main pipeline (a merge to main would cancel a running promotion),
+# and a started promotion must never be cancelled mid-flight.
 concurrency:
-    group: ci-${{ github.ref }}
-    cancel-in-progress: true
+    group: promote-production
+    cancel-in-progress: false
 
 permissions:
     contents: read
-    packages: write
 
 env:
-    REGISTRY: ghcr.io
     IMAGE_PREFIX: ghcr.io/reputo-org/reputo
 
 jobs:
     resolve-images:
-        runs-on: ubuntu-22.04
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
         outputs:
-            matrix: ${{ steps.resolve.outputs.matrix }}
-            count: ${{ steps.resolve.outputs.count }}
+            commit: ${{ steps.commit.outputs.commit }}
         steps:
+            - id: commit
+              name: Resolve ref to a commit
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  PROMOTE_REF: ${{ inputs.ref }}
+              run: |
+                  set -euo pipefail
+                  commit="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${PROMOTE_REF}" --jq .sha)"
+                  if ! [[ "$commit" =~ ^[0-9a-f]{40}$ ]]; then
+                      echo "Could not resolve '${PROMOTE_REF}' to a commit SHA" >&2
+                      exit 1
+                  fi
+                  echo "Promoting ${PROMOTE_REF} -> ${commit}"
+                  echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
             - name: Login to GitHub Container Registry
-              uses: docker/login-action@v3
+              uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
               with:
                   registry: ghcr.io
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
-            - id: resolve
-              name: Resolve promotable images
+            # Production must be the whole stack at one commit. If any app
+            # image is missing for this commit, abort instead of promoting a
+            # partial set (which would leave services on mixed versions).
+            - name: Require a complete image set for this commit
               env:
-                  PROMOTE_COMMIT: ${{ inputs.commit }}
+                  PROMOTE_COMMIT: ${{ steps.commit.outputs.commit }}
               run: |
                   set -euo pipefail
-
-                  if ! [[ "$PROMOTE_COMMIT" =~ ^[0-9a-f]{7,40}$ ]]; then
-                      echo "commit must be a 7-40 character lowercase hex Git SHA" >&2
-                      exit 1
-                  fi
-
-                  apps_json='[]'
+                  missing=()
                   for app in api ui workflows; do
-                      if docker buildx imagetools inspect "${IMAGE_PREFIX}/${app}:sha-${PROMOTE_COMMIT}" >/dev/null 2>&1; then
-                          apps_json="$(jq --arg app "$app" '. + [$app]' <<<"$apps_json")"
+                      if ! docker buildx imagetools inspect "${IMAGE_PREFIX}/${app}:sha-${PROMOTE_COMMIT}" >/dev/null 2>&1; then
+                          missing+=("$app")
                       fi
                   done
-
-                  matrix="$(jq -c '{ include: map({ image: . }) }' <<<"$apps_json")"
-                  count="$(jq 'length' <<<"$apps_json")"
-
-                  echo "Promotable apps: $apps_json"
-
-                  if [ "$count" -eq 0 ]; then
-                      echo "No promotable images found for sha-${PROMOTE_COMMIT}. Expected at least one of: api, ui, workflows." >&2
+                  if [ "${#missing[@]}" -ne 0 ]; then
+                      echo "Missing sha-${PROMOTE_COMMIT} images for: ${missing[*]}" >&2
+                      echo "Every main commit since the build-all change has a full image set — pick one of those." >&2
                       exit 1
                   fi
-
-                  echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-                  echo "count=$count" >> "$GITHUB_OUTPUT"
+                  echo "All app images exist for sha-${PROMOTE_COMMIT}"
 
     promote:
         needs: resolve-images
-        if: ${{ needs.resolve-images.outputs.count != '0' }}
-        runs-on: ubuntu-22.04
-        strategy:
-            matrix: ${{ fromJSON(needs.resolve-images.outputs.matrix) }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        permissions:
+            contents: read
+            packages: write
         steps:
             - name: Login to GitHub Container Registry
-              uses: docker/login-action@v3
+              uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
               with:
                   registry: ghcr.io
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@v3
+              uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-            - name: Promote ${{ matrix.image }} to production
+            # The stack deploys the immutable sha-<commit> tag. These extra
+            # tags are aliases for humans and audit: `production` marks what
+            # is live, `prod-<commit>` records every promotion in GHCR.
+            - name: Tag the promoted images
               env:
-                  PROMOTE_COMMIT: ${{ inputs.commit }}
+                  PROMOTE_COMMIT: ${{ needs.resolve-images.outputs.commit }}
               run: |
-                  SOURCE_TAG="sha-${PROMOTE_COMMIT}"
-                  PROD_TAG="prod-${PROMOTE_COMMIT}"
-                  SOURCE_REF="${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:${SOURCE_TAG}"
+                  set -euo pipefail
+                  for app in api ui workflows; do
+                      source_ref="${IMAGE_PREFIX}/${app}:sha-${PROMOTE_COMMIT}"
+                      digest="$(docker buildx imagetools inspect "$source_ref" | awk '/^Digest:/{print $2; exit}')"
+                      if [ -z "$digest" ]; then
+                          echo "Unable to resolve digest for $source_ref" >&2
+                          exit 1
+                      fi
+                      echo "Tagging ${app}@${digest} as production and prod-${PROMOTE_COMMIT}"
+                      docker buildx imagetools create \
+                          --tag "${IMAGE_PREFIX}/${app}:prod-${PROMOTE_COMMIT}" \
+                          --tag "${IMAGE_PREFIX}/${app}:production" \
+                          "${IMAGE_PREFIX}/${app}@${digest}"
+                  done
 
-                  echo "Resolving digest for $SOURCE_REF"
-                  SOURCE_DIGEST="$(docker buildx imagetools inspect "$SOURCE_REF" | awk '/^Digest:/{print $2; exit}')"
-
-                  if [ -z "$SOURCE_DIGEST" ]; then
-                      echo "Unable to resolve digest for $SOURCE_REF" >&2
-                      exit 1
-                  fi
-
-                  echo "Promoting ${{ matrix.image }}@$SOURCE_DIGEST to tags production and $PROD_TAG"
-
-                  docker buildx imagetools create \
-                      --tag "${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:$PROD_TAG" \
-                      --tag "${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:production" \
-                      "${{ env.IMAGE_PREFIX }}/${{ matrix.image }}@$SOURCE_DIGEST"
-
-                  echo "Successfully promoted ${{ matrix.image }} to production"
-
-    trigger-komodo-production:
-        name: trigger-komodo-production
+    deploy-production:
+        name: deploy-production
         needs: [resolve-images, promote]
-        if: ${{ needs.resolve-images.outputs.count != '0' }}
-        runs-on: ubuntu-22.04
+        runs-on: ubuntu-24.04
+        timeout-minutes: 20
         environment:
             name: production
             url: https://logid.xyz
         steps:
-            - name: Trigger Komodo production Procedure
+            - name: Checkout
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+            - name: Pin production to this commit and deploy via Komodo
               env:
-                  KOMODO_WEBHOOK_SECRET: ${{ secrets.KOMODO_WEBHOOK_SECRET }}
-                  KOMODO_WEBHOOK_URL: https://komodo.logid.xyz/listener/github/procedure/promote-production/__ANY__
-                  PROMOTE_COMMIT: ${{ inputs.commit }}
-              run: |
-                  set -euo pipefail
+                  KOMODO_URL: https://komodo.logid.xyz
+                  KOMODO_API_KEY: ${{ secrets.KOMODO_API_KEY }}
+                  KOMODO_API_SECRET: ${{ secrets.KOMODO_API_SECRET }}
+                  VARIABLE_NAME: PRODUCTION_IMAGE_TAG
+                  IMAGE_TAG: sha-${{ needs.resolve-images.outputs.commit }}
+                  STACK_NAME: reputo-apps-production
+              run: ./.github/scripts/komodo-deploy.sh
 
-                  if [ -z "$KOMODO_WEBHOOK_SECRET" ]; then
-                      echo "KOMODO_WEBHOOK_SECRET is required for the Komodo production Procedure webhook" >&2
-                      exit 1
-                  fi
-
-                  payload="$(
-                      jq -cn \
-                          --arg ref "refs/heads/main" \
-                          --arg after "$PROMOTE_COMMIT" \
-                          --arg repository "$GITHUB_REPOSITORY" \
-                          --arg actor "$GITHUB_ACTOR" \
-                          --arg workflow "$GITHUB_WORKFLOW" \
-                          --arg run_id "$GITHUB_RUN_ID" \
-                          --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
-                          '{
-                              ref: $ref,
-                              after: $after,
-                              repository: { full_name: $repository },
-                              pusher: { name: $actor },
-                              sender: { login: $actor },
-                              head_commit: { id: $after },
-                              workflow_dispatch: {
-                                  workflow: $workflow,
-                                  run_id: $run_id,
-                                  run_attempt: $run_attempt,
-                                  commit_sha: $after
-                              }
-                          }'
-                  )"
-                  signature="$(
-                      printf '%s' "$payload" \
-                          | openssl dgst -sha256 -hmac "$KOMODO_WEBHOOK_SECRET" -hex \
-                          | awk '{ print "sha256="$2 }'
-                  )"
-
-                  curl --fail-with-body --show-error --silent \
-                      --request POST "$KOMODO_WEBHOOK_URL" \
-                      --header "Content-Type: application/json" \
-                      --header "X-GitHub-Event: push" \
-                      --header "X-GitHub-Delivery: ${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-production" \
-                      --header "X-Hub-Signature-256: $signature" \
-                      --data "$payload"
-
-                  echo "Triggered Komodo promote-production Procedure for $PROMOTE_COMMIT"
-            - name: Wait for Komodo to deploy the production stack
-              run: sleep 60
-            - name: '✅ Deployment should now be live'
-              run: |
-                  echo "✅ Your app should be up at ${{ job.environment.url }}"
+            - name: Verify the deployed commit
+              env:
+                  BASE_URL: https://logid.xyz
+                  EXPECTED_SHA: ${{ needs.resolve-images.outputs.commit }}
+              run: ./.github/scripts/verify-deploy.sh

@@ -13,7 +13,8 @@
 #   docker buildx build --build-arg APP_NAME=api -f apps/api/Dockerfile .
 #
 ARG APP_NAME=api
-ARG NODE_VERSION=22.20.0
+# Default mirrors mise.toml; CI passes the value parsed from mise.toml.
+ARG NODE_VERSION=24.14.0
 ARG TURBO_VERSION=2.9.6
 
 # ---------- base ------------------------------------------------------------
@@ -57,6 +58,9 @@ WORKDIR /prod/app
 COPY --from=builder /prod/app ./
 # pnpm deploy preserves the file but not always the exec bit across layers.
 RUN chmod +x ./docker-entrypoint.sh
+# Build commit, surfaced by GET /api/v1/health so deploys can be verified.
+ARG GIT_SHA=""
+ENV GIT_SHA=${GIT_SHA}
 EXPOSE 3000
 ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["pnpm", "start"]

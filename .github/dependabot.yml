@@ -1,0 +1,23 @@
+version: 2
+updates:
+    # Keep the SHA-pinned actions in .github/workflows and .github/actions
+    # up to date. Dependabot updates the pin and the version comment.
+    - package-ecosystem: github-actions
+      directory: /
+      schedule:
+          interval: weekly
+      groups:
+          actions:
+              patterns: ['*']
+
+    # npm dependencies live in the pnpm catalog (pnpm-workspace.yaml).
+    # Dependabot supports pnpm catalogs since Feb 2025. Minor and patch
+    # updates are grouped into one PR; majors stay separate.
+    - package-ecosystem: npm
+      directory: /
+      schedule:
+          interval: weekly
+      open-pull-requests-limit: 5
+      groups:
+          npm-minor-patch:
+              update-types: [minor, patch]
