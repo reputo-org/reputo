@@ -9,6 +9,13 @@ const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: path.join(__dirname, "../../"),
 
+  // esbuild is build-tooling (tsx/vite/vitest); tracing pulls its platform
+  // binary into the standalone bundle, which ships a scanner-flagged Go
+  // binary into the runtime image for no reason.
+  outputFileTracingExcludes: {
+    "*": ["**/@esbuild/**", "**/esbuild/**"],
+  },
+
   transpilePackages: [
     "@reputo/algorithm-validator",
     "@reputo/reputation-algorithms",

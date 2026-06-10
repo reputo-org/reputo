@@ -52,6 +52,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 
 # ---------- runtime: Next.js standalone -------------------------------------
 FROM node:${NODE_VERSION}-slim AS runtime
+# Apply Debian security updates the pinned base image may not carry yet.
+RUN apt-get update && apt-get -y upgrade && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
