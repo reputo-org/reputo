@@ -9,9 +9,7 @@ on:
                 required: true
                 type: string
 
-# Promotions get their own queue: they must never share a concurrency group
-# with the main pipeline (a merge to main would cancel a running promotion),
-# and a started promotion must never be cancelled mid-flight.
+
 concurrency:
     group: promote-production
     cancel-in-progress: false
@@ -20,17 +18,20 @@ permissions:
     contents: read
 
 env:
-    IMAGE_PREFIX: ghcr.io/reputo-org/reputo
+    IMAGE_PREFIX: ghcr.io/${{ github.repository }}
 
 jobs:
-    resolve-images:
+    resolve-and-promote:
         runs-on: ubuntu-24.04
-        timeout-minutes: 10
+        timeout-minutes: 15
+        permissions:
+            contents: read
+            packages: write
         outputs:
             commit: ${{ steps.commit.outputs.commit }}
         steps:
             - id: commit
-              name: Resolve ref to a commit
+              name: Resolve ref to a commit on main
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   PROMOTE_REF: ${{ inputs.ref }}
@@ -41,45 +42,26 @@ jobs:
                       echo "Could not resolve '${PROMOTE_REF}' to a commit SHA" >&2
                       exit 1
                   fi
+
+                  # Only commits that merged to main may reach production.
+                  # Preview builds push sha-<commit> images for unmerged PR
+                  # code too, so image existence alone is not enough.
+                  status="$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${commit}" --jq .status)"
+                  if [ "$status" != "identical" ] && [ "$status" != "behind" ]; then
+                      echo "Commit ${commit} is not on main (compare status: ${status})." >&2
+                      echo "Only commits that merged to main can be promoted to production." >&2
+                      exit 1
+                  fi
+
                   echo "Promoting ${PROMOTE_REF} -> ${commit}"
                   echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
-            - name: Login to GitHub Container Registry
-              uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+            - name: Checkout promoted commit
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:
-                  registry: ghcr.io
-                  username: ${{ github.actor }}
-                  password: ${{ secrets.GITHUB_TOKEN }}
+                  ref: ${{ steps.commit.outputs.commit }}
+                  sparse-checkout: apps
 
-            # Production must be the whole stack at one commit. If any app
-            # image is missing for this commit, abort instead of promoting a
-            # partial set (which would leave services on mixed versions).
-            - name: Require a complete image set for this commit
-              env:
-                  PROMOTE_COMMIT: ${{ steps.commit.outputs.commit }}
-              run: |
-                  set -euo pipefail
-                  missing=()
-                  for app in api ui workflows; do
-                      if ! docker buildx imagetools inspect "${IMAGE_PREFIX}/${app}:sha-${PROMOTE_COMMIT}" >/dev/null 2>&1; then
-                          missing+=("$app")
-                      fi
-                  done
-                  if [ "${#missing[@]}" -ne 0 ]; then
-                      echo "Missing sha-${PROMOTE_COMMIT} images for: ${missing[*]}" >&2
-                      echo "Every main commit since the build-all change has a full image set — pick one of those." >&2
-                      exit 1
-                  fi
-                  echo "All app images exist for sha-${PROMOTE_COMMIT}"
-
-    promote:
-        needs: resolve-images
-        runs-on: ubuntu-24.04
-        timeout-minutes: 15
-        permissions:
-            contents: read
-            packages: write
-        steps:
             - name: Login to GitHub Container Registry
               uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
               with:
@@ -90,21 +72,43 @@ jobs:
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-            # The stack deploys the immutable sha-<commit> tag. These extra
-            # tags are aliases for humans and audit: `production` marks what
-            # is live, `prod-<commit>` records every promotion in GHCR.
-            - name: Tag the promoted images
+
+            - name: Verify the full image set and tag the promotion
               env:
-                  PROMOTE_COMMIT: ${{ needs.resolve-images.outputs.commit }}
+                  PROMOTE_COMMIT: ${{ steps.commit.outputs.commit }}
               run: |
                   set -euo pipefail
-                  for app in api ui workflows; do
+                  shopt -s nullglob
+
+                  apps=()
+                  for dockerfile in apps/*/Dockerfile; do
+                      apps+=("$(basename "$(dirname "$dockerfile")")")
+                  done
+                  if [ "${#apps[@]}" -eq 0 ]; then
+                      echo "No apps/*/Dockerfile found at ${PROMOTE_COMMIT}" >&2
+                      exit 1
+                  fi
+
+                  declare -A digests
+                  missing=()
+                  for app in "${apps[@]}"; do
                       source_ref="${IMAGE_PREFIX}/${app}:sha-${PROMOTE_COMMIT}"
-                      digest="$(docker buildx imagetools inspect "$source_ref" | awk '/^Digest:/{print $2; exit}')"
-                      if [ -z "$digest" ]; then
-                          echo "Unable to resolve digest for $source_ref" >&2
-                          exit 1
+                      if ! digest="$(docker buildx imagetools inspect "$source_ref" 2>/dev/null \
+                          | awk '/^Digest:/{print $2; exit}')" || [ -z "$digest" ]; then
+                          missing+=("$app")
+                          continue
                       fi
+                      digests["$app"]="$digest"
+                  done
+
+                  if [ "${#missing[@]}" -ne 0 ]; then
+                      echo "Missing sha-${PROMOTE_COMMIT} images for: ${missing[*]}" >&2
+                      echo "Every main commit has a full image set — pick a commit from main." >&2
+                      exit 1
+                  fi
+
+                  for app in "${apps[@]}"; do
+                      digest="${digests[$app]}"
                       echo "Tagging ${app}@${digest} as production and prod-${PROMOTE_COMMIT}"
                       docker buildx imagetools create \
                           --tag "${IMAGE_PREFIX}/${app}:prod-${PROMOTE_COMMIT}" \
@@ -113,29 +117,13 @@ jobs:
                   done
 
     deploy-production:
-        name: deploy-production
-        needs: [resolve-images, promote]
-        runs-on: ubuntu-24.04
-        timeout-minutes: 20
-        environment:
-            name: production
-            url: https://logid.xyz
-        steps:
-            - name: Checkout
-              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-            - name: Pin production to this commit and deploy via Komodo
-              env:
-                  KOMODO_URL: https://komodo.logid.xyz
-                  KOMODO_API_KEY: ${{ secrets.KOMODO_API_KEY }}
-                  KOMODO_API_SECRET: ${{ secrets.KOMODO_API_SECRET }}
-                  VARIABLE_NAME: PRODUCTION_IMAGE_TAG
-                  IMAGE_TAG: sha-${{ needs.resolve-images.outputs.commit }}
-                  STACK_NAME: reputo-apps-production
-              run: ./.github/scripts/komodo-deploy.sh
-
-            - name: Verify the deployed commit
-              env:
-                  BASE_URL: https://logid.xyz
-                  EXPECTED_SHA: ${{ needs.resolve-images.outputs.commit }}
-              run: ./.github/scripts/verify-deploy.sh
+        needs: resolve-and-promote
+        uses: ./.github/workflows/_deploy.yml
+        with:
+            environment: production
+            sha: ${{ needs.resolve-and-promote.outputs.commit }}
+            base-url: https://logid.xyz
+        # inherit, not explicit passing: the Komodo secrets may be scoped to
+        # the GitHub `production` environment, which only resolves on the
+        # called job that declares the environment.
+        secrets: inherit

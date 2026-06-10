@@ -49,11 +49,15 @@ if [ -z "$update_id" ]; then
 fi
 
 echo "Waiting for Komodo update ${update_id} to complete"
-for _ in $(seq 1 60); do
+for _ in $(seq 1 90); do
     sleep 5
-    update="$(komodo /read "$(jq -cn --arg id "$update_id" \
-        '{ type: "GetUpdate", params: { id: $id } }')")"
-    status="$(jq -r '.status // empty' <<<"$update")"
+
+    if ! update="$(komodo /read "$(jq -cn --arg id "$update_id" \
+        '{ type: "GetUpdate", params: { id: $id } }')")"; then
+        echo "Komodo poll request failed — retrying"
+        continue
+    fi
+    status="$(jq -r '.status // empty' <<<"$update" 2>/dev/null || true)"
 
     if [ "$status" = "Complete" ]; then
         if [ "$(jq -r '.success' <<<"$update")" = "true" ]; then

@@ -6,7 +6,7 @@ Reputo deploys to staging and production through Komodo. Image builds run in Git
 
 | Channel | Deployed tag | Where it deploys | How it gets there |
 | --- | --- | --- | --- |
-| Preview | `preview-<commit>` | Per-PR HTTPS preview on a Lightsail VM (PullPreview) | `pullpreview` label on a PR |
+| Preview | `sha-<commit>` | Per-PR HTTPS preview on a Lightsail VM (PullPreview) | `pullpreview` label on a PR |
 | Staging | `sha-<commit>` via `STAGING_IMAGE_TAG` | `reputo-apps-staging` Komodo stack | every push to `main` |
 | Production | `sha-<commit>` via `PRODUCTION_IMAGE_TAG` | `reputo-apps-production` Komodo stack | manual `Promote to Production` workflow |
 
@@ -25,7 +25,7 @@ Both environments deploy the **same** immutable images that were built once on `
 
 1. Open GitHub Actions and run `Promote to Production`.
 2. Enter a commit SHA or a release tag (for example `v1.4.2`).
-3. The workflow requires a **complete** image set (`api`, `ui`, `workflows`) for that commit and aborts otherwise — production is always the whole stack at one commit.
+3. The workflow requires the commit to be **on `main`** (preview builds publish images for unmerged PR code too, so image existence alone is not proof of review) and to have a **complete** image set — production is always the whole stack at one commit.
 4. It tags the `production` and `prod-<commit>` aliases, sets `PRODUCTION_IMAGE_TAG` to `sha-<commit>`, and triggers `DeployStack reputo-apps-production` via the Komodo API.
 5. The job waits for Komodo, then polls `https://logid.xyz/api/v1/health` until the deployed commit is serving.
 6. The production URL is <https://logid.xyz>.

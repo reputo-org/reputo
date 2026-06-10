@@ -6,9 +6,10 @@ on:
         inputs:
             ref:        { type: string,  required: true }
             push:       { type: boolean, required: true }
+            # The default covers all current callers (PRs only target main);
+            # the input exists for future non-main-target PRs.
             base-ref:   { type: string,  required: false, default: 'origin/main' }
             affected:   { type: boolean, required: false, default: true }
-            tags:       { type: string,  required: false, default: '' }
         outputs:
             affected-count:
                 description: Number of apps selected for the build matrix
@@ -18,7 +19,7 @@ permissions:
     contents: read
 
 env:
-    IMAGE_PREFIX: ghcr.io/reputo-org/reputo
+    IMAGE_PREFIX: ghcr.io/${{ github.repository }}
 
 jobs:
     affected-apps:
@@ -30,7 +31,6 @@ jobs:
             count:  ${{ steps.compute.outputs.count }}
         steps:
             - name: Checkout
-              if: ${{ inputs.affected }}
               uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:
                   ref: ${{ inputs.ref }}
@@ -48,6 +48,20 @@ jobs:
               run: |
                   set -euo pipefail
 
+                  # An app is deployable iff apps/<name>/Dockerfile exists —
+                  # the same convention the docker build matrix relies on.
+                  shopt -s nullglob
+                  apps=()
+                  for dockerfile in apps/*/Dockerfile; do
+                      apps+=("$(basename "$(dirname "$dockerfile")")")
+                  done
+                  if [ "${#apps[@]}" -eq 0 ]; then
+                      echo "No apps/*/Dockerfile found — refusing to build an empty app set" >&2
+                      exit 1
+                  fi
+                  all_apps="$(printf '%s\n' "${apps[@]}" | jq -Rcn '[inputs]')"
+                  echo "Deployable apps: $all_apps"
+
                   if [ "$AFFECTED" = "true" ]; then
                       echo "Computing affected apps relative to '$BASE_REF'"
                       # Make sure the base ref is reachable for turbo's git diff.
@@ -55,21 +69,21 @@ jobs:
 
                       if git rev-parse --verify --quiet "${BASE_REF}^{commit}" >/dev/null; then
                           dry="$(pnpm exec turbo run build --filter="...[$BASE_REF]" --dry=json)"
-                          apps_array="$(jq -c '
+                          apps_array="$(jq -c --argjson all "$all_apps" '
                               [ .packages[]?
                                 | select(startswith("@reputo/"))
                                 | sub("^@reputo/"; "")
                               ]
                               | unique
-                              | map(select(. == "api" or . == "ui" or . == "workflows"))
+                              | map(select(IN($all[])))
                           ' <<<"$dry")"
                       else
                           echo "Base ref '$BASE_REF' is not resolvable — building all apps"
-                          apps_array='["api","ui","workflows"]'
+                          apps_array="$all_apps"
                       fi
                   else
                       echo "Affected mode disabled — building all apps"
-                      apps_array='["api","ui","workflows"]'
+                      apps_array="$all_apps"
                   fi
 
                   matrix="$(jq -c '{ include: map({ app: . }) }' <<<"$apps_array")"
@@ -103,11 +117,7 @@ jobs:
               name: Resolve build args
               run: |
                   set -euo pipefail
-                  node_version="$(awk -F'"' '/^node[[:space:]]*=/ { print $2 }' mise.toml)"
-                  if [ -z "$node_version" ]; then
-                      echo "Unable to read the node version from mise.toml" >&2
-                      exit 1
-                  fi
+                  node_version="$(./.github/scripts/node-version.sh)"
                   echo "node-version=$node_version" >> "$GITHUB_OUTPUT"
                   echo "git-sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
@@ -129,7 +139,6 @@ jobs:
                   images: ${{ env.IMAGE_PREFIX }}/${{ matrix.app }}
                   tags: |
                       type=raw,value=sha-${{ inputs.ref }}
-                      ${{ inputs.tags }}
 
             - name: Build and Push ${{ matrix.app }} image
               uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6

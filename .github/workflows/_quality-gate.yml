@@ -3,11 +3,32 @@ run-name: Quality Gate 🛡️
 
 on:
     workflow_call:
+        secrets:
+            CODECOV_TOKEN:
+                description: Codecov upload token (absent on fork PRs)
+                required: false
 
 permissions:
     contents: read
 
 jobs:
+    lint-workflows:
+        name: 'Lint workflows 🧰'
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+            - name: actionlint
+              run: >-
+                  docker run --rm -v "$(pwd):/repo" --workdir /repo
+                  rhysd/actionlint:1.7.12 -color
+
+            - name: zizmor (advisory)
+              continue-on-error: true
+              run: pipx run zizmor==1.25.2 --min-confidence medium .github/
+
     check:
         name: 'Lint & typecheck 🧹'
         runs-on: ubuntu-24.04
@@ -45,8 +66,8 @@ jobs:
               uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
               with:
                   token: ${{ secrets.CODECOV_TOKEN }}
-                  slug: reputo-org/reputo
-                  fail_ci_if_error: true
+                  slug: ${{ github.repository }}
+                  fail_ci_if_error: ${{ secrets.CODECOV_TOKEN != '' }}
 
     build:
         name: 'Build 📦'
@@ -74,7 +95,6 @@ jobs:
                     POSTGRES_PASSWORD: reputo_app
                     POSTGRES_DB: reputo_app
                 ports:
-                    # .env.example points DATABASE_URL at localhost:5434.
                     - 5434:5432
                 options: >-
                     --health-cmd "pg_isready -U reputo_app"

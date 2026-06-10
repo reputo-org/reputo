@@ -1,0 +1,50 @@
+name: Deploy 🚀
+run-name: Deploy 🚀
+
+
+on:
+    workflow_call:
+        inputs:
+            environment: { type: string, required: true }  # staging | production
+            sha:         { type: string, required: true }  # full commit SHA to deploy
+            base-url:    { type: string, required: true }  # public URL of the environment
+
+permissions:
+    contents: read
+
+jobs:
+    deploy:
+        name: deploy-${{ inputs.environment }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 20
+        environment:
+            name: ${{ inputs.environment }}
+            url: ${{ inputs.base-url }}
+        steps:
+            - name: Validate environment input
+              env:
+                  DEPLOY_ENV: ${{ inputs.environment }}
+              run: |
+                  case "$DEPLOY_ENV" in
+                      staging|production) ;;
+                      *) echo "environment must be 'staging' or 'production', got '$DEPLOY_ENV'" >&2; exit 1 ;;
+                  esac
+
+            - name: Checkout
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+            - name: Pin ${{ inputs.environment }} to this commit and deploy via Komodo
+              env:
+                  KOMODO_URL: https://komodo.logid.xyz
+                  KOMODO_API_KEY: ${{ secrets.KOMODO_API_KEY }}
+                  KOMODO_API_SECRET: ${{ secrets.KOMODO_API_SECRET }}
+                  VARIABLE_NAME: ${{ inputs.environment == 'production' && 'PRODUCTION_IMAGE_TAG' || 'STAGING_IMAGE_TAG' }}
+                  IMAGE_TAG: sha-${{ inputs.sha }}
+                  STACK_NAME: reputo-apps-${{ inputs.environment }}
+              run: ./.github/scripts/komodo-deploy.sh
+
+            - name: Verify the deployed commit
+              env:
+                  BASE_URL: ${{ inputs.base-url }}
+                  EXPECTED_SHA: ${{ inputs.sha }}
+              run: ./.github/scripts/verify-deploy.sh

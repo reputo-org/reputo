@@ -16,9 +16,10 @@ Three rules shape the pipeline:
 | [`pull-preview.yml`](../.github/workflows/pull-preview.yml) | PR labelled `pullpreview`, plus an hourly cleanup schedule | Builds preview images and deploys a per-PR HTTPS preview on a Lightsail VM via PullPreview. |
 | [`main.yml`](../.github/workflows/main.yml) | Push to `main` | Quality gate, build and push **all** apps (`sha-<commit>`), Trivy scan, semantic-release, version-tag the images, deploy staging via the Komodo API, verify the deployed commit. |
 | [`release.yml`](../.github/workflows/release.yml) | Called by `main.yml` | Runs `semantic-release` and outputs the released tag (for image version tags). |
-| [`promote-production.yml`](../.github/workflows/promote-production.yml) | Manual `workflow_dispatch` | Takes a commit SHA **or release tag**, requires a complete image set, retags `production` / `prod-<commit>` aliases, deploys production via the Komodo API, verifies. |
-| [`_quality-gate.yml`](../.github/workflows/_quality-gate.yml) | Called by other workflows | Reusable, parallel jobs: lint + typecheck, tests with coverage (Codecov), build, and a database migration check (apply, revert, re-apply against a fresh Postgres). |
-| [`_build-and-push.yml`](../.github/workflows/_build-and-push.yml) | Called by other workflows | Reusable: compute affected apps via Turbo, build per-app images (with SBOM and provenance attestations), optionally push to GHCR, scan pushed images with Trivy. |
+| [`promote-production.yml`](../.github/workflows/promote-production.yml) | Manual `workflow_dispatch` | Takes a commit SHA **or release tag**, requires the commit to be on `main` and to have a complete image set, retags `production` / `prod-<commit>` aliases, then deploys via `_deploy.yml`. |
+| [`_quality-gate.yml`](../.github/workflows/_quality-gate.yml) | Called by other workflows | Reusable, parallel jobs: workflow lint (actionlint, plus advisory zizmor), lint + typecheck, tests with coverage (Codecov), build, and a database migration check (apply, revert, re-apply against a fresh Postgres). |
+| [`_build-and-push.yml`](../.github/workflows/_build-and-push.yml) | Called by other workflows | Reusable: derive the app set from `apps/*/Dockerfile`, compute affected apps via Turbo, build per-app images (with SBOM and provenance attestations), optionally push to GHCR, scan pushed images with Trivy. |
+| [`_deploy.yml`](../.github/workflows/_deploy.yml) | Called by `main.yml` and `promote-production.yml` | Reusable, one deploy path for both environments: pin the Komodo `*_IMAGE_TAG` Variable to `sha-<commit>`, `DeployStack`, wait for the update, verify `/api/v1/health` serves the commit. |
 
 Two pieces keep the workflows small:
 
@@ -32,7 +33,8 @@ Two pieces keep the workflows small:
 | `sha-<commit>` | every `main` push | Immutable build of that commit. The only tag stacks deploy. |
 | `vX.Y.Z` | `main.yml` after semantic-release | Alias for the `sha-<commit>` of the released commit. |
 | `prod-<commit>`, `production` | `promote-production.yml` | Aliases recording what was promoted; not used for deploys. |
-| `preview-<commit>` | `pull-preview.yml` | Per-PR preview image. |
+
+Previews have no tag of their own: `pull-preview.yml` builds and deploys the same immutable `sha-<commit>` images as every other channel.
 
 ## Supply chain
 

@@ -11,11 +11,7 @@ runs:
           id: versions
           shell: bash
           run: |
-              node_version="$(awk -F'"' '/^node[[:space:]]*=/ { print $2 }' mise.toml)"
-              if [ -z "$node_version" ]; then
-                  echo "Unable to read the node version from mise.toml" >&2
-                  exit 1
-              fi
+              node_version="$(./.github/scripts/node-version.sh)"
               echo "node=$node_version" >> "$GITHUB_OUTPUT"
 
         - name: Setup pnpm

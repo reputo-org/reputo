@@ -5,8 +5,7 @@ on:
     push:
         branches: [main]
 
-# Queue runs instead of cancelling them: cancelling a half-finished main run
-# can leave images pushed but never deployed, or a release half-published.
+
 concurrency:
     group: main-${{ github.ref }}
     cancel-in-progress: false
@@ -17,11 +16,10 @@ permissions:
 jobs:
     quality-gate:
         uses: ./.github/workflows/_quality-gate.yml
-        secrets: inherit
+        secrets:
+            CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-    # Build every app on every main commit (not just the affected ones) so
-    # each commit has a complete, immutable sha-<commit> image set. That is
-    # what makes "promote commit X" mean "the whole stack at commit X".
+
     build-and-push:
         needs: quality-gate
         permissions:
@@ -39,9 +37,7 @@ jobs:
             contents: write
             issues: write
             pull-requests: write
-            id-token: write
         uses: ./.github/workflows/release.yml
-        secrets: inherit
 
     tag-release-images:
         name: tag-release-images 🏷️
@@ -53,8 +49,13 @@ jobs:
             contents: read
             packages: write
         env:
-            IMAGE_PREFIX: ghcr.io/reputo-org/reputo
+            IMAGE_PREFIX: ghcr.io/${{ github.repository }}
         steps:
+            - name: Checkout
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                  sparse-checkout: apps
+
             - name: Login to GitHub Container Registry
               uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
               with:
@@ -70,36 +71,26 @@ jobs:
                   VERSION: ${{ needs.release.outputs.version }}
               run: |
                   set -euo pipefail
-                  for app in api ui workflows; do
+                  shopt -s nullglob
+                  tagged=0
+                  for dockerfile in apps/*/Dockerfile; do
+                      app="$(basename "$(dirname "$dockerfile")")"
                       docker buildx imagetools create \
                           --tag "${IMAGE_PREFIX}/${app}:${VERSION}" \
                           "${IMAGE_PREFIX}/${app}:sha-${GITHUB_SHA}"
+                      tagged=$((tagged + 1))
                   done
+                  if [ "$tagged" -eq 0 ]; then
+                      echo "No apps/*/Dockerfile found — nothing was tagged" >&2
+                      exit 1
+                  fi
 
     deploy-staging:
-        name: deploy-staging
         needs: build-and-push
-        runs-on: ubuntu-24.04
-        timeout-minutes: 20
-        environment:
-            name: staging
-            url: https://staging.logid.xyz
-        steps:
-            - name: Checkout
-              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: ./.github/workflows/_deploy.yml
+        with:
+            environment: staging
+            sha: ${{ github.sha }}
+            base-url: https://staging.logid.xyz
 
-            - name: Pin staging to this commit and deploy via Komodo
-              env:
-                  KOMODO_URL: https://komodo.logid.xyz
-                  KOMODO_API_KEY: ${{ secrets.KOMODO_API_KEY }}
-                  KOMODO_API_SECRET: ${{ secrets.KOMODO_API_SECRET }}
-                  VARIABLE_NAME: STAGING_IMAGE_TAG
-                  IMAGE_TAG: sha-${{ github.sha }}
-                  STACK_NAME: reputo-apps-staging
-              run: ./.github/scripts/komodo-deploy.sh
-
-            - name: Verify the deployed commit
-              env:
-                  BASE_URL: https://staging.logid.xyz
-                  EXPECTED_SHA: ${{ github.sha }}
-              run: ./.github/scripts/verify-deploy.sh
+        secrets: inherit

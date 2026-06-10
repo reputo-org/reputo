@@ -17,24 +17,31 @@ done
 health_url="${BASE_URL}/api/v1/health"
 echo "Waiting for ${health_url} to serve commit ${EXPECTED_SHA}"
 
+api_ok=""
 for _ in $(seq 1 30); do
     sleep 10
-    deployed="$(curl --silent --max-time 10 "$health_url" | jq -r '.sha // empty' 2>/dev/null || true)"
 
-    if [ "$deployed" = "$EXPECTED_SHA" ]; then
-        echo "✅ API at ${BASE_URL} is serving commit ${EXPECTED_SHA}"
-
-        ui_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 "${BASE_URL}/")"
-        if [ "$ui_status" = "200" ]; then
-            echo "✅ UI at ${BASE_URL} responded with HTTP 200"
-            exit 0
+    if [ -z "$api_ok" ]; then
+        deployed="$(curl --silent --max-time 10 "$health_url" | jq -r '.sha // empty' 2>/dev/null || true)"
+        if [ "$deployed" != "$EXPECTED_SHA" ]; then
+            echo "API currently serving: ${deployed:-unreachable}"
+            continue
         fi
-        echo "UI at ${BASE_URL} responded with HTTP ${ui_status}" >&2
-        exit 1
+        echo "✅ API at ${BASE_URL} is serving commit ${EXPECTED_SHA}"
+        api_ok=1
     fi
 
-    echo "API currently serving: ${deployed:-unreachable}"
+    ui_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 "${BASE_URL}/" || true)"
+    if [ "$ui_status" = "200" ]; then
+        echo "✅ UI at ${BASE_URL} responded with HTTP 200"
+        exit 0
+    fi
+    echo "UI responded with HTTP ${ui_status:-000} — retrying"
 done
 
-echo "Timed out: ${health_url} never reported commit ${EXPECTED_SHA}" >&2
+if [ -z "$api_ok" ]; then
+    echo "Timed out: ${health_url} never reported commit ${EXPECTED_SHA}" >&2
+else
+    echo "Timed out: UI at ${BASE_URL} never returned HTTP 200" >&2
+fi
 exit 1

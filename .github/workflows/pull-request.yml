@@ -15,7 +15,8 @@ permissions:
 jobs:
     quality-gate:
         uses: ./.github/workflows/_quality-gate.yml
-        secrets: inherit
+        secrets:
+            CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
     build:
         needs: quality-gate
@@ -27,4 +28,3 @@ jobs:
             ref: ${{ github.sha }}
             push: false
             affected: true
-            base-ref: origin/${{ github.base_ref }}

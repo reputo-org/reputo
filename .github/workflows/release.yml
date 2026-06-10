@@ -20,9 +20,9 @@ jobs:
             contents: write
             issues: write
             pull-requests: write
-            id-token: write
         outputs:
-            version: ${{ steps.version.outputs.version }}
+            # only when a release is actually published — empty otherwise.
+            version: ${{ steps.semantic.outputs.version }}
         steps:
             - name: Checkout
               uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -32,24 +32,8 @@ jobs:
             - name: Setup toolchain
               uses: ./.github/actions/setup
 
-            - name: Release
+            - id: semantic
+              name: Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: pnpm exec semantic-release
-
-            - id: version
-              name: Resolve the tag released for this commit
-              env:
-                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              run: |
-                  set -euo pipefail
-                  version=""
-                  tag="$(gh release list --limit 1 --json tagName --jq '.[0].tagName' || true)"
-                  if [ -n "$tag" ]; then
-                      tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha 2>/dev/null || true)"
-                      if [ "$tag_sha" = "$GITHUB_SHA" ]; then
-                          version="$tag"
-                      fi
-                  fi
-                  echo "Released version for this commit: ${version:-<none>}"
-                  echo "version=$version" >> "$GITHUB_OUTPUT"
