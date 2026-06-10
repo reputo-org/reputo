@@ -53,6 +53,8 @@ RUN pnpm deploy --filter="@reputo/${APP_NAME}" --prod /prod/app
 
 # ---------- runtime ---------------------------------------------------------
 FROM base AS runtime
+# Apply Debian security updates the pinned base image may not carry yet.
+RUN apt-get update && apt-get -y upgrade && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 WORKDIR /prod/app
 COPY --from=builder /prod/app ./
