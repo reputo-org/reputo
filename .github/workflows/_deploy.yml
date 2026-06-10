@@ -1,6 +1,4 @@
-name: Deploy 🚀
-run-name: Deploy 🚀
-
+name: Deploy
 
 on:
     workflow_call:
@@ -14,7 +12,7 @@ permissions:
 
 jobs:
     deploy:
-        name: deploy-${{ inputs.environment }}
+        name: Deploy ${{ inputs.environment }}
         runs-on: ubuntu-24.04
         timeout-minutes: 20
         environment:

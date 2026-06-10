@@ -1,12 +1,14 @@
-name: Pull Preview 👀
-run-name: Pull Preview 👀
+name: Pull Preview
 
 on:
     pull_request:
         branches: [main]
         types: [opened, reopened, synchronize, labeled, unlabeled, closed]
+    # Reaps dangling preview environments (PullPreview docs: the schedule is
+    # optional and only handles cleanup); normal teardown happens on
+    # closed/unlabeled events.
     schedule:
-        - cron: '0 * * * *'
+        - cron: '30 */4 * * *'
 
 concurrency: preview-${{ github.event.pull_request.number || github.ref }}
 
@@ -30,18 +32,20 @@ jobs:
             affected: false
 
     preview:
-        name: preview
         needs: build
         permissions:
             contents: read
             pull-requests: write
             statuses: write
 
+        # Runs only for scheduled cleanup or PRs that carry (or just lost) the
+        # pullpreview label. A labeled PR that gets closed still matches via
+        # contains(); closing a never-labeled PR skips instead of running a
+        # pointless teardown.
         if: |
             !cancelled() &&
             (needs.build.result == 'success' || needs.build.result == 'skipped') &&
             (github.event_name == 'schedule' ||
-             github.event.action == 'closed' ||
              github.event.label.name == 'pullpreview' ||
              contains(github.event.pull_request.labels.*.name, 'pullpreview'))
         runs-on: ubuntu-24.04
@@ -53,7 +57,13 @@ jobs:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
             - name: Generate per-deploy auth token encryption key
-              if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.action != 'unlabeled'
+              # Matches "this run will (re)deploy": the PR is open and still
+              # labeled. Covers redeploys triggered by removing an unrelated
+              # label, which the old action != 'unlabeled' check missed.
+              if: |
+                  github.event_name == 'pull_request' &&
+                  github.event.action != 'closed' &&
+                  contains(github.event.pull_request.labels.*.name, 'pullpreview')
               id: gen_auth_key
               run: |
                   key="$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('hex'))")"

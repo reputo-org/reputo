@@ -1,5 +1,4 @@
-name: Docker Build & Push 🐳
-run-name: Docker Build & Push 🐳
+name: Build and Push
 
 on:
     workflow_call:
@@ -23,7 +22,7 @@ env:
 
 jobs:
     affected-apps:
-        name: Compute affected apps 📊
+        name: Compute affected apps
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         outputs:
@@ -95,7 +94,7 @@ jobs:
                   echo "count=$count"   >> "$GITHUB_OUTPUT"
 
     docker-images:
-        name: build (${{ matrix.app }}) 🐳
+        name: Build (${{ matrix.app }})
         needs: affected-apps
         if: ${{ needs.affected-apps.outputs.count != '0' }}
         runs-on: ubuntu-24.04
@@ -140,7 +139,7 @@ jobs:
                   tags: |
                       type=raw,value=sha-${{ inputs.ref }}
 
-            - name: Build and Push ${{ matrix.app }} image
+            - name: Build and push ${{ matrix.app }} image
               uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
               with:
                   context: .
@@ -158,7 +157,7 @@ jobs:
                   sbom: true
 
     scan:
-        name: scan (${{ matrix.app }}) 🔬
+        name: Scan (${{ matrix.app }})
         needs: [affected-apps, docker-images]
         if: ${{ inputs.push && needs.affected-apps.outputs.count != '0' }}
         runs-on: ubuntu-24.04
