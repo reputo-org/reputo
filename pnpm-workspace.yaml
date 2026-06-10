@@ -55,7 +55,7 @@ catalog:
   tsx: ^4.7.0
   typedoc: ^0.28.13
   typedoc-plugin-markdown: ^4.9.0
-  typeorm: ^0.3.28
+  typeorm: ^1.0.0
   typeorm-naming-strategies: ^4.1.0
   typescript: 5.9.2
   undici: ^7.10.0
