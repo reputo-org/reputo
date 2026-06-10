@@ -1,5 +1,4 @@
-name: Quality Gate 🛡️
-run-name: Quality Gate 🛡️
+name: Quality Gate
 
 on:
     workflow_call:
@@ -13,7 +12,7 @@ permissions:
 
 jobs:
     lint-workflows:
-        name: 'Lint workflows 🧰'
+        name: Lint workflows
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
@@ -30,7 +29,7 @@ jobs:
               run: pipx run zizmor==1.25.2 --min-confidence medium .github/
 
     check:
-        name: 'Lint & typecheck 🧹'
+        name: Lint and typecheck
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         steps:
@@ -47,7 +46,7 @@ jobs:
               run: pnpm run typecheck
 
     test:
-        name: 'Tests 🧪'
+        name: Tests
         runs-on: ubuntu-24.04
         timeout-minutes: 20
         steps:
@@ -70,7 +69,7 @@ jobs:
                   fail_ci_if_error: ${{ secrets.CODECOV_TOKEN != '' }}
 
     build:
-        name: 'Build 📦'
+        name: Build
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         steps:
@@ -84,7 +83,7 @@ jobs:
               run: pnpm run build
 
     migrations:
-        name: 'Database migrations 🗄️'
+        name: Database migrations
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         services:

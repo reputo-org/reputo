@@ -1,5 +1,4 @@
-name: main 🚢
-run-name: main 🚢
+name: Main
 
 on:
     push:
@@ -37,10 +36,9 @@ jobs:
             contents: write
             issues: write
             pull-requests: write
-        uses: ./.github/workflows/release.yml
+        uses: ./.github/workflows/_release.yml
 
     tag-release-images:
-        name: tag-release-images 🏷️
         needs: release
         if: ${{ needs.release.outputs.version != '' }}
         runs-on: ubuntu-24.04

@@ -1,5 +1,5 @@
-name: Promote to Production 🚀
-run-name: Promote to Production 🚀
+name: Promote to Production
+run-name: Promote ${{ inputs.ref }} to production
 
 on:
     workflow_dispatch:

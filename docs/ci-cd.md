@@ -13,9 +13,9 @@ Three rules shape the pipeline:
 | Workflow | Trigger | What it does |
 | --- | --- | --- |
 | [`pull-request.yml`](../.github/workflows/pull-request.yml) | PR opened, updated, or reopened against `main` | Quality gate plus a no-push Docker build for affected apps. |
-| [`pull-preview.yml`](../.github/workflows/pull-preview.yml) | PR labelled `pullpreview`, plus an hourly cleanup schedule | Builds preview images and deploys a per-PR HTTPS preview on a Lightsail VM via PullPreview. |
+| [`pull-preview.yml`](../.github/workflows/pull-preview.yml) | PR labelled `pullpreview`, plus a cleanup schedule every 4 hours | Builds preview images and deploys a per-PR HTTPS preview on a Lightsail VM via PullPreview. |
 | [`main.yml`](../.github/workflows/main.yml) | Push to `main` | Quality gate, build and push **all** apps (`sha-<commit>`), Trivy scan, semantic-release, version-tag the images, deploy staging via the Komodo API, verify the deployed commit. |
-| [`release.yml`](../.github/workflows/release.yml) | Called by `main.yml` | Runs `semantic-release` and outputs the released tag (for image version tags). |
+| [`_release.yml`](../.github/workflows/_release.yml) | Called by `main.yml` | Runs `semantic-release` and outputs the released tag (for image version tags). |
 | [`promote-production.yml`](../.github/workflows/promote-production.yml) | Manual `workflow_dispatch` | Takes a commit SHA **or release tag**, requires the commit to be on `main` and to have a complete image set, retags `production` / `prod-<commit>` aliases, then deploys via `_deploy.yml`. |
 | [`_quality-gate.yml`](../.github/workflows/_quality-gate.yml) | Called by other workflows | Reusable, parallel jobs: workflow lint (actionlint, plus advisory zizmor), lint + typecheck, tests with coverage (Codecov), build, and a database migration check (apply, revert, re-apply against a fresh Postgres). |
 | [`_build-and-push.yml`](../.github/workflows/_build-and-push.yml) | Called by other workflows | Reusable: derive the app set from `apps/*/Dockerfile`, compute affected apps via Turbo, build per-app images (with SBOM and provenance attestations), optionally push to GHCR, scan pushed images with Trivy. |
