@@ -422,7 +422,7 @@ executions = [
 
 [[procedure]]
 name = "promote-production"
-description = "Deploy the production application stack after GitHub Actions promotes immutable image tags to production."
+description = "Deploy the production application stack. GitHub Actions deploys through the API (UpdateVariableValue PRODUCTION_IMAGE_TAG + DeployStack); this procedure remains for manual re-deploys from the UI."
 tags = ["reputo", "env:production", "promotion"]
 
 [procedure.config]
@@ -430,7 +430,7 @@ schedule = ""
 schedule_enabled = false
 schedule_alert = false
 failure_alert = true
-webhook_enabled = true
+webhook_enabled = false
 
 [[procedure.config.stage]]
 name = "Deploy production apps"

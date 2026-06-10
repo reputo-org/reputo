@@ -7,6 +7,7 @@ import { AuthModule, AuthService } from '../../src/auth';
 import { OAuthAuthProviderService } from '../../src/auth/oauth-auth-provider.service';
 import { configModules } from '../../src/config';
 import { setupSwagger } from '../../src/docs';
+import { HealthModule } from '../../src/health';
 import { PersistenceModule, SnapshotListenerService } from '../../src/persistence';
 import { HttpExceptionFilter } from '../../src/shared/filters/http-exception.filter';
 import { SnapshotModule } from '../../src/snapshot/snapshot.module';
@@ -129,6 +130,7 @@ export async function createTestApp(options: TestAppOptions) {
         },
       }),
       PersistenceModule,
+      HealthModule,
       AuthModule,
       AlgorithmPresetModule,
       SnapshotModule,

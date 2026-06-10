@@ -10,6 +10,9 @@ on:
 
 concurrency: preview-${{ github.event.pull_request.number || github.ref }}
 
+permissions:
+    contents: read
+
 jobs:
     build:
         if: |
@@ -17,13 +20,14 @@ jobs:
             github.event.action != 'closed' &&
             github.event.action != 'unlabeled' &&
             contains(github.event.pull_request.labels.*.name, 'pullpreview')
+        permissions:
+            contents: read
+            packages: write
         uses: ./.github/workflows/_build-and-push.yml
         with:
             ref: ${{ github.event.pull_request.head.sha }}
             push: true
             affected: false
-            tags: |
-                type=raw,value=preview-${{ github.event.pull_request.head.sha }}
 
     preview:
         name: preview
@@ -40,13 +44,13 @@ jobs:
              github.event.action == 'closed' ||
              github.event.label.name == 'pullpreview' ||
              contains(github.event.pull_request.labels.*.name, 'pullpreview'))
-        runs-on: ubuntu-22.04
+        runs-on: ubuntu-24.04
         timeout-minutes: 30
         environment:
             name: preview
             url: ${{ steps.preview.outputs.url }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
             - name: Generate per-deploy auth token encryption key
               if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.action != 'unlabeled'
@@ -58,7 +62,7 @@ jobs:
 
             - id: preview
               name: Deploy preview
-              uses: pullpreview/action@v6.2.0
+              uses: pullpreview/action@179f963326f568dc1665707c796aaac590667632 # v6.2.0
               with:
                   label: pullpreview
                   provider: lightsail
@@ -72,7 +76,7 @@ jobs:
                   AWS_ACCESS_KEY_ID: '${{ secrets.AWS_ACCESS_KEY_ID }}'
                   AWS_SECRET_ACCESS_KEY: '${{ secrets.AWS_SECRET_ACCESS_KEY }}'
                   AWS_REGION: 'eu-central-1'
-                  IMAGE_TAG: 'preview-${{ github.event.pull_request.head.sha }}'
+                  IMAGE_TAG: 'sha-${{ github.event.pull_request.head.sha }}'
                   AUTH_TOKEN_ENCRYPTION_KEY: '${{ steps.gen_auth_key.outputs.auth_token_encryption_key }}'
                   DEEPFUNDING_API_KEY: '${{ secrets.DEEPFUNDING_API_KEY }}'
                   ALCHEMY_API_KEY: '${{ secrets.ALCHEMY_API_KEY }}'

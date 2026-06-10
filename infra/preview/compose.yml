@@ -301,7 +301,7 @@ services:
             resources: *resources-xs
 
     ############################################################################
-    # Apps — same prebuilt images as staging/prod, pulled by preview-<sha> tag
+    # Apps — the same immutable sha-<commit> images staging/prod deploy
     ############################################################################
 
     ui:

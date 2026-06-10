@@ -39,7 +39,7 @@ x-resources-l: &resources-l
     reservations:
         memory: 192M
 
-x-node-tcp-healthcheck: &node-tcp-healthcheck
+x-node-healthcheck: &node-healthcheck
     interval: 30s
     timeout: 5s
     retries: 5
@@ -169,7 +169,7 @@ services:
             PORT: '8080'
             HOSTNAME: 0.0.0.0
         healthcheck:
-            <<: *node-tcp-healthcheck
+            <<: *node-healthcheck
             test:
                 - CMD-SHELL
                 - >-
@@ -193,11 +193,11 @@ services:
         pull_policy: always
         environment: *api-environment
         healthcheck:
-            <<: *node-tcp-healthcheck
+            <<: *node-healthcheck
             test:
                 - CMD-SHELL
                 - >-
-                  node -e "require('net').connect(3000).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
+                  node -e "fetch('http://127.0.0.1:3000/api/v1/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
         labels:
             - traefik.enable=true
             - traefik.docker.network=${COMPOSE_NETWORK_NAME:-reputo}

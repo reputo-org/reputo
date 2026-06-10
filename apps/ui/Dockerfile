@@ -9,7 +9,8 @@
 #   docker buildx build --build-arg APP_NAME=ui -f apps/ui/Dockerfile .
 #
 ARG APP_NAME=ui
-ARG NODE_VERSION=22.20.0
+# Default mirrors mise.toml; CI passes the value parsed from mise.toml.
+ARG NODE_VERSION=24.14.0
 ARG TURBO_VERSION=2.9.6
 
 # ---------- base ------------------------------------------------------------
@@ -58,6 +59,10 @@ ENV PORT=8080
 COPY --from=builder /repo/apps/ui/.next/standalone ./
 COPY --from=builder /repo/apps/ui/.next/static ./apps/ui/.next/static
 COPY --from=builder /repo/apps/ui/public ./apps/ui/public
+
+# Build commit, kept for ops (docker inspect / process env).
+ARG GIT_SHA=""
+ENV GIT_SHA=${GIT_SHA}
 
 EXPOSE 8080
 CMD ["node", "apps/ui/server.js"]

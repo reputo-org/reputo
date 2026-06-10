@@ -6,20 +6,25 @@ on:
         branches: [main]
 
 concurrency:
-    group: ci-${{ github.ref }}
+    group: pr-${{ github.ref }}
     cancel-in-progress: true
+
+permissions:
+    contents: read
 
 jobs:
     quality-gate:
         uses: ./.github/workflows/_quality-gate.yml
-        secrets: inherit
-
+        secrets:
+            CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
     build:
         needs: quality-gate
+        permissions:
+            contents: read
+            packages: write
         uses: ./.github/workflows/_build-and-push.yml
         with:
             ref: ${{ github.sha }}
             push: false
             affected: true
-            base-ref: origin/${{ github.base_ref }}

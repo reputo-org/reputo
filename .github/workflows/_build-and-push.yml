@@ -6,46 +6,39 @@ on:
         inputs:
             ref:        { type: string,  required: true }
             push:       { type: boolean, required: true }
+            # The default covers all current callers (PRs only target main);
+            # the input exists for future non-main-target PRs.
             base-ref:   { type: string,  required: false, default: 'origin/main' }
             affected:   { type: boolean, required: false, default: true }
-            tags:       { type: string,  required: false, default: '' }
         outputs:
             affected-count:
                 description: Number of apps selected for the build matrix
                 value: ${{ jobs.affected-apps.outputs.count }}
 
+permissions:
+    contents: read
+
 env:
-    IMAGE_PREFIX: ghcr.io/reputo-org/reputo
+    IMAGE_PREFIX: ghcr.io/${{ github.repository }}
 
 jobs:
     affected-apps:
         name: Compute affected apps 📊
-        runs-on: ubuntu-22.04
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
         outputs:
             matrix: ${{ steps.compute.outputs.matrix }}
             count:  ${{ steps.compute.outputs.count }}
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
-            - name: Setup pnpm
-              uses: pnpm/action-setup@v4
-              with:
-                  version: '10.30.3'
-                  run_install: false
-
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: '24.14.0'
-                  cache: pnpm
-                  cache-dependency-path: pnpm-lock.yaml
-
-            - name: Install dependencies
-              run: pnpm install --frozen-lockfile
+            - name: Setup toolchain
+              if: ${{ inputs.affected }}
+              uses: ./.github/actions/setup
 
             - id: compute
               name: Resolve affected apps
@@ -55,23 +48,42 @@ jobs:
               run: |
                   set -euo pipefail
 
+                  # An app is deployable iff apps/<name>/Dockerfile exists —
+                  # the same convention the docker build matrix relies on.
+                  shopt -s nullglob
+                  apps=()
+                  for dockerfile in apps/*/Dockerfile; do
+                      apps+=("$(basename "$(dirname "$dockerfile")")")
+                  done
+                  if [ "${#apps[@]}" -eq 0 ]; then
+                      echo "No apps/*/Dockerfile found — refusing to build an empty app set" >&2
+                      exit 1
+                  fi
+                  all_apps="$(printf '%s\n' "${apps[@]}" | jq -Rcn '[inputs]')"
+                  echo "Deployable apps: $all_apps"
+
                   if [ "$AFFECTED" = "true" ]; then
                       echo "Computing affected apps relative to '$BASE_REF'"
                       # Make sure the base ref is reachable for turbo's git diff.
-                      git fetch --no-tags --depth=100 origin "${BASE_REF#origin/}" || true
+                      git fetch --no-tags origin "${BASE_REF#origin/}" || true
 
-                      dry="$(pnpm exec turbo run build --filter="...[$BASE_REF]" --dry=json)"
-                      apps_array="$(jq -c '
-                          [ .packages[]?
-                            | select(startswith("@reputo/"))
-                            | sub("^@reputo/"; "")
-                          ]
-                          | unique
-                          | map(select(. == "api" or . == "ui" or . == "workflows"))
-                      ' <<<"$dry")"
+                      if git rev-parse --verify --quiet "${BASE_REF}^{commit}" >/dev/null; then
+                          dry="$(pnpm exec turbo run build --filter="...[$BASE_REF]" --dry=json)"
+                          apps_array="$(jq -c --argjson all "$all_apps" '
+                              [ .packages[]?
+                                | select(startswith("@reputo/"))
+                                | sub("^@reputo/"; "")
+                              ]
+                              | unique
+                              | map(select(IN($all[])))
+                          ' <<<"$dry")"
+                      else
+                          echo "Base ref '$BASE_REF' is not resolvable — building all apps"
+                          apps_array="$all_apps"
+                      fi
                   else
                       echo "Affected mode disabled — building all apps"
-                      apps_array='["api","ui","workflows"]'
+                      apps_array="$all_apps"
                   fi
 
                   matrix="$(jq -c '{ include: map({ app: . }) }' <<<"$apps_array")"
@@ -86,7 +98,8 @@ jobs:
         name: build (${{ matrix.app }}) 🐳
         needs: affected-apps
         if: ${{ needs.affected-apps.outputs.count != '0' }}
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
         permissions:
             contents: read
             packages: write
@@ -96,16 +109,24 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:
                   ref: ${{ inputs.ref }}
 
+            - id: build-args
+              name: Resolve build args
+              run: |
+                  set -euo pipefail
+                  node_version="$(./.github/scripts/node-version.sh)"
+                  echo "node-version=$node_version" >> "$GITHUB_OUTPUT"
+                  echo "git-sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
             - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@v3
+              uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
             - name: Login to GitHub Container Registry
               if: ${{ inputs.push }}
-              uses: docker/login-action@v3
+              uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
               with:
                   registry: ghcr.io
                   username: ${{ github.actor }}
@@ -113,22 +134,46 @@ jobs:
 
             - name: Extract metadata
               id: meta
-              uses: docker/metadata-action@v5
+              uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
               with:
                   images: ${{ env.IMAGE_PREFIX }}/${{ matrix.app }}
                   tags: |
                       type=raw,value=sha-${{ inputs.ref }}
-                      ${{ inputs.tags }}
 
             - name: Build and Push ${{ matrix.app }} image
-              uses: docker/build-push-action@v6
+              uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
               with:
                   context: .
                   file: apps/${{ matrix.app }}/Dockerfile
                   push: ${{ inputs.push }}
                   build-args: |
                       APP_NAME=${{ matrix.app }}
+                      NODE_VERSION=${{ steps.build-args.outputs.node-version }}
+                      GIT_SHA=${{ steps.build-args.outputs.git-sha }}
                   tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}
                   cache-from: type=gha,scope=${{ matrix.app }}
                   cache-to: type=gha,scope=${{ matrix.app }},mode=max
+                  provenance: mode=max
+                  sbom: true
+
+    scan:
+        name: scan (${{ matrix.app }}) 🔬
+        needs: [affected-apps, docker-images]
+        if: ${{ inputs.push && needs.affected-apps.outputs.count != '0' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        strategy:
+            fail-fast: false
+            matrix: ${{ fromJSON(needs.affected-apps.outputs.matrix) }}
+        steps:
+            - name: Scan ${{ matrix.app }} image for critical vulnerabilities
+              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+              with:
+                  image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.app }}:sha-${{ inputs.ref }}
+                  severity: CRITICAL
+                  ignore-unfixed: true
+                  exit-code: '1'
+              env:
+                  TRIVY_USERNAME: ${{ github.actor }}
+                  TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}

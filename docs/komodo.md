@@ -3,10 +3,10 @@
 [Komodo](https://komo.do) is the deployment control plane for Reputo staging and production. Core runs on a dedicated host at <https://komodo.logid.xyz>. Staging and production hosts run Periphery agents that execute the declared Compose stacks.
 
 ```text
-GitHub Actions -> GHCR image tags -> Komodo webhooks -> Periphery -> Docker Compose
+GitHub Actions -> GHCR image tags -> Komodo API (pin tag + deploy) -> Periphery -> Docker Compose
 ```
 
-This page covers operator topics: install, RBAC, variables, webhooks, and backups. For day-to-day deploys, see [Deployment](deployment.md). The repository layout is under [Files](#files) below.
+This page covers operator topics: install, RBAC, variables, API access, and backups. For day-to-day deploys, see [Deployment](deployment.md). The repository layout is under [Files](#files) below.
 
 ## Host shape
 
@@ -122,16 +122,16 @@ Reputo runs as four Komodo Stacks per environment. Each Stack is a separate Dock
 
 Posture:
 
-- The staging apps stack is the source of truth for staging deploys: `poll_for_updates = false`, `webhook_enabled = true`, `webhook_force_deploy = true`, `deploy = false`. GitHub Actions calls the staging Stack webhook after a successful image build.
-- The production apps stack has direct stack webhooks disabled. GitHub Actions performs the digest-based production retag, then calls the `promote-production` Procedure webhook.
+- Both apps stacks deploy through the Komodo API: GitHub Actions sets the stack's `*_IMAGE_TAG` Variable (`UpdateVariableValue`) and triggers `DeployStack`, then waits for the resulting Update to complete. Stack webhooks and polling are disabled (`poll_for_updates = false`, `webhook_enabled = false`, `deploy = false`).
+- The production flow additionally retags the `production` / `prod-<commit>` aliases in GHCR before deploying, as an audit trail.
 - Database, temporal, and observability stacks have webhooks and polling disabled. They are deployed manually through the `deploy-*` procedures.
 
 At deploy time each stack writes a Komodo-managed env file (`.komodo-reputo-<stack>-{env}.env`) from its TOML `environment` block and passes it to Docker Compose with `--env-file`. The checked-in TOML references variables and secrets by `[[NAME]]` only; resolved values must never be committed.
 
-The apps stacks pin the channel tags:
+The apps stacks pin immutable image tags through Variables:
 
-- staging: `IMAGE_TAG=staging`
-- production: `IMAGE_TAG=production`
+- staging: `IMAGE_TAG=[[STAGING_IMAGE_TAG]]` (a `sha-<commit>` tag, written by the main pipeline)
+- production: `IMAGE_TAG=[[PRODUCTION_IMAGE_TAG]]` (a `sha-<commit>` tag, written by the Promote to Production workflow)
 
 ## Procedures
 
@@ -147,7 +147,7 @@ Defined in [`infra/komodo/procedures.toml`](../infra/komodo/procedures.toml):
 | `deploy-all-{env}` | Database → temporal → observability → apps. |
 | `restart-apps-{env}` | Restart apps containers without re-pulling. |
 | `backup-data-{env}` | One-shot `pg_dump` via the `postgres-backup` service in the database stack. |
-| `promote-production` | Production app deploy after the GitHub Actions digest retag. Webhook-triggered. |
+| `promote-production` | Manual production apps re-deploy from the UI. The normal release path is the `Promote to Production` GitHub workflow, which deploys through the API. |
 | `prune-images` | Scheduled image prune on both servers. |
 
 ## RBAC
@@ -194,23 +194,14 @@ The full list lives in [`variables.toml`](../infra/komodo/resources/variables.to
 
 Configure the GHCR PAT in Komodo under `Settings > Providers` as a Docker registry account for `ghcr.io`, and attach it to stacks that need authenticated pulls. Do not model the PAT as a stack environment variable. Keep secret values in Komodo or the password manager only; never commit resolved values.
 
-## Webhooks
+## API access for GitHub Actions
 
-Staging Stack webhook:
+The pipelines authenticate against the Komodo HTTP API with an API key (`X-Api-Key` / `X-Api-Secret` headers). They send three request types: `UpdateVariableValue` (pin the image tag), `DeployStack` (deploy the apps stack), and `GetUpdate` (wait for the deploy to finish).
 
-```text
-https://komodo.logid.xyz/listener/github/stack/reputo-apps-staging/deploy
-```
+1. In Komodo, create an API key under `Settings > API Keys`. Use a service user whose permissions cover `Execute` on the apps stacks and writing Variables.
+2. Store the pair as `KOMODO_API_KEY` / `KOMODO_API_SECRET` secrets in the GitHub `staging` and `production` environments (or as repository secrets).
 
-Configure the GitHub `staging` environment secret `KOMODO_WEBHOOK_SECRET` with the same value as Komodo Core.
-
-Production promotion Procedure webhook:
-
-```text
-https://komodo.logid.xyz/listener/github/procedure/promote-production/__ANY__
-```
-
-Configure the GitHub `production` environment secret `KOMODO_WEBHOOK_SECRET` with the same value as Komodo Core.
+The old stack and procedure webhooks are disabled; `KOMODO_WEBHOOK_SECRET` remains a Core bootstrap value in `core.env` but is no longer used by GitHub Actions.
 
 ## Add a new server
 

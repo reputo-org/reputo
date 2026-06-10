@@ -1,0 +1,42 @@
+name: Setup pnpm, Node and Turbo cache
+description: >-
+    Installs pnpm (version from the root package.json `packageManager` field),
+    Node.js (version from mise.toml so CI and the Docker images stay on the
+    same runtime), restores the Turbo cache, and installs dependencies.
+
+runs:
+    using: composite
+    steps:
+        - name: Read Node version from mise.toml
+          id: versions
+          shell: bash
+          run: |
+              node_version="$(./.github/scripts/node-version.sh)"
+              echo "node=$node_version" >> "$GITHUB_OUTPUT"
+
+        - name: Setup pnpm
+          uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+        - name: Setup Node.js
+          uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+          with:
+              node-version: ${{ steps.versions.outputs.node }}
+              cache: pnpm
+              cache-dependency-path: pnpm-lock.yaml
+
+        - name: Restore Turbo cache
+          uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+          with:
+              path: .turbo
+              key: turbo-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
+              restore-keys: |
+                  turbo-${{ runner.os }}-${{ github.job }}-
+                  turbo-${{ runner.os }}-
+
+        - name: Point Turbo at the cached directory
+          shell: bash
+          run: echo "TURBO_CACHE_DIR=${GITHUB_WORKSPACE}/.turbo" >> "$GITHUB_ENV"
+
+        - name: Install dependencies
+          shell: bash
+          run: pnpm install --frozen-lockfile

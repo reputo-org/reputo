@@ -30,6 +30,22 @@ name = "KOMODO_DISCORD_WEBHOOK_URL"
 description = "Discord webhook URL for the reputo alerter resource. Interpolated into alerters.toml."
 is_secret = true
 
+# The two IMAGE_TAG variables pin each apps stack to an immutable image tag
+# (sha-<commit>). GitHub Actions updates them through the Komodo API
+# (UpdateVariableValue) right before it triggers DeployStack, so what runs is
+# always traceable to one commit. Set an initial value by hand once (any
+# existing sha-<commit> tag); after that, only the pipelines write them.
+
+[[variable]]
+name = "STAGING_IMAGE_TAG"
+description = "Immutable image tag (sha-<commit>) the staging apps stack deploys. Written by the main pipeline before each staging deploy."
+is_secret = false
+
+[[variable]]
+name = "PRODUCTION_IMAGE_TAG"
+description = "Immutable image tag (sha-<commit>) the production apps stack deploys. Written by the Promote to Production workflow."
+is_secret = false
+
 [[variable]]
 name = "STAGING_TRAEFIK_DOMAIN"
 description = "Staging Traefik dashboard host."

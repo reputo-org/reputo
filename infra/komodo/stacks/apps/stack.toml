@@ -16,7 +16,7 @@ file_paths = ["infra/komodo/stacks/apps/compose.yml"]
 env_file_path = ".komodo-reputo-apps-staging.env"
 environment = """
 COMPOSE_NETWORK_NAME=reputo
-IMAGE_TAG=staging
+IMAGE_TAG=[[STAGING_IMAGE_TAG]]
 NODE_ENV=production
 LOG_LEVEL=info
 TRAEFIK_DOMAIN=[[STAGING_TRAEFIK_DOMAIN]]
@@ -87,8 +87,10 @@ auto_update = false
 auto_update_all_services = false
 destroy_before_deploy = false
 send_alerts = true
-webhook_enabled = true
-webhook_force_deploy = true
+# Deploys are triggered through the Komodo API by GitHub Actions
+# (UpdateVariableValue STAGING_IMAGE_TAG + DeployStack), not by webhook.
+webhook_enabled = false
+webhook_force_deploy = false
 
 [[stack]]
 name = "reputo-apps-production"
@@ -108,7 +110,7 @@ file_paths = ["infra/komodo/stacks/apps/compose.yml"]
 env_file_path = ".komodo-reputo-apps-production.env"
 environment = """
 COMPOSE_NETWORK_NAME=reputo
-IMAGE_TAG=production
+IMAGE_TAG=[[PRODUCTION_IMAGE_TAG]]
 NODE_ENV=production
 LOG_LEVEL=info
 TRAEFIK_DOMAIN=[[PRODUCTION_TRAEFIK_DOMAIN]]
