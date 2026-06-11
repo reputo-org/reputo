@@ -2,6 +2,7 @@ import { HttpException, HttpStatus, type INestApplication } from '@nestjs/common
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
 import type { NextFunction, Request, Response } from 'express';
+import helmet from 'helmet';
 
 import type { AuthService } from '../auth';
 import {
@@ -52,6 +53,16 @@ export const setupSwagger = (app: INestApplication, authService: AuthService) =>
   }
 
   SwaggerModule.setup(SWAGGER_API_ROOT, app, document);
+
+  app.use(
+    '/reference',
+    helmet.contentSecurityPolicy({
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        'script-src': ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+      },
+    }),
+  );
 
   app.use(
     '/reference',
