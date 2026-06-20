@@ -31,7 +31,6 @@ runs:
               key: turbo-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
               restore-keys: |
                   turbo-${{ runner.os }}-${{ github.job }}-
-                  turbo-${{ runner.os }}-
 
         - name: Point Turbo at the cached directory
           shell: bash
