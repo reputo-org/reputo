@@ -15,23 +15,23 @@ x-service-defaults: &service-defaults
     security_opt:
         - no-new-privileges:true
 
-x-resources-xs: &resources-xs
-    limits:
-        memory: 64M
-    reservations:
-        memory: 32M
+x-resources-xs: &resources-xs {} # limits disabled for now
+    # limits:
+    #     memory: 64M
+    # reservations:
+    #     memory: 32M
 
-x-resources-s: &resources-s
-    limits:
-        memory: 128M
-    reservations:
-        memory: 64M
+x-resources-s: &resources-s {} # limits disabled for now
+    # limits:
+    #     memory: 128M
+    # reservations:
+    #     memory: 64M
 
-x-resources-m: &resources-m
-    limits:
-        memory: 256M
-    reservations:
-        memory: 128M
+x-resources-m: &resources-m {} # limits disabled for now
+    # limits:
+    #     memory: 256M
+    # reservations:
+    #     memory: 128M
 
 networks:
     default:
