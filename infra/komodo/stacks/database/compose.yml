@@ -15,23 +15,23 @@ x-service-defaults: &service-defaults
     security_opt:
         - no-new-privileges:true
 
-x-resources-m: &resources-m
-    limits:
-        memory: 256M
-    reservations:
-        memory: 128M
+x-resources-m: &resources-m {} # limits disabled for now
+    # limits:
+    #     memory: 256M
+    # reservations:
+    #     memory: 128M
 
-x-resources-l: &resources-l
-    limits:
-        memory: 384M
-    reservations:
-        memory: 192M
+x-resources-l: &resources-l {} # limits disabled for now
+    # limits:
+    #     memory: 384M
+    # reservations:
+    #     memory: 192M
 
-x-resources-xl: &resources-xl
-    limits:
-        memory: 768M
-    reservations:
-        memory: 384M
+x-resources-xl: &resources-xl {} # limits disabled for now
+    # limits:
+    #     memory: 768M
+    # reservations:
+    #     memory: 384M
 
 x-pg-healthcheck: &pg-healthcheck
     test:
@@ -123,6 +123,6 @@ services:
                 | gzip > /backups/$$ts/onchain-$$ONCHAIN_PGDATABASE.dump.gz
               echo "backup written to /backups/$$ts"
         deploy:
-            resources:
-                limits:
-                    memory: 256M
+            resources: {} # limits disabled for now
+                # limits:
+                #     memory: 256M

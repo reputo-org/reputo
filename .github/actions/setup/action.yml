@@ -28,10 +28,14 @@ runs:
           uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
           with:
               path: .turbo
-              key: turbo-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
+              # v2 prefix: abandons pre-existing caches that hold poisoned,
+              # logs-only Turbo artifacts (a cache hit replays the log but
+              # never materializes the task's dist/ outputs on disk), left over
+              # from the earlier cross-job cache contamination. Bump again if
+              # caches ever get poisoned the same way.
+              key: turbo-v2-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
               restore-keys: |
-                  turbo-${{ runner.os }}-${{ github.job }}-
-                  turbo-${{ runner.os }}-
+                  turbo-v2-${{ runner.os }}-${{ github.job }}-
 
         - name: Point Turbo at the cached directory
           shell: bash
