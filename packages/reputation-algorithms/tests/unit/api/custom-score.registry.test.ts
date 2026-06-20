@@ -7,21 +7,21 @@ import {
 import type { AlgorithmDefinition } from '../../../src/shared/types/algorithm.js';
 import { createValidatorWithSchema } from '../../../src/shared/utils/validation.js';
 
-describe('custom_algorithm registry loading', () => {
-  it('loads custom_algorithm from the generated registry index', () => {
+describe('custom_score registry loading', () => {
+  it('loads custom_score from the generated registry index', () => {
     const keys = getAlgorithmDefinitionKeys();
-    const versions = getAlgorithmDefinitionVersions('custom_algorithm');
+    const versions = getAlgorithmDefinitionVersions('custom_score');
     const definition = JSON.parse(
       getAlgorithmDefinition({
-        key: 'custom_algorithm',
+        key: 'custom_score',
         version: '1.0.0',
       }),
     ) as AlgorithmDefinition;
 
-    expect(keys).toContain('custom_algorithm');
+    expect(keys).toContain('custom_score');
     expect(versions).toEqual(['1.0.0']);
     expect(definition).toMatchObject({
-      key: 'custom_algorithm',
+      key: 'custom_score',
       version: '1.0.0',
       kind: 'combined',
       runtime: 'typescript',
@@ -31,7 +31,6 @@ describe('custom_algorithm registry loading', () => {
         expect.objectContaining({
           key: 'sub_algorithms',
           type: 'sub_algorithm',
-          sharedInputKeys: ['sub_ids'],
           uiHint: expect.objectContaining({
             widget: 'sub_algorithm_composer',
           }),
@@ -48,7 +47,7 @@ describe('custom_algorithm registry loading', () => {
     const validator = createValidatorWithSchema();
     const definition = JSON.parse(
       getAlgorithmDefinition({
-        key: 'custom_algorithm',
+        key: 'custom_score',
       }),
     ) as AlgorithmDefinition;
 

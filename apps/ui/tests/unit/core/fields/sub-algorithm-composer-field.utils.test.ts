@@ -29,7 +29,7 @@ describe("sub-algorithm composer helpers", () => {
 
   it("lists only standalone child algorithms and sorts them by label", () => {
     mockGetAlgorithmDefinitionKeys.mockReturnValue([
-      "custom_algorithm",
+      "custom_score",
       "voting_engagement",
       "proposal_engagement",
     ])
@@ -42,7 +42,7 @@ describe("sub-algorithm composer helpers", () => {
     })
     mockGetAlgorithmDefinition.mockImplementation(({ key, version }) => {
       const definition: AlgorithmDefinition =
-        key === "custom_algorithm"
+        key === "custom_score"
           ? {
               key,
               name: "Custom Algorithm",

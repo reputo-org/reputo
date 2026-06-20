@@ -98,6 +98,55 @@ export const envSchema = z.object({
     .default(20_000)
     .describe('DeepFunding API retry max delay in milliseconds'),
 
+  DEEPID_IDENTITY_BASE_URL: z
+    .string()
+    .url()
+    .describe('DeepID OAuth 2.0 / OIDC host that issues the M2M token (e.g. https://identity.staging.deep-id.ai)'),
+  DEEPID_APP_BASE_URL: z
+    .string()
+    .url()
+    .describe('DeepID application API host serving /v1 (e.g. https://app.staging.deep-id.ai)'),
+  DEEPID_CLIENT_ID: z.string().min(1).describe('DeepID M2M client id (HTTP Basic Auth username)'),
+  DEEPID_CLIENT_SECRET: z.string().min(1).describe('DeepID M2M client secret (HTTP Basic Auth password)'),
+  DEEPID_SCOPES: z
+    .string()
+    .min(1)
+    .default('api wallets post_scores')
+    .describe('Space-separated scopes requested for the DeepID M2M token'),
+  DEEPID_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1000)
+    .default(30_000)
+    .describe('DeepID API request timeout in milliseconds'),
+  DEEPID_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(4).describe('DeepID API concurrency limit'),
+  DEEPID_USERS_PAGE_SIZE: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(1000)
+    .default(500)
+    .describe('Page size for GET /v1/users (1–1000)'),
+  DEEPID_RETRY_MAX_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(20)
+    .default(5)
+    .describe('DeepID API max retry attempts'),
+  DEEPID_RETRY_BASE_DELAY_MS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .default(500)
+    .describe('DeepID API retry base delay in milliseconds'),
+  DEEPID_RETRY_MAX_DELAY_MS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .default(20_000)
+    .describe('DeepID API retry max delay in milliseconds'),
+
   ONCHAIN_DATABASE_URL: z
     .string()
     .url()

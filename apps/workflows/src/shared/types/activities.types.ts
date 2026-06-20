@@ -8,7 +8,7 @@ import type {
 import type { Storage } from '@reputo/storage';
 
 import type { AlgorithmResult, StorageConfig } from './algorithm.types.js';
-import type { ResolveDependencyInput } from './dependency.types.js';
+import type { ResolveDependencyInput, ResolveDependencyResult } from './dependency.types.js';
 
 /** Wire-level snapshot shape returned by the API's snapshot activities. */
 export type Snapshot = SnapshotDto;
@@ -55,7 +55,7 @@ export interface OrchestratorDependencyResolverContext {
 }
 
 export interface DependencyResolverActivities {
-  resolveDependency: (input: ResolveDependencyInput) => Promise<void>;
+  resolveDependency: (input: ResolveDependencyInput) => Promise<ResolveDependencyResult>;
 }
 
 export interface DeepfundingSyncContext {
@@ -70,6 +70,37 @@ export interface DeepFundingSyncInput {
 export interface DeepFundingSyncOutput {
   deepfunding_db_key: string;
   deepfunding_manifest_key: string;
+}
+
+/** Context for the DeepID activities on the orchestrator worker. */
+export interface DeepIdSyncContext {
+  storage: Storage;
+  storageConfig: StorageConfig;
+}
+
+export interface DeepIdSyncInput {
+  snapshotId: string;
+}
+
+export interface DeepIdSyncOutput {
+  /** S3 key of the assembled SubID JSON (`did:sub` → wallets) for the wallet algorithms. */
+  didsKey: string;
+}
+
+/** Activities that post computed snapshot scores back to DeepID after a run completes. */
+export interface DeepIdPostScoresActivities {
+  postSnapshotScores: (input: PostSnapshotScoresInput) => Promise<PostSnapshotScoresResult>;
+}
+
+export interface PostSnapshotScoresInput {
+  snapshot: Snapshot;
+}
+
+export interface PostSnapshotScoresResult {
+  posted: number;
+  ok: number;
+  failed: number;
+  skipped: number;
 }
 
 export type AlgorithmComputeFunction = (snapshot: Snapshot, storage: Storage) => Promise<AlgorithmResult>;

@@ -3,6 +3,7 @@ import { createS3Client, Storage } from '@reputo/storage';
 import { NativeConnection, Worker } from '@temporalio/worker';
 import {
   createAlgorithmLibraryActivities,
+  createDeepIdPostScoresActivities,
   createOrchestratorDependencyResolverActivities,
 } from '../../activities/orchestrator/index.js';
 import config from '../../config/index.js';
@@ -45,6 +46,10 @@ async function run(): Promise<void> {
     activities: {
       ...createAlgorithmLibraryActivities(),
       ...createOrchestratorDependencyResolverActivities({
+        storage,
+        storageConfig,
+      }),
+      ...createDeepIdPostScoresActivities({
         storage,
         storageConfig,
       }),

@@ -404,8 +404,8 @@ describe("buildSchemaFromAlgorithm", () => {
   })
 
   it("maps sub_algorithm inputs into composer form fields", () => {
-    const customAlgorithm: Algorithm = {
-      id: "custom_algorithm",
+    const customScore: Algorithm = {
+      id: "custom_score",
       title: "Custom Algorithm",
       category: "Custom",
       summary: "Combines sub-algorithms.",
@@ -427,7 +427,7 @@ describe("buildSchemaFromAlgorithm", () => {
 
     mockGetAlgorithmDefinition.mockReturnValue(
       JSON.stringify({
-        key: "custom_algorithm",
+        key: "custom_score",
         name: "Custom Algorithm",
         kind: "combined",
         category: "Custom",
@@ -460,7 +460,7 @@ describe("buildSchemaFromAlgorithm", () => {
       } satisfies AlgorithmDefinition)
     )
 
-    const result = buildSchemaFromAlgorithm(customAlgorithm, "1.0.0")
+    const result = buildSchemaFromAlgorithm(customScore, "1.0.0")
     const subAlgorithms = result.inputs.find(
       (input) => input.key === "sub_algorithms"
     )

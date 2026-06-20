@@ -42,8 +42,8 @@ describe('Build: Schema Validation', () => {
       expect(result.errors).toEqual([]);
     });
 
-    it('should validate custom_algorithm from registry', () => {
-      const algorithmPath = join(__dirname, '../../../../src/registry/custom_algorithm/1.0.0.json');
+    it('should validate custom_score from registry', () => {
+      const algorithmPath = join(__dirname, '../../../../src/registry/custom_score/1.0.0.json');
       const algorithm = JSON.parse(readFileSync(algorithmPath, 'utf-8'));
 
       const result = validator.validate(algorithm);

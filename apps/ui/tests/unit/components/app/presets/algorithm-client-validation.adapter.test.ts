@@ -28,7 +28,7 @@ vi.mock("@reputo/reputation-algorithms", () => ({
 import { validateAlgorithmPresetClient } from "../../../../../src/components/app/presets/algorithm-client-validation"
 
 const combinedDefinition: AlgorithmDefinition = {
-  key: "custom_algorithm",
+  key: "custom_score",
   name: "Custom Algorithm",
   kind: "combined",
   category: "Custom",
@@ -105,7 +105,7 @@ describe("algorithm client validation adapter", () => {
     mockGetAlgorithmDefinition.mockReset()
     mockGetAlgorithmDefinition.mockImplementation(({ key }) =>
       JSON.stringify(
-        key === "custom_algorithm" ? combinedDefinition : childDefinition
+        key === "custom_score" ? combinedDefinition : childDefinition
       )
     )
     createDownload.mockReset()
@@ -137,7 +137,7 @@ describe("algorithm client validation adapter", () => {
   it("delegates nested validation to the shared validator package with resolvers", async () => {
     await expect(
       validateAlgorithmPresetClient({
-        key: "custom_algorithm",
+        key: "custom_score",
         version: "1.0.0",
         inputs: [
           {
@@ -164,7 +164,7 @@ describe("algorithm client validation adapter", () => {
     const call = mockValidateAlgorithmPreset.mock.calls[0]?.[0]
     expect(call.definition).toEqual(combinedDefinition)
     expect(call.preset).toEqual({
-      key: "custom_algorithm",
+      key: "custom_score",
       version: "1.0.0",
       inputs: [
         {

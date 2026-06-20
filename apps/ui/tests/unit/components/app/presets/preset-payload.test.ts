@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { buildPresetInputsFromForm } from "../../../../../src/components/app/presets/preset-payload"
 
 describe("preset payload serialization", () => {
-  it("serializes nested custom_algorithm entries with explicit numeric weights and blank upload placeholders", () => {
+  it("serializes nested custom_score entries with explicit numeric weights and blank upload placeholders", () => {
     const subIdsFile = new File(["{}"], "sub_ids.json", {
       type: "application/json",
     })

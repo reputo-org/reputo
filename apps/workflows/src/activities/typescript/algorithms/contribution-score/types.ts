@@ -1,5 +1,4 @@
 export interface ContributionScoreParams {
-  subIdsKey: string;
   commentBaseScore: number;
   commentUpvoteWeight: number;
   commentDownvoteWeight: number;
@@ -10,7 +9,7 @@ export interface ContributionScoreParams {
 }
 
 export interface ContributionScoreResult {
-  sub_id: string;
+  did: string;
   contribution_score: number;
 }
 
@@ -46,9 +45,8 @@ export interface CommentBenchmarkRecord {
   scored: boolean;
 }
 
-export interface SubIdBenchmarkRecord {
-  sub_id: string;
-  deep_proposal_portal_id: string | null;
+export interface DidBenchmarkRecord {
+  did: string;
   contribution_score: number;
   comment_count: number;
   comments: CommentBenchmarkRecord[];
@@ -65,21 +63,21 @@ export function roundScore(score: number): number {
 export interface ContributionScoreBenchmarkMetadata {
   snapshot_id: string;
   computed_at: string;
-  config: Omit<ContributionScoreParams, 'subIdsKey'>;
-  sub_ids: {
+  config: ContributionScoreParams;
+  dids: {
     provided_ids: string[];
     matched_ids: string[];
     unmatched_ids: string[];
   };
   metrics: {
-    total_sub_ids_provided: number;
-    sub_ids_with_matching_comments: number;
+    total_dids_provided: number;
+    dids_with_matching_comments: number;
     total_comments_processed: number;
     total_comments_scored: number;
   };
 }
 
 export interface ContributionScoreBenchmark {
-  sub_ids: SubIdBenchmarkRecord[];
+  dids: DidBenchmarkRecord[];
   metadata: ContributionScoreBenchmarkMetadata;
 }

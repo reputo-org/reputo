@@ -3,22 +3,10 @@
     "name": "Proposal Engagement",
     "kind": "standalone",
     "category": "Engagement",
-    "summary": "Scores each SubID from proposal outcomes and ratings linked through Deep Funding Portal user IDs.",
-    "description": "### What it does\nScores proposal owners based on proposal results and community ratings.\n\n### How it works\n- Each SubID can point to a `deepProposalPortalId` from Deep Funding Portal data.\n- Funded and completed proposals add points.\n- Unfunded proposals remove points.\n- Better ratings increase rewards and reduce penalties.\n- Older proposals can lose weight over time.\n- Only the SubIDs provided in the uploaded JSON are scored.\n\n### Limits\nOnly rounds 31, 36, and 107 are included because ownership data is reliable there.\n\n### Data source\nUses proposal, user, and review data from DeepFunding together with the uploaded SubID JSON. For this algorithm, only `deepProposalPortalId` is used. All JSON fields are optional and may be empty.\n\n### Output\n- CSV file with `sub_id` and `proposal_engagement`.\n- JSON file with score details for each scored SubID and proposal.",
+    "summary": "Scores each Deep Funding Portal user (by DID) from proposal outcomes and ratings.",
+    "description": "### What it does\nScores proposal owners based on proposal results and community ratings.\n\n### How it works\n- Every Deep Funding Portal user is scored, keyed by their DID.\n- Funded and completed proposals add points.\n- Unfunded proposals remove points.\n- Better ratings increase rewards and reduce penalties.\n- Older proposals can lose weight over time.\n\n### Limits\nOnly rounds 31, 36, and 107 are included because ownership data is reliable there.\n\n### Data source\nUses proposal, user, and review data from DeepFunding. Each proposal's owners are attributed to their DIDs.\n\n### Output\n- CSV file with `did` and `proposal_engagement`.\n- JSON file with score details for each scored user and proposal.",
     "version": "1.0.0",
     "inputs": [
-        {
-            "key": "sub_ids",
-            "label": "SubID Input (JSON)",
-            "description": "Upload the unified SubID JSON file. Only `deepProposalPortalId` is used by this algorithm, but the full shared schema is accepted.",
-            "type": "json",
-            "required": true,
-            "json": {
-                "maxBytes": 5242880,
-                "schema": "sub_id_input_map",
-                "allowedChains": ["ethereum", "cardano"]
-            }
-        },
         {
             "key": "funded_concluded_reward_weight",
             "label": "Funded Proposal Reward",
@@ -78,7 +66,7 @@
                 "delimiter": ",",
                 "columns": [
                     {
-                        "key": "sub_id",
+                        "key": "did",
                         "type": "string",
                         "description": "SubID from the uploaded JSON input."
                     },

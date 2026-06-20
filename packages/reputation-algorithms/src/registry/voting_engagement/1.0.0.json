@@ -3,22 +3,10 @@
     "name": "Voting Engagement",
     "kind": "standalone",
     "category": "Engagement",
-    "summary": "Scores each SubID by how widely its linked voting identity uses the full rating scale.",
-    "description": "### What it does\nScores how varied each SubID's linked voting history is.\n\n### How it works\n- Each SubID can point to a `deepVotingPortalId` from the votes CSV.\n- Using many different ratings increases the score.\n- Repeating the same rating lowers the score.\n- Scores are shown on a 0 to 1 scale.\n- Only the SubIDs provided in the uploaded JSON are scored.\n\n### Input\nUpload one SubID JSON file and one votes CSV file. The JSON uses SubIDs as top-level keys. For this algorithm, only `deepVotingPortalId` is used. All JSON fields are optional and may be empty.\n\n### Output\n- CSV file with `sub_id` and `voting_engagement`.\n- JSON file with vote distribution details for each scored SubID.",
+    "summary": "Scores each user by how widely their wallets' voting history uses the full rating scale.",
+    "description": "### What it does\nScores how varied each user's linked voting history is.\n\n### How it works\n- Users and their wallets come from DeepID; each wallet is resolved to its `collection_id`(s) through the wallet collections CSV.\n- Votes are read from the votes CSV, grouped by `collection_id`.\n- Using many different ratings increases the score.\n- Repeating the same rating lowers the score.\n- Scores are shown on a 0 to 1 scale.\n\n### Input\nUpload two CSV files: the votes CSV and the wallet collections CSV (mapping each voting `collection_id` to a wallet `address`).\n\n### Output\n- CSV file with `did` and `voting_engagement`.\n- JSON file with vote distribution details for each scored user.",
     "version": "1.0.0",
     "inputs": [
-        {
-            "key": "sub_ids",
-            "label": "SubID Input (JSON)",
-            "description": "Upload the unified SubID JSON file. Only `deepVotingPortalId` is used by this algorithm, but the full shared schema is accepted.",
-            "type": "json",
-            "required": true,
-            "json": {
-                "maxBytes": 5242880,
-                "schema": "sub_id_input_map",
-                "allowedChains": ["ethereum", "cardano"]
-            }
-        },
         {
             "key": "votes",
             "label": "Vote History (CSV)",
@@ -102,6 +90,36 @@
                     }
                 ]
             }
+        },
+        {
+            "key": "wallet_collections",
+            "label": "Wallet Collections (CSV)",
+            "description": "CSV mapping each voting `collection_id` to a wallet `address`. Each user's wallets are resolved to their collection_id(s) and joined to the votes CSV.",
+            "type": "csv",
+            "csv": {
+                "hasHeader": true,
+                "delimiter": ",",
+                "maxRows": 200000,
+                "maxBytes": 104857600,
+                "columns": [
+                    {
+                        "key": "collection_id",
+                        "type": "string",
+                        "description": "Voting identity that groups votes in the votes CSV."
+                    },
+                    {
+                        "key": "address",
+                        "type": "string",
+                        "description": "Wallet address linked to the collection_id; matched against user wallets (case-insensitive)."
+                    },
+                    {
+                        "key": "network",
+                        "type": "string",
+                        "required": false,
+                        "description": "Chain the wallet belongs to (e.g. Ethereum, Cardano). Not used for matching."
+                    }
+                ]
+            }
         }
     ],
     "outputs": [
@@ -115,7 +133,7 @@
                 "delimiter": ",",
                 "columns": [
                     {
-                        "key": "sub_id",
+                        "key": "did",
                         "type": "string",
                         "description": "SubID from the uploaded JSON input."
                     },
@@ -134,5 +152,6 @@
             "type": "json"
         }
     ],
+    "dependencies": [{ "key": "deep-id" }],
     "runtime": "typescript"
 }

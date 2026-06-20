@@ -65,8 +65,8 @@ export async function createTestApp(options: TestAppOptions) {
       if (getExtension(key) === 'json') {
         return Buffer.from(
           JSON.stringify({
-            'SubID-1': {
-              deepVotingPortalId: 'user-1',
+            'did:sub:aaaaaaaaaaaaaaaaaaaaaaaa': {
+              userWallets: [{ address: '0xabc', chain: 'ethereum' }],
             },
           }),
         );

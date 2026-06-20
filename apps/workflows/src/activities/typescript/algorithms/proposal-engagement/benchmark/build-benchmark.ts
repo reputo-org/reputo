@@ -5,10 +5,10 @@ import type { ProposalStatusInfo } from '../pipeline/proposal-classification.js'
 import type { ProposalScoreResult } from '../pipeline/proposal-scoring.js';
 import type { TimeWeightResult } from '../pipeline/time-weight.js';
 import type {
+  DidProposalBenchmarkRecord,
   ProposalBenchmarkRecord,
   ProposalEngagementBenchmark,
   ProposalEngagementParams,
-  SubIdProposalBenchmarkRecord,
 } from '../types.js';
 
 export function buildProposalBenchmarkRecord(
@@ -57,12 +57,12 @@ export function buildProposalBenchmarkRecord(
 export interface FormatBenchmarkInput {
   records: ProposalBenchmarkRecord[];
   snapshotId: string;
-  subIds: string[];
-  subIdScores: Map<string, number>;
-  subIdAccumulators: Map<string, { positiveSum: number; negativeSum: number }>;
-  deepProposalPortalIdBySubId: Map<string, string | null>;
-  matchedSubIds: Set<string>;
-  deepProposalPortalSubIdsIndex: Map<string, string[]>;
+  dids: string[];
+  didScores: Map<string, number>;
+  didAccumulators: Map<string, { positiveSum: number; negativeSum: number }>;
+  matchedDids: Set<string>;
+  /** Portal user id → DID, to attribute each proposal's owners to DIDs. */
+  userIdToDid: Map<number, string>;
   params: ProposalEngagementParams;
   totalProposalsProcessed: number;
   totalProposalsScored: number;
@@ -73,41 +73,43 @@ export function formatBenchmarkOutput(input: FormatBenchmarkInput): ProposalEnga
   const {
     records,
     snapshotId,
-    subIds,
-    subIdScores,
-    subIdAccumulators,
-    deepProposalPortalIdBySubId,
-    matchedSubIds,
-    deepProposalPortalSubIdsIndex,
+    dids,
+    didScores,
+    didAccumulators,
+    matchedDids,
+    userIdToDid,
     params,
     totalProposalsProcessed,
     totalProposalsScored,
     proposalsSkippedUnsupportedRound,
   } = input;
 
-  const subIdProposalMap = new Map<string, ProposalBenchmarkRecord[]>();
+  const didProposalMap = new Map<string, ProposalBenchmarkRecord[]>();
 
   for (const record of records) {
+    const recordDids = new Set<string>();
     for (const ownerId of record.owners.all_owner_ids) {
-      const targetSubIds = deepProposalPortalSubIdsIndex.get(String(ownerId)) ?? [];
-
-      for (const subId of targetSubIds) {
-        const list = subIdProposalMap.get(subId) ?? [];
-        list.push(record);
-        subIdProposalMap.set(subId, list);
+      const did = userIdToDid.get(ownerId);
+      if (did !== undefined) {
+        recordDids.add(did);
       }
+    }
+
+    for (const did of recordDids) {
+      const list = didProposalMap.get(did) ?? [];
+      list.push(record);
+      didProposalMap.set(did, list);
     }
   }
 
-  const subIdRows: SubIdProposalBenchmarkRecord[] = [];
+  const didRows: DidProposalBenchmarkRecord[] = [];
 
-  for (const subId of subIds) {
-    const proposals = subIdProposalMap.get(subId) ?? [];
-    const engagement = subIdScores.get(subId) ?? 0;
-    const acc = subIdAccumulators.get(subId);
-    subIdRows.push({
-      sub_id: subId,
-      deep_proposal_portal_id: deepProposalPortalIdBySubId.get(subId) ?? null,
+  for (const did of dids) {
+    const proposals = didProposalMap.get(did) ?? [];
+    const engagement = didScores.get(did) ?? 0;
+    const acc = didAccumulators.get(did);
+    didRows.push({
+      did: did,
       proposal_engagement: engagement,
       positive_sum: acc?.positiveSum ?? 0,
       negative_sum: acc?.negativeSum ?? 0,
@@ -116,12 +118,12 @@ export function formatBenchmarkOutput(input: FormatBenchmarkInput): ProposalEnga
     });
   }
 
-  subIdRows.sort((a, b) => a.sub_id.localeCompare(b.sub_id));
-  const matchedIds = [...matchedSubIds].sort((a, b) => a.localeCompare(b));
-  const unmatchedIds = subIds.filter((subId) => !matchedSubIds.has(subId));
+  didRows.sort((a, b) => a.did.localeCompare(b.did));
+  const matchedIds = [...matchedDids].sort((a, b) => a.localeCompare(b));
+  const unmatchedIds = dids.filter((did) => !matchedDids.has(did));
 
   return {
-    sub_ids: subIdRows,
+    dids: didRows,
     metadata: {
       snapshot_id: snapshotId,
       computed_at: new Date().toISOString(),
@@ -131,14 +133,14 @@ export function formatBenchmarkOutput(input: FormatBenchmarkInput): ProposalEnga
         engagementWindowMonths: params.engagementWindowMonths,
         monthlyDecayRatePercent: params.monthlyDecayRatePercent,
       },
-      sub_ids: {
-        provided_ids: subIds,
+      dids: {
+        provided_ids: dids,
         matched_ids: matchedIds,
         unmatched_ids: unmatchedIds,
       },
       metrics: {
-        total_sub_ids_provided: subIds.length,
-        sub_ids_with_matching_owner: matchedIds.length,
+        total_dids_provided: dids.length,
+        dids_with_matching_owner: matchedIds.length,
         total_proposals_processed: totalProposalsProcessed,
         total_proposals_scored: totalProposalsScored,
         proposals_skipped_unsupported_round: proposalsSkippedUnsupportedRound,

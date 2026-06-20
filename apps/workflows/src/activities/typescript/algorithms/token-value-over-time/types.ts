@@ -32,7 +32,7 @@ export interface ResolvedResource {
 }
 
 export interface WalletAddressMap {
-  subIds: Record<string, Partial<Record<SupportedChain, string[]>>>;
+  dids: Record<string, Partial<Record<SupportedChain, string[]>>>;
 }
 
 export interface EffectiveDateRange {
@@ -43,7 +43,7 @@ export interface EffectiveDateRange {
 export interface TokenValueOverTimeParams {
   maturationThresholdDays: number;
   selectedResources: SelectedResourceInput[];
-  subIdsKey: string;
+  didsKey: string;
   effectiveDateRange: EffectiveDateRange;
 }
 
@@ -90,21 +90,21 @@ export interface WalletScoreDetail {
   lots: LotScoreDetail[];
 }
 
-export interface SubIdScoreDetail {
-  sub_id: string;
+export interface DidScoreDetail {
+  did: string;
   token_value: number;
   wallets: WalletScoreDetail[];
 }
 
 export interface TokenValueOverTimeBenchmark {
-  sub_ids: SubIdScoreDetail[];
+  dids: DidScoreDetail[];
   metadata: {
     snapshot_id: string;
     computed_at: string;
     maturation_threshold_days: number;
     selected_resources: SelectedResourceInput[];
     selected_resource_ids: ResourceId[];
-    sub_id_count: number;
+    did_count: number;
     target_wallet_count: number;
     transfer_count: number;
     replay: ReplayStats;

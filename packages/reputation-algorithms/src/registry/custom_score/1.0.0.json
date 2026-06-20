@@ -1,24 +1,12 @@
 {
-    "key": "custom_algorithm",
-    "name": "Custom Algorithm",
+    "key": "custom_score",
+    "name": "Custom Score",
     "kind": "combined",
     "category": "Custom",
     "summary": "Builds a composite score by combining multiple sub-algorithm outputs on shared SubIDs.",
-    "description": "### What it does\nCombines multiple sub-algorithm scores into one composite score.\n\n### How it works\n- Upload one shared SubID JSON file.\n- Compose one or more sub-algorithms that all read from the same `sub_ids` input.\n- Normalize the sub-algorithm scores before combining them.\n- Apply the configured strategy when a SubID is missing from one or more sub-algorithm outputs.\n- Join results directly on `sub_id`.\n\n### Output\n- CSV file with `sub_id` and `composite_score`.\n- JSON file with composite score details for each SubID.",
+    "description": "### What it does\nCombines multiple sub-algorithm scores into one composite score.\n\n### How it works\n- Compose one or more sub-algorithms; the user list is shared across them.\n- Normalize the sub-algorithm scores before combining them.\n- Apply the configured strategy when a SubID is missing from one or more sub-algorithm outputs.\n- Join results directly on `did`.\n\n### Output\n- CSV file with `did` and `composite_score`.\n- JSON file with composite score details for each SubID.",
     "version": "1.0.0",
     "inputs": [
-        {
-            "key": "sub_ids",
-            "label": "SubID Input (JSON)",
-            "description": "Upload the unified SubID JSON file shared by all composed sub-algorithms.",
-            "type": "json",
-            "required": true,
-            "json": {
-                "maxBytes": 5242880,
-                "schema": "sub_id_input_map",
-                "allowedChains": ["ethereum", "cardano"]
-            }
-        },
         {
             "key": "sub_algorithms",
             "label": "Sub-Algorithms",
@@ -26,7 +14,6 @@
             "type": "sub_algorithm",
             "required": true,
             "minItems": 1,
-            "sharedInputKeys": ["sub_ids"],
             "uiHint": {
                 "widget": "sub_algorithm_composer",
                 "addButtonLabel": "Add sub-algorithm"
@@ -77,7 +64,7 @@
                 "delimiter": ",",
                 "columns": [
                     {
-                        "key": "sub_id",
+                        "key": "did",
                         "type": "string",
                         "description": "SubID from the uploaded JSON input."
                     },

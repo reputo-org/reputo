@@ -247,6 +247,26 @@ description = "Staging Blockfrost API key."
 is_secret = true
 
 [[variable]]
+name = "STAGING_DEEPID_IDENTITY_BASE_URL"
+description = "Staging DeepID identity host (OAuth 2.0 / OIDC token issuer)."
+is_secret = false
+
+[[variable]]
+name = "STAGING_DEEPID_APP_BASE_URL"
+description = "Staging DeepID application API host (/v1)."
+is_secret = false
+
+[[variable]]
+name = "STAGING_DEEPID_CLIENT_ID"
+description = "Staging DeepID M2M client id."
+is_secret = true
+
+[[variable]]
+name = "STAGING_DEEPID_CLIENT_SECRET"
+description = "Staging DeepID M2M client secret."
+is_secret = true
+
+[[variable]]
 name = "PRODUCTION_TRAEFIK_DOMAIN"
 description = "Production Traefik dashboard host."
 is_secret = false
@@ -444,4 +464,24 @@ is_secret = true
 [[variable]]
 name = "PRODUCTION_BLOCKFROST_API_KEY"
 description = "Production Blockfrost API key."
+is_secret = true
+
+[[variable]]
+name = "PRODUCTION_DEEPID_IDENTITY_BASE_URL"
+description = "Production DeepID identity host (OAuth 2.0 / OIDC token issuer)."
+is_secret = false
+
+[[variable]]
+name = "PRODUCTION_DEEPID_APP_BASE_URL"
+description = "Production DeepID application API host (/v1)."
+is_secret = false
+
+[[variable]]
+name = "PRODUCTION_DEEPID_CLIENT_ID"
+description = "Production DeepID M2M client id."
+is_secret = true
+
+[[variable]]
+name = "PRODUCTION_DEEPID_CLIENT_SECRET"
+description = "Production DeepID M2M client secret."
 is_secret = true

@@ -29,8 +29,8 @@ describe('validateAlgorithmInputs adapter', () => {
     timestamp: 1,
   };
 
-  const customAlgorithmDefinition = {
-    key: 'custom_algorithm',
+  const customScoreDefinition = {
+    key: 'custom_score',
     name: 'Custom Algorithm',
     kind: 'combined',
     category: 'Custom',
@@ -116,7 +116,7 @@ describe('validateAlgorithmInputs adapter', () => {
     };
 
     await validateAlgorithmInputs({
-      definition: customAlgorithmDefinition as never,
+      definition: customScoreDefinition as never,
       inputs: [
         { key: 'sub_ids', value: 'uploads/sub_ids.json' },
         {
@@ -139,9 +139,9 @@ describe('validateAlgorithmInputs adapter', () => {
     expect(validateAlgorithmPreset).toHaveBeenCalledOnce();
 
     const call = vi.mocked(validateAlgorithmPreset).mock.calls[0]?.[0];
-    expect(call.definition).toEqual(customAlgorithmDefinition);
+    expect(call.definition).toEqual(customScoreDefinition);
     expect(call.preset).toEqual({
-      key: 'custom_algorithm',
+      key: 'custom_score',
       version: '1.0.0',
       inputs: [
         { key: 'sub_ids', value: 'uploads/sub_ids.json' },

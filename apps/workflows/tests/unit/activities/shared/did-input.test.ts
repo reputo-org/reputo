@@ -1,59 +1,52 @@
 import type { Storage } from '@reputo/storage';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  buildDeepProposalPortalSubIdsIndex,
-  buildDeepVotingPortalSubIdsIndex,
-  buildWalletSubIdsIndex,
-  extractSubIdsKey,
-  getSubIds,
+  buildWalletDidsIndex,
+  type DidInputMap,
+  extractDidsKey,
+  getDids,
   getWalletsForChain,
   getWalletsForSelectedResources,
-  loadSubIdInputMap,
-  type SubIdInputMap,
-} from '../../../../src/activities/typescript/algorithms/shared/sub-id-input.js';
+  loadDidInputMap,
+} from '../../../../src/activities/typescript/algorithms/shared/did-input.js';
 
-const map: SubIdInputMap = {
-  subIds: {
+const map: DidInputMap = {
+  dids: {
     'sub-a': {
-      deepVotingPortalId: 'voting-a',
-      deepProposalPortalId: 'proposal-a',
       userWallets: [
         { address: '0xabc', chain: 'ethereum' },
         { address: 'addr1qx...', chain: 'cardano' },
       ],
     },
     'sub-b': {
-      deepVotingPortalId: 'voting-b',
       userWallets: [{ address: '0xdef', chain: 'ethereum' }],
     },
   },
 };
 
-describe('extractSubIdsKey', () => {
-  it('returns the value of the sub_ids input', () => {
+describe('extractDidsKey', () => {
+  it('returns the value of the dids input', () => {
     expect(
-      extractSubIdsKey([
+      extractDidsKey([
         { key: 'votes_csv', value: 'votes.csv' },
-        { key: 'sub_ids', value: 'sub-ids.json' },
+        { key: 'dids', value: 'sub-ids.json' },
       ] as never),
     ).toBe('sub-ids.json');
   });
 
-  it('throws when the sub_ids input is missing or not a string', () => {
-    expect(() => extractSubIdsKey([] as never)).toThrow('Missing required "sub_ids" input');
-    expect(() => extractSubIdsKey([{ key: 'sub_ids', value: 123 }] as never)).toThrow();
+  it('throws when the dids input is missing or not a string', () => {
+    expect(() => extractDidsKey([] as never)).toThrow('Missing required "dids" input');
+    expect(() => extractDidsKey([{ key: 'dids', value: 123 }] as never)).toThrow();
   });
 });
 
-describe('loadSubIdInputMap', () => {
-  it('parses JSON, normalizes string/number ids, and lowercases ethereum wallet addresses', async () => {
+describe('loadDidInputMap', () => {
+  it('parses JSON, dedupes/lowercases ethereum wallet addresses, and drops unknown chains', async () => {
     const storage = {
       getObject: vi.fn().mockResolvedValue(
         Buffer.from(
           JSON.stringify({
             'SubID-1': {
-              deepVotingPortalId: 'user-1',
-              deepProposalPortalId: 99,
               userWallets: [
                 { address: '0xABC', chain: 'ethereum' },
                 { address: '0xABC', chain: 'ethereum' },
@@ -69,12 +62,10 @@ describe('loadSubIdInputMap', () => {
       ),
     } as unknown as Storage;
 
-    const result = await loadSubIdInputMap({ storage, bucket: 'b', key: 'k' });
+    const result = await loadDidInputMap({ storage, bucket: 'b', key: 'k' });
 
-    expect(Object.keys(result.subIds)).toEqual(['SubID-1']);
-    expect(result.subIds['SubID-1']).toEqual({
-      deepVotingPortalId: 'user-1',
-      deepProposalPortalId: '99',
+    expect(Object.keys(result.dids)).toEqual(['SubID-1']);
+    expect(result.dids['SubID-1']).toEqual({
       userWallets: [
         { address: '0xabc', chain: 'ethereum' },
         { address: 'addr1', chain: 'cardano' },
@@ -87,44 +78,21 @@ describe('loadSubIdInputMap', () => {
       getObject: vi.fn().mockResolvedValue(Buffer.from('[1, 2, 3]')),
     } as unknown as Storage;
 
-    const result = await loadSubIdInputMap({ storage, bucket: 'b', key: 'k' });
+    const result = await loadDidInputMap({ storage, bucket: 'b', key: 'k' });
 
-    expect(result.subIds).toEqual({});
+    expect(result.dids).toEqual({});
   });
 });
 
-describe('getSubIds', () => {
+describe('getDids', () => {
   it('returns the sub ids sorted alphabetically', () => {
-    expect(getSubIds(map)).toEqual(['sub-a', 'sub-b']);
+    expect(getDids(map)).toEqual(['sub-a', 'sub-b']);
   });
 });
 
-describe('buildDeepVotingPortalSubIdsIndex', () => {
-  it('indexes each voting portal id to the sub ids that map to it', () => {
-    const index = buildDeepVotingPortalSubIdsIndex(map);
-    expect(index.get('voting-a')).toEqual(['sub-a']);
-    expect(index.get('voting-b')).toEqual(['sub-b']);
-  });
-
-  it('omits sub ids without a voting portal id', () => {
-    const map: SubIdInputMap = {
-      subIds: { 'sub-a': { userWallets: [] } },
-    };
-    expect(buildDeepVotingPortalSubIdsIndex(map).size).toBe(0);
-  });
-});
-
-describe('buildDeepProposalPortalSubIdsIndex', () => {
-  it('indexes only sub ids that have a proposal portal id', () => {
-    const index = buildDeepProposalPortalSubIdsIndex(map);
-    expect(index.size).toBe(1);
-    expect(index.get('proposal-a')).toEqual(['sub-a']);
-  });
-});
-
-describe('buildWalletSubIdsIndex', () => {
+describe('buildWalletDidsIndex', () => {
   it('indexes each wallet address to the sub ids it appears under, sorted', () => {
-    const index = buildWalletSubIdsIndex(map);
+    const index = buildWalletDidsIndex(map);
     expect(index.get('0xabc')).toEqual(['sub-a']);
     expect(index.get('0xdef')).toEqual(['sub-b']);
     expect(index.get('addr1qx...')).toEqual(['sub-a']);

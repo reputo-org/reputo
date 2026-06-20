@@ -4,7 +4,9 @@ import type {
   DependencyResolverActivities,
   OrchestratorDependencyResolverContext,
   ResolveDependencyInput,
+  ResolveDependencyResult,
 } from '../../shared/types/index.js';
+import { createDeepIdSyncActivity } from './deep-id.activities.js';
 import { createDeepfundingSyncActivity } from './deepfunding-portal-api.activities.js';
 
 export function createOrchestratorDependencyResolverActivities(
@@ -14,9 +16,13 @@ export function createOrchestratorDependencyResolverActivities(
     storage: ctx.storage,
     storageConfig: ctx.storageConfig,
   });
+  const deepIdSync = createDeepIdSyncActivity({
+    storage: ctx.storage,
+    storageConfig: ctx.storageConfig,
+  });
 
   return {
-    async resolveDependency(input: ResolveDependencyInput): Promise<void> {
+    async resolveDependency(input: ResolveDependencyInput): Promise<ResolveDependencyResult> {
       const logger = Context.current().log;
       const { dependencyKey, snapshotId } = input;
 
@@ -25,16 +31,24 @@ export function createOrchestratorDependencyResolverActivities(
         snapshotId,
       });
 
+      let result: ResolveDependencyResult = {};
       switch (dependencyKey) {
         case 'deepfunding-portal-api':
           await deepfundingSync({ snapshotId });
           break;
+        case 'deep-id': {
+          const { didsKey } = await deepIdSync({ snapshotId });
+          result = { didsKey };
+          break;
+        }
       }
 
       logger.info('Dependency resolved successfully', {
         dependencyKey,
-        snapshotId: snapshotId,
+        snapshotId,
       });
+
+      return result;
     },
   };
 }

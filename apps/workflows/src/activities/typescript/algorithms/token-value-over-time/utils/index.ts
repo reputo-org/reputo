@@ -8,8 +8,8 @@ export {
 } from './resource-catalog.js';
 export { loadCardanoTransferPage, loadEvmTransferPage, type TransferPage } from './transfers.js';
 export {
-  buildWalletSubIdsIndex,
-  getSubIds,
+  buildWalletDidsIndex,
+  getDids,
   getWalletsForChain,
   getWalletsForSelectedResources,
   initializeWalletLots,

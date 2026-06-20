@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   mockGenerateKey,
   mockStringifyCsvAsync,
-  mockExtractSubIdsKey,
-  mockLoadSubIdInputMap,
-  mockGetSubIds,
+  mockExtractDidsKey,
+  mockLoadDidInputMap,
+  mockGetDids,
   mockGetAlgorithmDefinition,
   mockComputeVotingEngagement,
   mockComputeContributionScore,
@@ -15,9 +15,9 @@ const {
 } = vi.hoisted(() => ({
   mockGenerateKey: vi.fn(),
   mockStringifyCsvAsync: vi.fn(),
-  mockExtractSubIdsKey: vi.fn(),
-  mockLoadSubIdInputMap: vi.fn(),
-  mockGetSubIds: vi.fn(),
+  mockExtractDidsKey: vi.fn(),
+  mockLoadDidInputMap: vi.fn(),
+  mockGetDids: vi.fn(),
   mockGetAlgorithmDefinition: vi.fn(),
   mockComputeVotingEngagement: vi.fn(),
   mockComputeContributionScore: vi.fn(),
@@ -57,10 +57,10 @@ vi.mock('../../../src/shared/utils/index.js', () => ({
   stringifyCsvAsync: mockStringifyCsvAsync,
 }));
 
-vi.mock('../../../src/activities/typescript/algorithms/shared/sub-id-input.js', () => ({
-  extractSubIdsKey: mockExtractSubIdsKey,
-  loadSubIdInputMap: mockLoadSubIdInputMap,
-  getSubIds: mockGetSubIds,
+vi.mock('../../../src/activities/typescript/algorithms/shared/did-input.js', () => ({
+  extractDidsKey: mockExtractDidsKey,
+  loadDidInputMap: mockLoadDidInputMap,
+  getDids: mockGetDids,
 }));
 
 vi.mock('../../../src/activities/typescript/algorithms/voting-engagement/compute.js', () => ({
@@ -79,23 +79,23 @@ vi.mock('../../../src/activities/typescript/algorithms/token-value-over-time/com
   computeTokenValueOverTime: mockComputeTokenValueOverTime,
 }));
 
-import { computeCustomAlgorithm } from '../../../src/activities/typescript/algorithms/custom-algorithm/compute.js';
+import { computeCustomScore } from '../../../src/activities/typescript/algorithms/custom-score/compute.js';
 
-describe('computeCustomAlgorithm', () => {
+describe('computeCustomScore', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mockExtractSubIdsKey.mockReturnValue('uploads/sub_ids.json');
-    mockLoadSubIdInputMap.mockResolvedValue({
-      subIds: {
+    mockExtractDidsKey.mockReturnValue('uploads/dids.json');
+    mockLoadDidInputMap.mockResolvedValue({
+      dids: {
         'SubID-1': {},
         'SubID-2': {},
         'SubID-3': {},
       },
     });
-    mockGetSubIds.mockReturnValue(['SubID-1', 'SubID-2', 'SubID-3']);
+    mockGetDids.mockReturnValue(['SubID-1', 'SubID-2', 'SubID-3']);
     mockStringifyCsvAsync.mockResolvedValue(
-      ['sub_id,composite_score', 'SubID-1,0.388889', 'SubID-2,0.333333', 'SubID-3,0.666667'].join('\n'),
+      ['did,composite_score', 'SubID-1,0.388889', 'SubID-2,0.333333', 'SubID-3,0.666667'].join('\n'),
     );
     mockGenerateKey.mockReturnValueOnce('outputs/composite_score.csv').mockReturnValueOnce('outputs/details.json');
     mockGetAlgorithmDefinition.mockReturnValue(
@@ -110,7 +110,7 @@ describe('computeCustomAlgorithm', () => {
             key: 'voting_engagement',
             type: 'csv',
             csv: {
-              columns: [{ key: 'sub_id' }, { key: 'voting_engagement' }],
+              columns: [{ key: 'did' }, { key: 'voting_engagement' }],
             },
           },
         ],
@@ -128,12 +128,12 @@ describe('computeCustomAlgorithm', () => {
     const putObject = vi.fn().mockResolvedValue(undefined);
     const storage = {
       getObject: vi.fn().mockImplementation(async ({ key }: { key: string }) => {
-        if (key.includes('__custom_algorithm_child_1_')) {
-          return Buffer.from(['sub_id,voting_engagement', 'SubID-1,10', 'SubID-2,20'].join('\n'));
+        if (key.includes('__custom_score_child_1_')) {
+          return Buffer.from(['did,voting_engagement', 'SubID-1,10', 'SubID-2,20'].join('\n'));
         }
 
-        if (key.includes('__custom_algorithm_child_2_')) {
-          return Buffer.from(['sub_id,voting_engagement', 'SubID-1,1', 'SubID-3,3'].join('\n'));
+        if (key.includes('__custom_score_child_2_')) {
+          return Buffer.from(['did,voting_engagement', 'SubID-1,1', 'SubID-3,3'].join('\n'));
         }
 
         throw new Error(`Unexpected key: ${key}`);
@@ -141,14 +141,14 @@ describe('computeCustomAlgorithm', () => {
       putObject,
     };
 
-    const result = await computeCustomAlgorithm(
+    const result = await computeCustomScore(
       {
         id: 'snapshot-1',
         algorithmPresetFrozen: {
-          key: 'custom_algorithm',
+          key: 'custom_score',
           version: '1.0.0',
           inputs: [
-            { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+            { key: 'dids', value: 'uploads/dids.json' },
             {
               key: 'sub_algorithms',
               value: [
@@ -174,22 +174,22 @@ describe('computeCustomAlgorithm', () => {
       storage as never,
     );
 
-    expect(mockLoadSubIdInputMap).toHaveBeenCalledWith({
+    expect(mockLoadDidInputMap).toHaveBeenCalledWith({
       storage,
       bucket: 'test-bucket',
-      key: 'uploads/sub_ids.json',
+      key: 'uploads/dids.json',
     });
     expect(mockComputeVotingEngagement).toHaveBeenCalledTimes(2);
     expect(mockComputeVotingEngagement).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        id: 'snapshot-1__custom_algorithm_child_1_voting_engagement',
+        id: 'snapshot-1__custom_score_child_1_voting_engagement',
         algorithmPresetFrozen: {
           key: 'voting_engagement',
           version: '1.0.0',
           inputs: [
             { key: 'votes', value: 'uploads/votes-a.csv' },
-            { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+            { key: 'dids', value: 'uploads/dids.json' },
           ],
         },
       }),
@@ -198,13 +198,13 @@ describe('computeCustomAlgorithm', () => {
     expect(mockComputeVotingEngagement).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        id: 'snapshot-1__custom_algorithm_child_2_voting_engagement',
+        id: 'snapshot-1__custom_score_child_2_voting_engagement',
         algorithmPresetFrozen: {
           key: 'voting_engagement',
           version: '1.0.0',
           inputs: [
             { key: 'votes', value: 'uploads/votes-b.csv' },
-            { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+            { key: 'dids', value: 'uploads/dids.json' },
           ],
         },
       }),
@@ -212,27 +212,27 @@ describe('computeCustomAlgorithm', () => {
     );
     expect(storage.getObject).toHaveBeenNthCalledWith(1, {
       bucket: 'test-bucket',
-      key: 'snapshots/snapshot-1__custom_algorithm_child_1_voting_engagement/voting_engagement.csv',
+      key: 'snapshots/snapshot-1__custom_score_child_1_voting_engagement/voting_engagement.csv',
     });
     expect(storage.getObject).toHaveBeenNthCalledWith(2, {
       bucket: 'test-bucket',
-      key: 'snapshots/snapshot-1__custom_algorithm_child_2_voting_engagement/voting_engagement.csv',
+      key: 'snapshots/snapshot-1__custom_score_child_2_voting_engagement/voting_engagement.csv',
     });
     expect(mockStringifyCsvAsync).toHaveBeenCalledWith(
       [
-        { sub_id: 'SubID-1', composite_score: 0.388889 },
-        { sub_id: 'SubID-2', composite_score: 0.333333 },
-        { sub_id: 'SubID-3', composite_score: 0.666667 },
+        { did: 'SubID-1', composite_score: 0.388889 },
+        { did: 'SubID-2', composite_score: 0.333333 },
+        { did: 'SubID-3', composite_score: 0.666667 },
       ],
       {
         header: true,
-        columns: ['sub_id', 'composite_score'],
+        columns: ['did', 'composite_score'],
       },
     );
     expect(storage.putObject).toHaveBeenNthCalledWith(1, {
       bucket: 'test-bucket',
       key: 'outputs/composite_score.csv',
-      body: ['sub_id,composite_score', 'SubID-1,0.388889', 'SubID-2,0.333333', 'SubID-3,0.666667'].join('\n'),
+      body: ['did,composite_score', 'SubID-1,0.388889', 'SubID-2,0.333333', 'SubID-3,0.666667'].join('\n'),
       contentType: 'text/csv',
     });
 
@@ -242,9 +242,9 @@ describe('computeCustomAlgorithm', () => {
       normalization_method: 'min_max',
       missing_score_strategy: 'zero',
       total_child_weight: 3,
-      sub_ids: [
+      dids: [
         {
-          sub_id: 'SubID-1',
+          did: 'SubID-1',
           final_composite_score: 0.388889,
           child_scores: [
             {
@@ -266,7 +266,7 @@ describe('computeCustomAlgorithm', () => {
           ],
         },
         {
-          sub_id: 'SubID-2',
+          did: 'SubID-2',
           final_composite_score: 0.333333,
           child_scores: [
             {
@@ -288,7 +288,7 @@ describe('computeCustomAlgorithm', () => {
           ],
         },
         {
-          sub_id: 'SubID-3',
+          did: 'SubID-3',
           final_composite_score: 0.666667,
           child_scores: [
             {
@@ -331,18 +331,18 @@ describe('computeCustomAlgorithm', () => {
   });
 
   it('preserves raw scores when normalization is disabled and applies weighted combination deterministically', async () => {
-    mockGetSubIds.mockReturnValue(['SubID-1', 'SubID-2']);
-    mockStringifyCsvAsync.mockResolvedValue(['sub_id,composite_score', 'SubID-1,1.75', 'SubID-2,3.75'].join('\n'));
+    mockGetDids.mockReturnValue(['SubID-1', 'SubID-2']);
+    mockStringifyCsvAsync.mockResolvedValue(['did,composite_score', 'SubID-1,1.75', 'SubID-2,3.75'].join('\n'));
 
     const putObject = vi.fn().mockResolvedValue(undefined);
     const storage = {
       getObject: vi.fn().mockImplementation(async ({ key }: { key: string }) => {
-        if (key.includes('__custom_algorithm_child_1_')) {
-          return Buffer.from(['sub_id,voting_engagement', 'SubID-1,1', 'SubID-2,3'].join('\n'));
+        if (key.includes('__custom_score_child_1_')) {
+          return Buffer.from(['did,voting_engagement', 'SubID-1,1', 'SubID-2,3'].join('\n'));
         }
 
-        if (key.includes('__custom_algorithm_child_2_')) {
-          return Buffer.from(['sub_id,voting_engagement', 'SubID-1,2', 'SubID-2,4'].join('\n'));
+        if (key.includes('__custom_score_child_2_')) {
+          return Buffer.from(['did,voting_engagement', 'SubID-1,2', 'SubID-2,4'].join('\n'));
         }
 
         throw new Error(`Unexpected key: ${key}`);
@@ -350,14 +350,14 @@ describe('computeCustomAlgorithm', () => {
       putObject,
     };
 
-    await computeCustomAlgorithm(
+    await computeCustomScore(
       {
         id: 'snapshot-1',
         algorithmPresetFrozen: {
-          key: 'custom_algorithm',
+          key: 'custom_score',
           version: '1.0.0',
           inputs: [
-            { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+            { key: 'dids', value: 'uploads/dids.json' },
             {
               key: 'sub_algorithms',
               value: [
@@ -385,12 +385,12 @@ describe('computeCustomAlgorithm', () => {
 
     expect(mockStringifyCsvAsync).toHaveBeenCalledWith(
       [
-        { sub_id: 'SubID-1', composite_score: 1.75 },
-        { sub_id: 'SubID-2', composite_score: 3.75 },
+        { did: 'SubID-1', composite_score: 1.75 },
+        { did: 'SubID-2', composite_score: 3.75 },
       ],
       {
         header: true,
-        columns: ['sub_id', 'composite_score'],
+        columns: ['did', 'composite_score'],
       },
     );
 
@@ -400,9 +400,9 @@ describe('computeCustomAlgorithm', () => {
       normalization_method: 'none',
       missing_score_strategy: 'zero',
       total_child_weight: 4,
-      sub_ids: [
+      dids: [
         {
-          sub_id: 'SubID-1',
+          did: 'SubID-1',
           final_composite_score: 1.75,
           child_scores: [
             {
@@ -424,7 +424,7 @@ describe('computeCustomAlgorithm', () => {
           ],
         },
         {
-          sub_id: 'SubID-2',
+          did: 'SubID-2',
           final_composite_score: 3.75,
           child_scores: [
             {
@@ -450,25 +450,23 @@ describe('computeCustomAlgorithm', () => {
   });
 
   it('normalizes zero-variance z-scores to zero deterministically', async () => {
-    mockGetSubIds.mockReturnValue(['SubID-1', 'SubID-2']);
-    mockStringifyCsvAsync.mockResolvedValue(['sub_id,composite_score', 'SubID-1,0', 'SubID-2,0'].join('\n'));
+    mockGetDids.mockReturnValue(['SubID-1', 'SubID-2']);
+    mockStringifyCsvAsync.mockResolvedValue(['did,composite_score', 'SubID-1,0', 'SubID-2,0'].join('\n'));
 
     const putObject = vi.fn().mockResolvedValue(undefined);
     const storage = {
-      getObject: vi
-        .fn()
-        .mockResolvedValue(Buffer.from(['sub_id,voting_engagement', 'SubID-1,5', 'SubID-2,5'].join('\n'))),
+      getObject: vi.fn().mockResolvedValue(Buffer.from(['did,voting_engagement', 'SubID-1,5', 'SubID-2,5'].join('\n'))),
       putObject,
     };
 
-    await computeCustomAlgorithm(
+    await computeCustomScore(
       {
         id: 'snapshot-2',
         algorithmPresetFrozen: {
-          key: 'custom_algorithm',
+          key: 'custom_score',
           version: '1.0.0',
           inputs: [
-            { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+            { key: 'dids', value: 'uploads/dids.json' },
             {
               key: 'sub_algorithms',
               value: [
@@ -490,19 +488,19 @@ describe('computeCustomAlgorithm', () => {
 
     expect(mockStringifyCsvAsync).toHaveBeenCalledWith(
       [
-        { sub_id: 'SubID-1', composite_score: 0 },
-        { sub_id: 'SubID-2', composite_score: 0 },
+        { did: 'SubID-1', composite_score: 0 },
+        { did: 'SubID-2', composite_score: 0 },
       ],
       {
         header: true,
-        columns: ['sub_id', 'composite_score'],
+        columns: ['did', 'composite_score'],
       },
     );
 
     const detailsPayload = JSON.parse(putObject.mock.calls[1][0].body);
-    expect(detailsPayload.sub_ids).toEqual([
+    expect(detailsPayload.dids).toEqual([
       {
-        sub_id: 'SubID-1',
+        did: 'SubID-1',
         final_composite_score: 0,
         child_scores: [
           {
@@ -516,7 +514,7 @@ describe('computeCustomAlgorithm', () => {
         ],
       },
       {
-        sub_id: 'SubID-2',
+        did: 'SubID-2',
         final_composite_score: 0,
         child_scores: [
           {
@@ -538,14 +536,14 @@ describe('computeCustomAlgorithm', () => {
     };
 
     await expect(
-      computeCustomAlgorithm(
+      computeCustomScore(
         {
           id: 'snapshot-3',
           algorithmPresetFrozen: {
-            key: 'custom_algorithm',
+            key: 'custom_score',
             version: '1.0.0',
             inputs: [
-              { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+              { key: 'dids', value: 'uploads/dids.json' },
               {
                 key: 'sub_algorithms',
                 value: [

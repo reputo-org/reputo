@@ -1,18 +1,18 @@
 import type { VoteGroupingStats } from '../pipeline/vote-grouping.js';
 import {
+  type DidBenchmarkRecord,
   roundScore,
-  type SubIdBenchmarkRecord,
   VALID_VOTES,
   type ValidVote,
   type VotingEngagementBenchmark,
 } from '../types.js';
 
 export function buildVoterBenchmarkRecord(
-  subId: string,
-  deepVotingPortalId: string | null,
+  did: string,
   voterVotes: ValidVote[],
   votingEngagement: number,
-): SubIdBenchmarkRecord {
+  collectionIds: string[] = [],
+): DidBenchmarkRecord {
   const totalVotes = voterVotes.length;
 
   const voteDistribution = Object.fromEntries(VALID_VOTES.map((v) => [v, 0])) as Record<ValidVote, number>;
@@ -31,8 +31,8 @@ export function buildVoterBenchmarkRecord(
   }
 
   return {
-    sub_id: subId,
-    deep_voting_portal_id: deepVotingPortalId,
+    did: did,
+    collection_ids: collectionIds,
     total_votes: totalVotes,
     vote_distribution: voteDistribution,
     entropy: roundScore(entropy),
@@ -41,26 +41,26 @@ export function buildVoterBenchmarkRecord(
 }
 
 export interface FormatBenchmarkInput {
-  records: SubIdBenchmarkRecord[];
+  records: DidBenchmarkRecord[];
   snapshotId: string;
   stats: VoteGroupingStats;
-  matchedSubIds: Set<string>;
+  matchedDids: Set<string>;
 }
 
 export function formatBenchmarkOutput(input: FormatBenchmarkInput): VotingEngagementBenchmark {
-  const { records, snapshotId, stats, matchedSubIds } = input;
+  const { records, snapshotId, stats, matchedDids } = input;
 
-  const sortedRecords = [...records].sort((a, b) => a.sub_id.localeCompare(b.sub_id));
-  const providedIds = sortedRecords.map((record) => record.sub_id);
-  const matchedIds = [...matchedSubIds].sort((a, b) => a.localeCompare(b));
-  const unmatchedIds = providedIds.filter((subId) => !matchedSubIds.has(subId));
+  const sortedRecords = [...records].sort((a, b) => a.did.localeCompare(b.did));
+  const providedIds = sortedRecords.map((record) => record.did);
+  const matchedIds = [...matchedDids].sort((a, b) => a.localeCompare(b));
+  const unmatchedIds = providedIds.filter((did) => !matchedDids.has(did));
 
   return {
-    sub_ids: sortedRecords,
+    dids: sortedRecords,
     metadata: {
       snapshot_id: snapshotId,
       computed_at: new Date().toISOString(),
-      sub_ids: {
+      dids: {
         provided_ids: providedIds,
         matched_ids: matchedIds,
         unmatched_ids: unmatchedIds,
@@ -70,7 +70,7 @@ export function formatBenchmarkOutput(input: FormatBenchmarkInput): VotingEngage
         valid_votes: stats.validVotes,
         invalid_votes: stats.invalidVotes,
         targeted_voter_ids: stats.targetedVoterIds,
-        sub_ids_with_votes: matchedIds.length,
+        dids_with_votes: matchedIds.length,
       },
     },
   };

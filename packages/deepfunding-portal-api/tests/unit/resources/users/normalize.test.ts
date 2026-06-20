@@ -23,6 +23,12 @@ describe('User Normalization', () => {
       expect(result.rawJson).toBe(JSON.stringify(user));
     });
 
+    it('should map the did field', () => {
+      expect(normalizeUserToRecord(createMockUser({ did: 'did:plc:def456def456def456def456' })).did).toBe(
+        'did:plc:def456def456def456def456',
+      );
+    });
+
     it('should serialize raw JSON correctly', () => {
       const user = createMockUser({
         id: 42,

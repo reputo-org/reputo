@@ -5,6 +5,7 @@ import {
   ALGORITHM_EXECUTION_TIMEOUT,
   ALGORITHM_LIBRARY_TIMEOUT,
   DB_ACTIVITY_TIMEOUT,
+  DEEP_ID_POST_SCORES_TIMEOUT,
   DEPENDENCY_RESOLUTION_TIMEOUT,
   HEARTBEAT_TIMEOUT,
   ONCHAIN_DATA_DEPENDENCY_RESOLUTION_TIMEOUT,
@@ -15,9 +16,12 @@ import { UnsupportedAlgorithmError } from '../shared/errors/index.js';
 import type {
   AlgorithmLibraryActivities,
   AlgorithmResult,
+  DeepIdPostScoresActivities,
   DependencyKey,
   DependencyResolverActivities,
   OrchestratorWorkflowInput,
+  ResolveDependencyResult,
+  Snapshot,
   SyncTarget,
   TypescriptAlgorithmDispatcherActivities,
 } from '../shared/types/index.js';
@@ -115,6 +119,27 @@ function collectOnchainSyncTargets(sources: DependencySource[]): SyncTarget[] {
   return syncTargets;
 }
 
+/** The first dependency result that assembled a SubID map (e.g. the `deep-id` fetch), if any. */
+function pickGeneratedDidsKey(results: ResolveDependencyResult[]): string | undefined {
+  for (const result of results) {
+    if (result?.didsKey) {
+      return result.didsKey;
+    }
+  }
+  return undefined;
+}
+
+/** Point the algorithm's `dids` input at a dependency-assembled SubID map (in-memory only). */
+function applyDidsOverride(snapshot: Snapshot, didsKey: string): void {
+  const inputs = snapshot.algorithmPresetFrozen.inputs;
+  const existing = inputs.find((input) => input.key === 'dids');
+  if (existing) {
+    existing.value = didsKey;
+  } else {
+    inputs.push({ key: 'dids', value: didsKey });
+  }
+}
+
 export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Promise<void> {
   const { snapshotId } = input;
   const workflowInfo = workflow.workflowInfo();
@@ -192,6 +217,13 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
     retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
   });
 
+  const { postSnapshotScores } = workflow.proxyActivities<DeepIdPostScoresActivities>({
+    taskQueue: orchestratorTaskQueue,
+    startToCloseTimeout: DEEP_ID_POST_SCORES_TIMEOUT,
+    heartbeatTimeout: HEARTBEAT_TIMEOUT,
+    retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
+  });
+
   if (algorithmDefinition.kind === 'combined') {
     const childPresets = buildCombinedChildAlgorithmPresets(snapshot.algorithmPresetFrozen, algorithmDefinition);
     const childDependencySources = await Promise.all(
@@ -227,22 +259,27 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
 
       const syncTargets = collectOnchainSyncTargets(dependencySources);
 
-      await Promise.all(
-        dependencyKeys.map(async (dependencyKey) => {
+      const dependencyResults = await Promise.all(
+        dependencyKeys.map((dependencyKey) => {
           if (dependencyKey === 'onchain-data') {
-            await resolveOnchainDataDependency({
+            return resolveOnchainDataDependency({
               dependencyKey,
               snapshotId,
               syncTargets,
             });
-          } else {
-            await resolveOrchestratorDependency({
-              dependencyKey,
-              snapshotId,
-            });
           }
+          return resolveOrchestratorDependency({
+            dependencyKey,
+            snapshotId,
+          });
         }),
       );
+
+      const generatedDidsKey = pickGeneratedDidsKey(dependencyResults);
+      if (generatedDidsKey) {
+        applyDidsOverride(snapshot, generatedDidsKey);
+        workflow.log.info('Using DeepID-assembled SubID input', { snapshotId, didsKey: generatedDidsKey });
+      }
 
       workflow.log.info('All combined algorithm dependencies resolved', {
         snapshotId,
@@ -260,23 +297,28 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
       algorithmDefinition as Parameters<typeof extractOnchainSyncTargets>[1],
     );
 
-    await Promise.all(
-      algorithmDefinition.dependencies.map(async (dependency) => {
+    const dependencyResults = await Promise.all(
+      algorithmDefinition.dependencies.map((dependency) => {
         const dependencyKey = dependency.key as DependencyKey;
         if (dependencyKey === 'onchain-data') {
-          await resolveOnchainDataDependency({
+          return resolveOnchainDataDependency({
             dependencyKey,
             snapshotId,
             syncTargets,
           });
-        } else {
-          await resolveOrchestratorDependency({
-            dependencyKey,
-            snapshotId,
-          });
         }
+        return resolveOrchestratorDependency({
+          dependencyKey,
+          snapshotId,
+        });
       }),
     );
+
+    const generatedDidsKey = pickGeneratedDidsKey(dependencyResults);
+    if (generatedDidsKey) {
+      applyDidsOverride(snapshot, generatedDidsKey);
+      workflow.log.info('Using DeepID-assembled SubID input', { snapshotId, didsKey: generatedDidsKey });
+    }
 
     workflow.log.info('All dependencies resolved', {
       snapshotId,
@@ -344,5 +386,20 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
 
     workflow.log.info(`Snapshot marked as ${status}`, { snapshotId });
     throw error;
+  }
+
+  // Best-effort: post the computed scores back to DeepID. This runs only after a
+  // successful completion (the catch above re-throws on failure) and never affects
+  // the snapshot status — a posting failure is retried by Temporal, then logged and
+  // swallowed so it can never fail the reputation run.
+  try {
+    const completedSnapshot = await getSnapshot({ snapshotId });
+    const postResult = await postSnapshotScores({ snapshot: completedSnapshot });
+    workflow.log.info('DeepID score posting finished', { snapshotId, ...postResult });
+  } catch (postError) {
+    workflow.log.error('DeepID score posting failed (non-fatal)', {
+      snapshotId,
+      error: (postError as Error).message,
+    });
   }
 }

@@ -112,7 +112,7 @@ const definition: AlgorithmDefinition = {
 };
 
 const combinedDefinition: AlgorithmDefinition = {
-  key: 'custom_algorithm',
+  key: 'custom_score',
   name: 'Custom Algorithm',
   kind: 'combined',
   category: 'Custom',
@@ -462,7 +462,7 @@ describe('validateAlgorithmPreset', () => {
     const result = await validateAlgorithmPreset({
       definition: combinedDefinition,
       preset: {
-        key: 'custom_algorithm',
+        key: 'custom_score',
         version: '1.0.0',
         inputs: [
           {
@@ -516,7 +516,7 @@ describe('validateAlgorithmPreset', () => {
     const result = await validateAlgorithmPreset({
       definition: combinedDefinition,
       preset: {
-        key: 'custom_algorithm',
+        key: 'custom_score',
         version: '1.0.0',
         inputs: [
           {
@@ -556,7 +556,7 @@ describe('validateAlgorithmPreset', () => {
     const result = await validateAlgorithmPreset({
       definition: combinedDefinition,
       preset: {
-        key: 'custom_algorithm',
+        key: 'custom_score',
         version: '1.0.0',
         inputs: [
           {
@@ -610,7 +610,7 @@ describe('validateAlgorithmPreset', () => {
     const result = await validateAlgorithmPreset({
       definition: combinedDefinition,
       preset: {
-        key: 'custom_algorithm',
+        key: 'custom_score',
         version: '1.0.0',
         inputs: [
           {
@@ -648,7 +648,7 @@ describe('validateAlgorithmPreset', () => {
     const result = await validateAlgorithmPreset({
       definition: combinedDefinition,
       preset: {
-        key: 'custom_algorithm',
+        key: 'custom_score',
         version: '1.0.0',
         inputs: [
           {
@@ -699,7 +699,7 @@ describe('validateAlgorithmPreset', () => {
     const result = await validateAlgorithmPreset({
       definition: combinedDefinition,
       preset: {
-        key: 'custom_algorithm',
+        key: 'custom_score',
         version: '1.0.0',
         inputs: [
           {

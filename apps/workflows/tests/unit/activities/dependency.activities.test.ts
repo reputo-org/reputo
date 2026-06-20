@@ -2,9 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockDeepfundingSync = vi.fn().mockResolvedValue({ outputs: {} });
 const mockOnchainDataSync = vi.fn().mockResolvedValue(undefined);
+const mockDeepIdSync = vi.fn().mockResolvedValue({ didsKey: 'snapshots/snapshot-1/deep-id/dids.json' });
 
 vi.mock('../../../src/activities/orchestrator/deepfunding-portal-api.activities.js', () => ({
   createDeepfundingSyncActivity: vi.fn(() => mockDeepfundingSync),
+}));
+
+vi.mock('../../../src/activities/orchestrator/deep-id.activities.js', () => ({
+  createDeepIdSyncActivity: vi.fn(() => mockDeepIdSync),
 }));
 
 vi.mock('../../../src/activities/onchain-data/onchain-data.activities.js', () => ({
@@ -52,6 +57,19 @@ describe('Dependency Resolver Activities', () => {
     });
 
     expect(mockDeepfundingSync).toHaveBeenCalledWith({ snapshotId: 'snapshot-1' });
+    expect(mockOnchainDataSync).not.toHaveBeenCalled();
+  });
+
+  it('should dispatch deep-id to the DeepID sync and return the generated dids key', async () => {
+    const activities = createOrchestratorDependencyResolverActivities(orchestratorCtx);
+
+    const result = await activities.resolveDependency({
+      dependencyKey: 'deep-id',
+      snapshotId: 'snapshot-1',
+    });
+
+    expect(mockDeepIdSync).toHaveBeenCalledWith({ snapshotId: 'snapshot-1' });
+    expect(result).toEqual({ didsKey: 'snapshots/snapshot-1/deep-id/dids.json' });
     expect(mockOnchainDataSync).not.toHaveBeenCalled();
   });
 
