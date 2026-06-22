@@ -50,6 +50,8 @@
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "test:cov": "vitest --coverage",
+    "test:e2e": "vitest run --config vitest.config.e2e.ts",
+    "test:e2e:watch": "vitest --config vitest.config.e2e.ts",
     "dev": "pnpm run build:deps && concurrently --names deps,workers --prefix name --kill-others-on-fail \"pnpm run dev:deps\" \"pnpm run dev:app\"",
     "dev:app": "concurrently --names orchestrator,algorithm,onchain-data --prefix name --kill-others-on-fail \"pnpm run dev:orchestrator:app\" \"pnpm run dev:algorithm-typescript:app\" \"pnpm run dev:onchain-data:app\"",
     "dev:deps": "pnpm --filter @reputo/contracts --filter @reputo/deep-id-api --filter @reputo/deepfunding-portal-api --filter @reputo/onchain-data --filter @reputo/reputation-algorithms --filter @reputo/storage --parallel run dev",
@@ -83,6 +85,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
+    "@testcontainers/postgresql": "catalog:",
     "@types/node": "catalog:",
     "concurrently": "catalog:",
     "nodemon": "catalog:",

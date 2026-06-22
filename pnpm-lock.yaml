@@ -667,6 +667,9 @@ importers:
       '@biomejs/biome':
         specifier: 'catalog:'
         version: 2.3.7
+      '@testcontainers/postgresql':
+        specifier: 'catalog:'
+        version: 12.0.1
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.1
