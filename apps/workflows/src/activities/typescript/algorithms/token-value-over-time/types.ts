@@ -31,10 +31,6 @@ export interface ResolvedResource {
   resourceId: ResourceId;
 }
 
-export interface WalletAddressMap {
-  dids: Record<string, Partial<Record<SupportedChain, string[]>>>;
-}
-
 export interface EffectiveDateRange {
   fromTimestampUnix: number | undefined;
   toTimestampUnix: number;
