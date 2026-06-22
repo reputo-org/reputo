@@ -49,7 +49,7 @@ async function* pages(...items: unknown[]) {
 describe('createDeepIdSyncActivity', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('assembles a did:sub → wallets SubID map (skipping unsupported chains) and writes it to S3', async () => {
+  it('assembles a did:sub → wallets map (skipping unsupported chains) and writes it to S3', async () => {
     mockIterateUsers.mockReturnValue(
       pages(
         {

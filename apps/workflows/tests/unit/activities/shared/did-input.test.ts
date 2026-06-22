@@ -29,9 +29,9 @@ describe('extractDidsKey', () => {
     expect(
       extractDidsKey([
         { key: 'votes_csv', value: 'votes.csv' },
-        { key: 'dids', value: 'sub-ids.json' },
+        { key: 'dids', value: 'dids.json' },
       ] as never),
-    ).toBe('sub-ids.json');
+    ).toBe('dids.json');
   });
 
   it('throws when the dids input is missing or not a string', () => {
@@ -46,7 +46,7 @@ describe('loadDidInputMap', () => {
       getObject: vi.fn().mockResolvedValue(
         Buffer.from(
           JSON.stringify({
-            'SubID-1': {
+            'did:sub:1': {
               userWallets: [
                 { address: '0xABC', chain: 'ethereum' },
                 { address: '0xABC', chain: 'ethereum' },
@@ -56,7 +56,7 @@ describe('loadDidInputMap', () => {
               ],
             },
             '': { ignored: true },
-            'SubID-2': 'not-an-object',
+            'did:sub:2': 'not-an-object',
           }),
         ),
       ),
@@ -64,8 +64,8 @@ describe('loadDidInputMap', () => {
 
     const result = await loadDidInputMap({ storage, bucket: 'b', key: 'k' });
 
-    expect(Object.keys(result.dids)).toEqual(['SubID-1']);
-    expect(result.dids['SubID-1']).toEqual({
+    expect(Object.keys(result.dids)).toEqual(['did:sub:1']);
+    expect(result.dids['did:sub:1']).toEqual({
       userWallets: [
         { address: '0xabc', chain: 'ethereum' },
         { address: 'addr1', chain: 'cardano' },

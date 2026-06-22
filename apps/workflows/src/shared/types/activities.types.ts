@@ -83,7 +83,7 @@ export interface DeepIdSyncInput {
 }
 
 export interface DeepIdSyncOutput {
-  /** S3 key of the assembled SubID JSON (`did:sub` → wallets) for the wallet algorithms. */
+  /** S3 key of the assembled DID JSON (`did:sub` → wallets) for the wallet algorithms. */
   didsKey: string;
 }
 

@@ -16,9 +16,9 @@ describe('voting-engagement benchmark', () => {
       const votes: ValidVote[] = ['1', '5', '5', '10', 'skip'];
       const engagement = 0.636514;
 
-      const record = buildVoterBenchmarkRecord('SubID-1', votes, engagement);
+      const record = buildVoterBenchmarkRecord('did:sub:1', votes, engagement);
 
-      expect(record.did).toBe('SubID-1');
+      expect(record.did).toBe('did:sub:1');
       expect(record.total_votes).toBe(5);
       expect(record.vote_distribution.skip).toBe(1);
       expect(record.vote_distribution['1']).toBe(1);
@@ -33,7 +33,7 @@ describe('voting-engagement benchmark', () => {
       const votes: ValidVote[] = ['skip', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
       const engagement = 1.0;
 
-      const record = buildVoterBenchmarkRecord('SubID-Uniform', votes, engagement);
+      const record = buildVoterBenchmarkRecord('did:sub:Uniform', votes, engagement);
 
       expect(record.entropy).toBeCloseTo(MAX_VOTING_ENTROPY, 5);
       expect(record.voting_engagement).toBe(1.0);
@@ -43,7 +43,7 @@ describe('voting-engagement benchmark', () => {
       const votes: ValidVote[] = ['5', '5', '5'];
       const engagement = 0;
 
-      const record = buildVoterBenchmarkRecord('SubID-Mono', votes, engagement);
+      const record = buildVoterBenchmarkRecord('did:sub:Mono', votes, engagement);
 
       expect(record.entropy).toBe(0);
       expect(record.total_votes).toBe(3);
@@ -51,7 +51,7 @@ describe('voting-engagement benchmark', () => {
     });
 
     it('handles empty votes array', () => {
-      const record = buildVoterBenchmarkRecord('SubID-Empty', [], 0);
+      const record = buildVoterBenchmarkRecord('did:sub:Empty', [], 0);
 
       expect(record.total_votes).toBe(0);
       expect(record.entropy).toBe(0);
@@ -91,13 +91,13 @@ describe('voting-engagement benchmark', () => {
       const records: DidBenchmarkRecord[] = [
         {
           ...baseRecord,
-          did: 'SubID-1',
+          did: 'did:sub:1',
           total_votes: 50,
           voting_engagement: 0.85,
         },
         {
           ...baseRecord,
-          did: 'SubID-2',
+          did: 'did:sub:2',
           total_votes: 30,
           voting_engagement: 0.62,
         },
@@ -107,7 +107,7 @@ describe('voting-engagement benchmark', () => {
         records,
         snapshotId: 'snap-123',
         stats: baseStats,
-        matchedDids: new Set(['SubID-1', 'SubID-2']),
+        matchedDids: new Set(['did:sub:1', 'did:sub:2']),
       });
 
       expect(result.dids).toHaveLength(2);
@@ -117,28 +117,28 @@ describe('voting-engagement benchmark', () => {
       expect(result.metadata.metrics.invalid_votes).toBe(5);
       expect(result.metadata.metrics.targeted_voter_ids).toBe(3);
       expect(result.metadata.metrics.dids_with_votes).toBe(2);
-      expect(result.metadata.dids.provided_ids).toEqual(['SubID-1', 'SubID-2']);
-      expect(result.metadata.dids.matched_ids).toEqual(['SubID-1', 'SubID-2']);
+      expect(result.metadata.dids.provided_ids).toEqual(['did:sub:1', 'did:sub:2']);
+      expect(result.metadata.dids.matched_ids).toEqual(['did:sub:1', 'did:sub:2']);
     });
 
-    it('sorts SubIDs by did', () => {
+    it('sorts DIDs by did', () => {
       const records: DidBenchmarkRecord[] = [
-        { ...baseRecord, did: 'SubID-Z' },
-        { ...baseRecord, did: 'SubID-A' },
-        { ...baseRecord, did: 'SubID-M' },
+        { ...baseRecord, did: 'did:sub:Z' },
+        { ...baseRecord, did: 'did:sub:A' },
+        { ...baseRecord, did: 'did:sub:M' },
       ];
 
       const result = formatBenchmarkOutput({
         records,
         snapshotId: 'snap-sort',
         stats: baseStats,
-        matchedDids: new Set(['SubID-A', 'SubID-M', 'SubID-Z']),
+        matchedDids: new Set(['did:sub:A', 'did:sub:M', 'did:sub:Z']),
       });
 
       const [first, second, third] = result.dids;
-      expect(first?.did).toBe('SubID-A');
-      expect(second?.did).toBe('SubID-M');
-      expect(third?.did).toBe('SubID-Z');
+      expect(first?.did).toBe('did:sub:A');
+      expect(second?.did).toBe('did:sub:M');
+      expect(third?.did).toBe('did:sub:Z');
     });
 
     it('handles empty records array', () => {
@@ -162,19 +162,19 @@ describe('voting-engagement benchmark', () => {
 
     it('does not mutate the original records array', () => {
       const records: DidBenchmarkRecord[] = [
-        { ...baseRecord, did: 'SubID-B' },
-        { ...baseRecord, did: 'SubID-A' },
+        { ...baseRecord, did: 'did:sub:B' },
+        { ...baseRecord, did: 'did:sub:A' },
       ];
 
       formatBenchmarkOutput({
         records,
         snapshotId: 'snap-immutable',
         stats: baseStats,
-        matchedDids: new Set(['SubID-A', 'SubID-B']),
+        matchedDids: new Set(['did:sub:A', 'did:sub:B']),
       });
 
-      expect(records[0]?.did).toBe('SubID-B');
-      expect(records[1]?.did).toBe('SubID-A');
+      expect(records[0]?.did).toBe('did:sub:B');
+      expect(records[1]?.did).toBe('did:sub:A');
     });
   });
 });

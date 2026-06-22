@@ -88,14 +88,14 @@ describe('computeCustomScore', () => {
     mockExtractDidsKey.mockReturnValue('uploads/dids.json');
     mockLoadDidInputMap.mockResolvedValue({
       dids: {
-        'SubID-1': {},
-        'SubID-2': {},
-        'SubID-3': {},
+        'did:sub:1': {},
+        'did:sub:2': {},
+        'did:sub:3': {},
       },
     });
-    mockGetDids.mockReturnValue(['SubID-1', 'SubID-2', 'SubID-3']);
+    mockGetDids.mockReturnValue(['did:sub:1', 'did:sub:2', 'did:sub:3']);
     mockStringifyCsvAsync.mockResolvedValue(
-      ['did,composite_score', 'SubID-1,0.388889', 'SubID-2,0.333333', 'SubID-3,0.666667'].join('\n'),
+      ['did,composite_score', 'did:sub:1,0.388889', 'did:sub:2,0.333333', 'did:sub:3,0.666667'].join('\n'),
     );
     mockGenerateKey.mockReturnValueOnce('outputs/composite_score.csv').mockReturnValueOnce('outputs/details.json');
     mockGetAlgorithmDefinition.mockReturnValue(
@@ -129,11 +129,11 @@ describe('computeCustomScore', () => {
     const storage = {
       getObject: vi.fn().mockImplementation(async ({ key }: { key: string }) => {
         if (key.includes('__custom_score_child_1_')) {
-          return Buffer.from(['did,voting_engagement', 'SubID-1,10', 'SubID-2,20'].join('\n'));
+          return Buffer.from(['did,voting_engagement', 'did:sub:1,10', 'did:sub:2,20'].join('\n'));
         }
 
         if (key.includes('__custom_score_child_2_')) {
-          return Buffer.from(['did,voting_engagement', 'SubID-1,1', 'SubID-3,3'].join('\n'));
+          return Buffer.from(['did,voting_engagement', 'did:sub:1,1', 'did:sub:3,3'].join('\n'));
         }
 
         throw new Error(`Unexpected key: ${key}`);
@@ -220,9 +220,9 @@ describe('computeCustomScore', () => {
     });
     expect(mockStringifyCsvAsync).toHaveBeenCalledWith(
       [
-        { did: 'SubID-1', composite_score: 0.388889 },
-        { did: 'SubID-2', composite_score: 0.333333 },
-        { did: 'SubID-3', composite_score: 0.666667 },
+        { did: 'did:sub:1', composite_score: 0.388889 },
+        { did: 'did:sub:2', composite_score: 0.333333 },
+        { did: 'did:sub:3', composite_score: 0.666667 },
       ],
       {
         header: true,
@@ -232,7 +232,7 @@ describe('computeCustomScore', () => {
     expect(storage.putObject).toHaveBeenNthCalledWith(1, {
       bucket: 'test-bucket',
       key: 'outputs/composite_score.csv',
-      body: ['did,composite_score', 'SubID-1,0.388889', 'SubID-2,0.333333', 'SubID-3,0.666667'].join('\n'),
+      body: ['did,composite_score', 'did:sub:1,0.388889', 'did:sub:2,0.333333', 'did:sub:3,0.666667'].join('\n'),
       contentType: 'text/csv',
     });
 
@@ -244,7 +244,7 @@ describe('computeCustomScore', () => {
       total_child_weight: 3,
       dids: [
         {
-          did: 'SubID-1',
+          did: 'did:sub:1',
           final_composite_score: 0.388889,
           child_scores: [
             {
@@ -266,7 +266,7 @@ describe('computeCustomScore', () => {
           ],
         },
         {
-          did: 'SubID-2',
+          did: 'did:sub:2',
           final_composite_score: 0.333333,
           child_scores: [
             {
@@ -288,7 +288,7 @@ describe('computeCustomScore', () => {
           ],
         },
         {
-          did: 'SubID-3',
+          did: 'did:sub:3',
           final_composite_score: 0.666667,
           child_scores: [
             {
@@ -331,18 +331,18 @@ describe('computeCustomScore', () => {
   });
 
   it('preserves raw scores when normalization is disabled and applies weighted combination deterministically', async () => {
-    mockGetDids.mockReturnValue(['SubID-1', 'SubID-2']);
-    mockStringifyCsvAsync.mockResolvedValue(['did,composite_score', 'SubID-1,1.75', 'SubID-2,3.75'].join('\n'));
+    mockGetDids.mockReturnValue(['did:sub:1', 'did:sub:2']);
+    mockStringifyCsvAsync.mockResolvedValue(['did,composite_score', 'did:sub:1,1.75', 'did:sub:2,3.75'].join('\n'));
 
     const putObject = vi.fn().mockResolvedValue(undefined);
     const storage = {
       getObject: vi.fn().mockImplementation(async ({ key }: { key: string }) => {
         if (key.includes('__custom_score_child_1_')) {
-          return Buffer.from(['did,voting_engagement', 'SubID-1,1', 'SubID-2,3'].join('\n'));
+          return Buffer.from(['did,voting_engagement', 'did:sub:1,1', 'did:sub:2,3'].join('\n'));
         }
 
         if (key.includes('__custom_score_child_2_')) {
-          return Buffer.from(['did,voting_engagement', 'SubID-1,2', 'SubID-2,4'].join('\n'));
+          return Buffer.from(['did,voting_engagement', 'did:sub:1,2', 'did:sub:2,4'].join('\n'));
         }
 
         throw new Error(`Unexpected key: ${key}`);
@@ -385,8 +385,8 @@ describe('computeCustomScore', () => {
 
     expect(mockStringifyCsvAsync).toHaveBeenCalledWith(
       [
-        { did: 'SubID-1', composite_score: 1.75 },
-        { did: 'SubID-2', composite_score: 3.75 },
+        { did: 'did:sub:1', composite_score: 1.75 },
+        { did: 'did:sub:2', composite_score: 3.75 },
       ],
       {
         header: true,
@@ -402,7 +402,7 @@ describe('computeCustomScore', () => {
       total_child_weight: 4,
       dids: [
         {
-          did: 'SubID-1',
+          did: 'did:sub:1',
           final_composite_score: 1.75,
           child_scores: [
             {
@@ -424,7 +424,7 @@ describe('computeCustomScore', () => {
           ],
         },
         {
-          did: 'SubID-2',
+          did: 'did:sub:2',
           final_composite_score: 3.75,
           child_scores: [
             {
@@ -450,12 +450,14 @@ describe('computeCustomScore', () => {
   });
 
   it('normalizes zero-variance z-scores to zero deterministically', async () => {
-    mockGetDids.mockReturnValue(['SubID-1', 'SubID-2']);
-    mockStringifyCsvAsync.mockResolvedValue(['did,composite_score', 'SubID-1,0', 'SubID-2,0'].join('\n'));
+    mockGetDids.mockReturnValue(['did:sub:1', 'did:sub:2']);
+    mockStringifyCsvAsync.mockResolvedValue(['did,composite_score', 'did:sub:1,0', 'did:sub:2,0'].join('\n'));
 
     const putObject = vi.fn().mockResolvedValue(undefined);
     const storage = {
-      getObject: vi.fn().mockResolvedValue(Buffer.from(['did,voting_engagement', 'SubID-1,5', 'SubID-2,5'].join('\n'))),
+      getObject: vi
+        .fn()
+        .mockResolvedValue(Buffer.from(['did,voting_engagement', 'did:sub:1,5', 'did:sub:2,5'].join('\n'))),
       putObject,
     };
 
@@ -488,8 +490,8 @@ describe('computeCustomScore', () => {
 
     expect(mockStringifyCsvAsync).toHaveBeenCalledWith(
       [
-        { did: 'SubID-1', composite_score: 0 },
-        { did: 'SubID-2', composite_score: 0 },
+        { did: 'did:sub:1', composite_score: 0 },
+        { did: 'did:sub:2', composite_score: 0 },
       ],
       {
         header: true,
@@ -500,7 +502,7 @@ describe('computeCustomScore', () => {
     const detailsPayload = JSON.parse(putObject.mock.calls[1][0].body);
     expect(detailsPayload.dids).toEqual([
       {
-        did: 'SubID-1',
+        did: 'did:sub:1',
         final_composite_score: 0,
         child_scores: [
           {
@@ -514,7 +516,7 @@ describe('computeCustomScore', () => {
         ],
       },
       {
-        did: 'SubID-2',
+        did: 'did:sub:2',
         final_composite_score: 0,
         child_scores: [
           {

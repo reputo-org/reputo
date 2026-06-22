@@ -119,7 +119,7 @@ function collectOnchainSyncTargets(sources: DependencySource[]): SyncTarget[] {
   return syncTargets;
 }
 
-/** The first dependency result that assembled a SubID map (e.g. the `deep-id` fetch), if any. */
+/** The first dependency result that assembled a DID map (e.g. the `deep-id` fetch), if any. */
 function pickGeneratedDidsKey(results: ResolveDependencyResult[]): string | undefined {
   for (const result of results) {
     if (result?.didsKey) {
@@ -129,7 +129,7 @@ function pickGeneratedDidsKey(results: ResolveDependencyResult[]): string | unde
   return undefined;
 }
 
-/** Point the algorithm's `dids` input at a dependency-assembled SubID map (in-memory only). */
+/** Point the algorithm's `dids` input at a dependency-assembled DID map (in-memory only). */
 function applyDidsOverride(snapshot: Snapshot, didsKey: string): void {
   const inputs = snapshot.algorithmPresetFrozen.inputs;
   const existing = inputs.find((input) => input.key === 'dids');
@@ -278,7 +278,7 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
       const generatedDidsKey = pickGeneratedDidsKey(dependencyResults);
       if (generatedDidsKey) {
         applyDidsOverride(snapshot, generatedDidsKey);
-        workflow.log.info('Using DeepID-assembled SubID input', { snapshotId, didsKey: generatedDidsKey });
+        workflow.log.info('Using DeepID-assembled DID input', { snapshotId, didsKey: generatedDidsKey });
       }
 
       workflow.log.info('All combined algorithm dependencies resolved', {
@@ -317,7 +317,7 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
     const generatedDidsKey = pickGeneratedDidsKey(dependencyResults);
     if (generatedDidsKey) {
       applyDidsOverride(snapshot, generatedDidsKey);
-      workflow.log.info('Using DeepID-assembled SubID input', { snapshotId, didsKey: generatedDidsKey });
+      workflow.log.info('Using DeepID-assembled DID input', { snapshotId, didsKey: generatedDidsKey });
     }
 
     workflow.log.info('All dependencies resolved', {

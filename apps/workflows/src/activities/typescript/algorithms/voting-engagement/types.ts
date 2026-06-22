@@ -21,7 +21,7 @@ export function roundScore(score: number): number {
 
 export interface DidBenchmarkRecord {
   did: string;
-  /** Collection IDs the SubID resolved to (wallet → wallet_collections.csv). */
+  /** Collection IDs the DID resolved to (wallet → wallet_collections.csv). */
   collection_ids?: string[];
   total_votes: number;
   vote_distribution: Record<ValidVote, number>;

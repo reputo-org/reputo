@@ -140,17 +140,17 @@ describe('computeTokenValueOverTime pagination', () => {
     mockGetStakingContractAddresses.mockReturnValue(new Set());
     mockLoadWalletAddressMap.mockResolvedValue({
       dids: {
-        'SubID-1': {
+        'did:sub:1': {
           ethereum: ['0xwallet1'],
         },
-        'SubID-2': {
+        'did:sub:2': {
           ethereum: ['0xwallet1'],
         },
-        'SubID-3': {},
+        'did:sub:3': {},
       },
     });
-    mockGetDids.mockReturnValue(['SubID-1', 'SubID-2', 'SubID-3']);
-    mockBuildWalletDidsIndex.mockReturnValue(new Map([['0xwallet1', ['SubID-1', 'SubID-2']]]));
+    mockGetDids.mockReturnValue(['did:sub:1', 'did:sub:2', 'did:sub:3']);
+    mockBuildWalletDidsIndex.mockReturnValue(new Map([['0xwallet1', ['did:sub:1', 'did:sub:2']]]));
     mockGetWalletsForSelectedResources.mockReturnValue(['0xwallet1']);
     mockGetWalletsForChain.mockReturnValue(['0xwallet1']);
     mockInitializeWalletLots.mockReturnValue(walletLots);
@@ -204,7 +204,7 @@ describe('computeTokenValueOverTime pagination', () => {
         skippedStaking: 0,
       });
     mockScoreWalletLots.mockReturnValue([{ wallet_address: '0xwallet1', token_value: 1.5, lots: [] }]);
-    mockStringifyCsvAsync.mockResolvedValue('did,token_value\nSubID-1,1.5\nSubID-2,1.5\nSubID-3,0');
+    mockStringifyCsvAsync.mockResolvedValue('did,token_value\ndid:sub:1,1.5\ndid:sub:2,1.5\ndid:sub:3,0');
     mockGenerateKey
       .mockReturnValueOnce('outputs/token-value-over-time.csv')
       .mockReturnValueOnce('outputs/token-value-over-time-details.json');
@@ -234,36 +234,36 @@ describe('computeTokenValueOverTime pagination', () => {
     });
     expect(mockGetDids).toHaveBeenCalledWith({
       dids: {
-        'SubID-1': {
+        'did:sub:1': {
           ethereum: ['0xwallet1'],
         },
-        'SubID-2': {
+        'did:sub:2': {
           ethereum: ['0xwallet1'],
         },
-        'SubID-3': {},
+        'did:sub:3': {},
       },
     });
     expect(mockBuildWalletDidsIndex).toHaveBeenCalledWith({
       dids: {
-        'SubID-1': {
+        'did:sub:1': {
           ethereum: ['0xwallet1'],
         },
-        'SubID-2': {
+        'did:sub:2': {
           ethereum: ['0xwallet1'],
         },
-        'SubID-3': {},
+        'did:sub:3': {},
       },
     });
     expect(mockGetWalletsForChain).toHaveBeenCalledWith(
       {
         dids: {
-          'SubID-1': {
+          'did:sub:1': {
             ethereum: ['0xwallet1'],
           },
-          'SubID-2': {
+          'did:sub:2': {
             ethereum: ['0xwallet1'],
           },
-          'SubID-3': {},
+          'did:sub:3': {},
         },
       },
       'ethereum',
@@ -287,17 +287,17 @@ describe('computeTokenValueOverTime pagination', () => {
         },
         dids: [
           {
-            did: 'SubID-1',
+            did: 'did:sub:1',
             token_value: 1.5,
             wallets: [{ wallet_address: '0xwallet1', token_value: 1.5, lots: [] }],
           },
           {
-            did: 'SubID-2',
+            did: 'did:sub:2',
             token_value: 1.5,
             wallets: [{ wallet_address: '0xwallet1', token_value: 1.5, lots: [] }],
           },
           {
-            did: 'SubID-3',
+            did: 'did:sub:3',
             token_value: 0,
             wallets: [],
           },
@@ -315,7 +315,7 @@ describe('computeTokenValueOverTime pagination', () => {
     expect(storage.putObject).toHaveBeenNthCalledWith(1, {
       bucket: 'test-bucket',
       key: 'outputs/token-value-over-time.csv',
-      body: 'did,token_value\nSubID-1,1.5\nSubID-2,1.5\nSubID-3,0',
+      body: 'did,token_value\ndid:sub:1,1.5\ndid:sub:2,1.5\ndid:sub:3,0',
       contentType: 'text/csv',
     });
     expect(storage.putObject).toHaveBeenNthCalledWith(2, {

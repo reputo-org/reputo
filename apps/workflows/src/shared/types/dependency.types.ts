@@ -18,7 +18,7 @@ export interface ResolveDependencyInput {
 /**
  * Result of resolving a dependency. A dependency that assembles the algorithm's
  * `dids` input (e.g. `deep-id`, which fetches consented users from DeepID)
- * returns the S3 key of the generated SubID JSON so the orchestrator can point
+ * returns the S3 key of the generated DID JSON so the orchestrator can point
  * the algorithm at it.
  */
 export interface ResolveDependencyResult {

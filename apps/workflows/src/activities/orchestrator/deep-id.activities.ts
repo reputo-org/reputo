@@ -23,10 +23,11 @@ function toWalletEntries(wallets: DeepIdWallet[] | undefined): DidEntry['userWal
 
 /**
  * Fetches the consented users from DeepID (`GET /v1/users`, paginated) and
- * assembles the wallet-algorithm SubID input — a map of `did:sub:…` →
+ * assembles the wallet-algorithm DID input — a map of `did:sub:…` →
  * `{ userWallets }` — written to S3. The orchestrator points the algorithm's
- * `dids` input at this key. Idempotent: if the file already exists for the
- * snapshot, the fetch is skipped (safe on Temporal retries).
+ * `dids` input at this key. Safe on Temporal retries: each attempt re-fetches
+ * the consented user set and overwrites the same key, so the write is
+ * idempotent (last-writer-wins) even though no skip-if-exists guard is used.
  */
 export function createDeepIdSyncActivity(ctx: DeepIdSyncContext) {
   const { storage, storageConfig } = ctx;
@@ -55,7 +56,7 @@ export function createDeepIdSyncActivity(ctx: DeepIdSyncContext) {
       logLevel: config.logger.level,
     });
 
-    logger.info('Fetching consented DeepID users for SubID assembly', { snapshotId });
+    logger.info('Fetching consented DeepID users for DID assembly', { snapshotId });
 
     const dids: Record<string, DidEntry> = {};
     let userCount = 0;
@@ -71,7 +72,7 @@ export function createDeepIdSyncActivity(ctx: DeepIdSyncContext) {
       Context.current().heartbeat({ users: userCount });
     }
 
-    // The SubID input file is the raw `did → entry` map (see parseDidInputRecord).
+    // The DID input file is the raw `did → entry` map (see parseDidInputRecord).
     await storage.putObject({
       bucket,
       key: didsKey,
@@ -79,7 +80,7 @@ export function createDeepIdSyncActivity(ctx: DeepIdSyncContext) {
       contentType: 'application/json',
     });
 
-    logger.info('Assembled DeepID SubID input', { snapshotId, didsKey, userCount, walletCount });
+    logger.info('Assembled DeepID DID input', { snapshotId, didsKey, userCount, walletCount });
 
     return { didsKey };
   };

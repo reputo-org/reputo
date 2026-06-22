@@ -40,7 +40,7 @@ describe('buildCombinedChildAlgorithmPresets', () => {
                   weight: 1,
                   inputs: [
                     { key: 'lookback_window_days', value: 90 },
-                    { key: 'dids', value: 'uploads/child-sub-ids.json' },
+                    { key: 'dids', value: 'uploads/child-dids.json' },
                   ],
                 },
               ],

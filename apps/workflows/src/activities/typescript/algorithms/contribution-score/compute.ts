@@ -57,9 +57,11 @@ export async function computeContributionScore(snapshot: Snapshot, storage: Stor
       userCount: users.length,
     });
 
-    // Every Proposal Portal user is scored, keyed directly by its DID (did:plc).
-    const userIdToDid = new Map<number, string>(users.map((u) => [u.id, u.did]));
-    const dids = [...new Set(users.map((u) => u.did))].sort((a, b) => a.localeCompare(b));
+    // Every Proposal Portal user with a DID is scored, keyed directly by its DID
+    // (did:plc). Users without a DID are skipped — there is nowhere to post their score.
+    const usersWithDid = users.filter((u) => u.did.trim() !== '');
+    const userIdToDid = new Map<number, string>(usersWithDid.map((u) => [u.id, u.did]));
+    const dids = [...new Set(usersWithDid.map((u) => u.did))].sort((a, b) => a.localeCompare(b));
 
     const relationMap = buildRelationMap(proposals);
     const projectOwnerMap = buildProjectOwnerMap(proposals);

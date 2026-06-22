@@ -146,7 +146,7 @@ describe('proposal-engagement benchmark', () => {
       score: { proposal_reward: 0, proposal_penalty: 0, scored: false, skip_reason: null },
     };
 
-    it('includes metadata with matched and unmatched SubIDs, config, and metrics', () => {
+    it('includes metadata with matched and unmatched DIDs, config, and metrics', () => {
       const records: ProposalBenchmarkRecord[] = [
         {
           ...baseRecord,
@@ -165,22 +165,22 @@ describe('proposal-engagement benchmark', () => {
       const result = formatBenchmarkOutput({
         records,
         snapshotId: 'snap-123',
-        dids: ['SubID-10', 'SubID-35', 'SubID-100'],
+        dids: ['did:plc:10', 'did:plc:35', 'did:plc:100'],
         didScores: new Map([
-          ['SubID-10', 0.5],
-          ['SubID-35', -0.15],
-          ['SubID-100', 0],
+          ['did:plc:10', 0.5],
+          ['did:plc:35', -0.15],
+          ['did:plc:100', 0],
         ]),
         didAccumulators: new Map([
-          ['SubID-10', { positiveSum: 0.5, negativeSum: 0 }],
-          ['SubID-35', { positiveSum: 0, negativeSum: 0.3 }],
-          ['SubID-100', { positiveSum: 0, negativeSum: 0 }],
+          ['did:plc:10', { positiveSum: 0.5, negativeSum: 0 }],
+          ['did:plc:35', { positiveSum: 0, negativeSum: 0.3 }],
+          ['did:plc:100', { positiveSum: 0, negativeSum: 0 }],
         ]),
-        matchedDids: new Set(['SubID-10', 'SubID-35']),
+        matchedDids: new Set(['did:plc:10', 'did:plc:35']),
         userIdToDid: new Map([
-          [10, 'SubID-10'],
-          [35, 'SubID-35'],
-          [100, 'SubID-100'],
+          [10, 'did:plc:10'],
+          [35, 'did:plc:35'],
+          [100, 'did:plc:100'],
         ]),
         params: mockParams,
         totalProposalsProcessed: 2,
@@ -191,9 +191,9 @@ describe('proposal-engagement benchmark', () => {
       expect(result.dids).toHaveLength(3);
       expect(result.metadata.snapshot_id).toBe('snap-123');
       expect(result.metadata.config).toEqual(mockParams);
-      expect(result.metadata.dids.provided_ids).toEqual(['SubID-10', 'SubID-35', 'SubID-100']);
-      expect(result.metadata.dids.matched_ids).toEqual(['SubID-10', 'SubID-35']);
-      expect(result.metadata.dids.unmatched_ids).toEqual(['SubID-100']);
+      expect(result.metadata.dids.provided_ids).toEqual(['did:plc:10', 'did:plc:35', 'did:plc:100']);
+      expect(result.metadata.dids.matched_ids).toEqual(['did:plc:10', 'did:plc:35']);
+      expect(result.metadata.dids.unmatched_ids).toEqual(['did:plc:100']);
       expect(result.metadata.metrics.total_dids_provided).toBe(3);
       expect(result.metadata.metrics.dids_with_matching_owner).toBe(2);
       expect(result.metadata.metrics.total_proposals_processed).toBe(2);
@@ -201,7 +201,7 @@ describe('proposal-engagement benchmark', () => {
       expect(result.metadata.metrics.proposals_skipped_unsupported_round).toBe(0);
     });
 
-    it('includes only the provided SubIDs in benchmark output', () => {
+    it('includes only the provided DIDs in benchmark output', () => {
       const records: ProposalBenchmarkRecord[] = [
         {
           ...baseRecord,
@@ -214,11 +214,11 @@ describe('proposal-engagement benchmark', () => {
       const result = formatBenchmarkOutput({
         records,
         snapshotId: 'snap-789',
-        dids: ['SubID-35'],
-        didScores: new Map([['SubID-35', 0.8]]),
-        didAccumulators: new Map([['SubID-35', { positiveSum: 0.8, negativeSum: 0 }]]),
-        matchedDids: new Set(['SubID-35']),
-        userIdToDid: new Map([[35, 'SubID-35']]),
+        dids: ['did:plc:35'],
+        didScores: new Map([['did:plc:35', 0.8]]),
+        didAccumulators: new Map([['did:plc:35', { positiveSum: 0.8, negativeSum: 0 }]]),
+        matchedDids: new Set(['did:plc:35']),
+        userIdToDid: new Map([[35, 'did:plc:35']]),
         params: mockParams,
         totalProposalsProcessed: 1,
         totalProposalsScored: 1,
@@ -229,12 +229,12 @@ describe('proposal-engagement benchmark', () => {
       const did = result.dids[0];
       expect(did).toBeDefined();
       if (did) {
-        expect(did.did).toBe('SubID-35');
+        expect(did.did).toBe('did:plc:35');
         expect(did.proposal_engagement).toBe(0.8);
       }
     });
 
-    it('populates per-SubID accumulator sums and proposal count', () => {
+    it('populates per-DID accumulator sums and proposal count', () => {
       const records: ProposalBenchmarkRecord[] = [
         {
           ...baseRecord,
@@ -253,11 +253,11 @@ describe('proposal-engagement benchmark', () => {
       const result = formatBenchmarkOutput({
         records,
         snapshotId: 'snap-acc',
-        dids: ['SubID-10'],
-        didScores: new Map([['SubID-10', 0.4]]),
-        didAccumulators: new Map([['SubID-10', { positiveSum: 0.5, negativeSum: 0.2 }]]),
-        matchedDids: new Set(['SubID-10']),
-        userIdToDid: new Map([[10, 'SubID-10']]),
+        dids: ['did:plc:10'],
+        didScores: new Map([['did:plc:10', 0.4]]),
+        didAccumulators: new Map([['did:plc:10', { positiveSum: 0.5, negativeSum: 0.2 }]]),
+        matchedDids: new Set(['did:plc:10']),
+        userIdToDid: new Map([[10, 'did:plc:10']]),
         params: mockParams,
         totalProposalsProcessed: 2,
         totalProposalsScored: 2,
@@ -295,11 +295,11 @@ describe('proposal-engagement benchmark', () => {
       const result = formatBenchmarkOutput({
         records,
         snapshotId: 'snap-round',
-        dids: ['SubID-10'],
-        didScores: new Map([['SubID-10', 0.5]]),
-        didAccumulators: new Map([['SubID-10', { positiveSum: 0.5, negativeSum: 0 }]]),
-        matchedDids: new Set(['SubID-10']),
-        userIdToDid: new Map([[10, 'SubID-10']]),
+        dids: ['did:plc:10'],
+        didScores: new Map([['did:plc:10', 0.5]]),
+        didAccumulators: new Map([['did:plc:10', { positiveSum: 0.5, negativeSum: 0 }]]),
+        matchedDids: new Set(['did:plc:10']),
+        userIdToDid: new Map([[10, 'did:plc:10']]),
         params: mockParams,
         totalProposalsProcessed: 2,
         totalProposalsScored: 1,

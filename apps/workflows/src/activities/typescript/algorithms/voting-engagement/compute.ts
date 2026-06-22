@@ -13,8 +13,8 @@ import { roundScore } from './types.js';
 import { extractInputKeys, loadVotes, loadWalletCollectionIndex } from './utils/index.js';
 
 /**
- * Resolves each SubID to the voting `collection_id`(s) it should be scored on, by
- * joining the SubID's wallets (from DeepID) to the wallet collections CSV
+ * Resolves each DID to the voting `collection_id`(s) it should be scored on, by
+ * joining the DID's wallets (from DeepID) to the wallet collections CSV
  * (wallet → collection_id), per the DeepID integration spec §12.1.
  */
 function resolveCollectionIdsByDid(
