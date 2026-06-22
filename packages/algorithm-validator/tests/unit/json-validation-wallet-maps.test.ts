@@ -8,12 +8,6 @@ const walletAddressMapConfig: NonNullable<JsonIoItem['json']> = {
   allowedChains: ['ethereum', 'cardano'],
 };
 
-const subIdWalletAddressMapConfig: NonNullable<JsonIoItem['json']> = {
-  maxBytes: 1024,
-  schema: 'sub_id_wallet_address_map',
-  allowedChains: ['ethereum', 'cardano'],
-};
-
 describe('validateJSONContent — wallet_address_map', () => {
   it('accepts a valid wallets object with both chains', async () => {
     const result = await validateJSONContent(
@@ -103,53 +97,6 @@ describe('validateJSONContent — wallet_address_map', () => {
     );
 
     expect(result.valid).toBe(true);
-  });
-});
-
-describe('validateJSONContent — sub_id_wallet_address_map', () => {
-  it('accepts a valid sub-id-keyed map', async () => {
-    const result = await validateJSONContent(
-      JSON.stringify({
-        'SubID-1': {
-          ethereum: ['0x1234567890abcdef1234567890abcdef12345678'],
-        },
-        'SubID-2': {
-          cardano: ['addr1q9examplexamplexamplexamplexamplexample'],
-        },
-      }),
-      subIdWalletAddressMapConfig,
-    );
-
-    expect(result.valid).toBe(true);
-  });
-
-  it('rejects legacy "wallets" top-level key', async () => {
-    const result = await validateJSONContent(
-      JSON.stringify({
-        wallets: { ethereum: ['0x1234567890abcdef1234567890abcdef12345678'] },
-      }),
-      subIdWalletAddressMapConfig,
-    );
-
-    expect(result.errors.some((e) => e.includes('must not contain the top-level key "wallets"'))).toBe(true);
-  });
-
-  it('rejects empty sub-id keys and non-object entries', async () => {
-    const result = await validateJSONContent(
-      JSON.stringify({
-        '': { ethereum: [] },
-        'SubID-1': 'not-an-object',
-      }),
-      subIdWalletAddressMapConfig,
-    );
-
-    expect(result.errors).toContain('Sub-id keys must be non-empty strings');
-    expect(result.errors.some((e) => e.includes('must be an object mapping chains'))).toBe(true);
-  });
-
-  it('rejects when the JSON root is not an object', async () => {
-    const result = await validateJSONContent('[1, 2, 3]', subIdWalletAddressMapConfig);
-    expect(result.errors).toContain('JSON root must be an object');
   });
 });
 
