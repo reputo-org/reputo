@@ -99,7 +99,7 @@ export async function executeRequest<T>(logger: Logger, options: HttpRequestOpti
       });
 
       if (response.statusCode >= 400) {
-        throw new HttpError(response.statusCode, (response.headers['status-text'] as string) || 'Error', text);
+        throw new HttpError(response.statusCode, response.statusText || 'Error', text);
       }
 
       const data = (text.length > 0 ? JSON.parse(text) : undefined) as T;

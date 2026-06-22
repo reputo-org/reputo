@@ -11,7 +11,7 @@ describe('isValidDid', () => {
     expect(isValidDid('did:web:abc123ABC123abc123ABC123')).toBe(false);
     expect(isValidDid('did:sub:tooshort')).toBe(false);
     expect(isValidDid('did:sub:abc123ABC123abc123ABC1234')).toBe(false);
-    expect(isValidDid('SubID-1')).toBe(false);
+    expect(isValidDid('not-a-did')).toBe(false);
     expect(isValidDid(undefined)).toBe(false);
     expect(isValidDid(42)).toBe(false);
   });
