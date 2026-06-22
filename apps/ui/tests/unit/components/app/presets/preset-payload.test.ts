@@ -3,7 +3,7 @@ import { buildPresetInputsFromForm } from "../../../../../src/components/app/pre
 
 describe("preset payload serialization", () => {
   it("serializes nested custom_score entries with explicit numeric weights and blank upload placeholders", () => {
-    const subIdsFile = new File(["{}"], "sub_ids.json", {
+    const walletsFile = new File(["{}"], "wallets.json", {
       type: "application/json",
     })
     const votesFile = new File(["id\n1\n"], "votes.csv", {
@@ -13,13 +13,13 @@ describe("preset payload serialization", () => {
     expect(
       buildPresetInputsFromForm({
         algorithmInputs: [
-          { key: "sub_ids", type: "json" },
+          { key: "wallets", type: "json" },
           { key: "sub_algorithms", type: "sub_algorithm" },
           { key: "lookback_window_days", type: "number" },
           { key: "normalization_method", type: "string" },
         ],
         data: {
-          sub_ids: subIdsFile,
+          wallets: walletsFile,
           sub_algorithms: [
             {
               algorithm_key: "voting_engagement",
@@ -36,7 +36,7 @@ describe("preset payload serialization", () => {
         },
       })
     ).toEqual([
-      { key: "sub_ids", value: "" },
+      { key: "wallets", value: "" },
       {
         key: "sub_algorithms",
         value: [

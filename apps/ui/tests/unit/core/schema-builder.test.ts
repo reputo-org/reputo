@@ -415,7 +415,7 @@ describe("buildSchemaFromAlgorithm", () => {
       level: "Intermediate",
       kind: "combined",
       inputs: [
-        { key: "sub_ids", type: "json", label: "SubID Input (JSON)" },
+        { key: "wallets", type: "json", label: "Wallets Input (JSON)" },
         {
           key: "sub_algorithms",
           type: "sub_algorithm",
@@ -436,19 +436,19 @@ describe("buildSchemaFromAlgorithm", () => {
         version: "1.0.0",
         inputs: [
           {
-            key: "sub_ids",
-            label: "SubID Input (JSON)",
+            key: "wallets",
+            label: "Wallets Input (JSON)",
             type: "json",
             required: true,
           },
           {
             key: "sub_algorithms",
             label: "Sub-Algorithms",
-            description: "Pick child algorithms that share the SubID input.",
+            description: "Pick child algorithms that share the wallets input.",
             type: "sub_algorithm",
             required: true,
             minItems: 1,
-            sharedInputKeys: ["sub_ids"],
+            sharedInputKeys: ["wallets"],
             uiHint: {
               widget: "sub_algorithm_composer",
               addButtonLabel: "Add sub-algorithm",
@@ -471,7 +471,7 @@ describe("buildSchemaFromAlgorithm", () => {
       widget: "sub_algorithm_composer",
       required: true,
       minItems: 1,
-      sharedInputKeys: ["sub_ids"],
+      sharedInputKeys: ["wallets"],
       addButtonLabel: "Add sub-algorithm",
     })
   })
@@ -488,8 +488,8 @@ describe("buildAlgorithmInputFormFields", () => {
       version: "1.0.0",
       inputs: [
         {
-          key: "sub_ids",
-          label: "SubID Input (JSON)",
+          key: "wallets",
+          label: "Wallets Input (JSON)",
           type: "json",
           required: true,
         },
@@ -508,7 +508,7 @@ describe("buildAlgorithmInputFormFields", () => {
       runtime: "typescript",
     }
 
-    const fields = buildAlgorithmInputFormFields(def, ["sub_ids"])
+    const fields = buildAlgorithmInputFormFields(def, ["wallets"])
 
     expect(fields).toHaveLength(1)
     expect(fields[0]).toMatchObject({

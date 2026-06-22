@@ -37,13 +37,11 @@ const combinedDefinition: AlgorithmDefinition = {
   version: "1.0.0",
   inputs: [
     {
-      key: "sub_ids",
-      label: "Sub IDs",
+      key: "wallets",
+      label: "Wallets",
       type: "json",
       required: true,
-      json: {
-        schema: "sub_id_input_map",
-      },
+      json: {},
     },
     {
       key: "sub_algorithms",
@@ -51,7 +49,7 @@ const combinedDefinition: AlgorithmDefinition = {
       type: "sub_algorithm",
       required: true,
       minItems: 1,
-      sharedInputKeys: ["sub_ids"],
+      sharedInputKeys: ["wallets"],
       uiHint: {
         widget: "sub_algorithm_composer",
       },
@@ -71,13 +69,11 @@ const childDefinition: AlgorithmDefinition = {
   version: "1.0.0",
   inputs: [
     {
-      key: "sub_ids",
-      label: "Sub IDs",
+      key: "wallets",
+      label: "Wallets",
       type: "json",
       required: true,
-      json: {
-        schema: "sub_id_input_map",
-      },
+      json: {},
     },
     {
       key: "votes",
@@ -110,10 +106,10 @@ describe("algorithm client validation adapter", () => {
     )
     createDownload.mockReset()
     createDownload.mockResolvedValue({
-      url: "https://storage.example/uploads/sub_ids.json",
+      url: "https://storage.example/uploads/wallets.json",
       expiresIn: 300,
       metadata: {
-        filename: "sub_ids.json",
+        filename: "wallets.json",
         ext: "json",
         size: 10,
         contentType: "application/json",
@@ -124,7 +120,8 @@ describe("algorithm client validation adapter", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        text: async () => '{"SubID-1":{}}',
+        text: async () =>
+          '{"user-1":{"wallets":["0x0000000000000000000000000000000000000001"]}}',
       })
     )
   })
@@ -141,8 +138,8 @@ describe("algorithm client validation adapter", () => {
         version: "1.0.0",
         inputs: [
           {
-            key: "sub_ids",
-            value: "uploads/sub_ids.json",
+            key: "wallets",
+            value: "uploads/wallets.json",
           },
           {
             key: "sub_algorithms",
@@ -168,8 +165,8 @@ describe("algorithm client validation adapter", () => {
       version: "1.0.0",
       inputs: [
         {
-          key: "sub_ids",
-          value: "uploads/sub_ids.json",
+          key: "wallets",
+          value: "uploads/wallets.json",
         },
         {
           key: "sub_algorithms",
@@ -197,15 +194,17 @@ describe("algorithm client validation adapter", () => {
     await expect(
       call.resolveInputContent({
         input: combinedDefinition.inputs[0],
-        value: "uploads/sub_ids.json",
+        value: "uploads/wallets.json",
       })
-    ).resolves.toBe('{"SubID-1":{}}')
+    ).resolves.toBe(
+      '{"user-1":{"wallets":["0x0000000000000000000000000000000000000001"]}}'
+    )
 
     expect(createDownload).toHaveBeenCalledWith({
-      key: "uploads/sub_ids.json",
+      key: "uploads/wallets.json",
     })
     expect(fetch).toHaveBeenCalledWith(
-      "https://storage.example/uploads/sub_ids.json"
+      "https://storage.example/uploads/wallets.json"
     )
   })
 })

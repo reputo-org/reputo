@@ -101,8 +101,8 @@ describe("sub-algorithm composer helpers", () => {
       version: "1.0.0",
       inputs: [
         {
-          key: "sub_ids",
-          label: "Sub IDs",
+          key: "wallets",
+          label: "Wallets",
           type: "json",
           required: true,
         },
@@ -132,7 +132,7 @@ describe("sub-algorithm composer helpers", () => {
       runtime: "typescript",
     }
 
-    expect(buildChildInputsArray(definition, ["sub_ids"])).toEqual([
+    expect(buildChildInputsArray(definition, ["wallets"])).toEqual([
       {
         key: "normalize_scores",
         value: false,

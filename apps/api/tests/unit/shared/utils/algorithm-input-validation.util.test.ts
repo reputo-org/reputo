@@ -39,13 +39,11 @@ describe('validateAlgorithmInputs adapter', () => {
     version: '1.0.0',
     inputs: [
       {
-        key: 'sub_ids',
-        label: 'Sub IDs',
+        key: 'wallets',
+        label: 'Wallets',
         type: 'json',
         required: true,
-        json: {
-          schema: 'sub_id_input_map',
-        },
+        json: {},
       },
       {
         key: 'sub_algorithms',
@@ -53,7 +51,7 @@ describe('validateAlgorithmInputs adapter', () => {
         type: 'sub_algorithm',
         required: true,
         minItems: 1,
-        sharedInputKeys: ['sub_ids'],
+        sharedInputKeys: ['wallets'],
         uiHint: {
           widget: 'sub_algorithm_composer',
         },
@@ -73,13 +71,11 @@ describe('validateAlgorithmInputs adapter', () => {
     version: '1.0.0',
     inputs: [
       {
-        key: 'sub_ids',
-        label: 'Sub IDs',
+        key: 'wallets',
+        label: 'Wallets',
         type: 'json',
         required: true,
-        json: {
-          schema: 'sub_id_input_map',
-        },
+        json: {},
       },
       {
         key: 'votes',
@@ -118,7 +114,7 @@ describe('validateAlgorithmInputs adapter', () => {
     await validateAlgorithmInputs({
       definition: customScoreDefinition as never,
       inputs: [
-        { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+        { key: 'wallets', value: 'uploads/wallets.json' },
         {
           key: 'sub_algorithms',
           value: [
@@ -144,7 +140,7 @@ describe('validateAlgorithmInputs adapter', () => {
       key: 'custom_score',
       version: '1.0.0',
       inputs: [
-        { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+        { key: 'wallets', value: 'uploads/wallets.json' },
         {
           key: 'sub_algorithms',
           value: [
