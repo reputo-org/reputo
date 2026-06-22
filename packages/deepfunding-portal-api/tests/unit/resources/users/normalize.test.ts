@@ -29,6 +29,23 @@ describe('User Normalization', () => {
       );
     });
 
+    it('should prefix a bare portal did with did:plc:', () => {
+      expect(normalizeUserToRecord(createMockUser({ did: 'def456def456def456def456' })).did).toBe(
+        'did:plc:def456def456def456def456',
+      );
+    });
+
+    it('should leave an already-prefixed did unchanged (idempotent)', () => {
+      expect(normalizeUserToRecord(createMockUser({ did: 'did:sub:abc123abc123abc123abc123' })).did).toBe(
+        'did:sub:abc123abc123abc123abc123',
+      );
+    });
+
+    it('should coerce a missing or blank did to an empty string', () => {
+      expect(normalizeUserToRecord(createMockUser({ did: '' })).did).toBe('');
+      expect(normalizeUserToRecord(createMockUser({ did: undefined as unknown as string })).did).toBe('');
+    });
+
     it('should serialize raw JSON correctly', () => {
       const user = createMockUser({
         id: 42,
