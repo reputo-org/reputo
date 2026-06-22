@@ -37,7 +37,7 @@ describe('custom_score registry loading', () => {
         }),
         expect.objectContaining({
           key: 'missing_score_strategy',
-          enum: ['exclude', 'zero'],
+          enum: ['zero'],
         }),
       ]),
     );
