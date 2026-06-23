@@ -91,3 +91,5 @@ jobs:
                   DEEPFUNDING_API_KEY: '${{ secrets.DEEPFUNDING_API_KEY }}'
                   ALCHEMY_API_KEY: '${{ secrets.ALCHEMY_API_KEY }}'
                   BLOCKFROST_API_KEY: '${{ secrets.BLOCKFROST_API_KEY }}'
+                  DEEPID_CLIENT_ID: '${{ secrets.DEEPID_CLIENT_ID }}'
+                  DEEPID_CLIENT_SECRET: '${{ secrets.DEEPID_CLIENT_SECRET }}'
