@@ -72,6 +72,10 @@ export async function createTestApp(options: TestAppOptions) {
         );
       }
 
+      if (getFilename(key).toLowerCase().includes('wallet_collections')) {
+        return Buffer.from('collection_id,address,network\nuser-1,0xabc,ethereum\nuser-2,0xdef,cardano\n');
+      }
+
       return Buffer.from('answer,question_id,collection_id\n10,question-1,user-1\nskip,question-2,user-2\n');
     },
     listObjectsByPrefix: async () => [],
