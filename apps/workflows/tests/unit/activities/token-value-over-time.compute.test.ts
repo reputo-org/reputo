@@ -14,8 +14,8 @@ const {
   mockResolveSelectedResources,
   mockGetStakingContractAddresses,
   mockLoadWalletAddressMap,
-  mockGetSubIds,
-  mockBuildWalletSubIdsIndex,
+  mockGetDids,
+  mockBuildWalletDidsIndex,
   mockGetWalletsForSelectedResources,
   mockGetWalletsForChain,
   mockInitializeWalletLots,
@@ -35,8 +35,8 @@ const {
   mockResolveSelectedResources: vi.fn(),
   mockGetStakingContractAddresses: vi.fn(),
   mockLoadWalletAddressMap: vi.fn(),
-  mockGetSubIds: vi.fn(),
-  mockBuildWalletSubIdsIndex: vi.fn(),
+  mockGetDids: vi.fn(),
+  mockBuildWalletDidsIndex: vi.fn(),
   mockGetWalletsForSelectedResources: vi.fn(),
   mockGetWalletsForChain: vi.fn(),
   mockInitializeWalletLots: vi.fn(),
@@ -83,8 +83,8 @@ vi.mock('../../../src/activities/typescript/algorithms/token-value-over-time/uti
   resolveSelectedResources: mockResolveSelectedResources,
   getStakingContractAddresses: mockGetStakingContractAddresses,
   loadWalletAddressMap: mockLoadWalletAddressMap,
-  getSubIds: mockGetSubIds,
-  buildWalletSubIdsIndex: mockBuildWalletSubIdsIndex,
+  getDids: mockGetDids,
+  buildWalletDidsIndex: mockBuildWalletDidsIndex,
   getWalletsForSelectedResources: mockGetWalletsForSelectedResources,
   getWalletsForChain: mockGetWalletsForChain,
   initializeWalletLots: mockInitializeWalletLots,
@@ -111,7 +111,7 @@ describe('computeTokenValueOverTime pagination', () => {
     mockExtractInputs.mockReturnValue({
       maturationThresholdDays: 90,
       selectedResources: [{ chain: 'ethereum', resourceKey: 'fet_token' }],
-      subIdsKey: 'uploads/sub_ids.json',
+      didsKey: 'uploads/dids.json',
       effectiveDateRange: {
         fromTimestampUnix: undefined,
         toTimestampUnix: Math.floor(new Date('2026-04-01T00:00:00.000Z').getTime() / 1000),
@@ -139,18 +139,18 @@ describe('computeTokenValueOverTime pagination', () => {
     ]);
     mockGetStakingContractAddresses.mockReturnValue(new Set());
     mockLoadWalletAddressMap.mockResolvedValue({
-      subIds: {
-        'SubID-1': {
+      dids: {
+        'did:sub:1': {
           ethereum: ['0xwallet1'],
         },
-        'SubID-2': {
+        'did:sub:2': {
           ethereum: ['0xwallet1'],
         },
-        'SubID-3': {},
+        'did:sub:3': {},
       },
     });
-    mockGetSubIds.mockReturnValue(['SubID-1', 'SubID-2', 'SubID-3']);
-    mockBuildWalletSubIdsIndex.mockReturnValue(new Map([['0xwallet1', ['SubID-1', 'SubID-2']]]));
+    mockGetDids.mockReturnValue(['did:sub:1', 'did:sub:2', 'did:sub:3']);
+    mockBuildWalletDidsIndex.mockReturnValue(new Map([['0xwallet1', ['did:sub:1', 'did:sub:2']]]));
     mockGetWalletsForSelectedResources.mockReturnValue(['0xwallet1']);
     mockGetWalletsForChain.mockReturnValue(['0xwallet1']);
     mockInitializeWalletLots.mockReturnValue(walletLots);
@@ -204,7 +204,7 @@ describe('computeTokenValueOverTime pagination', () => {
         skippedStaking: 0,
       });
     mockScoreWalletLots.mockReturnValue([{ wallet_address: '0xwallet1', token_value: 1.5, lots: [] }]);
-    mockStringifyCsvAsync.mockResolvedValue('sub_id,token_value\nSubID-1,1.5\nSubID-2,1.5\nSubID-3,0');
+    mockStringifyCsvAsync.mockResolvedValue('did,token_value\ndid:sub:1,1.5\ndid:sub:2,1.5\ndid:sub:3,0');
     mockGenerateKey
       .mockReturnValueOnce('outputs/token-value-over-time.csv')
       .mockReturnValueOnce('outputs/token-value-over-time-details.json');
@@ -230,40 +230,40 @@ describe('computeTokenValueOverTime pagination', () => {
     expect(mockLoadWalletAddressMap).toHaveBeenCalledWith({
       storage,
       bucket: 'test-bucket',
-      key: 'uploads/sub_ids.json',
+      key: 'uploads/dids.json',
     });
-    expect(mockGetSubIds).toHaveBeenCalledWith({
-      subIds: {
-        'SubID-1': {
+    expect(mockGetDids).toHaveBeenCalledWith({
+      dids: {
+        'did:sub:1': {
           ethereum: ['0xwallet1'],
         },
-        'SubID-2': {
+        'did:sub:2': {
           ethereum: ['0xwallet1'],
         },
-        'SubID-3': {},
+        'did:sub:3': {},
       },
     });
-    expect(mockBuildWalletSubIdsIndex).toHaveBeenCalledWith({
-      subIds: {
-        'SubID-1': {
+    expect(mockBuildWalletDidsIndex).toHaveBeenCalledWith({
+      dids: {
+        'did:sub:1': {
           ethereum: ['0xwallet1'],
         },
-        'SubID-2': {
+        'did:sub:2': {
           ethereum: ['0xwallet1'],
         },
-        'SubID-3': {},
+        'did:sub:3': {},
       },
     });
     expect(mockGetWalletsForChain).toHaveBeenCalledWith(
       {
-        subIds: {
-          'SubID-1': {
+        dids: {
+          'did:sub:1': {
             ethereum: ['0xwallet1'],
           },
-          'SubID-2': {
+          'did:sub:2': {
             ethereum: ['0xwallet1'],
           },
-          'SubID-3': {},
+          'did:sub:3': {},
         },
       },
       'ethereum',
@@ -277,7 +277,7 @@ describe('computeTokenValueOverTime pagination', () => {
 
     expect(mockFormatBenchmarkOutput).toHaveBeenCalledWith(
       expect.objectContaining({
-        subIdCount: 3,
+        didCount: 3,
         transferCount: 2,
         replay: {
           processed: 2,
@@ -285,19 +285,19 @@ describe('computeTokenValueOverTime pagination', () => {
           skippedSelfTransfers: 0,
           skippedStaking: 0,
         },
-        subIds: [
+        dids: [
           {
-            sub_id: 'SubID-1',
+            did: 'did:sub:1',
             token_value: 1.5,
             wallets: [{ wallet_address: '0xwallet1', token_value: 1.5, lots: [] }],
           },
           {
-            sub_id: 'SubID-2',
+            did: 'did:sub:2',
             token_value: 1.5,
             wallets: [{ wallet_address: '0xwallet1', token_value: 1.5, lots: [] }],
           },
           {
-            sub_id: 'SubID-3',
+            did: 'did:sub:3',
             token_value: 0,
             wallets: [],
           },
@@ -315,7 +315,7 @@ describe('computeTokenValueOverTime pagination', () => {
     expect(storage.putObject).toHaveBeenNthCalledWith(1, {
       bucket: 'test-bucket',
       key: 'outputs/token-value-over-time.csv',
-      body: 'sub_id,token_value\nSubID-1,1.5\nSubID-2,1.5\nSubID-3,0',
+      body: 'did,token_value\ndid:sub:1,1.5\ndid:sub:2,1.5\ndid:sub:3,0',
       contentType: 'text/csv',
     });
     expect(storage.putObject).toHaveBeenNthCalledWith(2, {

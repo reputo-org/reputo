@@ -17,6 +17,10 @@ const BASE_ENV = {
   ONCHAIN_DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/reputo_onchain_test',
   ALCHEMY_API_KEY: 'test-alchemy-key',
   BLOCKFROST_API_KEY: 'test-blockfrost-key',
+  DEEPID_IDENTITY_BASE_URL: 'https://identity.staging.deep-id.ai',
+  DEEPID_APP_BASE_URL: 'https://app.staging.deep-id.ai',
+  DEEPID_CLIENT_ID: 'test-deepid-client',
+  DEEPID_CLIENT_SECRET: 'test-deepid-secret',
 };
 
 describe('workflows config', () => {
@@ -39,6 +43,13 @@ describe('workflows config', () => {
       uri: 'postgresql://postgres:postgres@localhost:5432/reputo_onchain_test',
       alchemyApiKey: 'test-alchemy-key',
       blockfrostAPIKey: 'test-blockfrost-key',
+    });
+    expect(configModule.default.deepId).toMatchObject({
+      identityBaseUrl: 'https://identity.staging.deep-id.ai',
+      appBaseUrl: 'https://app.staging.deep-id.ai',
+      clientId: 'test-deepid-client',
+      clientSecret: 'test-deepid-secret',
+      scopes: 'api wallets post_scores',
     });
   });
 

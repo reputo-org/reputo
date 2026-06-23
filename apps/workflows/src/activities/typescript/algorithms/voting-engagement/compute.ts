@@ -5,12 +5,38 @@ import config from '../../../../config/index.js';
 import { HEARTBEAT_INTERVAL } from '../../../../shared/constants/index.js';
 import type { AlgorithmResult, Snapshot } from '../../../../shared/types/index.js';
 import { stringifyCsvAsync } from '../../../../shared/utils/index.js';
-import { buildDeepVotingPortalSubIdsIndex, getSubIds, loadSubIdInputMap } from '../shared/sub-id-input.js';
+import { type DidInputMap, getDids, loadDidInputMap } from '../shared/did-input.js';
 import { buildVoterBenchmarkRecord, formatBenchmarkOutput } from './benchmark/index.js';
 import { calculateVotingEngagement, groupVotesByVoter } from './pipeline/index.js';
-import type { SubIdBenchmarkRecord, VotingEngagementResult } from './types.js';
+import type { DidBenchmarkRecord, VotingEngagementResult } from './types.js';
 import { roundScore } from './types.js';
-import { extractInputKeys, loadVotes } from './utils/index.js';
+import { extractInputKeys, loadVotes, loadWalletCollectionIndex } from './utils/index.js';
+
+/**
+ * Resolves each DID to the voting `collection_id`(s) it should be scored on, by
+ * joining the DID's wallets (from DeepID) to the wallet collections CSV
+ * (wallet → collection_id), per the DeepID integration spec §12.1.
+ */
+function resolveCollectionIdsByDid(
+  didInputMap: DidInputMap,
+  walletCollectionIndex: Map<string, string[]>,
+): Map<string, string[]> {
+  const result = new Map<string, string[]>();
+
+  for (const [did, entry] of Object.entries(didInputMap.dids)) {
+    const collectionIds = new Set<string>();
+
+    for (const wallet of entry.userWallets) {
+      for (const collectionId of walletCollectionIndex.get(wallet.address.toLowerCase()) ?? []) {
+        collectionIds.add(collectionId);
+      }
+    }
+
+    result.set(did, [...collectionIds]);
+  }
+
+  return result;
+}
 
 export async function computeVotingEngagement(snapshot: Snapshot, storage: Storage): Promise<AlgorithmResult> {
   const ctx = Context.current();
@@ -20,17 +46,31 @@ export async function computeVotingEngagement(snapshot: Snapshot, storage: Stora
   logger.info('Starting voting_engagement algorithm', { snapshotId });
 
   const { bucket } = config.storage;
-  const { subIdsKey, votesKey } = extractInputKeys(snapshot.algorithmPresetFrozen.inputs);
-  const subIdInputMap = await loadSubIdInputMap({
+  const { didsKey, votesKey, walletCollectionsKey } = extractInputKeys(snapshot.algorithmPresetFrozen.inputs);
+  const didInputMap = await loadDidInputMap({
     storage,
     bucket,
-    key: subIdsKey,
+    key: didsKey,
   });
-  const subIds = getSubIds(subIdInputMap);
-  const deepVotingPortalSubIdsIndex = buildDeepVotingPortalSubIdsIndex(subIdInputMap);
-  const targetedVoterIds = new Set(deepVotingPortalSubIdsIndex.keys());
+  const dids = getDids(didInputMap);
 
-  logger.debug('Resolved input locations', { subIdsKey, votesKey, subIdCount: subIds.length });
+  const walletCollectionIndex = await loadWalletCollectionIndex(storage, bucket, walletCollectionsKey);
+
+  const collectionIdsByDid = resolveCollectionIdsByDid(didInputMap, walletCollectionIndex);
+  const targetedVoterIds = new Set<string>();
+  for (const collectionIds of collectionIdsByDid.values()) {
+    for (const collectionId of collectionIds) {
+      targetedVoterIds.add(collectionId);
+    }
+  }
+
+  logger.debug('Resolved input locations', {
+    didsKey,
+    votesKey,
+    walletCollectionsKey,
+    didCount: dids.length,
+    targetedCollectionCount: targetedVoterIds.size,
+  });
 
   const votes = await loadVotes(storage, bucket, votesKey);
 
@@ -40,39 +80,34 @@ export async function computeVotingEngagement(snapshot: Snapshot, storage: Stora
 
   logger.info('Vote processing summary', stats);
 
-  const scoreByVoterId = new Map<string, number>();
-  for (const [voterId, voterVotes] of votesByVoter.entries()) {
-    scoreByVoterId.set(voterId, roundScore(calculateVotingEngagement(voterVotes)));
-  }
-
   const results: VotingEngagementResult[] = [];
-  const benchmarkRecords: SubIdBenchmarkRecord[] = [];
-  const matchedSubIds = new Set<string>();
+  const benchmarkRecords: DidBenchmarkRecord[] = [];
+  const matchedDids = new Set<string>();
 
   let processed = 0;
-  for (const subId of subIds) {
+  for (const did of dids) {
     if (processed % HEARTBEAT_INTERVAL === 0) {
-      ctx.heartbeat({ phase: 'scoring', processed, total: subIds.length });
+      ctx.heartbeat({ phase: 'scoring', processed, total: dids.length });
     }
     processed++;
 
-    const deepVotingPortalId = subIdInputMap.subIds[subId]?.deepVotingPortalId ?? null;
-    const voterVotes = deepVotingPortalId ? (votesByVoter.get(deepVotingPortalId) ?? []) : [];
-    const votingEngagement = deepVotingPortalId ? (scoreByVoterId.get(deepVotingPortalId) ?? 0) : 0;
+    const collectionIds = collectionIdsByDid.get(did) ?? [];
+    const voterVotes = collectionIds.flatMap((collectionId) => votesByVoter.get(collectionId) ?? []);
+    const votingEngagement = voterVotes.length > 0 ? roundScore(calculateVotingEngagement(voterVotes)) : 0;
 
     if (voterVotes.length > 0) {
-      matchedSubIds.add(subId);
+      matchedDids.add(did);
     }
 
     results.push({
-      sub_id: subId,
+      did: did,
       voting_engagement: votingEngagement,
     });
 
-    benchmarkRecords.push(buildVoterBenchmarkRecord(subId, deepVotingPortalId, voterVotes, votingEngagement));
+    benchmarkRecords.push(buildVoterBenchmarkRecord(did, voterVotes, votingEngagement, collectionIds));
   }
 
-  results.sort((a, b) => a.sub_id.localeCompare(b.sub_id));
+  results.sort((a, b) => a.did.localeCompare(b.did));
 
   logger.info('Computed voting engagement scores', {
     resultCount: results.length,
@@ -82,7 +117,7 @@ export async function computeVotingEngagement(snapshot: Snapshot, storage: Stora
 
   const csvContent = await stringifyCsvAsync(results, {
     header: true,
-    columns: ['sub_id', 'voting_engagement'],
+    columns: ['did', 'voting_engagement'],
   });
 
   const outputKey = generateKey('snapshot', snapshotId, `${snapshot.algorithmPresetFrozen.key}.csv`);
@@ -100,7 +135,7 @@ export async function computeVotingEngagement(snapshot: Snapshot, storage: Stora
     records: benchmarkRecords,
     snapshotId,
     stats,
-    matchedSubIds,
+    matchedDids,
   });
 
   const benchmarkKey = generateKey('snapshot', snapshotId, 'voting_engagement_details.json');

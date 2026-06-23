@@ -3,22 +3,10 @@
     "name": "Contribution Score",
     "kind": "standalone",
     "category": "Activity",
-    "summary": "Scores each SubID from Deep Funding Portal comments linked through a Deep Funding user ID.",
-    "description": "### What it does\nScores users based on the comments they write in DeepFunding.\n\n### How it works\n- Each SubID can point to a `deepProposalPortalId` from Deep Funding Portal data.\n- Each valid comment starts with a base score.\n- Upvotes add points and downvotes remove points.\n- Comments on your own proposal or self-replies can get a penalty.\n- A proposal owner upvote can add a bonus.\n- Older comments can lose weight over time.\n- Only the SubIDs provided in the uploaded JSON are scored.\n\n### Data source\nUses proposal, comment, user, and vote data from DeepFunding together with the uploaded SubID JSON. For this algorithm, only `deepProposalPortalId` is used. All JSON fields are optional and may be empty.\n\n### Output\n- CSV file with `sub_id` and `contribution_score`.\n- JSON file with score details for comments and scored SubIDs.",
+    "summary": "Scores each Deep Funding Portal user (by DID) from the comments they write.",
+    "description": "### What it does\nScores users based on the comments they write in DeepFunding.\n\n### How it works\n- Every Deep Funding Portal user is scored, keyed by their DID.\n- Each valid comment starts with a base score.\n- Upvotes add points and downvotes remove points.\n- Comments on your own proposal or self-replies can get a penalty.\n- A proposal owner upvote can add a bonus.\n- Older comments can lose weight over time.\n\n### Data source\nUses proposal, comment, user, and vote data from DeepFunding. Each comment's author is attributed to that user's DID.\n\n### Output\n- CSV file with `did` and `contribution_score`.\n- JSON file with score details for comments and scored users.",
     "version": "1.0.0",
     "inputs": [
-        {
-            "key": "sub_ids",
-            "label": "SubID Input (JSON)",
-            "description": "Upload the unified SubID JSON file. Only `deepProposalPortalId` is used by this algorithm, but the full shared schema is accepted.",
-            "type": "json",
-            "required": true,
-            "json": {
-                "maxBytes": 5242880,
-                "schema": "sub_id_input_map",
-                "allowedChains": ["ethereum", "cardano"]
-            }
-        },
         {
             "key": "comment_base_score",
             "label": "Base Score Per Comment",
@@ -106,21 +94,21 @@
         {
             "key": "contribution_score",
             "label": "Contribution Score (CSV)",
-            "description": "CSV file with one row per SubID and the final contribution score.",
+            "description": "CSV file with one row per user and the final contribution score.",
             "type": "csv",
             "csv": {
                 "hasHeader": true,
                 "delimiter": ",",
                 "columns": [
                     {
-                        "key": "sub_id",
+                        "key": "did",
                         "type": "string",
-                        "description": "SubID from the uploaded JSON input."
+                        "description": "The user's DID (did:plc or did:sub)."
                     },
                     {
                         "key": "contribution_score",
                         "type": "number",
-                        "description": "Final contribution score for the SubID."
+                        "description": "Final contribution score for the user."
                     }
                 ]
             }
@@ -128,7 +116,7 @@
         {
             "key": "contribution_score_details",
             "label": "Contribution Score Details (JSON)",
-            "description": "JSON file with score details for comments and scored SubIDs.",
+            "description": "JSON file with score details for comments and scored users.",
             "type": "json"
         }
     ],

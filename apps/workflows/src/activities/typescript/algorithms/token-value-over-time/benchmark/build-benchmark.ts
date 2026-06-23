@@ -1,8 +1,8 @@
 import type {
+  DidScoreDetail,
   ReplayStats,
   ResourceId,
   SelectedResourceInput,
-  SubIdScoreDetail,
   TokenValueOverTimeBenchmark,
 } from '../types.js';
 
@@ -11,21 +11,21 @@ export function formatBenchmarkOutput(input: {
   maturationThresholdDays: number;
   selectedResources: SelectedResourceInput[];
   selectedResourceIds: ResourceId[];
-  subIdCount: number;
+  didCount: number;
   targetWalletCount: number;
   transferCount: number;
   replay: ReplayStats;
-  subIds: SubIdScoreDetail[];
+  dids: DidScoreDetail[];
 }): TokenValueOverTimeBenchmark {
   return {
-    sub_ids: input.subIds,
+    dids: input.dids,
     metadata: {
       snapshot_id: input.snapshotId,
       computed_at: new Date().toISOString(),
       maturation_threshold_days: input.maturationThresholdDays,
       selected_resources: input.selectedResources,
       selected_resource_ids: input.selectedResourceIds,
-      sub_id_count: input.subIdCount,
+      did_count: input.didCount,
       target_wallet_count: input.targetWalletCount,
       transfer_count: input.transferCount,
       replay: input.replay,

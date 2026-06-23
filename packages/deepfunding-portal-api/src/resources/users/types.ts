@@ -6,6 +6,7 @@ export type User = {
   user_name: string;
   email: string;
   total_proposals: number;
+  did: string;
   [key: string]: unknown;
 };
 
@@ -20,6 +21,7 @@ export type UserRecord = {
   userName: string;
   email: string;
   totalProposals: number;
+  did: string;
   rawJson: string;
 };
 

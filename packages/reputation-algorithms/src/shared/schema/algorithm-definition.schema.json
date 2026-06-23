@@ -724,7 +724,7 @@
             "properties": {
                 "key": {
                     "type": "string",
-                    "enum": ["onchain-data", "deepfunding-portal-api"]
+                    "enum": ["onchain-data", "deepfunding-portal-api", "deep-id"]
                 }
             }
         }

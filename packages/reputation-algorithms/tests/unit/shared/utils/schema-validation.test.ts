@@ -42,8 +42,8 @@ describe('Build: Schema Validation', () => {
       expect(result.errors).toEqual([]);
     });
 
-    it('should validate custom_algorithm from registry', () => {
-      const algorithmPath = join(__dirname, '../../../../src/registry/custom_algorithm/1.0.0.json');
+    it('should validate custom_score from registry', () => {
+      const algorithmPath = join(__dirname, '../../../../src/registry/custom_score/1.0.0.json');
       const algorithm = JSON.parse(readFileSync(algorithmPath, 'utf-8'));
 
       const result = validator.validate(algorithm);
@@ -187,15 +187,13 @@ describe('Build: Schema Validation', () => {
         version: '1.0.0',
         inputs: [
           {
-            key: 'sub_ids',
-            label: 'Sub IDs',
-            description: 'Shared SubID input.',
+            key: 'wallets',
+            label: 'Wallets',
+            description: 'Shared wallets input.',
             type: 'json',
             required: true,
             json: {
               maxBytes: 1024,
-              schema: 'sub_id_input_map',
-              allowedChains: ['ethereum', 'cardano'],
             },
           },
           {
@@ -206,7 +204,7 @@ describe('Build: Schema Validation', () => {
             required: true,
             minItems: 1,
             maxItems: 5,
-            sharedInputKeys: ['sub_ids'],
+            sharedInputKeys: ['wallets'],
             uiHint: {
               widget: 'sub_algorithm_composer',
               addButtonLabel: 'Add sub-algorithm',

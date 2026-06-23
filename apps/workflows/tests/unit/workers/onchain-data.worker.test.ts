@@ -37,6 +37,10 @@ const BASE_ENV = {
   ONCHAIN_DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/reputo_onchain_test',
   ALCHEMY_API_KEY: 'test-alchemy-key',
   BLOCKFROST_API_KEY: 'test-blockfrost-key',
+  DEEPID_IDENTITY_BASE_URL: 'https://identity.staging.deep-id.ai',
+  DEEPID_APP_BASE_URL: 'https://app.staging.deep-id.ai',
+  DEEPID_CLIENT_ID: 'test-deepid-client',
+  DEEPID_CLIENT_SECRET: 'test-deepid-secret',
 };
 
 describe('onchain-data worker module', () => {

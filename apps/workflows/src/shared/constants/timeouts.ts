@@ -4,6 +4,7 @@ export const ALGORITHM_EXECUTION_TIMEOUT = '10 minutes';
 export const DEEPFUNDING_SYNC_TIMEOUT = '30 minutes';
 export const DEPENDENCY_RESOLUTION_TIMEOUT = '30 minutes';
 export const ONCHAIN_DATA_DEPENDENCY_RESOLUTION_TIMEOUT = '2 hours';
+export const DEEP_ID_POST_SCORES_TIMEOUT = '15 minutes';
 export const WORKFLOW_RUN_TIMEOUT = '4 hours';
 export const HEARTBEAT_TIMEOUT = '2 minutes';
 export const ACTIVITY_MAX_ATTEMPTS = 3;

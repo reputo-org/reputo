@@ -20,6 +20,10 @@ describe('dispatchAlgorithm activity', () => {
     process.env.ONCHAIN_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/reputo_onchain_test';
     process.env.ALCHEMY_API_KEY = 'test-alchemy-key';
     process.env.BLOCKFROST_API_KEY = 'test-blockfrost-key';
+    process.env.DEEPID_IDENTITY_BASE_URL = 'https://identity.staging.deep-id.ai';
+    process.env.DEEPID_APP_BASE_URL = 'https://app.staging.deep-id.ai';
+    process.env.DEEPID_CLIENT_ID = 'test-deepid-client';
+    process.env.DEEPID_CLIENT_SECRET = 'test-deepid-secret';
   });
 
   it('throws UnsupportedAlgorithmError for unknown algorithm keys', async () => {

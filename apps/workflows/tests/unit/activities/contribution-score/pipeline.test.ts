@@ -22,9 +22,9 @@ const PARAMS: ContributionScoreParams = {
   commentBaseScore: 1,
   commentUpvoteWeight: 2,
   commentDownvoteWeight: 1,
-  ownerBonusMultiplier: 1.5,
+  projectOwnerUpvoteBonusMultiplier: 1.5,
   selfInteractionPenaltyFactor: 0.5,
-} as ContributionScoreParams;
+};
 
 describe('owner-bonus', () => {
   it('returns no bonus when proposal has no registered owners', () => {

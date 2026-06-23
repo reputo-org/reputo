@@ -7,13 +7,13 @@ import type { AlgorithmResult, Snapshot } from '../../../../shared/types/index.j
 import { stringifyCsvAsync } from '../../../../shared/utils/index.js';
 import { formatBenchmarkOutput } from './benchmark/index.js';
 import { replayTransfers, scoreWalletLots } from './pipeline/index.js';
-import { type ResolvedResource, roundScore, type SubIdScoreDetail, type WalletScoreDetail } from './types.js';
+import { type DidScoreDetail, type ResolvedResource, roundScore, type WalletScoreDetail } from './types.js';
 import {
-  buildWalletSubIdsIndex,
+  buildWalletDidsIndex,
   createOnchainRepos,
   extractInputs,
+  getDids,
   getStakingContractAddresses,
-  getSubIds,
   getWalletsForChain,
   getWalletsForSelectedResources,
   initializeWalletLots,
@@ -51,10 +51,10 @@ export async function computeTokenValueOverTime(snapshot: Snapshot, storage: Sto
   const walletAddressMap = await loadWalletAddressMap({
     storage,
     bucket: config.storage.bucket,
-    key: params.subIdsKey,
+    key: params.didsKey,
   });
-  const subIds = getSubIds(walletAddressMap);
-  const walletSubIdsIndex = buildWalletSubIdsIndex(walletAddressMap);
+  const dids = getDids(walletAddressMap);
+  const walletDidsIndex = buildWalletDidsIndex(walletAddressMap);
   const targetWallets = getWalletsForSelectedResources(walletAddressMap, params.selectedResources);
 
   logger.info('Starting token_value_over_time algorithm', { snapshotId });
@@ -62,11 +62,11 @@ export async function computeTokenValueOverTime(snapshot: Snapshot, storage: Sto
     maturationThresholdDays: params.maturationThresholdDays,
     selectedResources: params.selectedResources,
     resolvedResourceCount: resolvedResources.length,
-    subIdsKey: params.subIdsKey,
+    didsKey: params.didsKey,
     effectiveDateRange: params.effectiveDateRange,
   });
   logger.info('Target wallets loaded', {
-    subIdCount: subIds.length,
+    didCount: dids.length,
     walletCount: targetWallets.length,
     resourceIdCount: selectedResourceIds.size,
   });
@@ -204,14 +204,14 @@ export async function computeTokenValueOverTime(snapshot: Snapshot, storage: Sto
       snapshotCreatedAt,
       maturationThresholdDays: params.maturationThresholdDays,
     });
-    const subIdScores = aggregateWalletScoresBySubId({
-      subIds,
+    const didScores = aggregateWalletScoresByDid({
+      dids,
       walletScores,
-      walletSubIdsIndex,
+      walletDidsIndex,
     });
 
     logger.info('Computed token value over time scores', {
-      subIdCount: subIdScores.length,
+      didCount: didScores.length,
       walletCount: walletScores.length,
       transferCount,
       replayStats,
@@ -220,13 +220,13 @@ export async function computeTokenValueOverTime(snapshot: Snapshot, storage: Sto
     ctx.heartbeat({ phase: 'upload' });
     logger.info('Uploading outputs');
 
-    const csvRows = subIdScores.map((subId) => ({
-      sub_id: subId.sub_id,
-      token_value: subId.token_value,
+    const csvRows = didScores.map((did) => ({
+      did: did.did,
+      token_value: did.token_value,
     }));
     const csv = await stringifyCsvAsync(csvRows, {
       header: true,
-      columns: ['sub_id', 'token_value'],
+      columns: ['did', 'token_value'],
     });
 
     const outputKey = generateKey('snapshot', snapshotId, `${snapshot.algorithmPresetFrozen.key}.csv`);
@@ -243,11 +243,11 @@ export async function computeTokenValueOverTime(snapshot: Snapshot, storage: Sto
       maturationThresholdDays: params.maturationThresholdDays,
       selectedResources: params.selectedResources,
       selectedResourceIds: [...selectedResourceIds],
-      subIdCount: subIds.length,
+      didCount: dids.length,
       targetWalletCount: targetWallets.length,
       transferCount,
       replay: replayStats,
-      subIds: subIdScores,
+      dids: didScores,
     });
 
     const detailsKey = generateKey('snapshot', snapshotId, 'token_value_over_time_details.json');
@@ -317,16 +317,16 @@ async function loadTransferPage(
   }
 }
 
-function aggregateWalletScoresBySubId(input: {
-  subIds: string[];
+function aggregateWalletScoresByDid(input: {
+  dids: string[];
   walletScores: WalletScoreDetail[];
-  walletSubIdsIndex: Map<string, string[]>;
-}): SubIdScoreDetail[] {
-  const subIdMap = new Map<string, SubIdScoreDetail>(
-    input.subIds.map((subId) => [
-      subId,
+  walletDidsIndex: Map<string, string[]>;
+}): DidScoreDetail[] {
+  const didMap = new Map<string, DidScoreDetail>(
+    input.dids.map((did) => [
+      did,
       {
-        sub_id: subId,
+        did: did,
         token_value: 0,
         wallets: [],
       },
@@ -334,10 +334,10 @@ function aggregateWalletScoresBySubId(input: {
   );
 
   for (const walletScore of input.walletScores) {
-    const targetSubIds = input.walletSubIdsIndex.get(walletScore.wallet_address) ?? [];
+    const targetDids = input.walletDidsIndex.get(walletScore.wallet_address) ?? [];
 
-    for (const subId of targetSubIds) {
-      const aggregate = subIdMap.get(subId);
+    for (const did of targetDids) {
+      const aggregate = didMap.get(did);
       if (!aggregate) continue;
 
       aggregate.token_value = roundScore(aggregate.token_value + walletScore.token_value);
@@ -345,10 +345,10 @@ function aggregateWalletScoresBySubId(input: {
     }
   }
 
-  const rows = [...subIdMap.values()];
+  const rows = [...didMap.values()];
   for (const row of rows) {
     row.wallets.sort((a, b) => a.wallet_address.localeCompare(b.wallet_address));
   }
 
-  return rows.sort((a, b) => a.sub_id.localeCompare(b.sub_id));
+  return rows.sort((a, b) => a.did.localeCompare(b.did));
 }

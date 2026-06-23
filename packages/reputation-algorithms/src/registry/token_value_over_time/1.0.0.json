@@ -3,22 +3,10 @@
     "name": "Token Value Over Time",
     "kind": "standalone",
     "category": "Activity",
-    "summary": "Scores each SubID by wallet value kept over time, with more weight for longer-held FET.",
-    "description": "### What it does\nScores each SubID from the FET still held in its linked wallets.\n\n### How it works\n- Each incoming transfer becomes a separate lot.\n- A lot gains value as it gets older and reaches full value at the maturation period.\n- When tokens leave a wallet, the oldest lots are used first.\n- Wallet scores are added together for each SubID.\n- Only the SubIDs provided in the uploaded JSON are scored.\n\n### Input\nUpload one unified SubID JSON file. For this algorithm, only `userWallets` is used. All JSON fields are optional and may be empty.\n\nSimple example:\n```json\n{\n  \"SubID-1\": {\n    \"deepVotingPortalId\": \"collection_id\",\n    \"deepProposalPortalId\": \"user_id\",\n    \"userWallets\": [\n      {\n        \"address\": \"0x1234567890123456789012345678901234567890\",\n        \"chain\": \"ethereum\"\n      },\n      {\n        \"address\": \"addr1w8p79rpkcdz8x9d6tft0x0dx5mwuzac2sa4gm8cvkw5hcnqst2ctf\",\n        \"chain\": \"cardano\"\n      }\n    ]\n  }\n}\n```\n\n### Resource selection\nChoose the FET token or staking resources to include in scoring.\n\n### Data source\nUses indexed token transfer data for the uploaded wallets.\n\n### Output\n- CSV file with `sub_id` and `token_value`.\n- JSON file with score details for each SubID, wallet, and lot.",
+    "summary": "Scores each user by wallet value kept over time, with more weight for longer-held FET.",
+    "description": "### What it does\nScores each user from the FET still held in their linked wallets.\n\n### How it works\n- Users and their wallets come from DeepID.\n- Each incoming transfer becomes a separate lot.\n- A lot gains value as it gets older and reaches full value at the maturation period.\n- When tokens leave a wallet, the oldest lots are used first.\n- Wallet scores are added together for each user.\n\n### Resource selection\nChoose the FET token or staking resources to include in scoring.\n\n### Data source\nUses indexed token transfer data for each user's wallets.\n\n### Output\n- CSV file with `did` and `token_value`.\n- JSON file with score details for each user, wallet, and lot.",
     "version": "1.0.0",
     "inputs": [
-        {
-            "key": "sub_ids",
-            "label": "SubID Input (JSON)",
-            "description": "Upload the unified SubID JSON file. Only `userWallets` is used by this algorithm, but the full shared schema is accepted.",
-            "type": "json",
-            "required": true,
-            "json": {
-                "maxBytes": 5242880,
-                "schema": "sub_id_input_map",
-                "allowedChains": ["ethereum", "cardano"]
-            }
-        },
         {
             "key": "maturation_threshold_days",
             "label": "Maturation Period (Days)",
@@ -183,26 +171,26 @@
             }
         }
     ],
-    "dependencies": [{ "key": "onchain-data" }],
+    "dependencies": [{ "key": "onchain-data" }, { "key": "deep-id" }],
     "outputs": [
         {
             "key": "token_value_over_time",
             "label": "Token Value Over Time (CSV)",
-            "description": "CSV file with one row per SubID and the final token value score.",
+            "description": "CSV file with one row per user and the final token value score.",
             "type": "csv",
             "csv": {
                 "hasHeader": true,
                 "delimiter": ",",
                 "columns": [
                     {
-                        "key": "sub_id",
+                        "key": "did",
                         "type": "string",
-                        "description": "SubID from the uploaded JSON input."
+                        "description": "The user's DID (did:plc or did:sub)."
                     },
                     {
                         "key": "token_value",
                         "type": "number",
-                        "description": "Final token value score for the SubID."
+                        "description": "Final token value score for the user."
                     }
                 ]
             }
@@ -210,7 +198,7 @@
         {
             "key": "token_value_over_time_details",
             "label": "Token Value Over Time Details (JSON)",
-            "description": "JSON file with score details for each SubID, wallet, and lot.",
+            "description": "JSON file with score details for each user, wallet, and lot.",
             "type": "json"
         }
     ],

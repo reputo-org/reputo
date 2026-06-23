@@ -9,7 +9,6 @@ import config from '../../../../config/index.js';
 import { HEARTBEAT_INTERVAL } from '../../../../shared/constants/index.js';
 import type { AlgorithmResult, Snapshot } from '../../../../shared/types/index.js';
 import { stringifyCsvAsync } from '../../../../shared/utils/index.js';
-import { buildDeepProposalPortalSubIdsIndex, getSubIds, loadSubIdInputMap } from '../shared/sub-id-input.js';
 import { buildProposalBenchmarkRecord, formatBenchmarkOutput } from './benchmark/index.js';
 import {
   aggregateCommunityRatings,
@@ -34,16 +33,6 @@ export async function computeProposalEngagement(snapshot: Snapshot, storage: Sto
   const now = new Date();
 
   const inputs = extractInputs(snapshot.algorithmPresetFrozen.inputs);
-  const subIdInputMap = await loadSubIdInputMap({
-    storage,
-    bucket: config.storage.bucket,
-    key: inputs.subIdsKey,
-  });
-  const subIds = getSubIds(subIdInputMap);
-  const deepProposalPortalSubIdsIndex = buildDeepProposalPortalSubIdsIndex(subIdInputMap);
-  const deepProposalPortalIdBySubId = new Map(
-    subIds.map((subId) => [subId, subIdInputMap.subIds[subId]?.deepProposalPortalId ?? null]),
-  );
   const dbPath = await createDeepFundingDb(snapshotId, storage);
   const db = await createDb({ path: dbPath });
   const repos = createRepos(db);
@@ -64,13 +53,18 @@ export async function computeProposalEngagement(snapshot: Snapshot, storage: Sto
       userCount: users.length,
     });
 
+    // Every Proposal Portal user with a DID is scored, keyed directly by its DID
+    // (did:plc). Users without a DID are skipped — there is nowhere to post their score.
+    const usersWithDid = users.filter((u) => u.did.trim() !== '');
+    const userIdToDid = new Map<number, string>(usersWithDid.map((u) => [u.id, u.did]));
+    const dids = [...new Set(usersWithDid.map((u) => u.did))].sort((a, b) => a.localeCompare(b));
+
     const communityRatings = aggregateCommunityRatings(reviews);
-    const userIdSet = new Set(users.map((u) => u.id));
-    const subIdAccumulators = new Map<string, UserScoreAccumulator>(
-      subIds.map((subId) => [subId, { positiveSum: 0, negativeSum: 0 }]),
+    const didAccumulators = new Map<string, UserScoreAccumulator>(
+      dids.map((did) => [did, { positiveSum: 0, negativeSum: 0 }]),
     );
     const benchmarkRecords: ProposalBenchmarkRecord[] = [];
-    const matchedSubIds = new Set<string>();
+    const matchedDids = new Set<string>();
     let totalProposalsScored = 0;
     let proposalsSkippedUnsupportedRound = 0;
 
@@ -118,19 +112,18 @@ export async function computeProposalEngagement(snapshot: Snapshot, storage: Sto
       if (!score.scored) continue;
       totalProposalsScored++;
 
-      const proposalSubIds = new Set<string>();
+      const proposalDids = new Set<string>();
 
       for (const userId of owners.ownersArray) {
-        if (!userIdSet.has(userId)) continue;
-        for (const subId of deepProposalPortalSubIdsIndex.get(String(userId)) ?? []) {
-          proposalSubIds.add(subId);
-        }
+        const did = userIdToDid.get(userId);
+        if (did === undefined) continue;
+        proposalDids.add(did);
       }
 
-      for (const subId of proposalSubIds) {
-        matchedSubIds.add(subId);
-        const existing = subIdAccumulators.get(subId) ?? { positiveSum: 0, negativeSum: 0 };
-        subIdAccumulators.set(subId, {
+      for (const did of proposalDids) {
+        matchedDids.add(did);
+        const existing = didAccumulators.get(did) ?? { positiveSum: 0, negativeSum: 0 };
+        didAccumulators.set(did, {
           positiveSum: existing.positiveSum + score.proposalReward,
           negativeSum: existing.negativeSum + score.proposalPenalty,
         });
@@ -138,23 +131,23 @@ export async function computeProposalEngagement(snapshot: Snapshot, storage: Sto
     }
 
     const results: ProposalEngagementResult[] = [];
-    const subIdScores = new Map<string, number>();
+    const didScores = new Map<string, number>();
 
-    for (const subId of subIds) {
-      const accumulator = subIdAccumulators.get(subId) ?? { positiveSum: 0, negativeSum: 0 };
+    for (const did of dids) {
+      const accumulator = didAccumulators.get(did) ?? { positiveSum: 0, negativeSum: 0 };
       const engagement =
         inputs.fundedConcludedRewardWeight * accumulator.positiveSum -
         inputs.unfundedPenaltyWeight * accumulator.negativeSum;
       const roundedEngagement = roundScore(engagement);
 
-      subIdScores.set(subId, roundedEngagement);
+      didScores.set(did, roundedEngagement);
       results.push({
-        sub_id: subId,
+        did: did,
         proposal_engagement: roundedEngagement,
       });
     }
 
-    results.sort((a, b) => a.sub_id.localeCompare(b.sub_id));
+    results.sort((a, b) => a.did.localeCompare(b.did));
 
     logger.info('Computed proposal engagement scores', {
       userCount: results.length,
@@ -164,7 +157,7 @@ export async function computeProposalEngagement(snapshot: Snapshot, storage: Sto
 
     const csvContent = await stringifyCsvAsync(results, {
       header: true,
-      columns: ['sub_id', 'proposal_engagement'],
+      columns: ['did', 'proposal_engagement'],
     });
 
     const outputKey = generateKey('snapshot', snapshotId, `${snapshot.algorithmPresetFrozen.key}.csv`);
@@ -181,12 +174,11 @@ export async function computeProposalEngagement(snapshot: Snapshot, storage: Sto
     const benchmark = formatBenchmarkOutput({
       records: benchmarkRecords,
       snapshotId,
-      subIds,
-      subIdScores,
-      subIdAccumulators,
-      deepProposalPortalIdBySubId,
-      matchedSubIds,
-      deepProposalPortalSubIdsIndex,
+      dids,
+      didScores,
+      didAccumulators,
+      matchedDids,
+      userIdToDid,
       params: inputs,
       totalProposalsProcessed: proposals.length,
       totalProposalsScored,

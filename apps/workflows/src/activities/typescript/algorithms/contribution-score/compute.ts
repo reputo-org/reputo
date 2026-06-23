@@ -9,7 +9,6 @@ import config from '../../../../config/index.js';
 import { HEARTBEAT_INTERVAL } from '../../../../shared/constants/index.js';
 import type { AlgorithmResult, Snapshot } from '../../../../shared/types/index.js';
 import { stringifyCsvAsync } from '../../../../shared/utils/index.js';
-import { buildDeepProposalPortalSubIdsIndex, getSubIds, loadSubIdInputMap } from '../shared/sub-id-input.js';
 import { buildCommentBenchmarkRecord, formatBenchmarkOutput } from './benchmark/index.js';
 import {
   aggregateVotesByComment,
@@ -36,16 +35,6 @@ export async function computeContributionScore(snapshot: Snapshot, storage: Stor
   const snapshotId = snapshot.id;
 
   const params = extractInputs(snapshot.algorithmPresetFrozen.inputs);
-  const subIdInputMap = await loadSubIdInputMap({
-    storage,
-    bucket: config.storage.bucket,
-    key: params.subIdsKey,
-  });
-  const subIds = getSubIds(subIdInputMap);
-  const deepProposalPortalSubIdsIndex = buildDeepProposalPortalSubIdsIndex(subIdInputMap);
-  const deepProposalPortalIdBySubId = new Map(
-    subIds.map((subId) => [subId, subIdInputMap.subIds[subId]?.deepProposalPortalId ?? null]),
-  );
   const dbPath = await createDeepFundingDb(snapshotId, storage);
   const db = await createDb({ path: dbPath });
   const repos = createRepos(db);
@@ -68,15 +57,20 @@ export async function computeContributionScore(snapshot: Snapshot, storage: Stor
       userCount: users.length,
     });
 
+    // Every Proposal Portal user with a DID is scored, keyed directly by its DID
+    // (did:plc). Users without a DID are skipped — there is nowhere to post their score.
+    const usersWithDid = users.filter((u) => u.did.trim() !== '');
+    const userIdToDid = new Map<number, string>(usersWithDid.map((u) => [u.id, u.did]));
+    const dids = [...new Set(usersWithDid.map((u) => u.did))].sort((a, b) => a.localeCompare(b));
+
     const relationMap = buildRelationMap(proposals);
     const projectOwnerMap = buildProjectOwnerMap(proposals);
     const commentAuthorMap = buildCommentAuthorMap(comments);
     const voteMap = aggregateVotesByComment(commentVotes);
-    const userIdSet = new Set(users.map((u) => u.id));
 
     const now = new Date();
-    const subIdScores = new Map<string, number>(subIds.map((subId) => [subId, 0]));
-    const matchedSubIds = new Set<string>();
+    const didScores = new Map<string, number>(dids.map((did) => [did, 0]));
+    const matchedDids = new Set<string>();
     const benchmarkRecords: CommentBenchmarkRecord[] = [];
     let totalCommentsScored = 0;
 
@@ -86,7 +80,8 @@ export async function computeContributionScore(snapshot: Snapshot, storage: Stor
       }
 
       const comment = comments[i];
-      if (!userIdSet.has(comment.userId)) continue;
+      const did = userIdToDid.get(comment.userId);
+      if (did === undefined) continue;
 
       const votes = getVoteStats(comment.commentId, voteMap);
 
@@ -122,25 +117,17 @@ export async function computeContributionScore(snapshot: Snapshot, storage: Stor
 
       if (result.scored) {
         totalCommentsScored++;
-
-        for (const subId of deepProposalPortalSubIdsIndex.get(String(comment.userId)) ?? []) {
-          matchedSubIds.add(subId);
-          const currentScore = subIdScores.get(subId) ?? 0;
-          subIdScores.set(subId, currentScore + result.score);
-        }
+        matchedDids.add(did);
+        didScores.set(did, (didScores.get(did) ?? 0) + result.score);
       }
     }
 
-    const results: ContributionScoreResult[] = [];
+    const results: ContributionScoreResult[] = dids.map((did) => ({
+      did,
+      contribution_score: roundScore(didScores.get(did) ?? 0),
+    }));
 
-    for (const subId of subIds) {
-      results.push({
-        sub_id: subId,
-        contribution_score: roundScore(subIdScores.get(subId) ?? 0),
-      });
-    }
-
-    results.sort((a, b) => a.sub_id.localeCompare(b.sub_id));
+    results.sort((a, b) => a.did.localeCompare(b.did));
 
     logger.info('Computed contribution scores', {
       userCount: results.length,
@@ -150,7 +137,7 @@ export async function computeContributionScore(snapshot: Snapshot, storage: Stor
 
     const csvContent = await stringifyCsvAsync(results, {
       header: true,
-      columns: ['sub_id', 'contribution_score'],
+      columns: ['did', 'contribution_score'],
     });
 
     const outputKey = generateKey('snapshot', snapshotId, `${snapshot.algorithmPresetFrozen.key}.csv`);
@@ -164,15 +151,14 @@ export async function computeContributionScore(snapshot: Snapshot, storage: Stor
 
     logger.info('Uploaded contribution score results', { outputKey });
 
-    const roundedSubIdScores = new Map(results.map((result) => [result.sub_id, result.contribution_score]));
+    const roundedDidScores = new Map(results.map((result) => [result.did, result.contribution_score]));
     const benchmark = formatBenchmarkOutput({
       records: benchmarkRecords,
       snapshotId,
-      subIds,
-      subIdScores: roundedSubIdScores,
-      deepProposalPortalIdBySubId,
-      matchedSubIds,
-      deepProposalPortalSubIdsIndex,
+      dids,
+      didScores: roundedDidScores,
+      matchedDids,
+      userIdToDid,
       params,
       totalCommentsProcessed: comments.length,
       totalCommentsScored,

@@ -179,10 +179,10 @@ describe('OrchestratorWorkflow task queue routing', () => {
     const getSnapshot = vi.fn().mockResolvedValue({
       status: SnapshotStatus.queued,
       algorithmPresetFrozen: {
-        key: 'custom_algorithm',
+        key: 'custom_score',
         version: '1.0.0',
         inputs: [
-          { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+          { key: 'dids', value: 'uploads/dids.json' },
           {
             key: 'sub_algorithms',
             value: [
@@ -202,7 +202,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
       .fn()
       .mockResolvedValueOnce({
         algorithmDefinition: {
-          key: 'custom_algorithm',
+          key: 'custom_score',
           version: '1.0.0',
           kind: 'combined',
           runtime: 'typescript',
@@ -211,7 +211,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
             {
               key: 'sub_algorithms',
               type: 'sub_algorithm',
-              sharedInputKeys: ['sub_ids'],
+              sharedInputKeys: ['dids'],
             },
           ],
         },
@@ -227,7 +227,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
       });
     const resolveDependency = vi.fn().mockResolvedValue(undefined);
     const runTypescriptAlgorithm = vi.fn().mockResolvedValue({
-      outputs: { composite_score: 'snapshots/snapshot-1/custom_algorithm.csv' },
+      outputs: { composite_score: 'snapshots/snapshot-1/custom_score.csv' },
     });
 
     proxyActivities.mockImplementation(
@@ -271,10 +271,10 @@ describe('OrchestratorWorkflow task queue routing', () => {
     const getSnapshot = vi.fn().mockResolvedValue({
       status: SnapshotStatus.queued,
       algorithmPresetFrozen: {
-        key: 'custom_algorithm',
+        key: 'custom_score',
         version: '1.0.0',
         inputs: [
-          { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+          { key: 'dids', value: 'uploads/dids.json' },
           {
             key: 'sub_algorithms',
             value: [
@@ -322,7 +322,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
       .fn()
       .mockResolvedValueOnce({
         algorithmDefinition: {
-          key: 'custom_algorithm',
+          key: 'custom_score',
           version: '1.0.0',
           kind: 'combined',
           runtime: 'typescript',
@@ -330,7 +330,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
             {
               key: 'sub_algorithms',
               type: 'sub_algorithm',
-              sharedInputKeys: ['sub_ids'],
+              sharedInputKeys: ['dids'],
             },
           ],
         },
@@ -452,7 +452,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
       });
     const resolveDependency = vi.fn().mockResolvedValue(undefined);
     const runTypescriptAlgorithm = vi.fn().mockResolvedValue({
-      outputs: { composite_score: 'snapshots/snapshot-1/custom_algorithm.csv' },
+      outputs: { composite_score: 'snapshots/snapshot-1/custom_score.csv' },
     });
 
     proxyActivities.mockImplementation(
@@ -473,7 +473,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
     });
 
     expect(getAlgorithmDefinition).toHaveBeenNthCalledWith(1, {
-      key: 'custom_algorithm',
+      key: 'custom_score',
       version: '1.0.0',
     });
     expect(getAlgorithmDefinition).toHaveBeenNthCalledWith(2, {

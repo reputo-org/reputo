@@ -1,0 +1,65 @@
+{
+  "name": "@reputo/deep-id-api",
+  "version": "0.0.0",
+  "description": "Framework-agnostic M2M (client-credentials) client for the DeepID Client API: token management, user listing, and score posting.",
+  "keywords": [
+    "typescript",
+    "deepid",
+    "api",
+    "oauth2",
+    "client-credentials",
+    "m2m"
+  ],
+  "license": "GPL-3.0-only",
+  "author": {
+    "name": "Behzad Rabiei",
+    "url": "https://github.com/Behzad-rabiei"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/reputo-org/reputo.git",
+    "directory": "packages/deep-id-api"
+  },
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*"
+  ],
+  "packageManager": "pnpm@10.30.3",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf coverage dist docs node_modules tsconfig.tsbuildinfo",
+    "check": "pnpm exec biome check",
+    "lint": "pnpm exec biome lint",
+    "format": "pnpm exec biome format --write",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest --watch",
+    "test:cov": "vitest --coverage",
+    "dev": "tsc --watch --preserveWatchOutput",
+    "docs": "typedoc"
+  },
+  "dependencies": {
+    "p-limit": "catalog:",
+    "pino": "catalog:",
+    "undici": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typedoc": "catalog:",
+    "typedoc-plugin-markdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
