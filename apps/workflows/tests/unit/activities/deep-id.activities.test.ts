@@ -86,5 +86,6 @@ describe('createDeepIdSyncActivity', () => {
       'did:sub:aaaaaaaaaaaaaaaaaaaaaaaa': { userWallets: [{ address: '0xAbc', chain: 'ethereum' }] },
       'did:sub:bbbbbbbbbbbbbbbbbbbbbbbb': { userWallets: [] },
     });
+    expect(mockIterateUsers).toHaveBeenCalledWith({ filteredTokenScopes: 'api wallets post_scores' });
   });
 });

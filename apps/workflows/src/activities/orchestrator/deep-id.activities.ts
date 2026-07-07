@@ -62,7 +62,7 @@ export function createDeepIdSyncActivity(ctx: DeepIdSyncContext) {
     let userCount = 0;
     let walletCount = 0;
 
-    for await (const page of client.iterateUsers({ filteredTokenScopes: 'api wallets' })) {
+    for await (const page of client.iterateUsers({ filteredTokenScopes: config.deepId.scopes })) {
       for (const [didSub, user] of Object.entries(page.users)) {
         const userWallets = toWalletEntries(user.wallets);
         dids[didSub] = { userWallets };
