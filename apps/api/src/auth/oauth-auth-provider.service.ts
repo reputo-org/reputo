@@ -5,6 +5,7 @@ import type { OAuthProviderAuthConfig } from '../config/auth.config';
 import { OAuthProviderClient } from '../shared/oauth';
 import {
   type AuthFlowState,
+  type OAuthClientCredentials,
   type OAuthDiscoveryDocument,
   type OAuthTokenResponse,
   type OAuthUserInfo,
@@ -30,7 +31,7 @@ export class OAuthAuthProviderService {
   buildAuthorizationUrl(provider: OAuthProvider, authFlow: AuthFlowState, codeChallenge: string): Promise<string> {
     const providerConfig = this.getProviderConfig(provider);
 
-    return this.oauthProviderClient.buildAuthorizationUrl(provider, {
+    return this.oauthProviderClient.buildAuthorizationUrl(provider, toCredentials(providerConfig), {
       redirectUri: providerConfig.redirectUri,
       scope: providerConfig.scope,
       state: authFlow.state,
@@ -41,7 +42,7 @@ export class OAuthAuthProviderService {
   exchangeCodeForTokens(provider: OAuthProvider, code: string, codeVerifier: string): Promise<OAuthTokenResponse> {
     const providerConfig = this.getProviderConfig(provider);
 
-    return this.oauthProviderClient.exchangeCodeForTokens(provider, {
+    return this.oauthProviderClient.exchangeCodeForTokens(provider, toCredentials(providerConfig), {
       code,
       codeVerifier,
       redirectUri: providerConfig.redirectUri,
@@ -49,18 +50,18 @@ export class OAuthAuthProviderService {
   }
 
   refreshTokens(provider: OAuthProvider, refreshToken: string): Promise<OAuthTokenResponse> {
-    this.getProviderConfig(provider);
-    return this.oauthProviderClient.refreshTokens(provider, refreshToken);
+    const providerConfig = this.getProviderConfig(provider);
+    return this.oauthProviderClient.refreshTokens(provider, toCredentials(providerConfig), refreshToken);
   }
 
   fetchUserInfo(provider: OAuthProvider, accessToken: string): Promise<OAuthUserInfo> {
-    this.getProviderConfig(provider);
-    return this.oauthProviderClient.fetchUserInfo(provider, accessToken);
+    const providerConfig = this.getProviderConfig(provider);
+    return this.oauthProviderClient.fetchUserInfo(provider, toCredentials(providerConfig), accessToken);
   }
 
   getDiscoveryDocument(provider: OAuthProvider): Promise<OAuthDiscoveryDocument> {
-    this.getProviderConfig(provider);
-    return this.oauthProviderClient.getDiscoveryDocument(provider);
+    const providerConfig = this.getProviderConfig(provider);
+    return this.oauthProviderClient.getDiscoveryDocument(provider, providerConfig.issuerUrl);
   }
 
   private getProviderConfig(provider: OAuthProvider): OAuthProviderAuthConfig {
@@ -72,4 +73,12 @@ export class OAuthAuthProviderService {
 
     return providerConfig;
   }
+}
+
+function toCredentials(providerConfig: OAuthProviderAuthConfig): OAuthClientCredentials {
+  return {
+    issuerUrl: providerConfig.issuerUrl,
+    clientId: providerConfig.clientId,
+    clientSecret: providerConfig.clientSecret,
+  };
 }

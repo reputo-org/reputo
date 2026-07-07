@@ -13,6 +13,12 @@ describe('OAuthAuthProviderService', () => {
     scope: 'openid profile email offline_access',
   };
 
+  const credentials = {
+    issuerUrl: providerConfig.issuerUrl,
+    clientId: providerConfig.clientId,
+    clientSecret: providerConfig.clientSecret,
+  };
+
   const configService = {
     get: vi.fn((key: string) => {
       const values: Record<string, unknown> = {
@@ -59,7 +65,7 @@ describe('OAuthAuthProviderService', () => {
       ),
     ).resolves.toBe('https://identity.deep-id.ai/oauth2/auth?state=abc');
 
-    expect(oauthProviderClient.buildAuthorizationUrl).toHaveBeenCalledWith('deep-id', {
+    expect(oauthProviderClient.buildAuthorizationUrl).toHaveBeenCalledWith('deep-id', credentials, {
       redirectUri: providerConfig.redirectUri,
       scope: providerConfig.scope,
       state: 'state-123',
@@ -77,7 +83,7 @@ describe('OAuthAuthProviderService', () => {
 
     await service.exchangeCodeForTokens('deep-id', 'authorization-code', 'verifier');
 
-    expect(oauthProviderClient.exchangeCodeForTokens).toHaveBeenCalledWith('deep-id', {
+    expect(oauthProviderClient.exchangeCodeForTokens).toHaveBeenCalledWith('deep-id', credentials, {
       code: 'authorization-code',
       codeVerifier: 'verifier',
       redirectUri: providerConfig.redirectUri,
@@ -91,9 +97,9 @@ describe('OAuthAuthProviderService', () => {
     await service.fetchUserInfo('deep-id', 'access-token');
     await service.getDiscoveryDocument('deep-id');
 
-    expect(oauthProviderClient.refreshTokens).toHaveBeenCalledWith('deep-id', 'refresh-token');
-    expect(oauthProviderClient.fetchUserInfo).toHaveBeenCalledWith('deep-id', 'access-token');
-    expect(oauthProviderClient.getDiscoveryDocument).toHaveBeenCalledWith('deep-id');
+    expect(oauthProviderClient.refreshTokens).toHaveBeenCalledWith('deep-id', credentials, 'refresh-token');
+    expect(oauthProviderClient.fetchUserInfo).toHaveBeenCalledWith('deep-id', credentials, 'access-token');
+    expect(oauthProviderClient.getDiscoveryDocument).toHaveBeenCalledWith('deep-id', providerConfig.issuerUrl);
   });
 
   it('rejects unknown OAuth providers before delegating', async () => {

@@ -18,17 +18,13 @@ function jsonResponse(value: unknown, status = 200) {
 }
 
 describe('OAuthProviderClient', () => {
+  const CREDENTIALS = {
+    issuerUrl: 'https://identity.deep-id.ai',
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+  };
   const configValues: Record<string, unknown> = {
     'auth.mode': 'oauth',
-    'auth.providers': {
-      'deep-id': {
-        issuerUrl: 'https://identity.deep-id.ai',
-        clientId: 'client-id',
-        clientSecret: 'client-secret',
-        redirectUri: 'http://localhost:3000/api/v1/auth/deep-id/callback',
-        scope: 'openid profile email offline_access',
-      },
-    },
   };
   const fetchMock = vi.fn();
   let service: OAuthProviderClient;
@@ -55,7 +51,7 @@ describe('OAuthProviderClient', () => {
   it('builds a PKCE S256 authorization URL with source scopes', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(DISCOVERY_DOCUMENT));
 
-    const url = await service.buildAuthorizationUrl('deep-id', {
+    const url = await service.buildAuthorizationUrl('deep-id', CREDENTIALS, {
       redirectUri: 'http://localhost:3000/api/v1/oauth/consent/deep-id/callback',
       scope: 'api wallets',
       state: 'state',
@@ -79,7 +75,7 @@ describe('OAuthProviderClient', () => {
       .mockResolvedValueOnce(jsonResponse(DISCOVERY_DOCUMENT))
       .mockResolvedValueOnce(jsonResponse({ access_token: 'access-token', expires_in: 300, token_type: 'Bearer' }));
 
-    await service.exchangeCodeForTokens('deep-id', {
+    await service.exchangeCodeForTokens('deep-id', CREDENTIALS, {
       code: 'authorization-code',
       codeVerifier: 'pkce-verifier',
       redirectUri: 'http://localhost:3000/api/v1/oauth/consent/deep-id/callback',
@@ -105,7 +101,7 @@ describe('OAuthProviderClient', () => {
       .mockResolvedValueOnce(new Response('', { status: 500 }));
 
     await expect(
-      service.exchangeCodeForTokens('deep-id', {
+      service.exchangeCodeForTokens('deep-id', CREDENTIALS, {
         code: 'code',
         codeVerifier: 'verifier',
         redirectUri: 'http://localhost:3000/api/v1/oauth/consent/deep-id/callback',
@@ -119,7 +115,7 @@ describe('OAuthProviderClient', () => {
       .mockResolvedValueOnce(new Response('{not-json', { status: 200 }));
 
     await expect(
-      service.exchangeCodeForTokens('deep-id', {
+      service.exchangeCodeForTokens('deep-id', CREDENTIALS, {
         code: 'code',
         codeVerifier: 'verifier',
         redirectUri: 'http://localhost:3000/api/v1/oauth/consent/deep-id/callback',
@@ -130,6 +126,6 @@ describe('OAuthProviderClient', () => {
   it('rejects discovery documents from the wrong issuer', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ ...DISCOVERY_DOCUMENT, issuer: 'https://wrong.example.com' }));
 
-    await expect(service.getDiscoveryDocument('deep-id')).rejects.toThrow(UnauthorizedException);
+    await expect(service.getDiscoveryDocument('deep-id', CREDENTIALS.issuerUrl)).rejects.toThrow(UnauthorizedException);
   });
 });

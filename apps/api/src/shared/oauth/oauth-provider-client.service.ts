@@ -1,7 +1,6 @@
-import { BadGatewayException, BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadGatewayException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { OAuthProvider } from '@reputo/contracts';
-import type { OAuthProviderAuthConfig } from '../../config/auth.config';
 import {
   AUTH_MODE_MOCK,
   AUTH_MODE_OAUTH,
@@ -10,7 +9,12 @@ import {
   OAUTH_DEFAULT_USERINFO_PATH,
   OAUTH_DISCOVERY_PATH,
 } from '../constants';
-import { type OAuthDiscoveryDocument, type OAuthTokenResponse, type OAuthUserInfo } from '../types';
+import {
+  type OAuthClientCredentials,
+  type OAuthDiscoveryDocument,
+  type OAuthTokenResponse,
+  type OAuthUserInfo,
+} from '../types';
 
 interface BuildOAuthAuthorizationUrlParams {
   codeChallenge: string;
@@ -55,22 +59,23 @@ async function parseJsonResponse<T>(response: Response, provider: OAuthProvider)
 @Injectable()
 export class OAuthProviderClient {
   private readonly authMode: string;
-  private readonly providers: Partial<Record<OAuthProvider, OAuthProviderAuthConfig>>;
-  private readonly discoveryPromises = new Map<OAuthProvider, Promise<OAuthDiscoveryDocument>>();
+  private readonly discoveryPromises = new Map<string, Promise<OAuthDiscoveryDocument>>();
 
   constructor(configService: ConfigService) {
     this.authMode = (configService.get<string>('auth.mode') ?? AUTH_MODE_OAUTH).toLowerCase();
-    this.providers = configService.get<Partial<Record<OAuthProvider, OAuthProviderAuthConfig>>>('auth.providers') ?? {};
   }
 
-  async buildAuthorizationUrl(provider: OAuthProvider, params: BuildOAuthAuthorizationUrlParams): Promise<string> {
+  async buildAuthorizationUrl(
+    provider: OAuthProvider,
+    credentials: OAuthClientCredentials,
+    params: BuildOAuthAuthorizationUrlParams,
+  ): Promise<string> {
     this.ensureOAuthMode(provider);
-    const providerConfig = this.getProviderConfig(provider);
-    const discovery = await this.getDiscoveryDocument(provider);
+    const discovery = await this.getDiscoveryDocument(provider, credentials.issuerUrl);
     const url = new URL(discovery.authorization_endpoint);
 
     url.searchParams.set('response_type', 'code');
-    url.searchParams.set('client_id', providerConfig.clientId);
+    url.searchParams.set('client_id', credentials.clientId);
     url.searchParams.set('redirect_uri', params.redirectUri);
     url.searchParams.set('scope', scopeToString(params.scope));
     url.searchParams.set('state', params.state);
@@ -80,9 +85,13 @@ export class OAuthProviderClient {
     return url.toString();
   }
 
-  async exchangeCodeForTokens(provider: OAuthProvider, params: ExchangeOAuthCodeParams): Promise<OAuthTokenResponse> {
+  async exchangeCodeForTokens(
+    provider: OAuthProvider,
+    credentials: OAuthClientCredentials,
+    params: ExchangeOAuthCodeParams,
+  ): Promise<OAuthTokenResponse> {
     this.ensureOAuthMode(provider);
-    return this.fetchTokenResponse(provider, {
+    return this.fetchTokenResponse(provider, credentials, {
       grant_type: 'authorization_code',
       code: params.code,
       redirect_uri: params.redirectUri,
@@ -90,17 +99,25 @@ export class OAuthProviderClient {
     });
   }
 
-  async refreshTokens(provider: OAuthProvider, refreshToken: string): Promise<OAuthTokenResponse> {
+  async refreshTokens(
+    provider: OAuthProvider,
+    credentials: OAuthClientCredentials,
+    refreshToken: string,
+  ): Promise<OAuthTokenResponse> {
     this.ensureOAuthMode(provider);
-    return this.fetchTokenResponse(provider, {
+    return this.fetchTokenResponse(provider, credentials, {
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
     });
   }
 
-  async fetchUserInfo(provider: OAuthProvider, accessToken: string): Promise<OAuthUserInfo> {
+  async fetchUserInfo(
+    provider: OAuthProvider,
+    credentials: OAuthClientCredentials,
+    accessToken: string,
+  ): Promise<OAuthUserInfo> {
     this.ensureOAuthMode(provider);
-    const discovery = await this.getDiscoveryDocument(provider);
+    const discovery = await this.getDiscoveryDocument(provider, credentials.issuerUrl);
     const response = await fetch(discovery.userinfo_endpoint, {
       headers: {
         Accept: 'application/json',
@@ -115,13 +132,14 @@ export class OAuthProviderClient {
     return parseJsonResponse<OAuthUserInfo>(response, provider);
   }
 
-  async getDiscoveryDocument(provider: OAuthProvider): Promise<OAuthDiscoveryDocument> {
+  async getDiscoveryDocument(provider: OAuthProvider, issuerUrl: string): Promise<OAuthDiscoveryDocument> {
     this.ensureOAuthMode(provider);
-    if (!this.discoveryPromises.has(provider)) {
-      this.discoveryPromises.set(provider, this.fetchDiscoveryDocument(provider));
+    const normalizedIssuer = normalizeUrl(issuerUrl);
+    if (!this.discoveryPromises.has(normalizedIssuer)) {
+      this.discoveryPromises.set(normalizedIssuer, this.fetchDiscoveryDocument(provider, normalizedIssuer));
     }
 
-    return this.discoveryPromises.get(provider) as Promise<OAuthDiscoveryDocument>;
+    return this.discoveryPromises.get(normalizedIssuer) as Promise<OAuthDiscoveryDocument>;
   }
 
   private ensureOAuthMode(provider: OAuthProvider): void {
@@ -130,20 +148,11 @@ export class OAuthProviderClient {
     }
   }
 
-  private getProviderConfig(provider: OAuthProvider): OAuthProviderAuthConfig {
-    const providerConfig = this.providers[provider];
-
-    if (!providerConfig) {
-      throw new BadRequestException(`Unknown OAuth provider: ${provider}`);
-    }
-
-    return providerConfig;
-  }
-
-  private async fetchDiscoveryDocument(provider: OAuthProvider): Promise<OAuthDiscoveryDocument> {
-    const providerConfig = this.getProviderConfig(provider);
-    const issuerUrl = normalizeUrl(providerConfig.issuerUrl);
-    const discoveryUrl = new URL(OAUTH_DISCOVERY_PATH, `${issuerUrl}/`);
+  private async fetchDiscoveryDocument(
+    provider: OAuthProvider,
+    normalizedIssuerUrl: string,
+  ): Promise<OAuthDiscoveryDocument> {
+    const discoveryUrl = new URL(OAUTH_DISCOVERY_PATH, `${normalizedIssuerUrl}/`);
     const response = await fetch(discoveryUrl, {
       headers: {
         Accept: 'application/json',
@@ -155,9 +164,9 @@ export class OAuthProviderClient {
     }
 
     const discovery = await parseJsonResponse<Partial<OAuthDiscoveryDocument>>(response, provider);
-    const issuer = normalizeUrl(discovery.issuer ?? issuerUrl);
+    const issuer = normalizeUrl(discovery.issuer ?? normalizedIssuerUrl);
 
-    if (issuer !== issuerUrl) {
+    if (issuer !== normalizedIssuerUrl) {
       throw new UnauthorizedException(`OAuth provider ${provider} discovery issuer does not match configuration.`);
     }
 
@@ -172,15 +181,14 @@ export class OAuthProviderClient {
 
   private async fetchTokenResponse(
     provider: OAuthProvider,
+    credentials: OAuthClientCredentials,
     params: Record<string, string>,
   ): Promise<OAuthTokenResponse> {
-    const providerConfig = this.getProviderConfig(provider);
-    const discovery = await this.getDiscoveryDocument(provider);
+    const discovery = await this.getDiscoveryDocument(provider, credentials.issuerUrl);
     const body = new URLSearchParams(params);
-    const basicAuthorization = Buffer.from(
-      `${providerConfig.clientId}:${providerConfig.clientSecret}`,
-      'utf8',
-    ).toString('base64');
+    const basicAuthorization = Buffer.from(`${credentials.clientId}:${credentials.clientSecret}`, 'utf8').toString(
+      'base64',
+    );
 
     const response = await fetch(discovery.token_endpoint, {
       method: 'POST',

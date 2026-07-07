@@ -1,5 +1,12 @@
 import type { AccessRole, OAuthProvider } from '@reputo/contracts';
 
+/** Credentials for one registered OAuth client. */
+export interface OAuthClientCredentials {
+  issuerUrl: string;
+  clientId: string;
+  clientSecret: string;
+}
+
 export interface OAuthDiscoveryDocument {
   issuer: string;
   authorization_endpoint: string;

@@ -206,7 +206,8 @@ describe('OAuth consent e2e', () => {
     expect(redirectUrl.origin).toBe('https://identity.deep-id.ai');
     expect(redirectUrl.pathname).toBe('/oauth2/auth');
     expect(redirectUrl.searchParams.get('response_type')).toBe('code');
-    expect(redirectUrl.searchParams.get('client_id')).toBe('deep-id-test-client');
+    // Consent authorizes the DeepID client, not the admin client.
+    expect(redirectUrl.searchParams.get('client_id')).toBe('deep-id-client');
     expect(redirectUrl.searchParams.get('redirect_uri')).toBe(
       'http://localhost:3000/api/v1/oauth/consent/deep-id/callback',
     );
@@ -243,7 +244,7 @@ describe('OAuth consent e2e', () => {
     const body = new URLSearchParams(tokenRequest.init?.body as URLSearchParams);
 
     expect(headers.Authorization).toBe(
-      `Basic ${Buffer.from('deep-id-test-client:deep-id-test-secret', 'utf8').toString('base64')}`,
+      `Basic ${Buffer.from('deep-id-client:deep-id-secret', 'utf8').toString('base64')}`,
     );
     expect(headers['Content-Type']).toBe('application/x-www-form-urlencoded');
     expect(body.get('grant_type')).toBe('authorization_code');

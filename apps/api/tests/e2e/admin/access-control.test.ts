@@ -324,9 +324,9 @@ describe.skip('Admin access-control e2e (mock mode)', () => {
         AUTH_MODE: 'mock',
         OWNER_EMAIL: '',
         DEEP_ID_ISSUER_URL: 'https://mock.invalid',
-        DEEP_ID_CLIENT_ID: 'mock-client-id',
-        DEEP_ID_CLIENT_SECRET: 'mock-client-secret',
-        DEEP_ID_AUTH_REDIRECT_URI: 'https://mock.invalid/callback',
+        DEEP_ID_ADMIN_CLIENT_ID: 'mock-client-id',
+        DEEP_ID_ADMIN_CLIENT_SECRET: 'mock-client-secret',
+        DEEP_ID_ADMIN_REDIRECT_URI: 'https://mock.invalid/callback',
         APP_PUBLIC_URL: 'https://mock.invalid',
       },
     });

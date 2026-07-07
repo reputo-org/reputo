@@ -36,10 +36,10 @@ export default registerAs(
     providers: {
       [OAuthProviderDeepId]: {
         issuerUrl: env.DEEP_ID_ISSUER_URL,
-        clientId: env.DEEP_ID_CLIENT_ID,
-        clientSecret: env.DEEP_ID_CLIENT_SECRET,
-        redirectUri: env.DEEP_ID_AUTH_REDIRECT_URI,
-        scope: env.DEEP_ID_AUTH_SCOPES,
+        clientId: env.DEEP_ID_ADMIN_CLIENT_ID,
+        clientSecret: env.DEEP_ID_ADMIN_CLIENT_SECRET,
+        redirectUri: env.DEEP_ID_ADMIN_REDIRECT_URI,
+        scope: env.DEEP_ID_ADMIN_SCOPES,
       },
     },
     cookieName: env.AUTH_COOKIE_NAME,
