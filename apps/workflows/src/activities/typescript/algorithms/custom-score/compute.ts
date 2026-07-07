@@ -22,7 +22,6 @@ const standaloneRegistry: Record<string, AlgorithmComputeFunction> = {
   token_value_over_time: computeTokenValueOverTime,
 };
 
-type NormalizationMethod = 'none' | 'min_max' | 'z_score';
 type MissingScoreStrategy = 'zero';
 
 interface PresetInputLike {
@@ -40,21 +39,18 @@ interface SubAlgorithmEntry {
 interface CustomScoreParams {
   didsKey: string;
   subAlgorithms: SubAlgorithmEntry[];
-  normalizationMethod: NormalizationMethod;
   missingScoreStrategy: MissingScoreStrategy;
 }
 
 interface ChildAlgorithmRuntimeResult {
   entry: SubAlgorithmEntry;
-  rawScores: Map<string, number>;
-  normalizedScores: Map<string, number>;
+  scores: Map<string, number>;
 }
 
 interface ChildScoreDetail {
   algorithm_key: string;
   algorithm_version: string;
-  raw_score: number;
-  normalized_score: number;
+  score: number;
   child_weight: number;
   weighted_contribution: number;
 }
@@ -67,7 +63,6 @@ interface CompositeScoreDetail {
 
 interface CompositeScoreDetailsDocument {
   snapshot_id: string;
-  normalization_method: NormalizationMethod;
   missing_score_strategy: MissingScoreStrategy;
   total_child_weight: number;
   dids: CompositeScoreDetail[];
@@ -134,11 +129,6 @@ function extractInputs(inputs: PresetInputLike[]): CustomScoreParams {
     throw new Error('Missing required "sub_algorithms" input');
   }
 
-  const normalizationMethod = getRequiredStringInput(inputs, 'normalization_method');
-  if (normalizationMethod !== 'none' && normalizationMethod !== 'min_max' && normalizationMethod !== 'z_score') {
-    throw new Error(`Unsupported normalization_method: ${normalizationMethod}`);
-  }
-
   const missingScoreStrategy = getRequiredStringInput(inputs, 'missing_score_strategy');
   if (missingScoreStrategy !== 'zero') {
     throw new Error(`Unsupported missing_score_strategy: ${missingScoreStrategy}`);
@@ -147,7 +137,6 @@ function extractInputs(inputs: PresetInputLike[]): CustomScoreParams {
   return {
     didsKey,
     subAlgorithms: rawSubAlgorithms.map(parseSubAlgorithmEntry),
-    normalizationMethod,
     missingScoreStrategy,
   };
 }
@@ -229,36 +218,6 @@ function parseChildScoreCsv(csvText: string, definition: AlgorithmDefinition): M
   return scores;
 }
 
-function normalizeScoreVector(rawScores: number[], method: NormalizationMethod): number[] {
-  if (method === 'none') {
-    return rawScores.map((score) => roundScore(score));
-  }
-
-  if (rawScores.length === 0) {
-    return [];
-  }
-
-  if (method === 'min_max') {
-    const min = Math.min(...rawScores);
-    const max = Math.max(...rawScores);
-    if (max === min) {
-      return rawScores.map(() => 0);
-    }
-
-    return rawScores.map((score) => roundScore((score - min) / (max - min)));
-  }
-
-  const mean = rawScores.reduce((sum, score) => sum + score, 0) / rawScores.length;
-  const variance = rawScores.reduce((sum, score) => sum + (score - mean) ** 2, 0) / rawScores.length;
-  const standardDeviation = Math.sqrt(variance);
-
-  if (standardDeviation === 0) {
-    return rawScores.map(() => 0);
-  }
-
-  return rawScores.map((score) => roundScore((score - mean) / standardDeviation));
-}
-
 async function runChildAlgorithm(input: {
   snapshot: Snapshot;
   storage: Storage;
@@ -266,7 +225,6 @@ async function runChildAlgorithm(input: {
   didsKey: string;
   child: SubAlgorithmEntry;
   childIndex: number;
-  normalizationMethod: NormalizationMethod;
 }): Promise<ChildAlgorithmRuntimeResult> {
   const childDefinition = JSON.parse(
     getAlgorithmDefinition({
@@ -305,22 +263,18 @@ async function runChildAlgorithm(input: {
   });
 
   const parsedScores = parseChildScoreCsv(childCsvBuffer.toString('utf-8'), childDefinition);
-  const rawScores = new Map<string, number>();
 
+  // Each standalone algorithm already normalizes its output into the canonical
+  // 0–100 range, so child scores are combined directly. Users absent from a child's
+  // output are treated as 0 (the 'zero' missing-score strategy).
+  const scores = new Map<string, number>();
   for (const did of input.dids) {
-    rawScores.set(did, parsedScores.get(did) ?? 0);
+    scores.set(did, parsedScores.get(did) ?? 0);
   }
-
-  const normalizedVector = normalizeScoreVector(
-    input.dids.map((did) => rawScores.get(did) ?? 0),
-    input.normalizationMethod,
-  );
-  const normalizedScores = new Map<string, number>(input.dids.map((did, index) => [did, normalizedVector[index] ?? 0]));
 
   return {
     entry: input.child,
-    rawScores,
-    normalizedScores,
+    scores,
   };
 }
 
@@ -343,7 +297,6 @@ export async function computeCustomScore(snapshot: Snapshot, storage: Storage): 
     snapshotId,
     didCount: dids.length,
     childAlgorithmCount: params.subAlgorithms.length,
-    normalizationMethod: params.normalizationMethod,
     missingScoreStrategy: params.missingScoreStrategy,
   });
 
@@ -362,7 +315,6 @@ export async function computeCustomScore(snapshot: Snapshot, storage: Storage): 
         didsKey: params.didsKey,
         child: params.subAlgorithms[index],
         childIndex: index,
-        normalizationMethod: params.normalizationMethod,
       }),
     );
   }
@@ -381,16 +333,14 @@ export async function computeCustomScore(snapshot: Snapshot, storage: Storage): 
     }
 
     const did = dids[index];
-    const childScores = childResults.map(({ entry, rawScores, normalizedScores }) => {
-      const rawScore = rawScores.get(did) ?? 0;
-      const normalizedScore = normalizedScores.get(did) ?? 0;
-      const weightedContribution = roundScore((normalizedScore * entry.weight) / totalChildWeight);
+    const childScores = childResults.map(({ entry, scores }) => {
+      const score = scores.get(did) ?? 0;
+      const weightedContribution = roundScore((score * entry.weight) / totalChildWeight);
 
       return {
         algorithm_key: entry.algorithm_key,
         algorithm_version: entry.algorithm_version,
-        raw_score: rawScore,
-        normalized_score: normalizedScore,
+        score,
         child_weight: entry.weight,
         weighted_contribution: weightedContribution,
       };
@@ -428,7 +378,6 @@ export async function computeCustomScore(snapshot: Snapshot, storage: Storage): 
 
   const details: CompositeScoreDetailsDocument = {
     snapshot_id: snapshotId,
-    normalization_method: params.normalizationMethod,
     missing_score_strategy: params.missingScoreStrategy,
     total_child_weight: roundScore(totalChildWeight),
     dids: detailsRows,

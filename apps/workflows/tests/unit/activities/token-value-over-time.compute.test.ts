@@ -204,7 +204,8 @@ describe('computeTokenValueOverTime pagination', () => {
         skippedStaking: 0,
       });
     mockScoreWalletLots.mockReturnValue([{ wallet_address: '0xwallet1', token_value: 1.5, lots: [] }]);
-    mockStringifyCsvAsync.mockResolvedValue('did,token_value\ndid:sub:1,1.5\ndid:sub:2,1.5\ndid:sub:3,0');
+    // CSV holds the min–max-normalized scores (raw 1.5/1.5/0 → 100/100/0).
+    mockStringifyCsvAsync.mockResolvedValue('did,token_value\ndid:sub:1,100\ndid:sub:2,100\ndid:sub:3,0');
     mockGenerateKey
       .mockReturnValueOnce('outputs/token-value-over-time.csv')
       .mockReturnValueOnce('outputs/token-value-over-time-details.json');
@@ -312,10 +313,23 @@ describe('computeTokenValueOverTime pagination', () => {
     );
     expect(mockHeartbeat).toHaveBeenCalledWith({ phase: 'upload' });
 
+    // The CSV carries the 0–100 normalized scores; the raw scores stay in the details.
+    expect(mockStringifyCsvAsync).toHaveBeenCalledWith(
+      [
+        { did: 'did:sub:1', token_value: 100 },
+        { did: 'did:sub:2', token_value: 100 },
+        { did: 'did:sub:3', token_value: 0 },
+      ],
+      {
+        header: true,
+        columns: ['did', 'token_value'],
+      },
+    );
+
     expect(storage.putObject).toHaveBeenNthCalledWith(1, {
       bucket: 'test-bucket',
       key: 'outputs/token-value-over-time.csv',
-      body: 'did,token_value\ndid:sub:1,1.5\ndid:sub:2,1.5\ndid:sub:3,0',
+      body: 'did,token_value\ndid:sub:1,100\ndid:sub:2,100\ndid:sub:3,0',
       contentType: 'text/csv',
     });
     expect(storage.putObject).toHaveBeenNthCalledWith(2, {

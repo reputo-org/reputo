@@ -126,8 +126,9 @@ describe('computeVotingEngagement', () => {
       }),
     );
     mockFormatBenchmarkOutput.mockReturnValue({ dids: ['benchmark-output'] });
+    // Raw entropy scores 0.1 and 0.2 are rescaled linearly onto 0–100 (×100).
     mockStringifyCsvAsync.mockResolvedValue(
-      'did,voting_engagement\ndid:sub:aaaaaaaaaaaaaaaaaaaaaaaa,0.1\ndid:sub:bbbbbbbbbbbbbbbbbbbbbbbb,0.2',
+      'did,voting_engagement\ndid:sub:aaaaaaaaaaaaaaaaaaaaaaaa,10\ndid:sub:bbbbbbbbbbbbbbbbbbbbbbbb,20',
     );
     mockGenerateKey.mockReturnValueOnce('outputs/voting.csv').mockReturnValueOnce('outputs/voting-details.json');
   });
@@ -166,8 +167,8 @@ describe('computeVotingEngagement', () => {
     );
     expect(mockStringifyCsvAsync).toHaveBeenCalledWith(
       [
-        { did: 'did:sub:aaaaaaaaaaaaaaaaaaaaaaaa', voting_engagement: 0.1 },
-        { did: 'did:sub:bbbbbbbbbbbbbbbbbbbbbbbb', voting_engagement: 0.2 },
+        { did: 'did:sub:aaaaaaaaaaaaaaaaaaaaaaaa', voting_engagement: 10 },
+        { did: 'did:sub:bbbbbbbbbbbbbbbbbbbbbbbb', voting_engagement: 20 },
       ],
       {
         header: true,
@@ -177,7 +178,7 @@ describe('computeVotingEngagement', () => {
     expect(storage.putObject).toHaveBeenNthCalledWith(1, {
       bucket: 'test-bucket',
       key: 'outputs/voting.csv',
-      body: 'did,voting_engagement\ndid:sub:aaaaaaaaaaaaaaaaaaaaaaaa,0.1\ndid:sub:bbbbbbbbbbbbbbbbbbbbbbbb,0.2',
+      body: 'did,voting_engagement\ndid:sub:aaaaaaaaaaaaaaaaaaaaaaaa,10\ndid:sub:bbbbbbbbbbbbbbbbbbbbbbbb,20',
       contentType: 'text/csv',
     });
     expect(storage.putObject).toHaveBeenNthCalledWith(2, {

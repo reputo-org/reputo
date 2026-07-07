@@ -4,7 +4,7 @@
     "kind": "combined",
     "category": "Custom",
     "summary": "Builds a composite score by combining multiple sub-algorithm outputs on shared users.",
-    "description": "### What it does\nCombines multiple sub-algorithm scores into one composite score.\n\n### How it works\n- Compose one or more sub-algorithms; the user list is shared across them.\n- Normalize the sub-algorithm scores before combining them.\n- Apply the configured strategy when a user is missing from one or more sub-algorithm outputs.\n- Join results directly on `did`.\n\n### Output\n- CSV file with `did` and `composite_score`.\n- JSON file with composite score details for each user.",
+    "description": "### What it does\nCombines multiple sub-algorithm scores into one composite score.\n\n### How it works\n- Compose one or more sub-algorithms; the user list is shared across them.\n- Each sub-algorithm score is already normalized to a 0–100 scale.\n- Combine the sub-algorithm scores using their weights.\n- Apply the configured strategy when a user is missing from one or more sub-algorithm outputs.\n- Join results directly on `did`.\n\n### Output\n- CSV file with `did` and `composite_score` on a 0–100 scale.\n- JSON file with composite score details for each user.",
     "version": "1.0.0",
     "inputs": [
         {
@@ -18,23 +18,6 @@
                 "widget": "sub_algorithm_composer",
                 "addButtonLabel": "Add sub-algorithm"
             }
-        },
-        {
-            "key": "normalization_method",
-            "label": "Normalization Method",
-            "description": "Normalization method applied to each sub-algorithm score before combining.",
-            "type": "string",
-            "required": true,
-            "uiHint": {
-                "widget": "select",
-                "options": [
-                    { "value": "none", "label": "None" },
-                    { "value": "min_max", "label": "Min-Max" },
-                    { "value": "z_score", "label": "Z-Score" }
-                ]
-            },
-            "enum": ["none", "min_max", "z_score"],
-            "default": "none"
         },
         {
             "key": "missing_score_strategy",
@@ -68,7 +51,7 @@
                     {
                         "key": "composite_score",
                         "type": "number",
-                        "description": "Final composite score for the user."
+                        "description": "Final composite score for the user, on a 0–100 scale."
                     }
                 ]
             }
@@ -76,7 +59,7 @@
         {
             "key": "composite_score_details",
             "label": "Composite Score Details (JSON)",
-            "description": "JSON file with normalization and combination details for each scored user.",
+            "description": "JSON file with combination details for each scored user.",
             "type": "json"
         }
     ],

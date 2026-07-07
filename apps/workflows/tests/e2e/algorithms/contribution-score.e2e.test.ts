@@ -152,9 +152,11 @@ describe('contribution_score (e2e)', () => {
     const { outputs } = await computeContributionScore(buildContributionSnapshot(), storage);
 
     const rows = parseCsv(storage.readText(outputs.contribution_score as string) as string);
+    // Raw scores (alice 30 = 12 + 18, bob 0) are min–max-normalized across the cohort:
+    // the max maps to 100 and the min to 0. The raw values live in the details JSON.
     expect(rows).toEqual([
-      { did: 'did:plc:alice', contribution_score: '30' }, // 12 + 18
-      { did: 'did:plc:bob', contribution_score: '0' }, // only comment is out of window
+      { did: 'did:plc:alice', contribution_score: '100' },
+      { did: 'did:plc:bob', contribution_score: '0' },
     ]);
   });
 
@@ -295,7 +297,9 @@ describe('contribution_score (e2e) — edge cases', () => {
     );
 
     const rows = parseCsv(storage.readText(outputs.contribution_score as string) as string);
-    expect(rows).toEqual([{ did: 'did:plc:alice', contribution_score: '5.6' }]); // (10 + 1 − 4) × tw 0.8
+    // Single-user cohort: min–max has no spread, so it collapses to the range floor 0.
+    // The raw score 5.6 = (10 + 1 − 4) × tw 0.8 is preserved in the details JSON.
+    expect(rows).toEqual([{ did: 'did:plc:alice', contribution_score: '0' }]);
 
     const details = storage.readJson<ContributionDetails>(outputs.contribution_score_details as string);
     const c1 = details.dids[0].comments[0];
@@ -328,7 +332,8 @@ describe('contribution_score (e2e) — edge cases', () => {
     );
 
     const rows = parseCsv(storage.readText(outputs.contribution_score as string) as string);
-    expect(rows).toEqual([{ did: 'did:plc:alice', contribution_score: '17.5' }]); // 10 + 5 + 2.5
+    // Single-user cohort → min–max floor 0. Raw score 17.5 = 10 + 5 + 2.5 (see details).
+    expect(rows).toEqual([{ did: 'did:plc:alice', contribution_score: '0' }]);
 
     const details = storage.readJson<ContributionDetails>(outputs.contribution_score_details as string);
     const byId = (cid: number) => details.dids[0].comments.find((c) => c.comment_id === cid);

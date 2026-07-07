@@ -16,7 +16,7 @@ describe("preset payload serialization", () => {
           { key: "wallets", type: "json" },
           { key: "sub_algorithms", type: "sub_algorithm" },
           { key: "lookback_window_days", type: "number" },
-          { key: "normalization_method", type: "string" },
+          { key: "missing_score_strategy", type: "string" },
         ],
         data: {
           wallets: walletsFile,
@@ -32,7 +32,7 @@ describe("preset payload serialization", () => {
             },
           ],
           lookback_window_days: "90,5",
-          normalization_method: "none",
+          missing_score_strategy: "zero",
         },
       })
     ).toEqual([
@@ -52,7 +52,7 @@ describe("preset payload serialization", () => {
         ],
       },
       { key: "lookback_window_days", value: 90.5 },
-      { key: "normalization_method", value: "none" },
+      { key: "missing_score_strategy", value: "zero" },
     ])
   })
 

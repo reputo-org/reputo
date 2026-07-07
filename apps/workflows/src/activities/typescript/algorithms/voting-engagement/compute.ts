@@ -6,6 +6,7 @@ import { HEARTBEAT_INTERVAL } from '../../../../shared/constants/index.js';
 import type { AlgorithmResult, Snapshot } from '../../../../shared/types/index.js';
 import { stringifyCsvAsync } from '../../../../shared/utils/index.js';
 import { type DidInputMap, getDids, loadDidInputMap } from '../shared/did-input.js';
+import { normalizeScores } from '../shared/normalization/index.js';
 import { buildVoterBenchmarkRecord, formatBenchmarkOutput } from './benchmark/index.js';
 import { calculateVotingEngagement, groupVotesByVoter } from './pipeline/index.js';
 import type { DidBenchmarkRecord, VotingEngagementResult } from './types.js';
@@ -115,7 +116,20 @@ export async function computeVotingEngagement(snapshot: Snapshot, storage: Stora
 
   ctx.heartbeat({ phase: 'upload' });
 
-  const csvContent = await stringifyCsvAsync(results, {
+  // The raw score is already normalized entropy on [0, 1], so rescale it linearly
+  // into the canonical 0–100 range (×100) rather than cohort min–max — this keeps
+  // its absolute meaning and comparability across snapshots. The details JSON keeps
+  // the raw [0, 1] scores.
+  const normalizedScores = normalizeScores(
+    results.map((result) => result.voting_engagement),
+    'from_unit_interval',
+  );
+  const csvResults: VotingEngagementResult[] = results.map((result, index) => ({
+    did: result.did,
+    voting_engagement: roundScore(normalizedScores[index] ?? 0),
+  }));
+
+  const csvContent = await stringifyCsvAsync(csvResults, {
     header: true,
     columns: ['did', 'voting_engagement'],
   });

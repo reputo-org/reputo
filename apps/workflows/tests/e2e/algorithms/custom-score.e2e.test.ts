@@ -44,12 +44,13 @@ function flatVotes(collectionId: string): Array<[string, string, string]> {
 }
 
 /**
- * Two real voting_engagement children sharing one DID set (a, b, c):
- *  - child 1 (weight 1): a→1, b→0, c→0 (c has no collection).
- *  - child 2 (weight 3): a→0, b→1, c→0.
- * With normalization 'none' (normalized = raw) and total weight 4:
- *  - composite(a) = (1×1 + 0×3)/4 = 0.25
- *  - composite(b) = (0×1 + 1×3)/4 = 0.75
+ * Two real voting_engagement children sharing one DID set (a, b, c). Each child
+ * already normalizes its output to 0–100 (uniform votes → 100, flat votes → 0):
+ *  - child 1 (weight 1): a→100, b→0, c→0 (c has no collection).
+ *  - child 2 (weight 3): a→0, b→100, c→0.
+ * Combined directly (weighted mean) with total weight 4:
+ *  - composite(a) = (100×1 + 0×3)/4 = 25
+ *  - composite(b) = (0×1 + 100×3)/4 = 75
  *  - composite(c) = 0 (zero-filled in both children).
  */
 function seedInputs(storage: InMemoryStorage): void {
@@ -123,7 +124,6 @@ function buildCustomSnapshot() {
           },
         ],
       },
-      { key: 'normalization_method', value: 'none' },
       { key: 'missing_score_strategy', value: 'zero' },
     ],
   });
@@ -131,7 +131,6 @@ function buildCustomSnapshot() {
 
 interface CompositeDetails {
   snapshot_id: string;
-  normalization_method: string;
   missing_score_strategy: string;
   total_child_weight: number;
   dids: Array<{
@@ -140,8 +139,7 @@ interface CompositeDetails {
     child_scores: Array<{
       algorithm_key: string;
       algorithm_version: string;
-      raw_score: number;
-      normalized_score: number;
+      score: number;
       child_weight: number;
       weighted_contribution: number;
     }>;
@@ -180,8 +178,8 @@ describe('custom_score (e2e)', () => {
 
     const rows = parseCsv(storage.readText(outputs.composite_score as string) as string);
     expect(rows).toEqual([
-      { did: 'did:plc:a', composite_score: '0.25' }, // (1×1 + 0×3)/4
-      { did: 'did:plc:b', composite_score: '0.75' }, // (0×1 + 1×3)/4
+      { did: 'did:plc:a', composite_score: '25' }, // (100×1 + 0×3)/4
+      { did: 'did:plc:b', composite_score: '75' }, // (0×1 + 100×3)/4
       { did: 'did:plc:c', composite_score: '0' }, // zero-filled in both children
     ]);
   });
@@ -192,28 +190,25 @@ describe('custom_score (e2e)', () => {
 
     expect(details).toMatchObject({
       snapshot_id: SNAPSHOT_ID,
-      normalization_method: 'none',
       missing_score_strategy: 'zero',
       total_child_weight: 4,
     });
     expect(details.dids.map((d) => d.did)).toEqual(['did:plc:a', 'did:plc:b', 'did:plc:c']);
 
     const a = details.dids.find((d) => d.did === 'did:plc:a');
-    expect(a?.final_composite_score).toBe(0.25);
+    expect(a?.final_composite_score).toBe(25);
     expect(a?.child_scores).toEqual([
       {
         algorithm_key: 'voting_engagement',
         algorithm_version: '1.0.0',
-        raw_score: 1,
-        normalized_score: 1,
+        score: 100,
         child_weight: 1,
-        weighted_contribution: 0.25,
+        weighted_contribution: 25,
       },
       {
         algorithm_key: 'voting_engagement',
         algorithm_version: '1.0.0',
-        raw_score: 0,
-        normalized_score: 0,
+        score: 0,
         child_weight: 3,
         weighted_contribution: 0,
       },
@@ -221,12 +216,12 @@ describe('custom_score (e2e)', () => {
 
     const c = details.dids.find((d) => d.did === 'did:plc:c');
     expect(c?.final_composite_score).toBe(0);
-    expect(c?.child_scores.every((s) => s.raw_score === 0 && s.weighted_contribution === 0)).toBe(true);
+    expect(c?.child_scores.every((s) => s.score === 0 && s.weighted_contribution === 0)).toBe(true);
   });
 });
 
 describe('custom_score (e2e) — edge cases', () => {
-  it('min_max normalization collapses an all-equal child vector to zero', async () => {
+  it('combines already-normalized children without re-relativizing an all-equal vector', async () => {
     const storage = createInMemoryStorage();
     storage.seed(
       'uploads/dids.json',
@@ -245,14 +240,15 @@ describe('custom_score (e2e) — edge cases', () => {
         ],
       ),
     );
-    // Both collections vote uniformly → both DIDs have raw engagement 1. With no
-    // spread, min_max maps every score to 0 (whereas 'none' would keep them at 1).
+    // Both collections vote uniformly → the voting child scores both DIDs at 100.
+    // custom_score must NOT re-run min–max (which would collapse the equal vector
+    // to 0); the already-normalized scores flow through unchanged.
     storage.seed(
       'uploads/v.csv',
       toCsv(['collection_id', 'question_id', 'answer'], [...uniformVotes('colA'), ...uniformVotes('colB')]),
     );
 
-    const id = 'snap-custom-minmax';
+    const id = 'snap-custom-equal';
     const { outputs } = await computeCustomScore(
       buildSnapshot({
         id,
@@ -273,7 +269,6 @@ describe('custom_score (e2e) — edge cases', () => {
               },
             ],
           },
-          { key: 'normalization_method', value: 'min_max' },
           { key: 'missing_score_strategy', value: 'zero' },
         ],
       }),
@@ -282,13 +277,13 @@ describe('custom_score (e2e) — edge cases', () => {
 
     const rows = parseCsv(storage.readText(outputs.composite_score as string) as string);
     expect(rows).toEqual([
-      { did: 'did:plc:a', composite_score: '0' },
-      { did: 'did:plc:b', composite_score: '0' },
+      { did: 'did:plc:a', composite_score: '100' },
+      { did: 'did:plc:b', composite_score: '100' },
     ]);
 
     const details = storage.readJson<CompositeDetails>(outputs.composite_score_details as string);
     const a = details.dids.find((d) => d.did === 'did:plc:a');
-    expect(a?.child_scores[0]).toMatchObject({ raw_score: 1, normalized_score: 0, weighted_contribution: 0 });
+    expect(a?.child_scores[0]).toMatchObject({ score: 100, weighted_contribution: 100 });
   });
 
   it('throws on an unsupported missing_score_strategy', async () => {
@@ -302,7 +297,6 @@ describe('custom_score (e2e) — edge cases', () => {
           key: 'sub_algorithms',
           value: [{ algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 1, inputs: [] }],
         },
-        { key: 'normalization_method', value: 'none' },
         { key: 'missing_score_strategy', value: 'exclude' },
       ],
     });

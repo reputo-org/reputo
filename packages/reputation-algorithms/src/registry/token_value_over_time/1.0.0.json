@@ -190,7 +190,7 @@
                     {
                         "key": "token_value",
                         "type": "number",
-                        "description": "Final token value score for the user."
+                        "description": "Final token value score for the user, normalized to a 0–100 scale across all scored users."
                     }
                 ]
             }

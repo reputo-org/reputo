@@ -4,7 +4,7 @@
     "kind": "standalone",
     "category": "Engagement",
     "summary": "Scores each user by how widely their wallets' voting history uses the full rating scale.",
-    "description": "### What it does\nScores how varied each user's linked voting history is.\n\n### How it works\n- Users and their wallets come from DeepID; each wallet is resolved to its `collection_id`(s) through the wallet collections CSV.\n- Votes are read from the votes CSV, grouped by `collection_id`.\n- Using many different ratings increases the score.\n- Repeating the same rating lowers the score.\n- Scores are shown on a 0 to 1 scale.\n\n### Input\nUpload two CSV files: the votes CSV and the wallet collections CSV (mapping each voting `collection_id` to a wallet `address`).\n\n### Output\n- CSV file with `did` and `voting_engagement`.\n- JSON file with vote distribution details for each scored user.",
+    "description": "### What it does\nScores how varied each user's linked voting history is.\n\n### How it works\n- Users and their wallets come from DeepID; each wallet is resolved to its `collection_id`(s) through the wallet collections CSV.\n- Votes are read from the votes CSV, grouped by `collection_id`.\n- Using many different ratings increases the score.\n- Repeating the same rating lowers the score.\n- Scores are shown on a 0 to 100 scale.\n\n### Input\nUpload two CSV files: the votes CSV and the wallet collections CSV (mapping each voting `collection_id` to a wallet `address`).\n\n### Output\n- CSV file with `did` and `voting_engagement`.\n- JSON file with vote distribution details for each scored user.",
     "version": "1.0.0",
     "inputs": [
         {
@@ -140,7 +140,7 @@
                     {
                         "key": "voting_engagement",
                         "type": "number",
-                        "description": "Final voting engagement score from 0 to 1."
+                        "description": "Final voting engagement score from 0 to 100."
                     }
                 ]
             }

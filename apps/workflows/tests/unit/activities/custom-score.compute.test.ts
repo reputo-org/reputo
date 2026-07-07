@@ -95,7 +95,7 @@ describe('computeCustomScore', () => {
     });
     mockGetDids.mockReturnValue(['did:sub:1', 'did:sub:2', 'did:sub:3']);
     mockStringifyCsvAsync.mockResolvedValue(
-      ['did,composite_score', 'did:sub:1,0.388889', 'did:sub:2,0.333333', 'did:sub:3,0.666667'].join('\n'),
+      ['did,composite_score', 'did:sub:1,4', 'did:sub:2,6.666667', 'did:sub:3,2'].join('\n'),
     );
     mockGenerateKey.mockReturnValueOnce('outputs/composite_score.csv').mockReturnValueOnce('outputs/details.json');
     mockGetAlgorithmDefinition.mockReturnValue(
@@ -124,7 +124,7 @@ describe('computeCustomScore', () => {
     }));
   });
 
-  it('runs child algorithms with synthetic snapshots, zero-fills missing scores, and writes composite artifacts', async () => {
+  it('runs child algorithms with synthetic snapshots, zero-fills missing scores, and combines their already-normalized 0–100 scores', async () => {
     const putObject = vi.fn().mockResolvedValue(undefined);
     const storage = {
       getObject: vi.fn().mockImplementation(async ({ key }: { key: string }) => {
@@ -166,7 +166,6 @@ describe('computeCustomScore', () => {
                 },
               ],
             },
-            { key: 'normalization_method', value: 'min_max' },
             { key: 'missing_score_strategy', value: 'zero' },
           ],
         },
@@ -220,9 +219,9 @@ describe('computeCustomScore', () => {
     });
     expect(mockStringifyCsvAsync).toHaveBeenCalledWith(
       [
-        { did: 'did:sub:1', composite_score: 0.388889 },
-        { did: 'did:sub:2', composite_score: 0.333333 },
-        { did: 'did:sub:3', composite_score: 0.666667 },
+        { did: 'did:sub:1', composite_score: 4 }, // (10×1 + 1×2) / 3
+        { did: 'did:sub:2', composite_score: 6.666667 }, // (20×1 + 0×2) / 3
+        { did: 'did:sub:3', composite_score: 2 }, // (0×1 + 3×2) / 3
       ],
       {
         header: true,
@@ -232,56 +231,51 @@ describe('computeCustomScore', () => {
     expect(storage.putObject).toHaveBeenNthCalledWith(1, {
       bucket: 'test-bucket',
       key: 'outputs/composite_score.csv',
-      body: ['did,composite_score', 'did:sub:1,0.388889', 'did:sub:2,0.333333', 'did:sub:3,0.666667'].join('\n'),
+      body: ['did,composite_score', 'did:sub:1,4', 'did:sub:2,6.666667', 'did:sub:3,2'].join('\n'),
       contentType: 'text/csv',
     });
 
     const detailsPayload = JSON.parse(putObject.mock.calls[1][0].body);
     expect(detailsPayload).toEqual({
       snapshot_id: 'snapshot-1',
-      normalization_method: 'min_max',
       missing_score_strategy: 'zero',
       total_child_weight: 3,
       dids: [
         {
           did: 'did:sub:1',
-          final_composite_score: 0.388889,
+          final_composite_score: 4,
           child_scores: [
             {
               algorithm_key: 'voting_engagement',
               algorithm_version: '1.0.0',
-              raw_score: 10,
-              normalized_score: 0.5,
+              score: 10,
               child_weight: 1,
-              weighted_contribution: 0.166667,
+              weighted_contribution: 3.333333,
             },
             {
               algorithm_key: 'voting_engagement',
               algorithm_version: '1.0.0',
-              raw_score: 1,
-              normalized_score: 0.333333,
+              score: 1,
               child_weight: 2,
-              weighted_contribution: 0.222222,
+              weighted_contribution: 0.666667,
             },
           ],
         },
         {
           did: 'did:sub:2',
-          final_composite_score: 0.333333,
+          final_composite_score: 6.666667,
           child_scores: [
             {
               algorithm_key: 'voting_engagement',
               algorithm_version: '1.0.0',
-              raw_score: 20,
-              normalized_score: 1,
+              score: 20,
               child_weight: 1,
-              weighted_contribution: 0.333333,
+              weighted_contribution: 6.666667,
             },
             {
               algorithm_key: 'voting_engagement',
               algorithm_version: '1.0.0',
-              raw_score: 0,
-              normalized_score: 0,
+              score: 0,
               child_weight: 2,
               weighted_contribution: 0,
             },
@@ -289,23 +283,21 @@ describe('computeCustomScore', () => {
         },
         {
           did: 'did:sub:3',
-          final_composite_score: 0.666667,
+          final_composite_score: 2,
           child_scores: [
             {
               algorithm_key: 'voting_engagement',
               algorithm_version: '1.0.0',
-              raw_score: 0,
-              normalized_score: 0,
+              score: 0,
               child_weight: 1,
               weighted_contribution: 0,
             },
             {
               algorithm_key: 'voting_engagement',
               algorithm_version: '1.0.0',
-              raw_score: 3,
-              normalized_score: 1,
+              score: 3,
               child_weight: 2,
-              weighted_contribution: 0.666667,
+              weighted_contribution: 2,
             },
           ],
         },
@@ -330,7 +322,7 @@ describe('computeCustomScore', () => {
     });
   });
 
-  it('preserves raw scores when normalization is disabled and applies weighted combination deterministically', async () => {
+  it('applies weighted combination deterministically across differently weighted children', async () => {
     mockGetDids.mockReturnValue(['did:sub:1', 'did:sub:2']);
     mockStringifyCsvAsync.mockResolvedValue(['did,composite_score', 'did:sub:1,1.75', 'did:sub:2,3.75'].join('\n'));
 
@@ -375,7 +367,6 @@ describe('computeCustomScore', () => {
                 },
               ],
             },
-            { key: 'normalization_method', value: 'none' },
             { key: 'missing_score_strategy', value: 'zero' },
           ],
         },
@@ -385,8 +376,8 @@ describe('computeCustomScore', () => {
 
     expect(mockStringifyCsvAsync).toHaveBeenCalledWith(
       [
-        { did: 'did:sub:1', composite_score: 1.75 },
-        { did: 'did:sub:2', composite_score: 3.75 },
+        { did: 'did:sub:1', composite_score: 1.75 }, // (1×1 + 2×3) / 4
+        { did: 'did:sub:2', composite_score: 3.75 }, // (3×1 + 4×3) / 4
       ],
       {
         header: true,
@@ -397,7 +388,6 @@ describe('computeCustomScore', () => {
     const detailsPayload = JSON.parse(putObject.mock.calls[1][0].body);
     expect(detailsPayload).toEqual({
       snapshot_id: 'snapshot-1',
-      normalization_method: 'none',
       missing_score_strategy: 'zero',
       total_child_weight: 4,
       dids: [
@@ -408,16 +398,14 @@ describe('computeCustomScore', () => {
             {
               algorithm_key: 'voting_engagement',
               algorithm_version: '1.0.0',
-              raw_score: 1,
-              normalized_score: 1,
+              score: 1,
               child_weight: 1,
               weighted_contribution: 0.25,
             },
             {
               algorithm_key: 'voting_engagement',
               algorithm_version: '1.0.0',
-              raw_score: 2,
-              normalized_score: 2,
+              score: 2,
               child_weight: 3,
               weighted_contribution: 1.5,
             },
@@ -430,16 +418,14 @@ describe('computeCustomScore', () => {
             {
               algorithm_key: 'voting_engagement',
               algorithm_version: '1.0.0',
-              raw_score: 3,
-              normalized_score: 3,
+              score: 3,
               child_weight: 1,
               weighted_contribution: 0.75,
             },
             {
               algorithm_key: 'voting_engagement',
               algorithm_version: '1.0.0',
-              raw_score: 4,
-              normalized_score: 4,
+              score: 4,
               child_weight: 3,
               weighted_contribution: 3,
             },
@@ -449,9 +435,11 @@ describe('computeCustomScore', () => {
     });
   });
 
-  it('normalizes zero-variance z-scores to zero deterministically', async () => {
+  it('combines equal child scores without re-normalizing them to zero', async () => {
+    // Children already emit 0–100, so custom_score must NOT re-run min–max — an
+    // all-equal child vector keeps its value rather than collapsing to 0.
     mockGetDids.mockReturnValue(['did:sub:1', 'did:sub:2']);
-    mockStringifyCsvAsync.mockResolvedValue(['did,composite_score', 'did:sub:1,0', 'did:sub:2,0'].join('\n'));
+    mockStringifyCsvAsync.mockResolvedValue(['did,composite_score', 'did:sub:1,5', 'did:sub:2,5'].join('\n'));
 
     const putObject = vi.fn().mockResolvedValue(undefined);
     const storage = {
@@ -480,7 +468,6 @@ describe('computeCustomScore', () => {
                 },
               ],
             },
-            { key: 'normalization_method', value: 'z_score' },
             { key: 'missing_score_strategy', value: 'zero' },
           ],
         },
@@ -490,8 +477,8 @@ describe('computeCustomScore', () => {
 
     expect(mockStringifyCsvAsync).toHaveBeenCalledWith(
       [
-        { did: 'did:sub:1', composite_score: 0 },
-        { did: 'did:sub:2', composite_score: 0 },
+        { did: 'did:sub:1', composite_score: 5 },
+        { did: 'did:sub:2', composite_score: 5 },
       ],
       {
         header: true,
@@ -503,29 +490,27 @@ describe('computeCustomScore', () => {
     expect(detailsPayload.dids).toEqual([
       {
         did: 'did:sub:1',
-        final_composite_score: 0,
+        final_composite_score: 5,
         child_scores: [
           {
             algorithm_key: 'voting_engagement',
             algorithm_version: '1.0.0',
-            raw_score: 5,
-            normalized_score: 0,
+            score: 5,
             child_weight: 1,
-            weighted_contribution: 0,
+            weighted_contribution: 5,
           },
         ],
       },
       {
         did: 'did:sub:2',
-        final_composite_score: 0,
+        final_composite_score: 5,
         child_scores: [
           {
             algorithm_key: 'voting_engagement',
             algorithm_version: '1.0.0',
-            raw_score: 5,
-            normalized_score: 0,
+            score: 5,
             child_weight: 1,
-            weighted_contribution: 0,
+            weighted_contribution: 5,
           },
         ],
       },
@@ -557,7 +542,6 @@ describe('computeCustomScore', () => {
                   },
                 ],
               },
-              { key: 'normalization_method', value: 'none' },
               { key: 'missing_score_strategy', value: 'exclude' },
             ],
           },

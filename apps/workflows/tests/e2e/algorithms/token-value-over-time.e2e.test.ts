@@ -189,8 +189,10 @@ describeMaybe('token_value_over_time (e2e)', () => {
     const { outputs } = await computeTokenValueOverTime(buildTvtSnapshot(), storage);
 
     const rows = parseCsv(storage.readText(outputs.token_value_over_time as string) as string);
+    // Raw scores (alice 95 = 70×1 + 50×0.5, bob 0) are min–max-normalized: max → 100,
+    // min → 0. The raw values are asserted from the details JSON below.
     expect(rows).toEqual([
-      { did: 'did:plc:alice', token_value: '95' }, // 70×1 + 50×0.5
+      { did: 'did:plc:alice', token_value: '100' },
       { did: 'did:plc:bob', token_value: '0' },
     ]);
   });
@@ -276,10 +278,23 @@ describeMaybe('token_value_over_time (e2e)', () => {
     );
 
     const rows = parseCsv(storage.readText(outputs.token_value_over_time as string) as string);
+    // Both DIDs link the same wallet → identical raw scores → an all-equal cohort,
+    // which min–max collapses the CSV to the range floor 0.
     expect(rows).toEqual([
-      { did: 'did:plc:x', token_value: '100' }, // both DIDs link the same wallet → both score 100
-      { did: 'did:plc:y', token_value: '100' },
+      { did: 'did:plc:x', token_value: '0' },
+      { did: 'did:plc:y', token_value: '0' },
     ]);
+
+    // The crediting itself is verified on the raw (pre-normalization) details: the
+    // shared wallet is scored 100 and attributed to BOTH DIDs (this is what the CSV
+    // 0/0 would otherwise hide — a "credited to neither" bug also yields 0/0).
+    const details = storage.readJson<TvtDetails>(outputs.token_value_over_time_details as string);
+    const x = details.dids.find((d) => d.did === 'did:plc:x');
+    const y = details.dids.find((d) => d.did === 'did:plc:y');
+    expect(x?.token_value).toBe(100);
+    expect(y?.token_value).toBe(100);
+    expect(x?.wallets[0]?.wallet_address).toBe(SHARED);
+    expect(y?.wallets[0]?.wallet_address).toBe(SHARED);
   });
 
   it('treats maturation_threshold_days = 0 as fully matured (weight 1)', async () => {
@@ -307,7 +322,9 @@ describeMaybe('token_value_over_time (e2e)', () => {
     );
 
     const rows = parseCsv(storage.readText(outputs.token_value_over_time as string) as string);
-    expect(rows).toEqual([{ did: 'did:plc:m', token_value: '40' }]); // young lot, but maturation 0 → full value
+    // Single-user cohort → min–max floor 0. Raw score 40 (maturation 0 → full value)
+    // is asserted from the lot detail below.
+    expect(rows).toEqual([{ did: 'did:plc:m', token_value: '0' }]);
 
     const details = storage.readJson<TvtDetails>(outputs.token_value_over_time_details as string);
     const lot = details.dids[0].wallets[0].lots[0];
