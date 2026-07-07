@@ -211,7 +211,7 @@ describe('OAuth consent e2e', () => {
     expect(redirectUrl.searchParams.get('redirect_uri')).toBe(
       'http://localhost:3000/api/v1/oauth/consent/deep-id/callback',
     );
-    expect(redirectUrl.searchParams.get('scope')).toBe('api wallets');
+    expect(redirectUrl.searchParams.get('scope')).toBe('api wallets post_scores');
     expect(redirectUrl.searchParams.get('state')).toBe(state);
     expect(redirectUrl.searchParams.get('code_challenge_method')).toBe('S256');
 

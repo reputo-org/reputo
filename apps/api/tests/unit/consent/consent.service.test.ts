@@ -30,7 +30,7 @@ describe('ConsentService', () => {
       grantTtlSeconds: 600,
       sources: {
         'voting-portal': {
-          scope: 'api wallets',
+          scope: 'api wallets post_scores',
         },
       },
     },
@@ -122,7 +122,7 @@ describe('ConsentService', () => {
       expect(createdGrant.expiresAt).toEqual(new Date('2026-05-06T12:10:00.000Z'));
       expect(oauthProviderClient.buildAuthorizationUrl).toHaveBeenCalledWith('deep-id', credentials, {
         redirectUri: 'http://localhost:3000/api/v1/oauth/consent/deep-id/callback',
-        scope: 'api wallets',
+        scope: 'api wallets post_scores',
         state: createdGrant.state,
         codeChallenge: createPkceChallenge(createdGrant.codeVerifier),
       });

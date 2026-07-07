@@ -53,7 +53,7 @@ describe('OAuthProviderClient', () => {
 
     const url = await service.buildAuthorizationUrl('deep-id', CREDENTIALS, {
       redirectUri: 'http://localhost:3000/api/v1/oauth/consent/deep-id/callback',
-      scope: 'api wallets',
+      scope: 'api wallets post_scores',
       state: 'state',
       codeChallenge: 'challenge',
     });
@@ -64,7 +64,7 @@ describe('OAuthProviderClient', () => {
     expect(parsed.searchParams.get('response_type')).toBe('code');
     expect(parsed.searchParams.get('client_id')).toBe('client-id');
     expect(parsed.searchParams.get('redirect_uri')).toBe('http://localhost:3000/api/v1/oauth/consent/deep-id/callback');
-    expect(parsed.searchParams.get('scope')).toBe('api wallets');
+    expect(parsed.searchParams.get('scope')).toBe('api wallets post_scores');
     expect(parsed.searchParams.get('state')).toBe('state');
     expect(parsed.searchParams.get('code_challenge')).toBe('challenge');
     expect(parsed.searchParams.get('code_challenge_method')).toBe('S256');

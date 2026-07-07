@@ -21,7 +21,7 @@ export const AUTH_TEST_ENV = {
   DEEP_ID_CONSENT_GRANT_TTL_SECONDS: '600',
   DEEP_ID_CONSENT_CLEANUP_INTERVAL_MS: '0',
   VOTING_PORTAL_RETURN_URL: 'http://localhost:3001/voting',
-  DEEP_ID_CONSENT_SCOPES: 'api wallets',
+  DEEP_ID_CONSENT_SCOPES: 'api wallets post_scores',
   AUTH_COOKIE_NAME: 'reputo_test_session',
   AUTH_COOKIE_DOMAIN: '',
   AUTH_COOKIE_SECURE: 'false',
