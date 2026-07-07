@@ -97,18 +97,18 @@ description = "Staging Deep ID OIDC issuer URL."
 is_secret = false
 
 [[variable]]
-name = "STAGING_DEEP_ID_CLIENT_ID"
-description = "Staging Deep ID OAuth client ID."
+name = "STAGING_DEEP_ID_ADMIN_CLIENT_ID"
+description = "Staging Deep ID admin OAuth client ID."
 is_secret = false
 
 [[variable]]
-name = "STAGING_DEEP_ID_AUTH_REDIRECT_URI"
-description = "Staging Deep ID OAuth redirect URI."
+name = "STAGING_DEEP_ID_ADMIN_REDIRECT_URI"
+description = "Staging Deep ID admin OAuth redirect URI."
 is_secret = false
 
 [[variable]]
-name = "STAGING_DEEP_ID_AUTH_SCOPES"
-description = "Staging Deep ID OAuth scopes."
+name = "STAGING_DEEP_ID_ADMIN_SCOPES"
+description = "Staging Deep ID admin OAuth scopes."
 is_secret = false
 
 [[variable]]
@@ -127,8 +127,8 @@ description = "Staging Voting Portal return URL after Deep ID consent."
 is_secret = false
 
 [[variable]]
-name = "STAGING_DEEP_ID_VOTING_PORTAL_SCOPES"
-description = "Staging Deep ID scopes requested for Voting Portal consent."
+name = "STAGING_DEEP_ID_CONSENT_SCOPES"
+description = "Staging Deep ID scopes requested during the interactive consent flow."
 is_secret = false
 
 [[variable]]
@@ -222,8 +222,8 @@ description = "Staging Grafana admin password."
 is_secret = true
 
 [[variable]]
-name = "STAGING_DEEP_ID_CLIENT_SECRET"
-description = "Staging Deep ID OAuth client secret."
+name = "STAGING_DEEP_ID_ADMIN_CLIENT_SECRET"
+description = "Staging Deep ID admin OAuth client secret."
 is_secret = true
 
 [[variable]]
@@ -247,23 +247,23 @@ description = "Staging Blockfrost API key."
 is_secret = true
 
 [[variable]]
-name = "STAGING_DEEPID_IDENTITY_BASE_URL"
+name = "STAGING_DEEP_ID_IDENTITY_BASE_URL"
 description = "Staging DeepID identity host (OAuth 2.0 / OIDC token issuer)."
 is_secret = false
 
 [[variable]]
-name = "STAGING_DEEPID_APP_BASE_URL"
+name = "STAGING_DEEP_ID_APP_BASE_URL"
 description = "Staging DeepID application API host (/v1)."
 is_secret = false
 
 [[variable]]
-name = "STAGING_DEEPID_CLIENT_ID"
-description = "Staging DeepID M2M client id."
+name = "STAGING_DEEP_ID_CLIENT_ID"
+description = "Staging DeepID client id (consent + score posting)."
 is_secret = true
 
 [[variable]]
-name = "STAGING_DEEPID_CLIENT_SECRET"
-description = "Staging DeepID M2M client secret."
+name = "STAGING_DEEP_ID_CLIENT_SECRET"
+description = "Staging DeepID client secret (consent + score posting)."
 is_secret = true
 
 [[variable]]
@@ -317,18 +317,18 @@ description = "Production Deep ID OIDC issuer URL."
 is_secret = false
 
 [[variable]]
-name = "PRODUCTION_DEEP_ID_CLIENT_ID"
-description = "Production Deep ID OAuth client ID."
+name = "PRODUCTION_DEEP_ID_ADMIN_CLIENT_ID"
+description = "Production Deep ID admin OAuth client ID."
 is_secret = false
 
 [[variable]]
-name = "PRODUCTION_DEEP_ID_AUTH_REDIRECT_URI"
-description = "Production Deep ID OAuth redirect URI."
+name = "PRODUCTION_DEEP_ID_ADMIN_REDIRECT_URI"
+description = "Production Deep ID admin OAuth redirect URI."
 is_secret = false
 
 [[variable]]
-name = "PRODUCTION_DEEP_ID_AUTH_SCOPES"
-description = "Production Deep ID OAuth scopes."
+name = "PRODUCTION_DEEP_ID_ADMIN_SCOPES"
+description = "Production Deep ID admin OAuth scopes."
 is_secret = false
 
 [[variable]]
@@ -347,8 +347,8 @@ description = "Production Voting Portal return URL after Deep ID consent."
 is_secret = false
 
 [[variable]]
-name = "PRODUCTION_DEEP_ID_VOTING_PORTAL_SCOPES"
-description = "Production Deep ID scopes requested for Voting Portal consent."
+name = "PRODUCTION_DEEP_ID_CONSENT_SCOPES"
+description = "Production Deep ID scopes requested during the interactive consent flow."
 is_secret = false
 
 [[variable]]
@@ -442,8 +442,8 @@ description = "Production Grafana admin password."
 is_secret = true
 
 [[variable]]
-name = "PRODUCTION_DEEP_ID_CLIENT_SECRET"
-description = "Production Deep ID OAuth client secret."
+name = "PRODUCTION_DEEP_ID_ADMIN_CLIENT_SECRET"
+description = "Production Deep ID admin OAuth client secret."
 is_secret = true
 
 [[variable]]
@@ -467,21 +467,21 @@ description = "Production Blockfrost API key."
 is_secret = true
 
 [[variable]]
-name = "PRODUCTION_DEEPID_IDENTITY_BASE_URL"
+name = "PRODUCTION_DEEP_ID_IDENTITY_BASE_URL"
 description = "Production DeepID identity host (OAuth 2.0 / OIDC token issuer)."
 is_secret = false
 
 [[variable]]
-name = "PRODUCTION_DEEPID_APP_BASE_URL"
+name = "PRODUCTION_DEEP_ID_APP_BASE_URL"
 description = "Production DeepID application API host (/v1)."
 is_secret = false
 
 [[variable]]
-name = "PRODUCTION_DEEPID_CLIENT_ID"
-description = "Production DeepID M2M client id."
+name = "PRODUCTION_DEEP_ID_CLIENT_ID"
+description = "Production DeepID client id (consent + score posting)."
 is_secret = true
 
 [[variable]]
-name = "PRODUCTION_DEEPID_CLIENT_SECRET"
-description = "Production DeepID M2M client secret."
+name = "PRODUCTION_DEEP_ID_CLIENT_SECRET"
+description = "Production DeepID client secret (consent + score posting)."
 is_secret = true
