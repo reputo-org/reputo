@@ -5,6 +5,7 @@ import {
   ALGORITHM_EXECUTION_TIMEOUT,
   ALGORITHM_LIBRARY_TIMEOUT,
   DB_ACTIVITY_TIMEOUT,
+  DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
   DEEP_ID_POST_SCORES_TIMEOUT,
   DEPENDENCY_RESOLUTION_TIMEOUT,
   HEARTBEAT_TIMEOUT,
@@ -220,7 +221,7 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
   const { postSnapshotScores } = workflow.proxyActivities<DeepIdPostScoresActivities>({
     taskQueue: orchestratorTaskQueue,
     startToCloseTimeout: DEEP_ID_POST_SCORES_TIMEOUT,
-    heartbeatTimeout: HEARTBEAT_TIMEOUT,
+    heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
     retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
   });
 
