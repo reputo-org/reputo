@@ -20,8 +20,8 @@ import { createDeepIdClient, isValidDid } from '@reputo/deep-id-api';
 const client = createDeepIdClient({
   identityBaseUrl: 'https://identity.staging.deep-id.ai',
   appBaseUrl: 'https://app.staging.deep-id.ai',
-  clientId: process.env.DEEPID_CLIENT_ID!,
-  clientSecret: process.env.DEEPID_CLIENT_SECRET!,
+  clientId: process.env.DEEP_ID_CLIENT_ID!,
+  clientSecret: process.env.DEEP_ID_CLIENT_SECRET!,
   // scopes defaults to 'api wallets post_scores'
 });
 
