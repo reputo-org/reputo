@@ -26,7 +26,7 @@ const client = createDeepIdClient({
 });
 
 // Read consented users (did:sub → { scopes, wallets, scores })
-const users = await client.getUsers({ filteredTokenScopes: 'api wallets' });
+const users = await client.getUsers({ filteredTokenScopes: 'api wallets post_scores' });
 
 // Post scores keyed by DID (did:sub or did:plc). DeepID dedups newest-timestamp-wins.
 const result = await client.postScores({
