@@ -122,7 +122,7 @@ x-workflows-environment: &workflows-environment
     ALCHEMY_API_KEY: '${ALCHEMY_API_KEY:?missing ALCHEMY_API_KEY}'
     ONCHAIN_DATABASE_URL: postgresql://reputo_onchain:reputo_onchain@onchain-data-postgresql:5432/reputo_onchain
     BLOCKFROST_API_KEY: '${BLOCKFROST_API_KEY:?missing BLOCKFROST_API_KEY}'
-    DEEP_ID_IDENTITY_BASE_URL: https://identity.staging.deep-id.ai
+    DEEP_ID_ISSUER_URL: https://identity.staging.deep-id.ai
     DEEP_ID_APP_BASE_URL: https://app.staging.deep-id.ai
     DEEP_ID_CLIENT_ID: '${DEEP_ID_CLIENT_ID:?missing DEEP_ID_CLIENT_ID}'
     DEEP_ID_CLIENT_SECRET: '${DEEP_ID_CLIENT_SECRET:?missing DEEP_ID_CLIENT_SECRET}'

@@ -98,7 +98,7 @@ export const envSchema = z.object({
     .default(20_000)
     .describe('DeepFunding API retry max delay in milliseconds'),
 
-  DEEP_ID_IDENTITY_BASE_URL: z
+  DEEP_ID_ISSUER_URL: z
     .string()
     .url()
     .describe('DeepID OAuth 2.0 / OIDC host that issues the token (e.g. https://identity.staging.deep-id.ai)'),

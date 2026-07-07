@@ -42,7 +42,7 @@ const config = {
     blockfrostAPIKey: env.BLOCKFROST_API_KEY,
   },
   deepId: {
-    identityBaseUrl: env.DEEP_ID_IDENTITY_BASE_URL,
+    identityBaseUrl: env.DEEP_ID_ISSUER_URL,
     appBaseUrl: env.DEEP_ID_APP_BASE_URL,
     clientId: env.DEEP_ID_CLIENT_ID,
     clientSecret: env.DEEP_ID_CLIENT_SECRET,

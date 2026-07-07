@@ -247,11 +247,6 @@ description = "Staging Blockfrost API key."
 is_secret = true
 
 [[variable]]
-name = "STAGING_DEEP_ID_IDENTITY_BASE_URL"
-description = "Staging DeepID identity host (OAuth 2.0 / OIDC token issuer)."
-is_secret = false
-
-[[variable]]
 name = "STAGING_DEEP_ID_APP_BASE_URL"
 description = "Staging DeepID application API host (/v1)."
 is_secret = false
@@ -465,11 +460,6 @@ is_secret = true
 name = "PRODUCTION_BLOCKFROST_API_KEY"
 description = "Production Blockfrost API key."
 is_secret = true
-
-[[variable]]
-name = "PRODUCTION_DEEP_ID_IDENTITY_BASE_URL"
-description = "Production DeepID identity host (OAuth 2.0 / OIDC token issuer)."
-is_secret = false
 
 [[variable]]
 name = "PRODUCTION_DEEP_ID_APP_BASE_URL"
