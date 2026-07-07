@@ -11,19 +11,27 @@ import type {
   PostSnapshotScoresResult,
 } from '../../shared/types/index.js';
 
-/** Algorithm keys that are also DeepID score types (keys map 1:1 to types — no translation). */
+/**
+ * Algorithm keys that are also DeepID score types (keys map 1:1 to types — no
+ * translation). `custom_score` is a valid DeepID type but is intentionally not
+ * posted while the custom-score integration is out of scope.
+ */
 const POSTABLE_SCORE_TYPES = new Set<ScoreType>([
   'voting_engagement',
   'contribution_score',
   'proposal_engagement',
   'token_value_over_time',
-  'custom_score',
 ]);
 
 /** Users posted per `POST /v1/clients/scores` call (sized defensively against request timeouts). */
 const POST_CHUNK_SIZE = 500;
 
-const EMPTY_RESULT: PostSnapshotScoresResult = { posted: 0, ok: 0, failed: 0, skipped: 0 };
+/** DeepID's rejection for a user who has not consented to Reputo — expected, counted as `dropped`. */
+const EXPECTED_DROP_MESSAGE = 'User not found';
+
+const UNEXPECTED_REJECTION_WARN_LIMIT = 20;
+
+const EMPTY_RESULT: PostSnapshotScoresResult = { posted: 0, ok: 0, failed: 0, dropped: 0, skipped: 0 };
 
 function isCsvOutput(output: unknown): output is CsvIoItem {
   return (
@@ -101,7 +109,9 @@ export function createDeepIdPostScoresActivity(ctx: DeepIdSyncContext) {
     let skipped = 0;
     for (const row of rows) {
       const did = row.did?.trim();
-      const score = Number(row[primaryOutput.scoreColumnKey]);
+      const rawScore = row[primaryOutput.scoreColumnKey];
+      // Number('') is 0 — skip empty score cells instead of posting zeros.
+      const score = rawScore === undefined || rawScore === '' ? Number.NaN : Number(rawScore);
       if (!isValidDid(did) || !Number.isFinite(score)) {
         skipped += 1;
         continue;
@@ -137,19 +147,38 @@ export function createDeepIdPostScoresActivity(ctx: DeepIdSyncContext) {
 
     let ok = 0;
     let failed = 0;
+    let dropped = 0;
+    let warnsLogged = 0;
     const batches = chunk(entries, POST_CHUNK_SIZE);
     for (let i = 0; i < batches.length; i++) {
       const batch = Object.fromEntries(batches[i]) as PostScoresRequest;
       const response = await client.postScores(batch);
       ok += response.status.ok;
-      failed += response.status.failed;
 
       for (const [did, result] of Object.entries(response.results)) {
-        if (result.message !== 'OK') {
+        if (result.message === 'OK') {
+          continue;
+        }
+        if (result.message === EXPECTED_DROP_MESSAGE) {
+          dropped += 1;
+          continue;
+        }
+        failed += 1;
+        if (warnsLogged < UNEXPECTED_REJECTION_WARN_LIMIT) {
+          warnsLogged += 1;
           logger.warn('DeepID rejected a score', { snapshotId, scoreType, did, message: result.message });
         }
       }
       Context.current().heartbeat({ batch: i + 1, totalBatches: batches.length });
+    }
+
+    if (failed > warnsLogged) {
+      logger.warn('Further unexpected DeepID rejections were not logged individually', {
+        snapshotId,
+        scoreType,
+        failed,
+        logged: warnsLogged,
+      });
     }
 
     logger.info('Posted snapshot scores to DeepID', {
@@ -158,10 +187,11 @@ export function createDeepIdPostScoresActivity(ctx: DeepIdSyncContext) {
       posted: entries.length,
       ok,
       failed,
+      dropped,
       skipped,
     });
 
-    return { posted: entries.length, ok, failed, skipped };
+    return { posted: entries.length, ok, failed, dropped, skipped };
   };
 }
 

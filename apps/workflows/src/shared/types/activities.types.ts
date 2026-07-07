@@ -100,6 +100,8 @@ export interface PostSnapshotScoresResult {
   posted: number;
   ok: number;
   failed: number;
+  /** Expected "User not found" rejections — users who have not consented to Reputo. */
+  dropped: number;
   skipped: number;
 }
 
