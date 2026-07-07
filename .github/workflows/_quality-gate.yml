@@ -114,6 +114,8 @@ jobs:
                   # migrations only use DATABASE_URL. Placeholders never
                   # reach a real service.
                   {
+                      echo "DEEP_ID_ADMIN_CLIENT_ID=ci-placeholder"
+                      echo "DEEP_ID_ADMIN_CLIENT_SECRET=ci-placeholder"
                       echo "DEEP_ID_CLIENT_ID=ci-placeholder"
                       echo "DEEP_ID_CLIENT_SECRET=ci-placeholder"
                       echo "AUTH_TOKEN_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000"

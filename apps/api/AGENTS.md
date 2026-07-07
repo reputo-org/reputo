@@ -13,6 +13,13 @@ in `src/temporal`; env validation in `src/config/env.ts`.
 Snapshot updates reach the UI as Server-Sent Events, driven by Postgres `LISTEN/NOTIFY` on the
 `snapshot_updates` channel.
 
+## Conventions
+
+- Controllers map HTTP, services own business logic, repositories own persistence. Validate inbound data at the DTO boundary with Nest validation pipes.
+- Keep HTTP concerns at the edge: services raise domain errors; controllers and filters translate them into HTTP responses.
+- Read env only through one validated config module — never scatter `process.env.*` across the code.
+- When endpoint behaviour or request/response contracts change, update the affected tests under `tests/`.
+
 ## How to run, test, migrate
 
 ```bash

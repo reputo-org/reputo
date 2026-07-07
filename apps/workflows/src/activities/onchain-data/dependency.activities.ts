@@ -4,6 +4,7 @@ import type {
   DependencyResolverActivities,
   OnchainDataSyncContext,
   ResolveDependencyInput,
+  ResolveDependencyResult,
 } from '../../shared/types/index.js';
 import { createOnchainDataSyncActivity } from './onchain-data.activities.js';
 
@@ -13,7 +14,7 @@ export function createOnchainDataDependencyResolverActivities(
   const onchainDataSync = createOnchainDataSyncActivity(ctx);
 
   return {
-    async resolveDependency(input: ResolveDependencyInput): Promise<void> {
+    async resolveDependency(input: ResolveDependencyInput): Promise<ResolveDependencyResult> {
       const logger = Context.current().log;
       const { dependencyKey, snapshotId, syncTargets } = input;
 
@@ -35,6 +36,8 @@ export function createOnchainDataDependencyResolverActivities(
         dependencyKey,
         snapshotId: snapshotId,
       });
+
+      return {};
     },
   };
 }

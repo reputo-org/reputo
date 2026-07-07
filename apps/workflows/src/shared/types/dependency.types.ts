@@ -1,4 +1,4 @@
-export type DependencyKey = 'deepfunding-portal-api' | 'onchain-data';
+export type DependencyKey = 'deepfunding-portal-api' | 'onchain-data' | 'deep-id';
 
 /**
  * A chain+identifier pair that the onchain worker should sync.
@@ -13,6 +13,16 @@ export interface ResolveDependencyInput {
   snapshotId: string;
   /** For onchain-data: which chain+identifier pairs to sync */
   syncTargets?: SyncTarget[];
+}
+
+/**
+ * Result of resolving a dependency. A dependency that assembles the algorithm's
+ * `dids` input (e.g. `deep-id`, which fetches consented users from DeepID)
+ * returns the S3 key of the generated DID JSON so the orchestrator can point
+ * the algorithm at it.
+ */
+export interface ResolveDependencyResult {
+  didsKey?: string;
 }
 
 export interface DependencyResolverEntry {

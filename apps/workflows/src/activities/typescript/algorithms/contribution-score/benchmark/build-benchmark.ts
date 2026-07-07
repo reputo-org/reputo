@@ -8,7 +8,7 @@ import type {
   CommentBenchmarkRecord,
   ContributionScoreBenchmark,
   ContributionScoreParams,
-  SubIdBenchmarkRecord,
+  DidBenchmarkRecord,
 } from '../types.js';
 import { roundScore } from '../types.js';
 
@@ -63,11 +63,11 @@ export function buildCommentBenchmarkRecord(
 export interface FormatBenchmarkInput {
   records: CommentBenchmarkRecord[];
   snapshotId: string;
-  subIds: string[];
-  subIdScores: Map<string, number>;
-  deepProposalPortalIdBySubId: Map<string, string | null>;
-  matchedSubIds: Set<string>;
-  deepProposalPortalSubIdsIndex: Map<string, string[]>;
+  dids: string[];
+  didScores: Map<string, number>;
+  matchedDids: Set<string>;
+  /** Portal user id → DID, to attribute each comment's author to a DID. */
+  userIdToDid: Map<number, string>;
   params: ContributionScoreParams;
   totalCommentsProcessed: number;
   totalCommentsScored: number;
@@ -82,46 +82,46 @@ export function formatBenchmarkOutput(input: FormatBenchmarkInput): Contribution
   const {
     records,
     snapshotId,
-    subIds,
-    subIdScores,
-    deepProposalPortalIdBySubId,
-    matchedSubIds,
-    deepProposalPortalSubIdsIndex,
+    dids,
+    didScores,
+    matchedDids,
+    userIdToDid,
     params,
     totalCommentsProcessed,
     totalCommentsScored,
   } = input;
 
-  const subIdMap = new Map<string, CommentBenchmarkRecord[]>();
+  const didMap = new Map<string, CommentBenchmarkRecord[]>();
 
   for (const record of records) {
-    for (const subId of deepProposalPortalSubIdsIndex.get(String(record.user_id)) ?? []) {
-      const list = subIdMap.get(subId) ?? [];
-      list.push(record);
-      subIdMap.set(subId, list);
+    const did = userIdToDid.get(record.user_id);
+    if (did === undefined) {
+      continue;
     }
+    const list = didMap.get(did) ?? [];
+    list.push(record);
+    didMap.set(did, list);
   }
 
-  const subIdRows: SubIdBenchmarkRecord[] = [];
+  const didRows: DidBenchmarkRecord[] = [];
 
-  for (const subId of subIds) {
-    const comments = subIdMap.get(subId) ?? [];
-    const contributionScore = subIdScores.get(subId) ?? 0;
-    subIdRows.push({
-      sub_id: subId,
-      deep_proposal_portal_id: deepProposalPortalIdBySubId.get(subId) ?? null,
+  for (const did of dids) {
+    const comments = didMap.get(did) ?? [];
+    const contributionScore = didScores.get(did) ?? 0;
+    didRows.push({
+      did: did,
       contribution_score: contributionScore,
       comment_count: comments.length,
       comments,
     });
   }
 
-  subIdRows.sort((a, b) => a.sub_id.localeCompare(b.sub_id));
-  const matchedIds = [...matchedSubIds].sort((a, b) => a.localeCompare(b));
-  const unmatchedIds = subIds.filter((subId) => !matchedSubIds.has(subId));
+  didRows.sort((a, b) => a.did.localeCompare(b.did));
+  const matchedIds = [...matchedDids].sort((a, b) => a.localeCompare(b));
+  const unmatchedIds = dids.filter((did) => !matchedDids.has(did));
 
   return {
-    sub_ids: subIdRows,
+    dids: didRows,
     metadata: {
       snapshot_id: snapshotId,
       computed_at: new Date().toISOString(),
@@ -134,14 +134,14 @@ export function formatBenchmarkOutput(input: FormatBenchmarkInput): Contribution
         engagementWindowMonths: params.engagementWindowMonths,
         monthlyDecayRatePercent: params.monthlyDecayRatePercent,
       },
-      sub_ids: {
-        provided_ids: subIds,
+      dids: {
+        provided_ids: dids,
         matched_ids: matchedIds,
         unmatched_ids: unmatchedIds,
       },
       metrics: {
-        total_sub_ids_provided: subIds.length,
-        sub_ids_with_matching_comments: matchedIds.length,
+        total_dids_provided: dids.length,
+        dids_with_matching_comments: matchedIds.length,
         total_comments_processed: totalCommentsProcessed,
         total_comments_scored: totalCommentsScored,
       },

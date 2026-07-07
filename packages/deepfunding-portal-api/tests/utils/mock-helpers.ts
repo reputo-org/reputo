@@ -66,6 +66,7 @@ export function createMockUser(overrides?: Partial<User>): User {
     user_name: 'testuser',
     email: 'test@example.com',
     total_proposals: 5,
+    did: 'did:plc:abc123abc123abc123abc123',
     ...overrides,
   };
 }

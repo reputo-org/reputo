@@ -38,10 +38,12 @@ export const envSchema = z
       .describe('OAuth provider against which OWNER_EMAIL is seeded'),
 
     DEEP_ID_ISSUER_URL: z.string().url().describe('Deep ID issuer base URL'),
-    DEEP_ID_CLIENT_ID: z.string().trim().min(1).describe('Deep ID OAuth client identifier'),
-    DEEP_ID_CLIENT_SECRET: z.string().trim().min(1).describe('Deep ID OAuth client secret'),
-    DEEP_ID_AUTH_REDIRECT_URI: z.string().url().describe('Deep ID OAuth auth callback URL'),
-    DEEP_ID_AUTH_SCOPES: z.string().trim().min(1).describe('Space or comma separated Deep ID auth scopes'),
+    DEEP_ID_ADMIN_CLIENT_ID: z.string().trim().min(1).describe('Deep ID admin OAuth client identifier'),
+    DEEP_ID_ADMIN_CLIENT_SECRET: z.string().trim().min(1).describe('Deep ID admin OAuth client secret'),
+    DEEP_ID_ADMIN_REDIRECT_URI: z.string().url().describe('Deep ID admin OAuth callback URL'),
+    DEEP_ID_ADMIN_SCOPES: z.string().trim().min(1).describe('Space or comma separated Deep ID admin scopes'),
+    DEEP_ID_CLIENT_ID: z.string().trim().min(1).describe('Deep ID OAuth client identifier (consent + score posting)'),
+    DEEP_ID_CLIENT_SECRET: z.string().trim().min(1).describe('Deep ID OAuth client secret (consent + score posting)'),
 
     AUTH_COOKIE_NAME: z
       .string()
@@ -99,7 +101,7 @@ export const envSchema = z
       .default(5 * 60 * 1000)
       .describe('Interval (ms) for the consent-grant expiry cleanup job; 0 disables the cron'),
     VOTING_PORTAL_RETURN_URL: z.string().url().describe('Voting Portal return URL after consent'),
-    DEEP_ID_VOTING_PORTAL_SCOPES: z.string().min(1).describe('Deep ID scopes requested for Voting Portal consent'),
+    DEEP_ID_CONSENT_SCOPES: z.string().min(1).describe('Deep ID scopes requested during the interactive consent flow'),
 
     DATABASE_URL: z
       .string()

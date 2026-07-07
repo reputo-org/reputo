@@ -69,14 +69,16 @@ x-api-environment: &api-environment
     OWNER_EMAIL: preview@example.com
     APP_PUBLIC_URL: '${PULLPREVIEW_URL:?missing PULLPREVIEW_URL}'
     DEEP_ID_ISSUER_URL: https://mock.invalid
+    DEEP_ID_ADMIN_CLIENT_ID: mock-admin-client-id
+    DEEP_ID_ADMIN_CLIENT_SECRET: mock-admin-client-secret
+    DEEP_ID_ADMIN_REDIRECT_URI: https://mock.invalid/api/v1/auth/deep-id/callback
+    DEEP_ID_ADMIN_SCOPES: openid profile email offline_access
     DEEP_ID_CLIENT_ID: mock-client-id
     DEEP_ID_CLIENT_SECRET: mock-client-secret
-    DEEP_ID_AUTH_REDIRECT_URI: https://mock.invalid/api/v1/auth/deep-id/callback
-    DEEP_ID_AUTH_SCOPES: openid profile email offline_access
     DEEP_ID_CONSENT_REDIRECT_URI: https://mock.invalid/api/v1/oauth/consent/deep-id/callback
     DEEP_ID_CONSENT_GRANT_TTL_SECONDS: '600'
     VOTING_PORTAL_RETURN_URL: https://mock.invalid/voting
-    DEEP_ID_VOTING_PORTAL_SCOPES: api wallets
+    DEEP_ID_CONSENT_SCOPES: api wallets post_scores
     AUTH_COOKIE_NAME: reputo_auth_session
     AUTH_COOKIE_SECURE: 'true'
     AUTH_COOKIE_SAME_SITE: lax
@@ -120,6 +122,10 @@ x-workflows-environment: &workflows-environment
     ALCHEMY_API_KEY: '${ALCHEMY_API_KEY:?missing ALCHEMY_API_KEY}'
     ONCHAIN_DATABASE_URL: postgresql://reputo_onchain:reputo_onchain@onchain-data-postgresql:5432/reputo_onchain
     BLOCKFROST_API_KEY: '${BLOCKFROST_API_KEY:?missing BLOCKFROST_API_KEY}'
+    DEEP_ID_IDENTITY_BASE_URL: https://identity.staging.deep-id.ai
+    DEEP_ID_APP_BASE_URL: https://app.staging.deep-id.ai
+    DEEP_ID_CLIENT_ID: '${DEEP_ID_CLIENT_ID:?missing DEEP_ID_CLIENT_ID}'
+    DEEP_ID_CLIENT_SECRET: '${DEEP_ID_CLIENT_SECRET:?missing DEEP_ID_CLIENT_SECRET}'
 
 ################################################################################
 # Networks / volumes

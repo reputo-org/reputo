@@ -41,7 +41,7 @@
   "packageManager": "pnpm@10.30.3",
   "scripts": {
     "build": "tsc",
-    "build:deps": "pnpm --filter @reputo/contracts --filter @reputo/deepfunding-portal-api --filter @reputo/onchain-data --filter @reputo/reputation-algorithms --filter @reputo/storage run build",
+    "build:deps": "pnpm --filter @reputo/contracts --filter @reputo/deep-id-api --filter @reputo/deepfunding-portal-api --filter @reputo/onchain-data --filter @reputo/reputation-algorithms --filter @reputo/storage run build",
     "clean": "rm -rf coverage dist docs node_modules tsconfig.tsbuildinfo",
     "check": "pnpm exec biome check",
     "lint": "pnpm exec biome lint",
@@ -50,9 +50,11 @@
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "test:cov": "vitest --coverage",
+    "test:e2e": "vitest run --config vitest.config.e2e.ts",
+    "test:e2e:watch": "vitest --config vitest.config.e2e.ts",
     "dev": "pnpm run build:deps && concurrently --names deps,workers --prefix name --kill-others-on-fail \"pnpm run dev:deps\" \"pnpm run dev:app\"",
     "dev:app": "concurrently --names orchestrator,algorithm,onchain-data --prefix name --kill-others-on-fail \"pnpm run dev:orchestrator:app\" \"pnpm run dev:algorithm-typescript:app\" \"pnpm run dev:onchain-data:app\"",
-    "dev:deps": "pnpm --filter @reputo/contracts --filter @reputo/deepfunding-portal-api --filter @reputo/onchain-data --filter @reputo/reputation-algorithms --filter @reputo/storage --parallel run dev",
+    "dev:deps": "pnpm --filter @reputo/contracts --filter @reputo/deep-id-api --filter @reputo/deepfunding-portal-api --filter @reputo/onchain-data --filter @reputo/reputation-algorithms --filter @reputo/storage --parallel run dev",
     "dev:orchestrator": "pnpm run build:deps && concurrently --names deps,orchestrator --prefix name --kill-others-on-fail \"pnpm run dev:deps\" \"pnpm run dev:orchestrator:app\"",
     "dev:orchestrator:app": "nodemon src/workers/typescript/orchestrator.worker.ts",
     "dev:algorithm-typescript": "pnpm run build:deps && concurrently --names deps,algorithm --prefix name --kill-others-on-fail \"pnpm run dev:deps\" \"pnpm run dev:algorithm-typescript:app\"",
@@ -66,6 +68,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "catalog:",
     "@reputo/contracts": "workspace:*",
+    "@reputo/deep-id-api": "workspace:*",
     "@reputo/deepfunding-portal-api": "workspace:*",
     "@reputo/onchain-data": "workspace:*",
     "@reputo/reputation-algorithms": "workspace:*",
@@ -82,6 +85,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
+    "@testcontainers/postgresql": "catalog:",
     "@types/node": "catalog:",
     "concurrently": "catalog:",
     "nodemon": "catalog:",

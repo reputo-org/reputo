@@ -18,5 +18,8 @@ export class UserEntity {
   totalProposals!: number;
 
   @Column({ type: 'text' })
+  did!: string;
+
+  @Column({ type: 'text' })
   rawJson!: string;
 }

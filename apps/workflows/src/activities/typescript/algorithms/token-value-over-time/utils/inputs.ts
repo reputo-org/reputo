@@ -1,5 +1,5 @@
 import type { AlgorithmPresetFrozenDto as AlgorithmPresetFrozen } from '@reputo/contracts';
-import { extractSubIdsKey } from '../../shared/sub-id-input.js';
+import { extractDidsKey } from '../../shared/did-input.js';
 
 import type { EffectiveDateRange, SelectedResourceInput, SupportedChain, TokenValueOverTimeParams } from '../types.js';
 
@@ -24,7 +24,7 @@ export function extractInputs(
   return {
     maturationThresholdDays: maturationThresholdRaw as number,
     selectedResources,
-    subIdsKey: extractSubIdsKey(inputs),
+    didsKey: extractDidsKey(inputs),
     effectiveDateRange,
   };
 }

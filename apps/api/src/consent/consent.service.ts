@@ -4,6 +4,7 @@ import type { OAuthProvider } from '@reputo/contracts';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import type { ConsentProviderConfig, ConsentSourceConfig } from '../config/consent.config';
 import { OAuthProviderClient } from '../shared/oauth';
+import type { OAuthClientCredentials } from '../shared/types';
 import { createPkceChallenge, createRandomToken } from '../shared/utils';
 import type { ConsentCallbackQueryDto } from './dto';
 import { OAuthConsentGrantRepository } from './oauth-consent-grant.repository';
@@ -19,6 +20,14 @@ export class InvalidConsentStateException extends Error {
 
 function getStateSuffix(state: string | undefined): string | undefined {
   return state ? state.slice(-8) : undefined;
+}
+
+function toCredentials(providerConfig: ConsentProviderConfig): OAuthClientCredentials {
+  return {
+    issuerUrl: providerConfig.issuerUrl,
+    clientId: providerConfig.clientId,
+    clientSecret: providerConfig.clientSecret,
+  };
 }
 
 function buildReturnUrl(returnUrl: string, connected: 'success' | 'error', reason?: ConsentRedirectReason): string {
@@ -74,7 +83,7 @@ export class ConsentService {
       expiresAt,
     });
 
-    return this.oauthProviderClient.buildAuthorizationUrl(provider, {
+    return this.oauthProviderClient.buildAuthorizationUrl(provider, toCredentials(providerConfig), {
       redirectUri: providerConfig.redirectUri,
       scope: providerSourceConfig.scope,
       state,
@@ -116,7 +125,7 @@ export class ConsentService {
       }
 
       try {
-        await this.oauthProviderClient.exchangeCodeForTokens(provider, {
+        await this.oauthProviderClient.exchangeCodeForTokens(provider, toCredentials(providerConfig), {
           code: query.code,
           codeVerifier: grant.codeVerifier,
           redirectUri: providerConfig.redirectUri,

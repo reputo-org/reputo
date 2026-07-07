@@ -62,6 +62,7 @@ export class Init1748000000000 implements MigrationInterface {
         "user_name" text NOT NULL,
         "email" text NOT NULL,
         "total_proposals" integer NOT NULL,
+        "did" text NOT NULL,
         "raw_json" text NOT NULL
       )
     `);

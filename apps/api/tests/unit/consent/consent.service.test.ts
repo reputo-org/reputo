@@ -18,13 +18,19 @@ describe('ConsentService', () => {
       returnUrl: 'http://localhost:3001/voting',
     },
   };
+  const credentials = {
+    issuerUrl: 'https://identity.deep-id.ai',
+    clientId: 'deep-id-client',
+    clientSecret: 'deep-id-secret',
+  };
   const providers = {
     'deep-id': {
+      ...credentials,
       redirectUri: 'http://localhost:3000/api/v1/oauth/consent/deep-id/callback',
       grantTtlSeconds: 600,
       sources: {
         'voting-portal': {
-          scope: 'api wallets',
+          scope: 'api wallets post_scores',
         },
       },
     },
@@ -114,9 +120,9 @@ describe('ConsentService', () => {
       expect(createdGrant.state).toMatch(/^[A-Za-z0-9_-]{43}$/u);
       expect(createdGrant.codeVerifier).toMatch(/^[A-Za-z0-9_-]{43}$/u);
       expect(createdGrant.expiresAt).toEqual(new Date('2026-05-06T12:10:00.000Z'));
-      expect(oauthProviderClient.buildAuthorizationUrl).toHaveBeenCalledWith('deep-id', {
+      expect(oauthProviderClient.buildAuthorizationUrl).toHaveBeenCalledWith('deep-id', credentials, {
         redirectUri: 'http://localhost:3000/api/v1/oauth/consent/deep-id/callback',
-        scope: 'api wallets',
+        scope: 'api wallets post_scores',
         state: createdGrant.state,
         codeChallenge: createPkceChallenge(createdGrant.codeVerifier),
       });
@@ -141,7 +147,7 @@ describe('ConsentService', () => {
       });
 
       expect(redirectUrl).toBe('http://localhost:3001/voting?reputo_connected=success');
-      expect(oauthProviderClient.exchangeCodeForTokens).toHaveBeenCalledWith('deep-id', {
+      expect(oauthProviderClient.exchangeCodeForTokens).toHaveBeenCalledWith('deep-id', credentials, {
         code: 'authorization-code',
         codeVerifier: 'pkce-verifier',
         redirectUri: 'http://localhost:3000/api/v1/oauth/consent/deep-id/callback',

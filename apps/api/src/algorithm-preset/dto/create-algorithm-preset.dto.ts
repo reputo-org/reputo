@@ -44,7 +44,6 @@ export class CreateAlgorithmPresetDto {
     description: 'Array of input parameters for the algorithm preset',
     type: [AlgorithmPresetInputDto],
     example: [
-      { key: 'sub_ids', value: 'uploads/example/sub_ids.json' },
       { key: 'maturation_threshold_days', value: 90 },
       {
         key: 'selected_resources',

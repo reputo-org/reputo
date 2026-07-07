@@ -9,7 +9,7 @@ import type { AlgorithmComputeFunction, AlgorithmResult, Snapshot } from '../../
 import { stringifyCsvAsync } from '../../../../shared/utils/index.js';
 import { computeContributionScore } from '../contribution-score/compute.js';
 import { computeProposalEngagement } from '../proposal-engagement/compute.js';
-import { extractSubIdsKey, getSubIds, loadSubIdInputMap } from '../shared/sub-id-input.js';
+import { extractDidsKey, getDids, loadDidInputMap } from '../shared/did-input.js';
 import { computeTokenValueOverTime } from '../token-value-over-time/compute.js';
 import { computeVotingEngagement } from '../voting-engagement/compute.js';
 
@@ -22,7 +22,6 @@ const standaloneRegistry: Record<string, AlgorithmComputeFunction> = {
   token_value_over_time: computeTokenValueOverTime,
 };
 
-type NormalizationMethod = 'none' | 'min_max' | 'z_score';
 type MissingScoreStrategy = 'zero';
 
 interface PresetInputLike {
@@ -37,40 +36,36 @@ interface SubAlgorithmEntry {
   inputs: PresetInputLike[];
 }
 
-interface CustomAlgorithmParams {
-  subIdsKey: string;
+interface CustomScoreParams {
+  didsKey: string;
   subAlgorithms: SubAlgorithmEntry[];
-  normalizationMethod: NormalizationMethod;
   missingScoreStrategy: MissingScoreStrategy;
 }
 
 interface ChildAlgorithmRuntimeResult {
   entry: SubAlgorithmEntry;
-  rawScores: Map<string, number>;
-  normalizedScores: Map<string, number>;
+  scores: Map<string, number>;
 }
 
 interface ChildScoreDetail {
   algorithm_key: string;
   algorithm_version: string;
-  raw_score: number;
-  normalized_score: number;
+  score: number;
   child_weight: number;
   weighted_contribution: number;
 }
 
 interface CompositeScoreDetail {
-  sub_id: string;
+  did: string;
   final_composite_score: number;
   child_scores: ChildScoreDetail[];
 }
 
 interface CompositeScoreDetailsDocument {
   snapshot_id: string;
-  normalization_method: NormalizationMethod;
   missing_score_strategy: MissingScoreStrategy;
   total_child_weight: number;
-  sub_ids: CompositeScoreDetail[];
+  dids: CompositeScoreDetail[];
 }
 
 function roundScore(score: number): number {
@@ -127,16 +122,11 @@ function parseSubAlgorithmEntry(value: unknown, index: number): SubAlgorithmEntr
   };
 }
 
-function extractInputs(inputs: PresetInputLike[]): CustomAlgorithmParams {
-  const subIdsKey = extractSubIdsKey(inputs);
+function extractInputs(inputs: PresetInputLike[]): CustomScoreParams {
+  const didsKey = extractDidsKey(inputs);
   const rawSubAlgorithms = inputs.find((input) => input.key === 'sub_algorithms')?.value;
   if (!Array.isArray(rawSubAlgorithms) || rawSubAlgorithms.length === 0) {
     throw new Error('Missing required "sub_algorithms" input');
-  }
-
-  const normalizationMethod = getRequiredStringInput(inputs, 'normalization_method');
-  if (normalizationMethod !== 'none' && normalizationMethod !== 'min_max' && normalizationMethod !== 'z_score') {
-    throw new Error(`Unsupported normalization_method: ${normalizationMethod}`);
   }
 
   const missingScoreStrategy = getRequiredStringInput(inputs, 'missing_score_strategy');
@@ -145,9 +135,8 @@ function extractInputs(inputs: PresetInputLike[]): CustomAlgorithmParams {
   }
 
   return {
-    subIdsKey,
+    didsKey,
     subAlgorithms: rawSubAlgorithms.map(parseSubAlgorithmEntry),
-    normalizationMethod,
     missingScoreStrategy,
   };
 }
@@ -162,12 +151,12 @@ function getPrimaryCsvOutput(definition: AlgorithmDefinition): { outputKey: stri
     throw new Error(`Algorithm "${definition.key}" does not define a CSV output`);
   }
 
-  const hasSubIdColumn = csvOutput.csv.columns.some((column) => column.key === 'sub_id');
-  if (!hasSubIdColumn) {
-    throw new Error(`Algorithm "${definition.key}" CSV output must contain a "sub_id" column`);
+  const hasDidColumn = csvOutput.csv.columns.some((column) => column.key === 'did');
+  if (!hasDidColumn) {
+    throw new Error(`Algorithm "${definition.key}" CSV output must contain a "did" column`);
   }
 
-  const scoreColumn = csvOutput.csv.columns.find((column) => column.key !== 'sub_id');
+  const scoreColumn = csvOutput.csv.columns.find((column) => column.key !== 'did');
   if (!scoreColumn) {
     throw new Error(`Algorithm "${definition.key}" CSV output must contain a score column`);
   }
@@ -181,17 +170,17 @@ function getPrimaryCsvOutput(definition: AlgorithmDefinition): { outputKey: stri
 function buildChildSnapshot(
   snapshot: Snapshot,
   child: SubAlgorithmEntry,
-  subIdsKey: string,
+  didsKey: string,
   childIndex: number,
 ): Snapshot {
   return {
     ...snapshot,
-    id: `${snapshot.id}__custom_algorithm_child_${childIndex + 1}_${child.algorithm_key}`,
+    id: `${snapshot.id}__custom_score_child_${childIndex + 1}_${child.algorithm_key}`,
     algorithmPresetFrozen: {
       ...snapshot.algorithmPresetFrozen,
       key: child.algorithm_key,
       version: child.algorithm_version,
-      inputs: [...child.inputs.filter((input) => input.key !== 'sub_ids'), { key: 'sub_ids', value: subIdsKey }],
+      inputs: [...child.inputs.filter((input) => input.key !== 'dids'), { key: 'dids', value: didsKey }],
     },
   };
 }
@@ -208,65 +197,34 @@ function parseChildScoreCsv(csvText: string, definition: AlgorithmDefinition): M
   const scores = new Map<string, number>();
 
   for (const row of rows) {
-    const subId = row.sub_id?.trim();
-    if (!subId) {
-      throw new Error(`Algorithm "${definition.key}" output is missing a sub_id value`);
+    const did = row.did?.trim();
+    if (!did) {
+      throw new Error(`Algorithm "${definition.key}" output is missing a did value`);
     }
 
-    if (scores.has(subId)) {
-      throw new Error(`Algorithm "${definition.key}" output contains duplicate sub_id "${subId}"`);
+    if (scores.has(did)) {
+      throw new Error(`Algorithm "${definition.key}" output contains duplicate did "${did}"`);
     }
 
     const rawScore = row[scoreColumnKey];
     const score = Number(rawScore);
     if (!Number.isFinite(score)) {
-      throw new Error(`Algorithm "${definition.key}" output contains a non-numeric score for "${subId}"`);
+      throw new Error(`Algorithm "${definition.key}" output contains a non-numeric score for "${did}"`);
     }
 
-    scores.set(subId, score);
+    scores.set(did, score);
   }
 
   return scores;
 }
 
-function normalizeScoreVector(rawScores: number[], method: NormalizationMethod): number[] {
-  if (method === 'none') {
-    return rawScores.map((score) => roundScore(score));
-  }
-
-  if (rawScores.length === 0) {
-    return [];
-  }
-
-  if (method === 'min_max') {
-    const min = Math.min(...rawScores);
-    const max = Math.max(...rawScores);
-    if (max === min) {
-      return rawScores.map(() => 0);
-    }
-
-    return rawScores.map((score) => roundScore((score - min) / (max - min)));
-  }
-
-  const mean = rawScores.reduce((sum, score) => sum + score, 0) / rawScores.length;
-  const variance = rawScores.reduce((sum, score) => sum + (score - mean) ** 2, 0) / rawScores.length;
-  const standardDeviation = Math.sqrt(variance);
-
-  if (standardDeviation === 0) {
-    return rawScores.map(() => 0);
-  }
-
-  return rawScores.map((score) => roundScore((score - mean) / standardDeviation));
-}
-
 async function runChildAlgorithm(input: {
   snapshot: Snapshot;
   storage: Storage;
-  subIds: string[];
-  subIdsKey: string;
+  dids: string[];
+  didsKey: string;
   child: SubAlgorithmEntry;
   childIndex: number;
-  normalizationMethod: NormalizationMethod;
 }): Promise<ChildAlgorithmRuntimeResult> {
   const childDefinition = JSON.parse(
     getAlgorithmDefinition({
@@ -290,7 +248,7 @@ async function runChildAlgorithm(input: {
     throw new Error(`Unsupported child algorithm: ${input.child.algorithm_key}`);
   }
 
-  const childSnapshot = buildChildSnapshot(input.snapshot, input.child, input.subIdsKey, input.childIndex);
+  const childSnapshot = buildChildSnapshot(input.snapshot, input.child, input.didsKey, input.childIndex);
   const childResult = await compute(childSnapshot, input.storage);
   const { outputKey } = getPrimaryCsvOutput(childDefinition);
   const childCsvKey = childResult.outputs[outputKey];
@@ -305,47 +263,40 @@ async function runChildAlgorithm(input: {
   });
 
   const parsedScores = parseChildScoreCsv(childCsvBuffer.toString('utf-8'), childDefinition);
-  const rawScores = new Map<string, number>();
 
-  for (const subId of input.subIds) {
-    rawScores.set(subId, parsedScores.get(subId) ?? 0);
+  // Each standalone algorithm already normalizes its output into the canonical
+  // 0–100 range, so child scores are combined directly. Users absent from a child's
+  // output are treated as 0 (the 'zero' missing-score strategy).
+  const scores = new Map<string, number>();
+  for (const did of input.dids) {
+    scores.set(did, parsedScores.get(did) ?? 0);
   }
-
-  const normalizedVector = normalizeScoreVector(
-    input.subIds.map((subId) => rawScores.get(subId) ?? 0),
-    input.normalizationMethod,
-  );
-  const normalizedScores = new Map<string, number>(
-    input.subIds.map((subId, index) => [subId, normalizedVector[index] ?? 0]),
-  );
 
   return {
     entry: input.child,
-    rawScores,
-    normalizedScores,
+    scores,
   };
 }
 
-export async function computeCustomAlgorithm(snapshot: Snapshot, storage: Storage): Promise<AlgorithmResult> {
+export async function computeCustomScore(snapshot: Snapshot, storage: Storage): Promise<AlgorithmResult> {
   const ctx = Context.current();
   const logger = ctx.log;
   const snapshotId = snapshot.id;
 
-  logger.info('Starting custom_algorithm', { snapshotId });
+  logger.info('Starting custom_score', { snapshotId });
 
   const params = extractInputs(snapshot.algorithmPresetFrozen.inputs);
-  const subIdInputMap = await loadSubIdInputMap({
+  const didInputMap = await loadDidInputMap({
     storage,
     bucket: config.storage.bucket,
-    key: params.subIdsKey,
+    key: params.didsKey,
   });
-  const subIds = getSubIds(subIdInputMap);
+  const dids = getDids(didInputMap);
 
   logger.info('Resolved custom algorithm inputs', {
     snapshotId,
-    subIdCount: subIds.length,
+    didCount: dids.length,
     childAlgorithmCount: params.subAlgorithms.length,
-    normalizationMethod: params.normalizationMethod,
     missingScoreStrategy: params.missingScoreStrategy,
   });
 
@@ -360,11 +311,10 @@ export async function computeCustomAlgorithm(snapshot: Snapshot, storage: Storag
       await runChildAlgorithm({
         snapshot,
         storage,
-        subIds,
-        subIdsKey: params.subIdsKey,
+        dids,
+        didsKey: params.didsKey,
         child: params.subAlgorithms[index],
         childIndex: index,
-        normalizationMethod: params.normalizationMethod,
       }),
     );
   }
@@ -374,25 +324,23 @@ export async function computeCustomAlgorithm(snapshot: Snapshot, storage: Storag
     throw new Error('Custom algorithm requires a positive total child weight');
   }
 
-  const compositeRows: Array<{ sub_id: string; composite_score: number }> = [];
+  const compositeRows: Array<{ did: string; composite_score: number }> = [];
   const detailsRows: CompositeScoreDetail[] = [];
 
-  for (let index = 0; index < subIds.length; index++) {
+  for (let index = 0; index < dids.length; index++) {
     if (index % HEARTBEAT_INTERVAL === 0) {
-      ctx.heartbeat({ phase: 'combine', processed: index, total: subIds.length });
+      ctx.heartbeat({ phase: 'combine', processed: index, total: dids.length });
     }
 
-    const subId = subIds[index];
-    const childScores = childResults.map(({ entry, rawScores, normalizedScores }) => {
-      const rawScore = rawScores.get(subId) ?? 0;
-      const normalizedScore = normalizedScores.get(subId) ?? 0;
-      const weightedContribution = roundScore((normalizedScore * entry.weight) / totalChildWeight);
+    const did = dids[index];
+    const childScores = childResults.map(({ entry, scores }) => {
+      const score = scores.get(did) ?? 0;
+      const weightedContribution = roundScore((score * entry.weight) / totalChildWeight);
 
       return {
         algorithm_key: entry.algorithm_key,
         algorithm_version: entry.algorithm_version,
-        raw_score: rawScore,
-        normalized_score: normalizedScore,
+        score,
         child_weight: entry.weight,
         weighted_contribution: weightedContribution,
       };
@@ -403,11 +351,11 @@ export async function computeCustomAlgorithm(snapshot: Snapshot, storage: Storag
     );
 
     compositeRows.push({
-      sub_id: subId,
+      did: did,
       composite_score: compositeScore,
     });
     detailsRows.push({
-      sub_id: subId,
+      did: did,
       final_composite_score: compositeScore,
       child_scores: childScores,
     });
@@ -417,7 +365,7 @@ export async function computeCustomAlgorithm(snapshot: Snapshot, storage: Storag
 
   const compositeCsv = await stringifyCsvAsync(compositeRows, {
     header: true,
-    columns: ['sub_id', 'composite_score'],
+    columns: ['did', 'composite_score'],
   });
 
   const compositeKey = generateKey('snapshot', snapshotId, 'composite_score.csv');
@@ -430,10 +378,9 @@ export async function computeCustomAlgorithm(snapshot: Snapshot, storage: Storag
 
   const details: CompositeScoreDetailsDocument = {
     snapshot_id: snapshotId,
-    normalization_method: params.normalizationMethod,
     missing_score_strategy: params.missingScoreStrategy,
     total_child_weight: roundScore(totalChildWeight),
-    sub_ids: detailsRows,
+    dids: detailsRows,
   };
 
   const detailsKey = generateKey('snapshot', snapshotId, 'composite_score_details.json');

@@ -98,7 +98,7 @@ describe('contribution-score benchmark', () => {
       scored: false,
     };
 
-    it('includes metadata with matched and unmatched SubIDs, config, and metrics', () => {
+    it('includes metadata with matched and unmatched DIDs, config, and metrics', () => {
       const records: CommentBenchmarkRecord[] = [
         {
           ...baseRecord,
@@ -121,41 +121,36 @@ describe('contribution-score benchmark', () => {
       const result = formatBenchmarkOutput({
         records,
         snapshotId: 'snap-123',
-        subIds: ['SubID-10', 'SubID-35', 'SubID-100'],
-        subIdScores: new Map([
-          ['SubID-10', 12],
-          ['SubID-35', 5],
-          ['SubID-100', 0],
+        dids: ['did:plc:10', 'did:plc:35', 'did:plc:100'],
+        didScores: new Map([
+          ['did:plc:10', 12],
+          ['did:plc:35', 5],
+          ['did:plc:100', 0],
         ]),
-        deepProposalPortalIdBySubId: new Map([
-          ['SubID-10', '10'],
-          ['SubID-35', '35'],
-          ['SubID-100', '100'],
+        matchedDids: new Set(['did:plc:10', 'did:plc:35']),
+        userIdToDid: new Map([
+          [10, 'did:plc:10'],
+          [35, 'did:plc:35'],
+          [100, 'did:plc:100'],
         ]),
-        matchedSubIds: new Set(['SubID-10', 'SubID-35']),
-        deepProposalPortalSubIdsIndex: new Map([
-          ['10', ['SubID-10']],
-          ['35', ['SubID-35']],
-          ['100', ['SubID-100']],
-        ]),
-        params: { ...mockParams, subIdsKey: 'uploads/sub_ids.json' },
+        params: mockParams,
         totalCommentsProcessed: 2,
         totalCommentsScored: 2,
       });
 
-      expect(result.sub_ids).toHaveLength(3);
+      expect(result.dids).toHaveLength(3);
       expect(result.metadata.snapshot_id).toBe('snap-123');
       expect(result.metadata.config).toEqual(mockParams);
-      expect(result.metadata.sub_ids.provided_ids).toEqual(['SubID-10', 'SubID-35', 'SubID-100']);
-      expect(result.metadata.sub_ids.matched_ids).toEqual(['SubID-10', 'SubID-35']);
-      expect(result.metadata.sub_ids.unmatched_ids).toEqual(['SubID-100']);
-      expect(result.metadata.metrics.total_sub_ids_provided).toBe(3);
-      expect(result.metadata.metrics.sub_ids_with_matching_comments).toBe(2);
+      expect(result.metadata.dids.provided_ids).toEqual(['did:plc:10', 'did:plc:35', 'did:plc:100']);
+      expect(result.metadata.dids.matched_ids).toEqual(['did:plc:10', 'did:plc:35']);
+      expect(result.metadata.dids.unmatched_ids).toEqual(['did:plc:100']);
+      expect(result.metadata.metrics.total_dids_provided).toBe(3);
+      expect(result.metadata.metrics.dids_with_matching_comments).toBe(2);
       expect(result.metadata.metrics.total_comments_processed).toBe(2);
       expect(result.metadata.metrics.total_comments_scored).toBe(2);
     });
 
-    it('includes only the provided SubIDs', () => {
+    it('includes only the provided DIDs', () => {
       const records: CommentBenchmarkRecord[] = [
         { ...baseRecord, comment_id: 1, user_id: 4, comment_score: 24.5, scored: true },
         { ...baseRecord, comment_id: 2, user_id: 35, comment_score: 5, scored: true },
@@ -164,21 +159,20 @@ describe('contribution-score benchmark', () => {
       const result = formatBenchmarkOutput({
         records,
         snapshotId: 'snap-789',
-        subIds: ['SubID-35'],
-        subIdScores: new Map([['SubID-35', 5]]),
-        deepProposalPortalIdBySubId: new Map([['SubID-35', '35']]),
-        matchedSubIds: new Set(['SubID-35']),
-        deepProposalPortalSubIdsIndex: new Map([['35', ['SubID-35']]]),
-        params: { ...mockParams, subIdsKey: 'uploads/sub_ids.json' },
+        dids: ['did:plc:35'],
+        didScores: new Map([['did:plc:35', 5]]),
+        matchedDids: new Set(['did:plc:35']),
+        userIdToDid: new Map([[35, 'did:plc:35']]),
+        params: mockParams,
         totalCommentsProcessed: 2,
         totalCommentsScored: 2,
       });
 
-      expect(result.sub_ids).toHaveLength(1);
-      const [subId] = result.sub_ids;
-      expect(subId).toBeDefined();
-      expect(subId?.sub_id).toBe('SubID-35');
-      expect(subId?.contribution_score).toBe(5);
+      expect(result.dids).toHaveLength(1);
+      const [did] = result.dids;
+      expect(did).toBeDefined();
+      expect(did?.did).toBe('did:plc:35');
+      expect(did?.contribution_score).toBe(5);
     });
   });
 });

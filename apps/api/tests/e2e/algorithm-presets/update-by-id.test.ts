@@ -44,7 +44,7 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
         name: 'Updated Name',
         description: 'Updated description text',
         inputs: [
-          { key: 'sub_ids', value: 'uploads/updated-sub_ids.json' },
+          { key: 'wallet_collections', value: 'uploads/updated-wallet_collections.csv' },
           { key: 'votes', value: 'uploads/updated-votes.csv' },
         ],
       })
@@ -53,7 +53,7 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
     expect(res.body.name).toBe('Updated Name');
     expect(res.body.description).toBe('Updated description text');
     expect(res.body.inputs).toHaveLength(2);
-    expect(res.body.inputs[0].key).toBe('sub_ids');
+    expect(res.body.inputs[0].key).toBe('wallet_collections');
     expect(res.body.inputs[1].key).toBe('votes');
 
     const newUpdatedAt = new Date(res.body.updatedAt).getTime();
@@ -136,14 +136,14 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
   it('preserves caller-supplied input order across update + read round-trip', async () => {
     const preset = await insertAlgorithmPreset(dataSource, {
       inputs: [
-        { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+        { key: 'wallet_collections', value: 'uploads/wallet_collections.csv' },
         { key: 'votes', value: 'uploads/votes.csv' },
       ],
     });
 
     const reorderedInputs = [
       { key: 'votes', value: 'uploads/reordered/votes.csv' },
-      { key: 'sub_ids', value: 'uploads/reordered/sub_ids.json' },
+      { key: 'wallet_collections', value: 'uploads/reordered/wallet_collections.csv' },
     ];
 
     const res = await api(app, authCookie)
@@ -151,7 +151,7 @@ describe('PATCH /api/v1/algorithm-presets/:id', () => {
       .send({ inputs: reorderedInputs })
       .expect(200);
 
-    expect(res.body.inputs.map((i: { key: string }) => i.key)).toEqual(['votes', 'sub_ids']);
+    expect(res.body.inputs.map((i: { key: string }) => i.key)).toEqual(['votes', 'wallet_collections']);
 
     const getRes = await api(app, authCookie).get(`/algorithm-presets/${preset.id}`).expect(200);
     expect(getRes.body.inputs).toEqual(reorderedInputs);

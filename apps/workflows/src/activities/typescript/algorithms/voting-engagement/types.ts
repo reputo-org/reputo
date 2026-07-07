@@ -1,5 +1,5 @@
 export interface VotingEngagementResult {
-  sub_id: string;
+  did: string;
   voting_engagement: number;
 }
 
@@ -19,9 +19,10 @@ export function roundScore(score: number): number {
   return Math.round(score * 10 ** SCORE_PRECISION) / 10 ** SCORE_PRECISION;
 }
 
-export interface SubIdBenchmarkRecord {
-  sub_id: string;
-  deep_voting_portal_id: string | null;
+export interface DidBenchmarkRecord {
+  did: string;
+  /** Collection IDs the DID resolved to (wallet → wallet_collections.csv). */
+  collection_ids?: string[];
   total_votes: number;
   vote_distribution: Record<ValidVote, number>;
   entropy: number;
@@ -31,7 +32,7 @@ export interface SubIdBenchmarkRecord {
 export interface VotingEngagementBenchmarkMetadata {
   snapshot_id: string;
   computed_at: string;
-  sub_ids: {
+  dids: {
     provided_ids: string[];
     matched_ids: string[];
     unmatched_ids: string[];
@@ -41,11 +42,11 @@ export interface VotingEngagementBenchmarkMetadata {
     valid_votes: number;
     invalid_votes: number;
     targeted_voter_ids: number;
-    sub_ids_with_votes: number;
+    dids_with_votes: number;
   };
 }
 
 export interface VotingEngagementBenchmark {
-  sub_ids: SubIdBenchmarkRecord[];
+  dids: DidBenchmarkRecord[];
   metadata: VotingEngagementBenchmarkMetadata;
 }

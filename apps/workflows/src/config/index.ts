@@ -41,6 +41,19 @@ const config = {
     alchemyApiKey: env.ALCHEMY_API_KEY,
     blockfrostAPIKey: env.BLOCKFROST_API_KEY,
   },
+  deepId: {
+    identityBaseUrl: env.DEEP_ID_IDENTITY_BASE_URL,
+    appBaseUrl: env.DEEP_ID_APP_BASE_URL,
+    clientId: env.DEEP_ID_CLIENT_ID,
+    clientSecret: env.DEEP_ID_CLIENT_SECRET,
+    scopes: env.DEEP_ID_SCOPES,
+    requestTimeoutMs: env.DEEP_ID_REQUEST_TIMEOUT_MS,
+    concurrency: env.DEEP_ID_CONCURRENCY,
+    usersPageSize: env.DEEP_ID_USERS_PAGE_SIZE,
+    retryMaxAttempts: env.DEEP_ID_RETRY_MAX_ATTEMPTS,
+    retryBaseDelayMs: env.DEEP_ID_RETRY_BASE_DELAY_MS,
+    retryMaxDelayMs: env.DEEP_ID_RETRY_MAX_DELAY_MS,
+  },
 };
 
 export default config;

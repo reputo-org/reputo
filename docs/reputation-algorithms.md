@@ -28,6 +28,21 @@ apps/workflows/src/activities/typescript/algorithms/<kebab-key>/
 
 Only TypeScript is wired up today. The workflows app uses Temporal task queues, so other languages can be added later.
 
+## Score normalization
+
+Every algorithm's final per-user score is normalized to a fixed **0–100** range before it is written to the CSV output (the value `custom_score`, the DeepID post step, and the UI read). This is a default; it is not user-configurable.
+
+The reusable logic lives in [`shared/normalization`](../apps/workflows/src/activities/typescript/algorithms/shared/normalization). Each algorithm picks a method and calls `normalizeScores(values, method)`:
+
+| Method | Behavior | Used by |
+| --- | --- | --- |
+| `min_max` | Cohort min–max: the lowest score maps to 0, the highest to 100, the rest interpolate. Scores are **relative to the scored population**. An empty, single-member, or all-equal cohort has no spread, so every score collapses to 0. | `contribution_score`, `proposal_engagement`, `token_value_over_time` |
+| `from_unit_interval` | Linear rescale of a score already on `[0, 1]` onto 0–100 (×100). Keeps its absolute meaning and comparability across snapshots. | `voting_engagement` |
+
+`custom_score` does not normalize again: each sub-algorithm output is already 0–100, so it combines them directly as a weighted mean. Add a new method by implementing a `NormalizationStrategy` and registering it in `normalize.ts` — no call site changes.
+
+The `*_details.json` benchmark files keep the **raw, pre-normalization** scores; only the CSV output is normalized.
+
 ## Add a new algorithm
 
 ### 1. Scaffold
@@ -66,6 +81,7 @@ Open the new `compute.ts`. The function must:
 - Read frozen inputs from `snapshot.algorithmPresetFrozen.inputs`.
 - Download any input files with `storage.getObject(...)`.
 - Call `Context.current().heartbeat(...)` inside long loops so Temporal does not time it out.
+- Normalize the final per-user scores to 0–100 with `normalizeScores(...)` (see [Score normalization](#score-normalization)) before writing the CSV.
 - Write output files through [`@reputo/storage`](../packages/storage). Do not call the AWS SDK directly.
 - Return `{ outputs: { <key>: <storage_key> } }`, with one entry for every `outputs[].key` in the JSON.
 

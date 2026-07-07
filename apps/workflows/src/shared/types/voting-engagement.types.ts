@@ -12,7 +12,7 @@ export interface VoteRecord {
 }
 
 export interface VotingEngagementResult {
-  sub_id: string;
+  did: string;
   voting_engagement: number;
 }
 

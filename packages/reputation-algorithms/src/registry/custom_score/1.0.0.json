@@ -1,0 +1,67 @@
+{
+    "key": "custom_score",
+    "name": "Custom Score",
+    "kind": "combined",
+    "category": "Custom",
+    "summary": "Builds a composite score by combining multiple sub-algorithm outputs on shared users.",
+    "description": "### What it does\nCombines multiple sub-algorithm scores into one composite score.\n\n### How it works\n- Compose one or more sub-algorithms; the user list is shared across them.\n- Each sub-algorithm score is already normalized to a 0–100 scale.\n- Combine the sub-algorithm scores using their weights.\n- Apply the configured strategy when a user is missing from one or more sub-algorithm outputs.\n- Join results directly on `did`.\n\n### Output\n- CSV file with `did` and `composite_score` on a 0–100 scale.\n- JSON file with composite score details for each user.",
+    "version": "1.0.0",
+    "inputs": [
+        {
+            "key": "sub_algorithms",
+            "label": "Sub-Algorithms",
+            "description": "Compose the sub-algorithms that should contribute to the final composite score.",
+            "type": "sub_algorithm",
+            "required": true,
+            "minItems": 1,
+            "uiHint": {
+                "widget": "sub_algorithm_composer",
+                "addButtonLabel": "Add sub-algorithm"
+            }
+        },
+        {
+            "key": "missing_score_strategy",
+            "label": "Missing Score Strategy",
+            "description": "How missing sub-algorithm scores are handled when building the composite score. A user absent from a sub-algorithm's output is treated as a score of 0.",
+            "type": "string",
+            "required": true,
+            "uiHint": {
+                "widget": "select",
+                "options": [{ "value": "zero", "label": "Treat Missing Scores as Zero" }]
+            },
+            "enum": ["zero"],
+            "default": "zero"
+        }
+    ],
+    "outputs": [
+        {
+            "key": "composite_score",
+            "label": "Composite Score (CSV)",
+            "description": "CSV file with one row per user and the final composite score.",
+            "type": "csv",
+            "csv": {
+                "hasHeader": true,
+                "delimiter": ",",
+                "columns": [
+                    {
+                        "key": "did",
+                        "type": "string",
+                        "description": "The user's DID (did:plc or did:sub)."
+                    },
+                    {
+                        "key": "composite_score",
+                        "type": "number",
+                        "description": "Final composite score for the user, on a 0–100 scale."
+                    }
+                ]
+            }
+        },
+        {
+            "key": "composite_score_details",
+            "label": "Composite Score Details (JSON)",
+            "description": "JSON file with combination details for each scored user.",
+            "type": "json"
+        }
+    ],
+    "runtime": "typescript"
+}

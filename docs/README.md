@@ -12,6 +12,7 @@ Guides for the Reputo monorepo.
 
 - [Architecture](architecture.md) — how the apps fit together and the snapshot flow.
 - [Data model](data-model.md) — the application database tables.
+- [DeepID integration](deep-id-integration.md) — the M2M pipeline that reads users and posts scores.
 
 ## Build features
 

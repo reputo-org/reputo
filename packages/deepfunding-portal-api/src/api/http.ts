@@ -107,7 +107,7 @@ export async function executeRequest<T>(
       });
 
       if (response.statusCode >= 400) {
-        throw new HttpError(response.statusCode, (response.headers['status-text'] as string) || 'Error', body);
+        throw new HttpError(response.statusCode, response.statusText || 'Error', body);
       }
 
       return JSON.parse(body) as T;

@@ -29,8 +29,8 @@ describe('validateAlgorithmInputs adapter', () => {
     timestamp: 1,
   };
 
-  const customAlgorithmDefinition = {
-    key: 'custom_algorithm',
+  const customScoreDefinition = {
+    key: 'custom_score',
     name: 'Custom Algorithm',
     kind: 'combined',
     category: 'Custom',
@@ -39,13 +39,11 @@ describe('validateAlgorithmInputs adapter', () => {
     version: '1.0.0',
     inputs: [
       {
-        key: 'sub_ids',
-        label: 'Sub IDs',
+        key: 'wallets',
+        label: 'Wallets',
         type: 'json',
         required: true,
-        json: {
-          schema: 'sub_id_input_map',
-        },
+        json: {},
       },
       {
         key: 'sub_algorithms',
@@ -53,7 +51,7 @@ describe('validateAlgorithmInputs adapter', () => {
         type: 'sub_algorithm',
         required: true,
         minItems: 1,
-        sharedInputKeys: ['sub_ids'],
+        sharedInputKeys: ['wallets'],
         uiHint: {
           widget: 'sub_algorithm_composer',
         },
@@ -73,13 +71,11 @@ describe('validateAlgorithmInputs adapter', () => {
     version: '1.0.0',
     inputs: [
       {
-        key: 'sub_ids',
-        label: 'Sub IDs',
+        key: 'wallets',
+        label: 'Wallets',
         type: 'json',
         required: true,
-        json: {
-          schema: 'sub_id_input_map',
-        },
+        json: {},
       },
       {
         key: 'votes',
@@ -116,9 +112,9 @@ describe('validateAlgorithmInputs adapter', () => {
     };
 
     await validateAlgorithmInputs({
-      definition: customAlgorithmDefinition as never,
+      definition: customScoreDefinition as never,
       inputs: [
-        { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+        { key: 'wallets', value: 'uploads/wallets.json' },
         {
           key: 'sub_algorithms',
           value: [
@@ -139,12 +135,12 @@ describe('validateAlgorithmInputs adapter', () => {
     expect(validateAlgorithmPreset).toHaveBeenCalledOnce();
 
     const call = vi.mocked(validateAlgorithmPreset).mock.calls[0]?.[0];
-    expect(call.definition).toEqual(customAlgorithmDefinition);
+    expect(call.definition).toEqual(customScoreDefinition);
     expect(call.preset).toEqual({
-      key: 'custom_algorithm',
+      key: 'custom_score',
       version: '1.0.0',
       inputs: [
-        { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+        { key: 'wallets', value: 'uploads/wallets.json' },
         {
           key: 'sub_algorithms',
           value: [

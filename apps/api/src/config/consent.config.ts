@@ -12,6 +12,9 @@ export interface ConsentProviderSourceConfig {
 }
 
 export interface ConsentProviderConfig {
+  issuerUrl: string;
+  clientId: string;
+  clientSecret: string;
   grantTtlSeconds: number;
   redirectUri: string;
   sources: Record<string, ConsentProviderSourceConfig>;
@@ -29,11 +32,14 @@ export default registerAs(
     grantCleanupIntervalMs: env.DEEP_ID_CONSENT_CLEANUP_INTERVAL_MS,
     providers: {
       [OAuthProviderDeepId]: {
+        issuerUrl: env.DEEP_ID_ISSUER_URL,
+        clientId: env.DEEP_ID_CLIENT_ID,
+        clientSecret: env.DEEP_ID_CLIENT_SECRET,
         redirectUri: env.DEEP_ID_CONSENT_REDIRECT_URI,
         grantTtlSeconds: env.DEEP_ID_CONSENT_GRANT_TTL_SECONDS,
         sources: {
           'voting-portal': {
-            scope: env.DEEP_ID_VOTING_PORTAL_SCOPES,
+            scope: env.DEEP_ID_CONSENT_SCOPES,
           },
         },
       },

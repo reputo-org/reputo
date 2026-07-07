@@ -26,7 +26,7 @@ describe('buildCombinedChildAlgorithmPresets', () => {
       buildCombinedChildAlgorithmPresets(
         {
           inputs: [
-            { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+            { key: 'dids', value: 'uploads/dids.json' },
             {
               key: 'selected_resources',
               value: [{ chain: 'ethereum', resource_key: 'fet_token' }],
@@ -40,7 +40,7 @@ describe('buildCombinedChildAlgorithmPresets', () => {
                   weight: 1,
                   inputs: [
                     { key: 'lookback_window_days', value: 90 },
-                    { key: 'sub_ids', value: 'uploads/child-sub-ids.json' },
+                    { key: 'dids', value: 'uploads/child-dids.json' },
                   ],
                 },
               ],
@@ -52,7 +52,7 @@ describe('buildCombinedChildAlgorithmPresets', () => {
             {
               key: 'sub_algorithms',
               type: 'sub_algorithm',
-              sharedInputKeys: ['sub_ids', 'selected_resources'],
+              sharedInputKeys: ['dids', 'selected_resources'],
             },
           ],
         },
@@ -63,7 +63,7 @@ describe('buildCombinedChildAlgorithmPresets', () => {
         version: '1.0.0',
         inputs: [
           { key: 'lookback_window_days', value: 90 },
-          { key: 'sub_ids', value: 'uploads/sub_ids.json' },
+          { key: 'dids', value: 'uploads/dids.json' },
           {
             key: 'selected_resources',
             value: [{ chain: 'ethereum', resource_key: 'fet_token' }],
