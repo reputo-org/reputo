@@ -2,6 +2,10 @@ import type { DataSource } from 'typeorm';
 
 import { EVM_ASSET_TRANSFERS_TABLE, type EvmAssetTransferRow } from './schema.js';
 
+// block_num is Alchemy hex text ('0x1b4') — text ORDER BY mis-sorts across hex-digit
+// lengths, so pagination and replay order sort on the decoded numeric value instead.
+const BLOCK_NUM_NUMERIC = `(('x' || lpad(ltrim(lower(block_num), '0x'), 16, '0'))::bit(64)::bigint)`;
+
 export interface EvmTransferReadRepository {
   findTransfersByAddresses(input: {
     chain: string;
@@ -23,14 +27,8 @@ export function createEvmTransferReadRepository(db: DataSource): EvmTransferRead
       }
 
       const offset = (input.page - 1) * input.limit;
-      const params: unknown[] = [input.chain, input.assetIdentifier];
-      let paramIndex = 3;
-
-      const addressPlaceholders = input.addresses.map((addr) => {
-        params.push(addr);
-        return `$${paramIndex++}`;
-      });
-      const addressList = addressPlaceholders.join(', ');
+      const params: unknown[] = [input.chain, input.assetIdentifier, input.addresses];
+      let paramIndex = 4;
 
       let timeFilter = '';
       if (input.fromTimestampUnix != null) {
@@ -49,9 +47,9 @@ export function createEvmTransferReadRepository(db: DataSource): EvmTransferRead
         FROM ${EVM_ASSET_TRANSFERS_TABLE}
         WHERE chain = $1
           AND asset_identifier = $2
-          AND (from_address IN (${addressList}) OR to_address IN (${addressList}))
+          AND (from_address = ANY($3) OR to_address = ANY($3))
           ${timeFilter}
-        ORDER BY block_num ASC, unique_id ASC
+        ORDER BY ${BLOCK_NUM_NUMERIC} ASC, unique_id ASC
         LIMIT $${paramIndex++} OFFSET $${paramIndex++}
       `;
 

@@ -32,10 +32,10 @@ export class AlgorithmPresetEntity {
   @Column({ type: 'text', nullable: true })
   description!: string | null;
 
-  @CreateDateColumn({ type: 'timestamp', precision: 3 })
+  @CreateDateColumn({ type: 'timestamptz', precision: 3 })
   createdAt!: Date;
 
-  @UpdateDateColumn({ type: 'timestamp', precision: 3 })
+  @UpdateDateColumn({ type: 'timestamptz', precision: 3 })
   updatedAt!: Date;
 
   @OneToMany(

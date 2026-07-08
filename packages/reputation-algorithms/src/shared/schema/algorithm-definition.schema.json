@@ -569,6 +569,12 @@
                     "pattern": "^[a-z][a-z0-9_]*$",
                     "minLength": 2
                 },
+                "tokenDecimals": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 36,
+                    "description": "Decimals to convert raw on-chain quantities into token units (Cardano native assets; EVM values arrive decimal-adjusted)."
+                },
                 "parentResourceKey": {
                     "type": "string",
                     "pattern": "^[a-z][a-z0-9_]*$",

@@ -13,8 +13,12 @@ export function normalizeCardanoTransactions(
   resourceId: ResourceId,
   assetUnit: string,
   trackedAddresses: Set<string>,
+  assetDecimals = 0,
 ): OrderedTransferEvent[] {
   const events: OrderedTransferEvent[] = [];
+  // Blockfrost quantities are raw sub-units; divide into token units so amounts are
+  // comparable with the EVM side (Alchemy values arrive already decimal-adjusted).
+  const unitDivisor = 10 ** assetDecimals;
 
   for (const tx of txs) {
     const addressFlows = new Map<string, number>();
@@ -23,7 +27,7 @@ export function normalizeCardanoTransactions(
       if (!trackedAddresses.has(input.address)) continue;
       for (const amt of input.amounts) {
         if (amt.unit !== assetUnit) continue;
-        const qty = Number(amt.quantity);
+        const qty = Number(amt.quantity) / unitDivisor;
         addressFlows.set(input.address, (addressFlows.get(input.address) ?? 0) - qty);
       }
     }
@@ -32,7 +36,7 @@ export function normalizeCardanoTransactions(
       if (!trackedAddresses.has(output.address)) continue;
       for (const amt of output.amounts) {
         if (amt.unit !== assetUnit) continue;
-        const qty = Number(amt.quantity);
+        const qty = Number(amt.quantity) / unitDivisor;
         addressFlows.set(output.address, (addressFlows.get(output.address) ?? 0) + qty);
       }
     }

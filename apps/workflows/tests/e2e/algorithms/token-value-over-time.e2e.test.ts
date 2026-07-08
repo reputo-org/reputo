@@ -148,6 +148,7 @@ interface TvtDetails {
   metadata: {
     snapshot_id: string;
     maturation_threshold_days: number;
+    selected_resources: Array<{ chain: string; resource_key: string }>;
     selected_resource_ids: string[];
     did_count: number;
     target_wallet_count: number;
@@ -204,6 +205,7 @@ describeMaybe('token_value_over_time (e2e)', () => {
     expect(details.metadata).toMatchObject({
       snapshot_id: SNAPSHOT_ID,
       maturation_threshold_days: 90,
+      selected_resources: [{ chain: 'ethereum', resource_key: 'fet_token' }],
       selected_resource_ids: [RESOURCE_ID],
       did_count: 2,
       target_wallet_count: 2,
@@ -295,6 +297,139 @@ describeMaybe('token_value_over_time (e2e)', () => {
     expect(y?.token_value).toBe(100);
     expect(x?.wallets[0]?.wallet_address).toBe(SHARED);
     expect(y?.wallets[0]?.wallet_address).toBe(SHARED);
+  });
+
+  // Regression: transfers used to load per 100-wallet chunk with `from IN chunk OR
+  // to IN chunk`; a transfer between wallets of two different chunks came back from
+  // both chunk queries and replayed twice (sender debited twice, receiver credited
+  // twice). With the single-stream query each row must apply exactly once.
+  it('applies a transfer between wallets of a >100-wallet cohort exactly once', async () => {
+    const wallet = (i: number) => `0x${i.toString(16).padStart(40, '0')}`;
+    const SENDER = wallet(0x1001);
+    const RECEIVER = wallet(0x1096); // index 149 of the cohort below
+    await pg.seedEvmTransfers([
+      {
+        uniqueId: 'x1',
+        blockNum: '0xa00001',
+        hash: '0xx1',
+        from: EXTERNAL,
+        to: SENDER,
+        amount: 100,
+        blockTimestamp: ago(300),
+      },
+      {
+        uniqueId: 'x2',
+        blockNum: '0xa00002',
+        hash: '0xx2',
+        from: SENDER,
+        to: RECEIVER,
+        amount: 100,
+        blockTimestamp: ago(200),
+      },
+    ]);
+    const dids: Record<string, { userWallets: Array<{ address: string; chain: string }> }> = {};
+    for (let i = 0; i <= 0x96; i++) {
+      dids[`did:plc:big${i.toString().padStart(3, '0')}`] = {
+        userWallets: [{ address: wallet(0x1000 + i), chain: 'ethereum' }],
+      };
+    }
+    storage.seed('uploads/dids-big.json', JSON.stringify(dids));
+
+    const { outputs } = await computeTokenValueOverTime(
+      buildSnapshot({
+        id: 'snap-tvt-big-cohort',
+        key: 'token_value_over_time',
+        createdAt: SNAPSHOT_CREATED_AT,
+        inputs: [
+          { key: 'maturation_threshold_days', value: 90 },
+          { key: 'selected_resources', value: [{ chain: 'ethereum', resource_key: 'fet_token' }] },
+          { key: 'dids', value: 'uploads/dids-big.json' },
+        ],
+      }),
+      storage,
+    );
+
+    const details = storage.readJson<TvtDetails>(outputs.token_value_over_time_details as string);
+    // Each seeded row loads and replays exactly once across the 151-wallet cohort.
+    expect(details.metadata.target_wallet_count).toBe(151);
+    expect(details.metadata.transfer_count).toBe(2);
+    expect(details.metadata.replay.processed).toBe(2);
+
+    const byWallet = new Map(
+      details.dids.flatMap((d) => d.wallets).map((w) => [w.wallet_address, w.token_value] as const),
+    );
+    expect(byWallet.get(SENDER)).toBe(0); // fully consumed once, not twice
+    expect(byWallet.get(RECEIVER)).toBe(100); // one 100 lot at weight 1, not a duplicate 200
+  });
+
+  // Regression: ORDER BY compared the Alchemy hex block_num as text, so
+  // '0x1000000' sorted before '0xffffff' and a later spend replayed before the
+  // earlier receive it consumes. Ordering must follow the numeric block value.
+  it('replays transfers in numeric block order across a hex-digit-length boundary', async () => {
+    const WALLET = '0xffffffffffffffffffffffffffffffffffffff01';
+    await pg.seedEvmTransfers([
+      {
+        uniqueId: 'hex1',
+        blockNum: '0xffffff',
+        hash: '0xhex1',
+        from: EXTERNAL,
+        to: WALLET,
+        amount: 100,
+        blockTimestamp: ago(200),
+      },
+      {
+        uniqueId: 'hex2',
+        blockNum: '0x1000000',
+        hash: '0xhex2',
+        from: WALLET,
+        to: EXTERNAL,
+        amount: 100,
+        blockTimestamp: ago(150),
+      },
+      {
+        uniqueId: 'hex3',
+        blockNum: '0x1000001',
+        hash: '0xhex3',
+        from: EXTERNAL,
+        to: WALLET,
+        amount: 30,
+        blockTimestamp: ago(9),
+      },
+    ]);
+    storage.seed(
+      'uploads/dids-hex.json',
+      JSON.stringify({ 'did:plc:hex': { userWallets: [{ address: WALLET, chain: 'ethereum' }] } }),
+    );
+
+    const { outputs } = await computeTokenValueOverTime(
+      buildSnapshot({
+        id: 'snap-tvt-hex-boundary',
+        key: 'token_value_over_time',
+        createdAt: SNAPSHOT_CREATED_AT,
+        inputs: [
+          { key: 'maturation_threshold_days', value: 90 },
+          { key: 'selected_resources', value: [{ chain: 'ethereum', resource_key: 'fet_token' }] },
+          { key: 'dids', value: 'uploads/dids-hex.json' },
+        ],
+      }),
+      storage,
+    );
+
+    const details = storage.readJson<TvtDetails>(outputs.token_value_over_time_details as string);
+    const lots = details.dids[0].wallets[0].lots;
+    // The 100 lot from block 0xffffff is consumed by the spend at 0x1000000; only
+    // the 30 lot from 0x1000001 survives. Text ordering would leave 100 + 30 lots.
+    expect(lots).toEqual([
+      {
+        resource_id: RESOURCE_ID,
+        source_transfer_id: `${RESOURCE_ID}:0xhex3:0`,
+        amount_remaining: 30,
+        age_days: 9,
+        weight: 0.1,
+        lot_value: 3,
+      },
+    ]);
+    expect(details.dids[0].token_value).toBe(3);
   });
 
   it('treats maturation_threshold_days = 0 as fully matured (weight 1)', async () => {

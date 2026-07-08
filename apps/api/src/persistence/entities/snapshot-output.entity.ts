@@ -28,10 +28,10 @@ export class SnapshotOutputEntity {
   @Column({ type: 'text' })
   value!: string;
 
-  @CreateDateColumn({ type: 'timestamp', precision: 3 })
+  @CreateDateColumn({ type: 'timestamptz', precision: 3 })
   createdAt!: Date;
 
-  @UpdateDateColumn({ type: 'timestamp', precision: 3 })
+  @UpdateDateColumn({ type: 'timestamptz', precision: 3 })
   updatedAt!: Date;
 
   @ManyToOne(

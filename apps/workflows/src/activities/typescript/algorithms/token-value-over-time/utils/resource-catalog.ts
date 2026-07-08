@@ -14,6 +14,7 @@ interface RawResourceCatalogResource {
   identifier: string;
   tokenIdentifier: string;
   tokenKey: string;
+  tokenDecimals?: number;
   parentResourceKey?: string;
 }
 
@@ -43,6 +44,7 @@ export function loadResourceCatalog(): ResourceCatalogEntry[] {
         identifier: resource.identifier,
         tokenIdentifier: resource.tokenIdentifier,
         tokenKey: resource.tokenKey,
+        tokenDecimals: resource.tokenDecimals,
         parentResourceKey: resource.parentResourceKey,
       });
     }
@@ -72,6 +74,7 @@ export function resolveSelectedResources(
         kind: entry.kind,
         identifier: entry.identifier,
         tokenIdentifier: entry.tokenIdentifier,
+        tokenDecimals: entry.tokenDecimals,
         resourceId: buildResourceId(entry.chain, entry.tokenIdentifier),
       });
     }

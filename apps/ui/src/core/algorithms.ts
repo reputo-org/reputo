@@ -11,6 +11,7 @@ const DEPENDENCY_KEY_TO_LABEL: Record<string, string> = {
   "deepfunding-portal-api": "DeepFunding Portal API",
   "onchain-data": "Onchain Data",
   "onchain-data-service": "Onchain Data",
+  "deep-id": "DeepID",
 }
 
 /** Per-algorithm display metadata not derived from the definition itself */
