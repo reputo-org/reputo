@@ -47,14 +47,8 @@ export function createCardanoTransferReadRepository(db: DataSource): CardanoTran
 
       const offset = (input.page - 1) * input.limit;
       const chain = 'cardano';
-      const params: unknown[] = [chain, input.assetIdentifier];
-      let paramIndex = 3;
-
-      const addressPlaceholders = input.addresses.map((addr) => {
-        params.push(addr);
-        return `$${paramIndex++}`;
-      });
-      const addressList = addressPlaceholders.join(', ');
+      const params: unknown[] = [chain, input.assetIdentifier, input.addresses];
+      let paramIndex = 4;
 
       let timeFilter = '';
       if (input.fromTimestampUnix != null) {
@@ -77,11 +71,11 @@ export function createCardanoTransferReadRepository(db: DataSource): CardanoTran
           AND EXISTS (
             SELECT 1 FROM ${CARDANO_TRANSACTION_UTXO_INPUTS_TABLE} i
             WHERE i.chain = cat.chain AND i.tx_hash = cat.tx_hash
-              AND i.address IN (${addressList})
+              AND i.address = ANY($3)
             UNION ALL
             SELECT 1 FROM ${CARDANO_TRANSACTION_UTXO_OUTPUTS_TABLE} o
             WHERE o.chain = cat.chain AND o.tx_hash = cat.tx_hash
-              AND o.address IN (${addressList})
+              AND o.address = ANY($3)
           )
         ORDER BY cat.block_height ASC, cat.tx_hash ASC
         LIMIT $${paramIndex++} OFFSET $${paramIndex++}
@@ -97,15 +91,13 @@ export function createCardanoTransferReadRepository(db: DataSource): CardanoTran
       }
 
       const txHashes = txRows.map((r) => r.tx_hash);
-      const txHashPlaceholders = txHashes.map((_, idx) => `$${idx + 2}`);
-      const txHashList = txHashPlaceholders.join(', ');
 
       const inputsQuery = `
         SELECT i.tx_hash, i.input_index, i.address, ia.unit, ia.quantity
         FROM ${CARDANO_TRANSACTION_UTXO_INPUTS_TABLE} i
         JOIN ${CARDANO_TRANSACTION_UTXO_INPUT_AMOUNTS_TABLE} ia
           ON ia.chain = i.chain AND ia.tx_hash = i.tx_hash AND ia.input_index = i.input_index
-        WHERE i.chain = $1 AND i.tx_hash IN (${txHashList})
+        WHERE i.chain = $1 AND i.tx_hash = ANY($2)
         ORDER BY i.tx_hash, i.input_index, ia.amount_index
       `;
 
@@ -115,14 +107,14 @@ export function createCardanoTransferReadRepository(db: DataSource): CardanoTran
         address: string;
         unit: string;
         quantity: string;
-      }> = await db.query(inputsQuery, [chain, ...txHashes]);
+      }> = await db.query(inputsQuery, [chain, txHashes]);
 
       const outputsQuery = `
         SELECT o.tx_hash, o.output_index, o.address, oa.unit, oa.quantity
         FROM ${CARDANO_TRANSACTION_UTXO_OUTPUTS_TABLE} o
         JOIN ${CARDANO_TRANSACTION_UTXO_OUTPUT_AMOUNTS_TABLE} oa
           ON oa.chain = o.chain AND oa.tx_hash = o.tx_hash AND oa.output_index = o.output_index
-        WHERE o.chain = $1 AND o.tx_hash IN (${txHashList})
+        WHERE o.chain = $1 AND o.tx_hash = ANY($2)
         ORDER BY o.tx_hash, o.output_index, oa.amount_index
       `;
 
@@ -132,7 +124,7 @@ export function createCardanoTransferReadRepository(db: DataSource): CardanoTran
         address: string;
         unit: string;
         quantity: string;
-      }> = await db.query(outputsQuery, [chain, ...txHashes]);
+      }> = await db.query(outputsQuery, [chain, txHashes]);
 
       const txMap = new Map<string, CardanoRawTransactionUtxoData>();
       for (const row of txRows) {
