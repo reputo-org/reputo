@@ -7,6 +7,8 @@ export interface ResourceCatalogEntry {
   identifier: string;
   tokenIdentifier: string;
   tokenKey: string;
+  /** Converts raw on-chain quantities to token units (Cardano; Alchemy pre-adjusts EVM). */
+  tokenDecimals?: number;
   parentResourceKey?: string;
 }
 
@@ -28,6 +30,7 @@ export interface ResolvedResource {
   kind: 'token' | 'contract';
   identifier: string;
   tokenIdentifier: string;
+  tokenDecimals?: number;
   resourceId: ResourceId;
 }
 
@@ -98,7 +101,8 @@ export interface TokenValueOverTimeBenchmark {
     snapshot_id: string;
     computed_at: string;
     maturation_threshold_days: number;
-    selected_resources: SelectedResourceInput[];
+    /** Echoed in the preset input shape (snake_case), not the internal camelCase one. */
+    selected_resources: Array<{ chain: SupportedChain; resource_key: string }>;
     selected_resource_ids: ResourceId[];
     did_count: number;
     target_wallet_count: number;

@@ -26,15 +26,6 @@ import {
 } from './utils/index.js';
 
 const TRANSFERS_PAGE_LIMIT = 500;
-const WALLET_CHUNK_SIZE = 100;
-
-function chunkArray<T>(items: T[], chunkSize: number): T[][] {
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += chunkSize) {
-    chunks.push(items.slice(index, index + chunkSize));
-  }
-  return chunks;
-}
 
 export async function computeTokenValueOverTime(snapshot: Snapshot, storage: Storage): Promise<AlgorithmResult> {
   const ctx = Context.current();
@@ -101,7 +92,6 @@ export async function computeTokenValueOverTime(snapshot: Snapshot, storage: Sto
       processedTokens.add(tokenDedupeKey);
 
       const chainWallets = getWalletsForChain(walletAddressMap, resource.chain);
-      const walletChunks = chunkArray(chainWallets, WALLET_CHUNK_SIZE);
       let pagesProcessed = 0;
       let chainTransferCount = 0;
 
@@ -113,82 +103,73 @@ export async function computeTokenValueOverTime(snapshot: Snapshot, storage: Sto
         resourceIndex: i + 1,
         totalResources: resolvedResources.length,
         walletCount: chainWallets.length,
-        walletChunkCount: walletChunks.length,
       });
 
-      for (let chunkIndex = 0; chunkIndex < walletChunks.length; chunkIndex++) {
-        const walletChunk = walletChunks[chunkIndex];
-        let pageNumber = 1;
+      // One time-ordered stream over the whole cohort: chunking wallets would return a
+      // transfer between wallets of two chunks twice (double replay) and replay chunks
+      // out of chronological order.
+      let pageNumber = 1;
+      while (true) {
+        ctx.heartbeat({
+          phase: 'load-transfers',
+          resourceId: resource.resourceId,
+          processedResources: i + 1,
+          totalResources: resolvedResources.length,
+          pageNumber,
+          transferCount,
+        });
 
-        while (true) {
+        const fetchStartedAt = Date.now();
+        const transferPage = await loadTransferPage(resource, {
+          repos,
+          walletAddresses: chainWallets,
+          pageNumber,
+          limit: TRANSFERS_PAGE_LIMIT,
+          stakingAddresses,
+          effectiveDateRange: params.effectiveDateRange,
+        });
+        const fetchDurationMs = Date.now() - fetchStartedAt;
+
+        pagesProcessed += 1;
+        logger.info('Transfer page received', {
+          resourceId: resource.resourceId,
+          pageNumber,
+          itemCount: transferPage.items.length,
+          hasMore: transferPage.hasMore,
+          fetchDurationMs,
+        });
+        chainTransferCount += transferPage.items.length;
+        transferCount += transferPage.items.length;
+
+        const pageReplayStats = replayTransfers(walletLots, transferPage.items, targetWalletSet);
+        replayStats.processed += pageReplayStats.processed;
+        replayStats.skippedZeroAmount += pageReplayStats.skippedZeroAmount;
+        replayStats.skippedSelfTransfers += pageReplayStats.skippedSelfTransfers;
+        replayStats.skippedStaking += pageReplayStats.skippedStaking;
+
+        if (pagesProcessed % HEARTBEAT_INTERVAL === 0 || !transferPage.hasMore) {
           ctx.heartbeat({
             phase: 'load-transfers',
             resourceId: resource.resourceId,
             processedResources: i + 1,
             totalResources: resolvedResources.length,
             pageNumber,
-            chunkIndex: chunkIndex + 1,
-            totalChunks: walletChunks.length,
             transferCount,
           });
+        }
 
-          const fetchStartedAt = Date.now();
-          const transferPage = await loadTransferPage(resource, {
-            repos,
-            walletChunk,
-            pageNumber,
-            limit: TRANSFERS_PAGE_LIMIT,
-            stakingAddresses,
-            effectiveDateRange: params.effectiveDateRange,
-          });
-          const fetchDurationMs = Date.now() - fetchStartedAt;
-
-          pagesProcessed += 1;
-          logger.info('Transfer page received', {
+        if (transferPage.items.length === 0 && transferPage.hasMore) {
+          logger.warn('Stopping pagination due to empty transfer page with hasMore=true', {
             resourceId: resource.resourceId,
             pageNumber,
-            chunkIndex: chunkIndex + 1,
-            totalChunks: walletChunks.length,
-            itemCount: transferPage.items.length,
-            hasMore: transferPage.hasMore,
-            fetchDurationMs,
           });
-          chainTransferCount += transferPage.items.length;
-          transferCount += transferPage.items.length;
-
-          const pageReplayStats = replayTransfers(walletLots, transferPage.items, targetWalletSet);
-          replayStats.processed += pageReplayStats.processed;
-          replayStats.skippedZeroAmount += pageReplayStats.skippedZeroAmount;
-          replayStats.skippedSelfTransfers += pageReplayStats.skippedSelfTransfers;
-          replayStats.skippedStaking += pageReplayStats.skippedStaking;
-
-          if (pagesProcessed % HEARTBEAT_INTERVAL === 0 || !transferPage.hasMore) {
-            ctx.heartbeat({
-              phase: 'load-transfers',
-              resourceId: resource.resourceId,
-              processedResources: i + 1,
-              totalResources: resolvedResources.length,
-              pageNumber,
-              chunkIndex: chunkIndex + 1,
-              totalChunks: walletChunks.length,
-              transferCount,
-            });
-          }
-
-          if (transferPage.items.length === 0 && transferPage.hasMore) {
-            logger.warn('Stopping pagination due to empty transfer page with hasMore=true', {
-              resourceId: resource.resourceId,
-              chunkIndex: chunkIndex + 1,
-              pageNumber,
-            });
-            break;
-          }
-          if (!transferPage.hasMore) {
-            break;
-          }
-
-          pageNumber += 1;
+          break;
         }
+        if (!transferPage.hasMore) {
+          break;
+        }
+
+        pageNumber += 1;
       }
 
       logger.info('Resource completed', {
@@ -289,7 +270,7 @@ async function loadTransferPage(
   resource: ResolvedResource,
   ctx: {
     repos: Awaited<ReturnType<typeof createOnchainRepos>>;
-    walletChunk: string[];
+    walletAddresses: string[];
     pageNumber: number;
     limit: number;
     stakingAddresses: Set<string>;
@@ -299,7 +280,7 @@ async function loadTransferPage(
   const commonInput = {
     repos: ctx.repos,
     resourceId: resource.resourceId,
-    walletAddresses: ctx.walletChunk,
+    walletAddresses: ctx.walletAddresses,
     page: ctx.pageNumber,
     limit: ctx.limit,
     fromTimestampUnix: ctx.effectiveDateRange.fromTimestampUnix,
@@ -318,7 +299,8 @@ async function loadTransferPage(
       return loadCardanoTransferPage({
         ...commonInput,
         assetIdentifier: resource.tokenIdentifier,
-        trackedAddresses: new Set(ctx.walletChunk),
+        assetDecimals: resource.tokenDecimals,
+        trackedAddresses: new Set(ctx.walletAddresses),
       });
     default:
       throw new Error(`Unsupported chain: ${resource.chain}`);

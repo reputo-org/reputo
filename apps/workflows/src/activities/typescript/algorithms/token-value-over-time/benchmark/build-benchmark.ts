@@ -23,7 +23,10 @@ export function formatBenchmarkOutput(input: {
       snapshot_id: input.snapshotId,
       computed_at: new Date().toISOString(),
       maturation_threshold_days: input.maturationThresholdDays,
-      selected_resources: input.selectedResources,
+      selected_resources: input.selectedResources.map((resource) => ({
+        chain: resource.chain,
+        resource_key: resource.resourceKey,
+      })),
       selected_resource_ids: input.selectedResourceIds,
       did_count: input.didCount,
       target_wallet_count: input.targetWalletCount,

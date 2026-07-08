@@ -46,6 +46,7 @@ export async function loadEvmTransferPage(input: {
 export async function loadCardanoTransferPage(input: {
   repos: OnchainReadRepositories;
   assetIdentifier: string;
+  assetDecimals?: number;
   resourceId: ResourceId;
   walletAddresses: string[];
   page: number;
@@ -67,7 +68,13 @@ export async function loadCardanoTransferPage(input: {
     toTimestampUnix: input.toTimestampUnix,
   });
 
-  const events = normalizeCardanoTransactions(txs, input.resourceId, input.assetIdentifier, input.trackedAddresses);
+  const events = normalizeCardanoTransactions(
+    txs,
+    input.resourceId,
+    input.assetIdentifier,
+    input.trackedAddresses,
+    input.assetDecimals ?? 0,
+  );
 
   return {
     items: events,

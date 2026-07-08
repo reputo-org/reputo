@@ -115,6 +115,8 @@ export interface ResourceCatalogResource {
   identifier: string;
   tokenIdentifier: string;
   tokenKey: string;
+  /** Decimals to convert raw on-chain quantities into token units (Cardano native assets). */
+  tokenDecimals?: number;
   parentResourceKey?: string;
   explorerUrl?: string;
   explorerLabel?: string;

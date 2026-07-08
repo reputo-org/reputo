@@ -640,6 +640,7 @@ function getFieldResourceCatalog(field: Record<string, unknown>): ResourceCatalo
             identifier: resource.identifier,
             tokenIdentifier: resource.tokenIdentifier,
             tokenKey: resource.tokenKey,
+            tokenDecimals: typeof resource.tokenDecimals === 'number' ? resource.tokenDecimals : undefined,
             parentResourceKey: typeof resource.parentResourceKey === 'string' ? resource.parentResourceKey : undefined,
             explorerUrl: typeof resource.explorerUrl === 'string' ? resource.explorerUrl : undefined,
             explorerLabel: typeof resource.explorerLabel === 'string' ? resource.explorerLabel : undefined,
