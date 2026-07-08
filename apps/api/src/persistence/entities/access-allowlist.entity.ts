@@ -32,19 +32,19 @@ export class AccessAllowlistEntity {
   @Column({ type: 'uuid', nullable: true })
   invitedByUserId!: string | null;
 
-  @CreateDateColumn({ name: 'invited_at', type: 'timestamp', precision: 3 })
+  @CreateDateColumn({ name: 'invited_at', type: 'timestamptz', precision: 3 })
   invitedAt!: Date;
 
-  @Column({ type: 'timestamp', precision: 3, nullable: true })
+  @Column({ type: 'timestamptz', precision: 3, nullable: true })
   revokedAt!: Date | null;
 
   @Column({ type: 'uuid', nullable: true })
   revokedByUserId!: string | null;
 
-  @CreateDateColumn({ type: 'timestamp', precision: 3 })
+  @CreateDateColumn({ type: 'timestamptz', precision: 3 })
   createdAt!: Date;
 
-  @UpdateDateColumn({ type: 'timestamp', precision: 3 })
+  @UpdateDateColumn({ type: 'timestamptz', precision: 3 })
   updatedAt!: Date;
 
   @ManyToOne(

@@ -41,16 +41,16 @@ export class SnapshotEntity {
   @Column({ type: 'jsonb', nullable: true })
   error!: unknown;
 
-  @Column({ type: 'timestamp', precision: 3, nullable: true })
+  @Column({ type: 'timestamptz', precision: 3, nullable: true })
   startedAt!: Date | null;
 
-  @Column({ type: 'timestamp', precision: 3, nullable: true })
+  @Column({ type: 'timestamptz', precision: 3, nullable: true })
   completedAt!: Date | null;
 
-  @CreateDateColumn({ type: 'timestamp', precision: 3 })
+  @CreateDateColumn({ type: 'timestamptz', precision: 3 })
   createdAt!: Date;
 
-  @UpdateDateColumn({ type: 'timestamp', precision: 3 })
+  @UpdateDateColumn({ type: 'timestamptz', precision: 3 })
   updatedAt!: Date;
 
   @ManyToOne(

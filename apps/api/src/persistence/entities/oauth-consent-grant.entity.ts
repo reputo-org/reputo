@@ -21,13 +21,13 @@ export class OAuthConsentGrantEntity {
   @Column({ type: 'text' })
   codeVerifier!: string;
 
-  @Column({ type: 'timestamp', precision: 3 })
+  @Column({ type: 'timestamptz', precision: 3 })
   expiresAt!: Date;
 
-  @CreateDateColumn({ type: 'timestamp', precision: 3 })
+  @CreateDateColumn({ type: 'timestamptz', precision: 3 })
   createdAt!: Date;
 
-  @UpdateDateColumn({ type: 'timestamp', precision: 3 })
+  @UpdateDateColumn({ type: 'timestamptz', precision: 3 })
   updatedAt!: Date;
 
   @BeforeInsert()

@@ -125,6 +125,32 @@ describe('API snapshot activities (integration)', () => {
       expect((error as ApplicationFailure).nonRetryable).toBe(true);
       expect((error as ApplicationFailure).type).toBe('SnapshotNotFoundError');
     });
+
+    // Regression: with TIMESTAMP-without-time-zone columns the DB default wrote UTC
+    // wall-clock but node-postgres read it as host-local, so on a non-UTC host the
+    // workflow saw createdAt shifted by the TZ offset (skewing token_value lot ages
+    // and the transfer cutoff). TIMESTAMPTZ must round-trip the true instant.
+    it('returns createdAt as the true instant regardless of the host timezone', async () => {
+      const originalTz = process.env.TZ;
+      process.env.TZ = 'Pacific/Kiritimati'; // UTC+14, DST-free: an offset bug shows as -14h
+      try {
+        const before = Date.now();
+        const { snapshot } = await seedSnapshot();
+        const after = Date.now();
+
+        const result = await env.run(activities.getSnapshot, { snapshotId: snapshot.id });
+
+        const createdAtMs = Date.parse(result.createdAt);
+        expect(createdAtMs).toBeGreaterThanOrEqual(before - 1_000);
+        expect(createdAtMs).toBeLessThanOrEqual(after + 1_000);
+      } finally {
+        if (originalTz === undefined) {
+          delete process.env.TZ;
+        } else {
+          process.env.TZ = originalTz;
+        }
+      }
+    });
   });
 
   describe('updateSnapshot', () => {

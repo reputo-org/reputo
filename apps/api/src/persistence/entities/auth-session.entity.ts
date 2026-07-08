@@ -37,10 +37,10 @@ export class AuthSessionEntity {
   @Column({ type: 'text' })
   refreshTokenCiphertext!: string;
 
-  @Column({ type: 'timestamp', precision: 3 })
+  @Column({ type: 'timestamptz', precision: 3 })
   accessTokenExpiresAt!: Date;
 
-  @Column({ type: 'timestamp', precision: 3 })
+  @Column({ type: 'timestamptz', precision: 3 })
   refreshTokenExpiresAt!: Date;
 
   @Column({ type: 'text', array: true, default: () => 'ARRAY[]::text[]' })
@@ -52,19 +52,19 @@ export class AuthSessionEntity {
   @Column({ type: 'text' })
   codeVerifier!: string;
 
-  @Column({ type: 'timestamp', precision: 3, nullable: true })
+  @Column({ type: 'timestamptz', precision: 3, nullable: true })
   lastRefreshedAt!: Date | null;
 
-  @Column({ type: 'timestamp', precision: 3, nullable: true })
+  @Column({ type: 'timestamptz', precision: 3, nullable: true })
   revokedAt!: Date | null;
 
-  @Column({ type: 'timestamp', precision: 3 })
+  @Column({ type: 'timestamptz', precision: 3 })
   expiresAt!: Date;
 
-  @CreateDateColumn({ type: 'timestamp', precision: 3 })
+  @CreateDateColumn({ type: 'timestamptz', precision: 3 })
   createdAt!: Date;
 
-  @UpdateDateColumn({ type: 'timestamp', precision: 3 })
+  @UpdateDateColumn({ type: 'timestamptz', precision: 3 })
   updatedAt!: Date;
 
   @ManyToOne(
