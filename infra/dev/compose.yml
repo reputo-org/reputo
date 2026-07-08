@@ -279,7 +279,9 @@ services:
         image: temporalio/ui:2.32.0
         environment:
             TEMPORAL_ADDRESS: temporal:7233
-            TEMPORAL_CORS_ORIGINS: '*'
+            # A bare '*' breaks the image's generated YAML (parsed as an alias) and
+            # crash-loops the UI; the dev UI is same-origin so no CORS list is needed.
+            TEMPORAL_CORS_ORIGINS: http://localhost:8088
         depends_on:
             - temporal
         ports:
