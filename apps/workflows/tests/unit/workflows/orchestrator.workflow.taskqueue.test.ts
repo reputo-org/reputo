@@ -227,7 +227,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
       });
     const resolveDependency = vi.fn().mockResolvedValue(undefined);
     const runTypescriptAlgorithm = vi.fn().mockResolvedValue({
-      outputs: { composite_score: 'snapshots/snapshot-1/custom_score.csv' },
+      outputs: { voting_engagement: 'snapshots/snapshot-1/voting_engagement_weighted_score.csv' },
     });
 
     proxyActivities.mockImplementation(
@@ -452,7 +452,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
       });
     const resolveDependency = vi.fn().mockResolvedValue(undefined);
     const runTypescriptAlgorithm = vi.fn().mockResolvedValue({
-      outputs: { composite_score: 'snapshots/snapshot-1/custom_score.csv' },
+      outputs: { voting_engagement: 'snapshots/snapshot-1/voting_engagement_weighted_score.csv' },
     });
 
     proxyActivities.mockImplementation(

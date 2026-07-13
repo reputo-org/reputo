@@ -4,7 +4,7 @@ import { Context } from '@temporalio/activity';
 import { parse } from 'csv-parse/sync';
 
 import config from '../../../../config/index.js';
-import { HEARTBEAT_INTERVAL } from '../../../../shared/constants/index.js';
+import { CUSTOM_SCORE_WEIGHTED_COLUMN, HEARTBEAT_INTERVAL } from '../../../../shared/constants/index.js';
 import type { AlgorithmComputeFunction, AlgorithmResult, Snapshot } from '../../../../shared/types/index.js';
 import { stringifyCsvAsync } from '../../../../shared/utils/index.js';
 import { computeContributionScore } from '../contribution-score/compute.js';
@@ -22,7 +22,7 @@ const standaloneRegistry: Record<string, AlgorithmComputeFunction> = {
   token_value_over_time: computeTokenValueOverTime,
 };
 
-type MissingScoreStrategy = 'zero';
+const DETAILS_OUTPUT_KEY = 'custom_score_details';
 
 interface PresetInputLike {
   key: string;
@@ -39,33 +39,37 @@ interface SubAlgorithmEntry {
 interface CustomScoreParams {
   didsKey: string;
   subAlgorithms: SubAlgorithmEntry[];
-  missingScoreStrategy: MissingScoreStrategy;
 }
 
 interface ChildAlgorithmRuntimeResult {
   entry: SubAlgorithmEntry;
-  scores: Map<string, number>;
+  rawScores: Map<string, number>;
+  weightedScores: Map<string, number>;
+}
+
+interface ChildSummary {
+  algorithm_key: string;
+  algorithm_version: string;
+  weight: number;
+  weight_share: number;
 }
 
 interface ChildScoreDetail {
   algorithm_key: string;
-  algorithm_version: string;
-  score: number;
-  child_weight: number;
-  weighted_contribution: number;
+  raw_score: number;
+  weighted_score: number;
 }
 
-interface CompositeScoreDetail {
+interface DidScoreDetail {
   did: string;
-  final_composite_score: number;
   child_scores: ChildScoreDetail[];
 }
 
-interface CompositeScoreDetailsDocument {
+interface CustomScoreDetailsDocument {
   snapshot_id: string;
-  missing_score_strategy: MissingScoreStrategy;
   total_child_weight: number;
-  dids: CompositeScoreDetail[];
+  children: ChildSummary[];
+  dids: DidScoreDetail[];
 }
 
 function roundScore(score: number): number {
@@ -74,15 +78,6 @@ function roundScore(score: number): number {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function getRequiredStringInput(inputs: PresetInputLike[], key: string): string {
-  const input = inputs.find((entry) => entry.key === key);
-  if (input == null || typeof input.value !== 'string' || input.value.trim() === '') {
-    throw new Error(`Missing required "${key}" input`);
-  }
-
-  return input.value;
 }
 
 function parseSubAlgorithmEntry(value: unknown, index: number): SubAlgorithmEntry {
@@ -129,16 +124,18 @@ function extractInputs(inputs: PresetInputLike[]): CustomScoreParams {
     throw new Error('Missing required "sub_algorithms" input');
   }
 
-  const missingScoreStrategy = getRequiredStringInput(inputs, 'missing_score_strategy');
-  if (missingScoreStrategy !== 'zero') {
-    throw new Error(`Unsupported missing_score_strategy: ${missingScoreStrategy}`);
+  const subAlgorithms = rawSubAlgorithms.map(parseSubAlgorithmEntry);
+
+  // Each child posts under its own algorithm key, so one key may appear only once.
+  const seenKeys = new Set<string>();
+  for (const child of subAlgorithms) {
+    if (seenKeys.has(child.algorithm_key)) {
+      throw new Error(`Duplicate sub-algorithm "${child.algorithm_key}": each sub-algorithm can be added only once`);
+    }
+    seenKeys.add(child.algorithm_key);
   }
 
-  return {
-    didsKey,
-    subAlgorithms: rawSubAlgorithms.map(parseSubAlgorithmEntry),
-    missingScoreStrategy,
-  };
+  return { didsKey, subAlgorithms };
 }
 
 function isCsvOutput(output: unknown): output is CsvIoItem {
@@ -167,15 +164,12 @@ function getPrimaryCsvOutput(definition: AlgorithmDefinition): { outputKey: stri
   };
 }
 
-function buildChildSnapshot(
-  snapshot: Snapshot,
-  child: SubAlgorithmEntry,
-  didsKey: string,
-  childIndex: number,
-): Snapshot {
+// Children keep the parent snapshot id: dependency artifacts are stored under it
+// (e.g. the run's single deepfunding.db, shared by every portal child), and unique
+// child keys keep the per-child output files apart.
+function buildChildSnapshot(snapshot: Snapshot, child: SubAlgorithmEntry, didsKey: string): Snapshot {
   return {
     ...snapshot,
-    id: `${snapshot.id}__custom_score_child_${childIndex + 1}_${child.algorithm_key}`,
     algorithmPresetFrozen: {
       ...snapshot.algorithmPresetFrozen,
       key: child.algorithm_key,
@@ -224,7 +218,7 @@ async function runChildAlgorithm(input: {
   dids: string[];
   didsKey: string;
   child: SubAlgorithmEntry;
-  childIndex: number;
+  weightShare: number;
 }): Promise<ChildAlgorithmRuntimeResult> {
   const childDefinition = JSON.parse(
     getAlgorithmDefinition({
@@ -248,7 +242,7 @@ async function runChildAlgorithm(input: {
     throw new Error(`Unsupported child algorithm: ${input.child.algorithm_key}`);
   }
 
-  const childSnapshot = buildChildSnapshot(input.snapshot, input.child, input.didsKey, input.childIndex);
+  const childSnapshot = buildChildSnapshot(input.snapshot, input.child, input.didsKey);
   const childResult = await compute(childSnapshot, input.storage);
   const { outputKey } = getPrimaryCsvOutput(childDefinition);
   const childCsvKey = childResult.outputs[outputKey];
@@ -265,16 +259,20 @@ async function runChildAlgorithm(input: {
   const parsedScores = parseChildScoreCsv(childCsvBuffer.toString('utf-8'), childDefinition);
 
   // Each standalone algorithm already normalizes its output into the canonical
-  // 0–100 range, so child scores are combined directly. Users absent from a child's
-  // output are treated as 0 (the 'zero' missing-score strategy).
-  const scores = new Map<string, number>();
+  // 0–100 range, so the weights apply to the normalized scores directly. Users
+  // absent from a child's output get an explicit 0.
+  const rawScores = new Map<string, number>();
+  const weightedScores = new Map<string, number>();
   for (const did of input.dids) {
-    scores.set(did, parsedScores.get(did) ?? 0);
+    const rawScore = parsedScores.get(did) ?? 0;
+    rawScores.set(did, rawScore);
+    weightedScores.set(did, roundScore(rawScore * input.weightShare));
   }
 
   return {
     entry: input.child,
-    scores,
+    rawScores,
+    weightedScores,
   };
 }
 
@@ -292,115 +290,100 @@ export async function computeCustomScore(snapshot: Snapshot, storage: Storage): 
     key: params.didsKey,
   });
   const dids = getDids(didInputMap);
+  const totalChildWeight = params.subAlgorithms.reduce((sum, child) => sum + child.weight, 0);
 
   logger.info('Resolved custom algorithm inputs', {
     snapshotId,
     didCount: dids.length,
     childAlgorithmCount: params.subAlgorithms.length,
-    missingScoreStrategy: params.missingScoreStrategy,
+    totalChildWeight,
   });
 
   const childResults: ChildAlgorithmRuntimeResult[] = [];
 
   for (let index = 0; index < params.subAlgorithms.length; index++) {
-    if (index % HEARTBEAT_INTERVAL === 0) {
-      ctx.heartbeat({ phase: 'children', processed: index, total: params.subAlgorithms.length });
-    }
+    ctx.heartbeat({ phase: 'children', processed: index, total: params.subAlgorithms.length });
 
+    const child = params.subAlgorithms[index];
     childResults.push(
       await runChildAlgorithm({
         snapshot,
         storage,
         dids,
         didsKey: params.didsKey,
-        child: params.subAlgorithms[index],
-        childIndex: index,
+        child,
+        weightShare: child.weight / totalChildWeight,
       }),
     );
   }
 
-  const totalChildWeight = params.subAlgorithms.reduce((sum, child) => sum + child.weight, 0);
-  if (totalChildWeight <= 0) {
-    throw new Error('Custom algorithm requires a positive total child weight');
+  const outputs: Record<string, string> = {};
+
+  for (let index = 0; index < childResults.length; index++) {
+    ctx.heartbeat({ phase: 'upload', processed: index, total: childResults.length });
+
+    const { entry, weightedScores } = childResults[index];
+    const weightedCsv = await stringifyCsvAsync(
+      dids.map((did) => ({ did, [CUSTOM_SCORE_WEIGHTED_COLUMN]: weightedScores.get(did) ?? 0 })),
+      {
+        header: true,
+        columns: ['did', CUSTOM_SCORE_WEIGHTED_COLUMN],
+      },
+    );
+
+    const weightedCsvKey = generateKey('snapshot', snapshotId, `${entry.algorithm_key}_weighted_score.csv`);
+    await storage.putObject({
+      bucket: config.storage.bucket,
+      key: weightedCsvKey,
+      body: weightedCsv,
+      contentType: 'text/csv',
+    });
+
+    outputs[entry.algorithm_key] = weightedCsvKey;
   }
 
-  const compositeRows: Array<{ did: string; composite_score: number }> = [];
-  const detailsRows: CompositeScoreDetail[] = [];
-
+  const detailsRows: DidScoreDetail[] = [];
   for (let index = 0; index < dids.length; index++) {
     if (index % HEARTBEAT_INTERVAL === 0) {
-      ctx.heartbeat({ phase: 'combine', processed: index, total: dids.length });
+      ctx.heartbeat({ phase: 'details', processed: index, total: dids.length });
     }
 
     const did = dids[index];
-    const childScores = childResults.map(({ entry, scores }) => {
-      const score = scores.get(did) ?? 0;
-      const weightedContribution = roundScore((score * entry.weight) / totalChildWeight);
-
-      return {
-        algorithm_key: entry.algorithm_key,
-        algorithm_version: entry.algorithm_version,
-        score,
-        child_weight: entry.weight,
-        weighted_contribution: weightedContribution,
-      };
-    });
-
-    const compositeScore = roundScore(
-      childScores.reduce((sum, childScore) => sum + childScore.weighted_contribution, 0),
-    );
-
-    compositeRows.push({
-      did: did,
-      composite_score: compositeScore,
-    });
     detailsRows.push({
-      did: did,
-      final_composite_score: compositeScore,
-      child_scores: childScores,
+      did,
+      child_scores: childResults.map(({ entry, rawScores, weightedScores }) => ({
+        algorithm_key: entry.algorithm_key,
+        raw_score: rawScores.get(did) ?? 0,
+        weighted_score: weightedScores.get(did) ?? 0,
+      })),
     });
   }
 
-  ctx.heartbeat({ phase: 'upload' });
-
-  const compositeCsv = await stringifyCsvAsync(compositeRows, {
-    header: true,
-    columns: ['did', 'composite_score'],
-  });
-
-  const compositeKey = generateKey('snapshot', snapshotId, 'composite_score.csv');
-  await storage.putObject({
-    bucket: config.storage.bucket,
-    key: compositeKey,
-    body: compositeCsv,
-    contentType: 'text/csv',
-  });
-
-  const details: CompositeScoreDetailsDocument = {
+  const details: CustomScoreDetailsDocument = {
     snapshot_id: snapshotId,
-    missing_score_strategy: params.missingScoreStrategy,
     total_child_weight: roundScore(totalChildWeight),
+    children: params.subAlgorithms.map((child) => ({
+      algorithm_key: child.algorithm_key,
+      algorithm_version: child.algorithm_version,
+      weight: child.weight,
+      weight_share: roundScore(child.weight / totalChildWeight),
+    })),
     dids: detailsRows,
   };
 
-  const detailsKey = generateKey('snapshot', snapshotId, 'composite_score_details.json');
+  const detailsKey = generateKey('snapshot', snapshotId, 'custom_score_details.json');
   await storage.putObject({
     bucket: config.storage.bucket,
     key: detailsKey,
     body: JSON.stringify(details, null, 2),
     contentType: 'application/json',
   });
+  outputs[DETAILS_OUTPUT_KEY] = detailsKey;
 
   logger.info('Uploaded custom algorithm outputs', {
     snapshotId,
-    compositeKey,
-    detailsKey,
+    outputKeys: Object.keys(outputs),
   });
 
-  return {
-    outputs: {
-      composite_score: compositeKey,
-      composite_score_details: detailsKey,
-    },
-  };
+  return { outputs };
 }

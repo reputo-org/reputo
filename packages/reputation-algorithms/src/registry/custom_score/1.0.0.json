@@ -3,14 +3,14 @@
     "name": "Custom Score",
     "kind": "combined",
     "category": "Custom",
-    "summary": "Builds a composite score by combining multiple sub-algorithm outputs on shared users.",
-    "description": "### What it does\nCombines multiple sub-algorithm scores into one composite score.\n\n### How it works\n- Compose one or more sub-algorithms; the user list is shared across them.\n- Each sub-algorithm score is already normalized to a 0–100 scale.\n- Combine the sub-algorithm scores using their weights.\n- Apply the configured strategy when a user is missing from one or more sub-algorithm outputs.\n- Join results directly on `did`.\n\n### Output\n- CSV file with `did` and `composite_score` on a 0–100 scale.\n- JSON file with composite score details for each user.",
+    "summary": "Runs multiple sub-algorithms on a shared user list and reports each one as a weighted score under its own label.",
+    "description": "### What it does\nWraps one or more sub-algorithms. Each sub-algorithm keeps its own identity: it gets its own weighted-score output file, and its scores are reported under the sub-algorithm's own label — never under `custom_score`.\n\n### How it works\n- Compose one or more sub-algorithms; the user list is shared across them. Each sub-algorithm can be added only once.\n- Each sub-algorithm normalizes its own output to the shared 0–100 scale.\n- The wrapper then applies the weights: `weighted score = normalized score × weight ÷ (sum of all weights)`.\n- Every weighted score stays on the 0–100 scale, and the sum of one user's weighted scores across all sub-algorithms also stays within 0–100. The aggregation itself happens later, outside this algorithm.\n- A user missing from a sub-algorithm's output gets an explicit 0 for that sub-algorithm.\n- Results join directly on `did`.\n\n### Output\n- One CSV file per sub-algorithm with `did` and `weighted_score`, keyed by the sub-algorithm's key.\n- A JSON file with each user's raw and weighted score for every sub-algorithm.",
     "version": "1.0.0",
     "inputs": [
         {
             "key": "sub_algorithms",
             "label": "Sub-Algorithms",
-            "description": "Compose the sub-algorithms that should contribute to the final composite score.",
+            "description": "Compose the sub-algorithms to run on the shared user list. Each sub-algorithm can be added only once; its weight decides its share of the total.",
             "type": "sub_algorithm",
             "required": true,
             "minItems": 1,
@@ -18,48 +18,13 @@
                 "widget": "sub_algorithm_composer",
                 "addButtonLabel": "Add sub-algorithm"
             }
-        },
-        {
-            "key": "missing_score_strategy",
-            "label": "Missing Score Strategy",
-            "description": "How missing sub-algorithm scores are handled when building the composite score. A user absent from a sub-algorithm's output is treated as a score of 0.",
-            "type": "string",
-            "required": true,
-            "uiHint": {
-                "widget": "select",
-                "options": [{ "value": "zero", "label": "Treat Missing Scores as Zero" }]
-            },
-            "enum": ["zero"],
-            "default": "zero"
         }
     ],
     "outputs": [
         {
-            "key": "composite_score",
-            "label": "Composite Score (CSV)",
-            "description": "CSV file with one row per user and the final composite score.",
-            "type": "csv",
-            "csv": {
-                "hasHeader": true,
-                "delimiter": ",",
-                "columns": [
-                    {
-                        "key": "did",
-                        "type": "string",
-                        "description": "The user's DID (did:plc or did:sub)."
-                    },
-                    {
-                        "key": "composite_score",
-                        "type": "number",
-                        "description": "Final composite score for the user, on a 0–100 scale."
-                    }
-                ]
-            }
-        },
-        {
-            "key": "composite_score_details",
-            "label": "Composite Score Details (JSON)",
-            "description": "JSON file with combination details for each scored user.",
+            "key": "custom_score_details",
+            "label": "Custom Score Details (JSON)",
+            "description": "JSON file with each user's raw and weighted score for every sub-algorithm. One weighted-score CSV per sub-algorithm is added to the outputs as well, keyed by the sub-algorithm's key.",
             "type": "json"
         }
     ],

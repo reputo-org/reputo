@@ -26,21 +26,21 @@ describe('custom_score registry loading', () => {
       kind: 'combined',
       runtime: 'typescript',
     });
-    expect(definition.inputs).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          key: 'sub_algorithms',
-          type: 'sub_algorithm',
-          uiHint: expect.objectContaining({
-            widget: 'sub_algorithm_composer',
-          }),
+    expect(definition.inputs).toEqual([
+      expect.objectContaining({
+        key: 'sub_algorithms',
+        type: 'sub_algorithm',
+        uiHint: expect.objectContaining({
+          widget: 'sub_algorithm_composer',
         }),
-        expect.objectContaining({
-          key: 'missing_score_strategy',
-          enum: ['zero'],
-        }),
-      ]),
-    );
+      }),
+    ]);
+    expect(definition.outputs).toEqual([
+      expect.objectContaining({
+        key: 'custom_score_details',
+        type: 'json',
+      }),
+    ]);
   });
 
   it('remains schema-valid when loaded through the public registry API', () => {

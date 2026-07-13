@@ -248,7 +248,22 @@ function buildFieldSchema(input: any, label: string): z.ZodType {
           `${label} must have at most ${subAlgorithmInput.maxItems} item(s)`,
         );
       }
-      schema = subAlgorithmInput.required === false ? arrSchema.optional() : arrSchema;
+      // Each sub-algorithm reports under its own algorithm key, so one key may appear only once.
+      const uniqueSchema = arrSchema.refine(
+        (entries) => {
+          const seen = new Set<string>();
+          for (const entry of entries as Array<{ algorithm_key?: unknown }>) {
+            const key = typeof entry.algorithm_key === 'string' ? entry.algorithm_key : '';
+            if (seen.has(key)) {
+              return false;
+            }
+            seen.add(key);
+          }
+          return true;
+        },
+        { message: `${label} must not contain the same sub-algorithm more than once` },
+      );
+      schema = subAlgorithmInput.required === false ? uniqueSchema.optional() : uniqueSchema;
       break;
     }
 

@@ -41,8 +41,8 @@ describe('dispatchAlgorithm mapping', () => {
     vi.clearAllMocks();
     mockComputeCustomScore.mockResolvedValue({
       outputs: {
-        composite_score: 'outputs/composite-score.csv',
-        composite_score_details: 'outputs/composite-score-details.json',
+        voting_engagement: 'outputs/voting-engagement-weighted-score.csv',
+        custom_score_details: 'outputs/custom-score-details.json',
       },
     });
     mockComputeTokenValueOverTime.mockResolvedValue({
@@ -93,8 +93,8 @@ describe('dispatchAlgorithm mapping', () => {
     expect(mockComputeCustomScore).toHaveBeenCalledOnce();
     expect(result).toEqual({
       outputs: {
-        composite_score: 'outputs/composite-score.csv',
-        composite_score_details: 'outputs/composite-score-details.json',
+        voting_engagement: 'outputs/voting-engagement-weighted-score.csv',
+        custom_score_details: 'outputs/custom-score-details.json',
       },
     });
   });

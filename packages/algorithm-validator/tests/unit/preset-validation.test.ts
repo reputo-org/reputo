@@ -559,6 +559,50 @@ describe('validateAlgorithmPreset', () => {
     );
   });
 
+  it('rejects the same sub-algorithm added more than once', async () => {
+    const result = await validateAlgorithmPreset({
+      definition: combinedDefinition,
+      preset: {
+        key: 'custom_score',
+        version: '1.0.0',
+        inputs: [
+          {
+            key: 'wallets',
+            value: 'uploads/wallets.json',
+          },
+          {
+            key: 'sub_algorithms',
+            value: [
+              {
+                algorithm_key: 'voting_engagement',
+                algorithm_version: '1.0.0',
+                weight: 1,
+                inputs: [],
+              },
+              {
+                algorithm_key: 'voting_engagement',
+                algorithm_version: '1.0.0',
+                weight: 3,
+                inputs: [],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: 'sub_algorithms',
+          source: 'payload',
+          message: 'Sub-Algorithms must not contain the same sub-algorithm more than once',
+        }),
+      ]),
+    );
+  });
+
   it('rejects child entries that duplicate shared parent inputs', async () => {
     const result = await validateAlgorithmPreset({
       definition: combinedDefinition,

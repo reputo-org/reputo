@@ -30,7 +30,7 @@ Only TypeScript is wired up today. The workflows app uses Temporal task queues, 
 
 ## Score normalization
 
-Every algorithm's final per-user score is normalized to a fixed **0–100** range before it is written to the CSV output (the value `custom_score`, the DeepID post step, and the UI read). This is a default; it is not user-configurable.
+Every algorithm's final per-user score is normalized to a fixed **0–100** range before it is written to the CSV output (the value the `custom_score` wrapper, the DeepID post step, and the UI read). This is a default; it is not user-configurable.
 
 The reusable logic lives in [`shared/normalization`](../apps/workflows/src/activities/typescript/algorithms/shared/normalization). Each algorithm picks a method and calls `normalizeScores(values, method)`:
 
@@ -39,7 +39,7 @@ The reusable logic lives in [`shared/normalization`](../apps/workflows/src/activ
 | `min_max` | Cohort min–max: the lowest score maps to 0, the highest to 100, the rest interpolate. Scores are **relative to the scored population**. An empty, single-member, or all-equal cohort has no spread, so every score collapses to 0. | `contribution_score`, `proposal_engagement`, `token_value_over_time` |
 | `from_unit_interval` | Linear rescale of a score already on `[0, 1]` onto 0–100 (×100). Keeps its absolute meaning and comparability across snapshots. | `voting_engagement` |
 
-`custom_score` does not normalize again: each sub-algorithm output is already 0–100, so it combines them directly as a weighted mean. Add a new method by implementing a `NormalizationStrategy` and registering it in `normalize.ts` — no call site changes.
+`custom_score` does not normalize again: each sub-algorithm normalizes its own output to 0–100 first. The wrapper then only scales each sub-algorithm's score by `weight ÷ total weight` and writes one weighted CSV per sub-algorithm — it does not combine them into one score. Each weighted score stays within 0–100, and the sum of one user's weighted scores across all sub-algorithms also stays within 0–100 (the aggregation itself happens later, outside the algorithm). Add a new method by implementing a `NormalizationStrategy` and registering it in `normalize.ts` — no call site changes.
 
 The `*_details.json` benchmark files keep the **raw, pre-normalization** scores; only the CSV output is normalized.
 
