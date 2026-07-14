@@ -81,6 +81,39 @@ vi.mock('../../../src/activities/typescript/algorithms/token-value-over-time/com
 
 import { computeCustomScore } from '../../../src/activities/typescript/algorithms/custom-score/compute.js';
 
+function standaloneDefinition(key: string) {
+  return JSON.stringify({
+    key,
+    version: '1.0.0',
+    kind: 'standalone',
+    runtime: 'typescript',
+    outputs: [
+      { key: `${key}_details`, type: 'json' },
+      {
+        key,
+        type: 'csv',
+        csv: {
+          columns: [{ key: 'did' }, { key }],
+        },
+      },
+    ],
+  });
+}
+
+function buildSnapshot(subAlgorithms: unknown) {
+  return {
+    id: 'snapshot-1',
+    algorithmPresetFrozen: {
+      key: 'custom_score',
+      version: '1.0.0',
+      inputs: [
+        { key: 'dids', value: 'uploads/dids.json' },
+        { key: 'sub_algorithms', value: subAlgorithms },
+      ],
+    },
+  } as never;
+}
+
 describe('computeCustomScore', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -94,46 +127,35 @@ describe('computeCustomScore', () => {
       },
     });
     mockGetDids.mockReturnValue(['did:sub:1', 'did:sub:2', 'did:sub:3']);
-    mockStringifyCsvAsync.mockResolvedValue(
-      ['did,composite_score', 'did:sub:1,4', 'did:sub:2,6.666667', 'did:sub:3,2'].join('\n'),
+    mockStringifyCsvAsync.mockResolvedValue('csv-body');
+    mockGenerateKey.mockImplementation(
+      (_prefix: string, id: string, filename: string) => `snapshots/${id}/${filename}`,
     );
-    mockGenerateKey.mockReturnValueOnce('outputs/composite_score.csv').mockReturnValueOnce('outputs/details.json');
-    mockGetAlgorithmDefinition.mockReturnValue(
-      JSON.stringify({
-        key: 'voting_engagement',
-        version: '1.0.0',
-        kind: 'standalone',
-        runtime: 'typescript',
-        outputs: [
-          { key: 'voting_engagement_details', type: 'json' },
-          {
-            key: 'voting_engagement',
-            type: 'csv',
-            csv: {
-              columns: [{ key: 'did' }, { key: 'voting_engagement' }],
-            },
-          },
-        ],
-      }),
-    );
+    mockGetAlgorithmDefinition.mockImplementation(({ key }: { key: string }) => standaloneDefinition(key));
     mockComputeVotingEngagement.mockImplementation(async (snapshot: { id: string }) => ({
       outputs: {
         voting_engagement: `snapshots/${snapshot.id}/voting_engagement.csv`,
         voting_engagement_details: `snapshots/${snapshot.id}/voting_engagement_details.json`,
       },
     }));
+    mockComputeContributionScore.mockImplementation(async (snapshot: { id: string }) => ({
+      outputs: {
+        contribution_score: `snapshots/${snapshot.id}/contribution_score.csv`,
+        contribution_score_details: `snapshots/${snapshot.id}/contribution_score_details.json`,
+      },
+    }));
   });
 
-  it('runs child algorithms with synthetic snapshots, zero-fills missing scores, and combines their already-normalized 0–100 scores', async () => {
+  it('runs each child once, zero-fills missing users, and writes one weighted CSV per child plus the details JSON', async () => {
     const putObject = vi.fn().mockResolvedValue(undefined);
     const storage = {
       getObject: vi.fn().mockImplementation(async ({ key }: { key: string }) => {
-        if (key.includes('__custom_score_child_1_')) {
+        if (key === 'snapshots/snapshot-1/voting_engagement.csv') {
           return Buffer.from(['did,voting_engagement', 'did:sub:1,10', 'did:sub:2,20'].join('\n'));
         }
 
-        if (key.includes('__custom_score_child_2_')) {
-          return Buffer.from(['did,voting_engagement', 'did:sub:1,1', 'did:sub:3,3'].join('\n'));
+        if (key === 'snapshots/snapshot-1/contribution_score.csv') {
+          return Buffer.from(['did,contribution_score', 'did:sub:1,1', 'did:sub:3,3'].join('\n'));
         }
 
         throw new Error(`Unexpected key: ${key}`);
@@ -142,34 +164,20 @@ describe('computeCustomScore', () => {
     };
 
     const result = await computeCustomScore(
-      {
-        id: 'snapshot-1',
-        algorithmPresetFrozen: {
-          key: 'custom_score',
-          version: '1.0.0',
-          inputs: [
-            { key: 'dids', value: 'uploads/dids.json' },
-            {
-              key: 'sub_algorithms',
-              value: [
-                {
-                  algorithm_key: 'voting_engagement',
-                  algorithm_version: '1.0.0',
-                  weight: 1,
-                  inputs: [{ key: 'votes', value: 'uploads/votes-a.csv' }],
-                },
-                {
-                  algorithm_key: 'voting_engagement',
-                  algorithm_version: '1.0.0',
-                  weight: 2,
-                  inputs: [{ key: 'votes', value: 'uploads/votes-b.csv' }],
-                },
-              ],
-            },
-            { key: 'missing_score_strategy', value: 'zero' },
-          ],
+      buildSnapshot([
+        {
+          algorithm_key: 'voting_engagement',
+          algorithm_version: '1.0.0',
+          weight: 1,
+          inputs: [{ key: 'votes', value: 'uploads/votes.csv' }],
         },
-      } as never,
+        {
+          algorithm_key: 'contribution_score',
+          algorithm_version: '1.0.0',
+          weight: 3,
+          inputs: [],
+        },
+      ]),
       storage as never,
     );
 
@@ -178,268 +186,119 @@ describe('computeCustomScore', () => {
       bucket: 'test-bucket',
       key: 'uploads/dids.json',
     });
-    expect(mockComputeVotingEngagement).toHaveBeenCalledTimes(2);
-    expect(mockComputeVotingEngagement).toHaveBeenNthCalledWith(
+    // Children keep the parent snapshot id so id-derived dependency artifacts
+    // (e.g. the run's single deepfunding.db) resolve for every child.
+    expect(mockComputeVotingEngagement).toHaveBeenCalledTimes(1);
+    expect(mockComputeVotingEngagement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'snapshot-1',
+        algorithmPresetFrozen: {
+          key: 'voting_engagement',
+          version: '1.0.0',
+          inputs: [
+            { key: 'votes', value: 'uploads/votes.csv' },
+            { key: 'dids', value: 'uploads/dids.json' },
+          ],
+        },
+      }),
+      storage,
+    );
+    expect(mockComputeContributionScore).toHaveBeenCalledTimes(1);
+    expect(mockComputeContributionScore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'snapshot-1',
+        algorithmPresetFrozen: {
+          key: 'contribution_score',
+          version: '1.0.0',
+          inputs: [{ key: 'dids', value: 'uploads/dids.json' }],
+        },
+      }),
+      storage,
+    );
+
+    // Weighted score = raw × weight ÷ Σweights (Σ = 4).
+    expect(mockStringifyCsvAsync).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({
-        id: 'snapshot-1__custom_score_child_1_voting_engagement',
-        algorithmPresetFrozen: {
-          key: 'voting_engagement',
-          version: '1.0.0',
-          inputs: [
-            { key: 'votes', value: 'uploads/votes-a.csv' },
-            { key: 'dids', value: 'uploads/dids.json' },
-          ],
-        },
-      }),
-      storage,
-    );
-    expect(mockComputeVotingEngagement).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        id: 'snapshot-1__custom_score_child_2_voting_engagement',
-        algorithmPresetFrozen: {
-          key: 'voting_engagement',
-          version: '1.0.0',
-          inputs: [
-            { key: 'votes', value: 'uploads/votes-b.csv' },
-            { key: 'dids', value: 'uploads/dids.json' },
-          ],
-        },
-      }),
-      storage,
-    );
-    expect(storage.getObject).toHaveBeenNthCalledWith(1, {
-      bucket: 'test-bucket',
-      key: 'snapshots/snapshot-1__custom_score_child_1_voting_engagement/voting_engagement.csv',
-    });
-    expect(storage.getObject).toHaveBeenNthCalledWith(2, {
-      bucket: 'test-bucket',
-      key: 'snapshots/snapshot-1__custom_score_child_2_voting_engagement/voting_engagement.csv',
-    });
-    expect(mockStringifyCsvAsync).toHaveBeenCalledWith(
       [
-        { did: 'did:sub:1', composite_score: 4 }, // (10×1 + 1×2) / 3
-        { did: 'did:sub:2', composite_score: 6.666667 }, // (20×1 + 0×2) / 3
-        { did: 'did:sub:3', composite_score: 2 }, // (0×1 + 3×2) / 3
+        { did: 'did:sub:1', weighted_score: 2.5 },
+        { did: 'did:sub:2', weighted_score: 5 },
+        { did: 'did:sub:3', weighted_score: 0 },
       ],
-      {
-        header: true,
-        columns: ['did', 'composite_score'],
-      },
+      { header: true, columns: ['did', 'weighted_score'] },
     );
-    expect(storage.putObject).toHaveBeenNthCalledWith(1, {
+    expect(mockStringifyCsvAsync).toHaveBeenNthCalledWith(
+      2,
+      [
+        { did: 'did:sub:1', weighted_score: 0.75 },
+        { did: 'did:sub:2', weighted_score: 0 },
+        { did: 'did:sub:3', weighted_score: 2.25 },
+      ],
+      { header: true, columns: ['did', 'weighted_score'] },
+    );
+
+    expect(putObject).toHaveBeenNthCalledWith(1, {
       bucket: 'test-bucket',
-      key: 'outputs/composite_score.csv',
-      body: ['did,composite_score', 'did:sub:1,4', 'did:sub:2,6.666667', 'did:sub:3,2'].join('\n'),
+      key: 'snapshots/snapshot-1/voting_engagement_weighted_score.csv',
+      body: 'csv-body',
+      contentType: 'text/csv',
+    });
+    expect(putObject).toHaveBeenNthCalledWith(2, {
+      bucket: 'test-bucket',
+      key: 'snapshots/snapshot-1/contribution_score_weighted_score.csv',
+      body: 'csv-body',
       contentType: 'text/csv',
     });
 
-    const detailsPayload = JSON.parse(putObject.mock.calls[1][0].body);
+    const detailsPayload = JSON.parse(putObject.mock.calls[2][0].body);
     expect(detailsPayload).toEqual({
       snapshot_id: 'snapshot-1',
-      missing_score_strategy: 'zero',
-      total_child_weight: 3,
+      total_child_weight: 4,
+      children: [
+        { algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 1, weight_share: 0.25 },
+        { algorithm_key: 'contribution_score', algorithm_version: '1.0.0', weight: 3, weight_share: 0.75 },
+      ],
       dids: [
         {
           did: 'did:sub:1',
-          final_composite_score: 4,
           child_scores: [
-            {
-              algorithm_key: 'voting_engagement',
-              algorithm_version: '1.0.0',
-              score: 10,
-              child_weight: 1,
-              weighted_contribution: 3.333333,
-            },
-            {
-              algorithm_key: 'voting_engagement',
-              algorithm_version: '1.0.0',
-              score: 1,
-              child_weight: 2,
-              weighted_contribution: 0.666667,
-            },
+            { algorithm_key: 'voting_engagement', raw_score: 10, weighted_score: 2.5 },
+            { algorithm_key: 'contribution_score', raw_score: 1, weighted_score: 0.75 },
           ],
         },
         {
           did: 'did:sub:2',
-          final_composite_score: 6.666667,
           child_scores: [
-            {
-              algorithm_key: 'voting_engagement',
-              algorithm_version: '1.0.0',
-              score: 20,
-              child_weight: 1,
-              weighted_contribution: 6.666667,
-            },
-            {
-              algorithm_key: 'voting_engagement',
-              algorithm_version: '1.0.0',
-              score: 0,
-              child_weight: 2,
-              weighted_contribution: 0,
-            },
+            { algorithm_key: 'voting_engagement', raw_score: 20, weighted_score: 5 },
+            { algorithm_key: 'contribution_score', raw_score: 0, weighted_score: 0 },
           ],
         },
         {
           did: 'did:sub:3',
-          final_composite_score: 2,
           child_scores: [
-            {
-              algorithm_key: 'voting_engagement',
-              algorithm_version: '1.0.0',
-              score: 0,
-              child_weight: 1,
-              weighted_contribution: 0,
-            },
-            {
-              algorithm_key: 'voting_engagement',
-              algorithm_version: '1.0.0',
-              score: 3,
-              child_weight: 2,
-              weighted_contribution: 2,
-            },
+            { algorithm_key: 'voting_engagement', raw_score: 0, weighted_score: 0 },
+            { algorithm_key: 'contribution_score', raw_score: 3, weighted_score: 2.25 },
           ],
         },
       ],
     });
-    expect(mockHeartbeat).toHaveBeenCalledWith({
-      phase: 'children',
-      processed: 0,
-      total: 2,
-    });
-    expect(mockHeartbeat).toHaveBeenCalledWith({
-      phase: 'combine',
-      processed: 0,
-      total: 3,
-    });
-    expect(mockHeartbeat).toHaveBeenCalledWith({ phase: 'upload' });
+
+    expect(mockHeartbeat).toHaveBeenCalledWith({ phase: 'children', processed: 0, total: 2 });
+    expect(mockHeartbeat).toHaveBeenCalledWith({ phase: 'upload', processed: 0, total: 2 });
+    expect(mockHeartbeat).toHaveBeenCalledWith({ phase: 'details', processed: 0, total: 3 });
+
     expect(result).toEqual({
       outputs: {
-        composite_score: 'outputs/composite_score.csv',
-        composite_score_details: 'outputs/details.json',
+        voting_engagement: 'snapshots/snapshot-1/voting_engagement_weighted_score.csv',
+        contribution_score: 'snapshots/snapshot-1/contribution_score_weighted_score.csv',
+        custom_score_details: 'snapshots/snapshot-1/custom_score_details.json',
       },
     });
   });
 
-  it('applies weighted combination deterministically across differently weighted children', async () => {
-    mockGetDids.mockReturnValue(['did:sub:1', 'did:sub:2']);
-    mockStringifyCsvAsync.mockResolvedValue(['did,composite_score', 'did:sub:1,1.75', 'did:sub:2,3.75'].join('\n'));
-
-    const putObject = vi.fn().mockResolvedValue(undefined);
-    const storage = {
-      getObject: vi.fn().mockImplementation(async ({ key }: { key: string }) => {
-        if (key.includes('__custom_score_child_1_')) {
-          return Buffer.from(['did,voting_engagement', 'did:sub:1,1', 'did:sub:2,3'].join('\n'));
-        }
-
-        if (key.includes('__custom_score_child_2_')) {
-          return Buffer.from(['did,voting_engagement', 'did:sub:1,2', 'did:sub:2,4'].join('\n'));
-        }
-
-        throw new Error(`Unexpected key: ${key}`);
-      }),
-      putObject,
-    };
-
-    await computeCustomScore(
-      {
-        id: 'snapshot-1',
-        algorithmPresetFrozen: {
-          key: 'custom_score',
-          version: '1.0.0',
-          inputs: [
-            { key: 'dids', value: 'uploads/dids.json' },
-            {
-              key: 'sub_algorithms',
-              value: [
-                {
-                  algorithm_key: 'voting_engagement',
-                  algorithm_version: '1.0.0',
-                  weight: 1,
-                  inputs: [{ key: 'votes', value: 'uploads/votes-a.csv' }],
-                },
-                {
-                  algorithm_key: 'voting_engagement',
-                  algorithm_version: '1.0.0',
-                  weight: 3,
-                  inputs: [{ key: 'votes', value: 'uploads/votes-b.csv' }],
-                },
-              ],
-            },
-            { key: 'missing_score_strategy', value: 'zero' },
-          ],
-        },
-      } as never,
-      storage as never,
-    );
-
-    expect(mockStringifyCsvAsync).toHaveBeenCalledWith(
-      [
-        { did: 'did:sub:1', composite_score: 1.75 }, // (1×1 + 2×3) / 4
-        { did: 'did:sub:2', composite_score: 3.75 }, // (3×1 + 4×3) / 4
-      ],
-      {
-        header: true,
-        columns: ['did', 'composite_score'],
-      },
-    );
-
-    const detailsPayload = JSON.parse(putObject.mock.calls[1][0].body);
-    expect(detailsPayload).toEqual({
-      snapshot_id: 'snapshot-1',
-      missing_score_strategy: 'zero',
-      total_child_weight: 4,
-      dids: [
-        {
-          did: 'did:sub:1',
-          final_composite_score: 1.75,
-          child_scores: [
-            {
-              algorithm_key: 'voting_engagement',
-              algorithm_version: '1.0.0',
-              score: 1,
-              child_weight: 1,
-              weighted_contribution: 0.25,
-            },
-            {
-              algorithm_key: 'voting_engagement',
-              algorithm_version: '1.0.0',
-              score: 2,
-              child_weight: 3,
-              weighted_contribution: 1.5,
-            },
-          ],
-        },
-        {
-          did: 'did:sub:2',
-          final_composite_score: 3.75,
-          child_scores: [
-            {
-              algorithm_key: 'voting_engagement',
-              algorithm_version: '1.0.0',
-              score: 3,
-              child_weight: 1,
-              weighted_contribution: 0.75,
-            },
-            {
-              algorithm_key: 'voting_engagement',
-              algorithm_version: '1.0.0',
-              score: 4,
-              child_weight: 3,
-              weighted_contribution: 3,
-            },
-          ],
-        },
-      ],
-    });
-  });
-
-  it('combines equal child scores without re-normalizing them to zero', async () => {
+  it('keeps already-normalized child scores unchanged when a single child carries the full weight', async () => {
     // Children already emit 0–100, so custom_score must NOT re-run min–max — an
     // all-equal child vector keeps its value rather than collapsing to 0.
     mockGetDids.mockReturnValue(['did:sub:1', 'did:sub:2']);
-    mockStringifyCsvAsync.mockResolvedValue(['did,composite_score', 'did:sub:1,5', 'did:sub:2,5'].join('\n'));
 
     const putObject = vi.fn().mockResolvedValue(undefined);
     const storage = {
@@ -450,105 +309,63 @@ describe('computeCustomScore', () => {
     };
 
     await computeCustomScore(
-      {
-        id: 'snapshot-2',
-        algorithmPresetFrozen: {
-          key: 'custom_score',
-          version: '1.0.0',
-          inputs: [
-            { key: 'dids', value: 'uploads/dids.json' },
-            {
-              key: 'sub_algorithms',
-              value: [
-                {
-                  algorithm_key: 'voting_engagement',
-                  algorithm_version: '1.0.0',
-                  weight: 1,
-                  inputs: [],
-                },
-              ],
-            },
-            { key: 'missing_score_strategy', value: 'zero' },
-          ],
+      buildSnapshot([
+        {
+          algorithm_key: 'voting_engagement',
+          algorithm_version: '1.0.0',
+          weight: 2.5,
+          inputs: [],
         },
-      } as never,
+      ]),
       storage as never,
     );
 
     expect(mockStringifyCsvAsync).toHaveBeenCalledWith(
       [
-        { did: 'did:sub:1', composite_score: 5 },
-        { did: 'did:sub:2', composite_score: 5 },
+        { did: 'did:sub:1', weighted_score: 5 },
+        { did: 'did:sub:2', weighted_score: 5 },
       ],
-      {
-        header: true,
-        columns: ['did', 'composite_score'],
-      },
+      { header: true, columns: ['did', 'weighted_score'] },
     );
 
     const detailsPayload = JSON.parse(putObject.mock.calls[1][0].body);
-    expect(detailsPayload.dids).toEqual([
-      {
-        did: 'did:sub:1',
-        final_composite_score: 5,
-        child_scores: [
-          {
-            algorithm_key: 'voting_engagement',
-            algorithm_version: '1.0.0',
-            score: 5,
-            child_weight: 1,
-            weighted_contribution: 5,
-          },
-        ],
-      },
-      {
-        did: 'did:sub:2',
-        final_composite_score: 5,
-        child_scores: [
-          {
-            algorithm_key: 'voting_engagement',
-            algorithm_version: '1.0.0',
-            score: 5,
-            child_weight: 1,
-            weighted_contribution: 5,
-          },
-        ],
-      },
+    expect(detailsPayload.children).toEqual([
+      { algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 2.5, weight_share: 1 },
     ]);
   });
 
-  it('fails fast for unsupported missing score strategies', async () => {
+  it('rejects duplicate sub-algorithms before running any child', async () => {
     const storage = {
-      putObject: vi.fn().mockResolvedValue(undefined),
+      getObject: vi.fn(),
+      putObject: vi.fn(),
     };
 
     await expect(
       computeCustomScore(
-        {
-          id: 'snapshot-3',
-          algorithmPresetFrozen: {
-            key: 'custom_score',
-            version: '1.0.0',
-            inputs: [
-              { key: 'dids', value: 'uploads/dids.json' },
-              {
-                key: 'sub_algorithms',
-                value: [
-                  {
-                    algorithm_key: 'voting_engagement',
-                    algorithm_version: '1.0.0',
-                    weight: 1,
-                    inputs: [],
-                  },
-                ],
-              },
-              { key: 'missing_score_strategy', value: 'exclude' },
-            ],
-          },
-        } as never,
+        buildSnapshot([
+          { algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 1, inputs: [] },
+          { algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 3, inputs: [] },
+        ]),
         storage as never,
       ),
-    ).rejects.toThrow('Unsupported missing_score_strategy: exclude');
+    ).rejects.toThrow('Duplicate sub-algorithm "voting_engagement": each sub-algorithm can be added only once');
+
+    expect(mockComputeVotingEngagement).not.toHaveBeenCalled();
+    expect(storage.putObject).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-positive child weight', async () => {
+    const storage = {
+      getObject: vi.fn(),
+      putObject: vi.fn(),
+    };
+
+    await expect(
+      computeCustomScore(
+        buildSnapshot([{ algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 0, inputs: [] }]),
+        storage as never,
+      ),
+    ).rejects.toThrow('Invalid sub_algorithms.0.weight');
 
     expect(mockComputeVotingEngagement).not.toHaveBeenCalled();
   });

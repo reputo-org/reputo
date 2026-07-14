@@ -15,6 +15,27 @@ vi.mock('@reputo/deep-id-api', async (importOriginal) => {
   return { ...actual, createDeepIdClient: mockCreateDeepIdClient };
 });
 
+// Keep the real registry, add a synthetic non-DeepID standalone algorithm.
+vi.mock('@reputo/reputation-algorithms', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@reputo/reputation-algorithms')>();
+  return {
+    ...actual,
+    getAlgorithmDefinition: (input: { key: string; version?: string }) => {
+      if (input.key === 'deepfunding_sync') {
+        return JSON.stringify({
+          key: 'deepfunding_sync',
+          version: '1.0.0',
+          kind: 'standalone',
+          runtime: 'typescript',
+          inputs: [],
+          outputs: [{ key: 'deepfunding_sync', type: 'csv', csv: { columns: [{ key: 'did' }, { key: 'score' }] } }],
+        });
+      }
+      return actual.getAlgorithmDefinition(input);
+    },
+  };
+});
+
 vi.mock('@temporalio/activity', () => ({
   Context: {
     current: () => ({ log: mockLog, heartbeat: vi.fn() }),
@@ -59,12 +80,52 @@ function makeSnapshot(overrides: Record<string, unknown> = {}) {
   } as never;
 }
 
+function makeCombinedSnapshot(overrides: Record<string, unknown> = {}) {
+  return makeSnapshot({
+    algorithmPresetFrozen: {
+      key: 'custom_score',
+      version: '1.0.0',
+      inputs: [
+        { key: 'dids', value: 'uploads/dids.json' },
+        {
+          key: 'sub_algorithms',
+          value: [
+            { algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 1, inputs: [] },
+            { algorithm_key: 'token_value_over_time', algorithm_version: '1.0.0', weight: 3, inputs: [] },
+          ],
+        },
+      ],
+    },
+    outputs: {
+      voting_engagement: 'snapshots/snap-1/voting_engagement_weighted_score.csv',
+      token_value_over_time: 'snapshots/snap-1/token_value_over_time_weighted_score.csv',
+      custom_score_details: 'snapshots/snap-1/custom_score_details.json',
+    },
+    ...overrides,
+  });
+}
+
 function makeActivity(csv: string) {
   const getObject = vi.fn().mockResolvedValue(Buffer.from(csv, 'utf8'));
   return createDeepIdPostScoresActivity({
     storage: { getObject } as never,
     storageConfig: { bucket: 'reputo', maxSizeBytes: 1024 },
   });
+}
+
+function makeKeyedActivity(csvByKey: Record<string, string>) {
+  const getObject = vi.fn().mockImplementation(async ({ key }: { key: string }) => {
+    const csv = csvByKey[key];
+    if (csv === undefined) {
+      throw new Error(`Unexpected key: ${key}`);
+    }
+    return Buffer.from(csv, 'utf8');
+  });
+  const activity = createDeepIdPostScoresActivity({
+    storage: { getObject } as never,
+    storageConfig: { bucket: 'reputo', maxSizeBytes: 1024 },
+  });
+  return { activity, getObject };
 }
 
 function rejectionWarns() {
@@ -108,7 +169,66 @@ describe('createDeepIdPostScoresActivity', () => {
     expect(mockPostScores).not.toHaveBeenCalled();
   });
 
-  it('skips custom_score while its posting is out of scope', async () => {
+  it('posts each sub-algorithm of a combined snapshot under its own label, never custom_score', async () => {
+    const { activity, getObject } = makeKeyedActivity({
+      'snapshots/snap-1/voting_engagement_weighted_score.csv': ['did,weighted_score', `${DID_A},25`].join('\n'),
+      'snapshots/snap-1/token_value_over_time_weighted_score.csv': [
+        'did,weighted_score',
+        `${DID_A},75`,
+        `${DID_B},0`,
+      ].join('\n'),
+    });
+
+    mockPostScores.mockImplementation(async (batch: Record<string, unknown>) => {
+      const dids = Object.keys(batch);
+      return {
+        status: { ok: dids.length, failed: 0 },
+        results: Object.fromEntries(dids.map((did) => [did, { message: 'OK' }])),
+      };
+    });
+
+    const result = await activity({ snapshot: makeCombinedSnapshot() });
+
+    expect(result).toEqual({ posted: 3, ok: 3, failed: 0, dropped: 0, skipped: 0 });
+    expect(getObject).toHaveBeenCalledTimes(2);
+    expect(mockPostScores).toHaveBeenCalledTimes(2);
+    expect(mockPostScores).toHaveBeenNthCalledWith(1, {
+      [DID_A]: { score: 25, type: 'voting_engagement', timestamp: '2026-06-12T10:00:00.000Z' },
+    });
+    expect(mockPostScores).toHaveBeenNthCalledWith(2, {
+      [DID_A]: { score: 75, type: 'token_value_over_time', timestamp: '2026-06-12T10:00:00.000Z' },
+      [DID_B]: { score: 0, type: 'token_value_over_time', timestamp: '2026-06-12T10:00:00.000Z' },
+    });
+  });
+
+  it('skips a sub-algorithm whose weighted output is missing and still posts the others', async () => {
+    const { activity } = makeKeyedActivity({
+      'snapshots/snap-1/token_value_over_time_weighted_score.csv': ['did,weighted_score', `${DID_A},75`].join('\n'),
+    });
+
+    mockPostScores.mockResolvedValue({ status: { ok: 1, failed: 0 }, results: { [DID_A]: { message: 'OK' } } });
+
+    const result = await activity({
+      snapshot: makeCombinedSnapshot({
+        outputs: {
+          token_value_over_time: 'snapshots/snap-1/token_value_over_time_weighted_score.csv',
+          custom_score_details: 'snapshots/snap-1/custom_score_details.json',
+        },
+      }),
+    });
+
+    expect(result).toEqual({ posted: 1, ok: 1, failed: 0, dropped: 0, skipped: 0 });
+    expect(mockPostScores).toHaveBeenCalledTimes(1);
+    expect(mockPostScores).toHaveBeenCalledWith({
+      [DID_A]: { score: 75, type: 'token_value_over_time', timestamp: '2026-06-12T10:00:00.000Z' },
+    });
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      'Snapshot is missing a sub-algorithm weighted output; skipping its score post',
+      { snapshotId: 'snap-1', childKey: 'voting_engagement' },
+    );
+  });
+
+  it('skips a combined snapshot without valid sub-algorithm entries', async () => {
     const getObject = vi.fn();
     const activity = createDeepIdPostScoresActivity({
       storage: { getObject } as never,
@@ -116,7 +236,13 @@ describe('createDeepIdPostScoresActivity', () => {
     });
 
     const result = await activity({
-      snapshot: makeSnapshot({ algorithmPresetFrozen: { key: 'custom_score', version: '1.0.0', inputs: [] } }),
+      snapshot: makeCombinedSnapshot({
+        algorithmPresetFrozen: {
+          key: 'custom_score',
+          version: '1.0.0',
+          inputs: [{ key: 'sub_algorithms', value: 'not-an-array' }],
+        },
+      }),
     });
 
     expect(result).toEqual({ posted: 0, ok: 0, failed: 0, dropped: 0, skipped: 0 });

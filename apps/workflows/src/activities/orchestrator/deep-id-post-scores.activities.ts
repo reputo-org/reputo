@@ -4,17 +4,21 @@ import { Context } from '@temporalio/activity';
 import { parse } from 'csv-parse/sync';
 
 import config from '../../config/index.js';
+import { CUSTOM_SCORE_WEIGHTED_COLUMN } from '../../shared/constants/index.js';
 import type {
   DeepIdPostScoresActivities,
   DeepIdSyncContext,
   PostSnapshotScoresInput,
   PostSnapshotScoresResult,
+  Snapshot,
 } from '../../shared/types/index.js';
+import { buildCombinedChildAlgorithmPresets } from '../../shared/utils/orchestrator-input.utils.js';
 
 /**
  * Algorithm keys that are also DeepID score types (keys map 1:1 to types — no
- * translation). `custom_score` is a valid DeepID type but is intentionally not
- * posted while the custom-score integration is out of scope.
+ * translation). `custom_score` itself is never posted: a combined snapshot posts
+ * each child's weighted scores under the child's own label, and the `custom_score`
+ * type is reserved for the future aggregation step.
  */
 const POSTABLE_SCORE_TYPES = new Set<ScoreType>([
   'voting_engagement',
@@ -32,6 +36,13 @@ const EXPECTED_DROP_MESSAGE = 'User not found';
 const UNEXPECTED_REJECTION_WARN_LIMIT = 20;
 
 const EMPTY_RESULT: PostSnapshotScoresResult = { posted: 0, ok: 0, failed: 0, dropped: 0, skipped: 0 };
+
+/** One score CSV to post under one DeepID score type. */
+interface ScoreSource {
+  scoreType: ScoreType;
+  csvKey: string;
+  scoreColumnKey: string;
+}
 
 function isCsvOutput(output: unknown): output is CsvIoItem {
   return (
@@ -55,12 +66,82 @@ function getPrimaryCsvOutput(definition: AlgorithmDefinition): { outputKey: stri
   return { outputKey: csvOutput.key, scoreColumnKey: scoreColumn.key };
 }
 
+/** The standalone snapshot's primary CSV, posted under the algorithm's own key. */
+function collectStandaloneSource(snapshot: Snapshot, definition: AlgorithmDefinition): ScoreSource[] {
+  const logger = Context.current().log;
+  const snapshotId = snapshot.id;
+  const algorithmKey = snapshot.algorithmPresetFrozen.key;
+
+  if (!POSTABLE_SCORE_TYPES.has(algorithmKey as ScoreType)) {
+    logger.info('Algorithm is not a DeepID score type; skipping score post', { snapshotId, algorithmKey });
+    return [];
+  }
+
+  const primaryOutput = getPrimaryCsvOutput(definition);
+  if (!primaryOutput) {
+    logger.warn('Algorithm has no primary CSV output; skipping score post', { snapshotId, algorithmKey });
+    return [];
+  }
+
+  const csvKey = snapshot.outputs?.[primaryOutput.outputKey];
+  if (typeof csvKey !== 'string' || csvKey.trim() === '') {
+    logger.warn('Snapshot is missing the primary score output; skipping score post', {
+      snapshotId,
+      outputKey: primaryOutput.outputKey,
+    });
+    return [];
+  }
+
+  return [{ scoreType: algorithmKey as ScoreType, csvKey, scoreColumnKey: primaryOutput.scoreColumnKey }];
+}
+
 /**
- * Posts a completed snapshot's primary score back to DeepID via
- * `POST /v1/clients/scores`. The score `type` is the algorithm key (keys map 1:1
- * to DeepID score types). `did` is posted verbatim and must be a valid DID;
- * non-DID rows are logged and skipped. Best-effort by design — the caller treats
- * a thrown error as non-fatal so a posting failure never fails the snapshot.
+ * One source per sub-algorithm of a combined snapshot: the child's weighted-score
+ * CSV (stored under the child's key), posted under the child's own label.
+ */
+function collectCombinedSources(snapshot: Snapshot, definition: AlgorithmDefinition): ScoreSource[] {
+  const logger = Context.current().log;
+  const snapshotId = snapshot.id;
+  const children = buildCombinedChildAlgorithmPresets(snapshot.algorithmPresetFrozen, definition);
+
+  if (children.length === 0) {
+    logger.warn('Combined snapshot has no sub-algorithms; skipping score post', { snapshotId });
+    return [];
+  }
+
+  const sources: ScoreSource[] = [];
+  for (const child of children) {
+    if (!POSTABLE_SCORE_TYPES.has(child.key as ScoreType)) {
+      logger.warn('Sub-algorithm is not a DeepID score type; skipping its score post', {
+        snapshotId,
+        childKey: child.key,
+      });
+      continue;
+    }
+
+    const csvKey = snapshot.outputs?.[child.key];
+    if (typeof csvKey !== 'string' || csvKey.trim() === '') {
+      logger.warn('Snapshot is missing a sub-algorithm weighted output; skipping its score post', {
+        snapshotId,
+        childKey: child.key,
+      });
+      continue;
+    }
+
+    sources.push({ scoreType: child.key as ScoreType, csvKey, scoreColumnKey: CUSTOM_SCORE_WEIGHTED_COLUMN });
+  }
+
+  return sources;
+}
+
+/**
+ * Posts a completed snapshot's scores back to DeepID via `POST /v1/clients/scores`.
+ * A standalone snapshot posts its primary CSV under its own algorithm key; a
+ * combined (`custom_score`) snapshot posts each child's weighted CSV under the
+ * child's own key — never under `custom_score`. `did` is posted verbatim and must
+ * be a valid DID; non-DID rows are logged and skipped. Best-effort by design — the
+ * caller treats a thrown error as non-fatal so a posting failure never fails the
+ * snapshot.
  */
 export function createDeepIdPostScoresActivity(ctx: DeepIdSyncContext) {
   const { storage, storageConfig } = ctx;
@@ -71,64 +152,19 @@ export function createDeepIdPostScoresActivity(ctx: DeepIdSyncContext) {
     const snapshotId = snapshot.id;
     const algorithmKey = snapshot.algorithmPresetFrozen.key;
 
-    if (!POSTABLE_SCORE_TYPES.has(algorithmKey as ScoreType)) {
-      logger.info('Algorithm is not a DeepID score type; skipping score post', { snapshotId, algorithmKey });
-      return EMPTY_RESULT;
-    }
-    const scoreType = algorithmKey as ScoreType;
-
     const definition = JSON.parse(
       getAlgorithmDefinition({ key: algorithmKey, version: snapshot.algorithmPresetFrozen.version }),
     ) as AlgorithmDefinition;
-    const primaryOutput = getPrimaryCsvOutput(definition);
-    if (!primaryOutput) {
-      logger.warn('Algorithm has no primary CSV output; skipping score post', { snapshotId, algorithmKey });
+
+    const sources =
+      definition.kind === 'combined'
+        ? collectCombinedSources(snapshot, definition)
+        : collectStandaloneSource(snapshot, definition);
+    if (sources.length === 0) {
       return EMPTY_RESULT;
     }
-
-    const csvKey = snapshot.outputs?.[primaryOutput.outputKey];
-    if (typeof csvKey !== 'string' || csvKey.trim() === '') {
-      logger.warn('Snapshot is missing the primary score output; skipping score post', {
-        snapshotId,
-        outputKey: primaryOutput.outputKey,
-      });
-      return EMPTY_RESULT;
-    }
-
-    const csvBuffer = await storage.getObject({ bucket: storageConfig.bucket, key: csvKey });
-    const rows = parse(csvBuffer.toString('utf-8'), {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
-      relax_column_count: true,
-    }) as Array<Record<string, string>>;
 
     const timestamp = snapshot.completedAt ?? new Date().toISOString();
-
-    const scores: PostScoresRequest = {};
-    let skipped = 0;
-    for (const row of rows) {
-      const did = row.did?.trim();
-      const rawScore = row[primaryOutput.scoreColumnKey];
-      // Number('') is 0 — skip empty score cells instead of posting zeros.
-      const score = rawScore === undefined || rawScore === '' ? Number.NaN : Number(rawScore);
-      if (!isValidDid(did) || !Number.isFinite(score)) {
-        skipped += 1;
-        continue;
-      }
-      scores[did] = { score, type: scoreType, timestamp };
-    }
-
-    const entries = Object.entries(scores);
-    if (entries.length === 0) {
-      logger.warn('No postable DID-keyed scores in snapshot output; skipping score post', {
-        snapshotId,
-        algorithmKey,
-        skipped,
-      });
-      return { ...EMPTY_RESULT, skipped };
-    }
-
     const client = createDeepIdClient({
       identityBaseUrl: config.deepId.identityBaseUrl,
       appBaseUrl: config.deepId.appBaseUrl,
@@ -145,53 +181,95 @@ export function createDeepIdPostScoresActivity(ctx: DeepIdSyncContext) {
       logLevel: config.logger.level,
     });
 
-    let ok = 0;
-    let failed = 0;
-    let dropped = 0;
+    const totals: PostSnapshotScoresResult = { ...EMPTY_RESULT };
     let warnsLogged = 0;
-    const batches = chunk(entries, POST_CHUNK_SIZE);
-    for (let i = 0; i < batches.length; i++) {
-      const batch = Object.fromEntries(batches[i]) as PostScoresRequest;
-      const response = await client.postScores(batch);
-      ok += response.status.ok;
 
-      for (const [did, result] of Object.entries(response.results)) {
-        if (result.message === 'OK') {
+    for (const source of sources) {
+      const { scoreType, csvKey, scoreColumnKey } = source;
+      const csvBuffer = await storage.getObject({ bucket: storageConfig.bucket, key: csvKey });
+      const rows = parse(csvBuffer.toString('utf-8'), {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        relax_column_count: true,
+      }) as Array<Record<string, string>>;
+
+      const scores: PostScoresRequest = {};
+      let skipped = 0;
+      for (const row of rows) {
+        const did = row.did?.trim();
+        const rawScore = row[scoreColumnKey];
+        // Number('') is 0 — skip empty score cells instead of posting zeros.
+        const score = rawScore === undefined || rawScore === '' ? Number.NaN : Number(rawScore);
+        if (!isValidDid(did) || !Number.isFinite(score)) {
+          skipped += 1;
           continue;
         }
-        if (result.message === EXPECTED_DROP_MESSAGE) {
-          dropped += 1;
-          continue;
-        }
-        failed += 1;
-        if (warnsLogged < UNEXPECTED_REJECTION_WARN_LIMIT) {
-          warnsLogged += 1;
-          logger.warn('DeepID rejected a score', { snapshotId, scoreType, did, message: result.message });
-        }
+        scores[did] = { score, type: scoreType, timestamp };
       }
-      Context.current().heartbeat({ batch: i + 1, totalBatches: batches.length });
-    }
+      totals.skipped += skipped;
 
-    if (failed > warnsLogged) {
-      logger.warn('Further unexpected DeepID rejections were not logged individually', {
+      const entries = Object.entries(scores);
+      if (entries.length === 0) {
+        logger.warn('No postable DID-keyed scores in snapshot output; skipping score post', {
+          snapshotId,
+          scoreType,
+          skipped,
+        });
+        continue;
+      }
+
+      let ok = 0;
+      let failed = 0;
+      let dropped = 0;
+      const batches = chunk(entries, POST_CHUNK_SIZE);
+      for (let i = 0; i < batches.length; i++) {
+        const batch = Object.fromEntries(batches[i]) as PostScoresRequest;
+        const response = await client.postScores(batch);
+        ok += response.status.ok;
+
+        for (const [did, result] of Object.entries(response.results)) {
+          if (result.message === 'OK') {
+            continue;
+          }
+          if (result.message === EXPECTED_DROP_MESSAGE) {
+            dropped += 1;
+            continue;
+          }
+          failed += 1;
+          if (warnsLogged < UNEXPECTED_REJECTION_WARN_LIMIT) {
+            warnsLogged += 1;
+            logger.warn('DeepID rejected a score', { snapshotId, scoreType, did, message: result.message });
+          }
+        }
+        Context.current().heartbeat({ scoreType, batch: i + 1, totalBatches: batches.length });
+      }
+
+      totals.posted += entries.length;
+      totals.ok += ok;
+      totals.failed += failed;
+      totals.dropped += dropped;
+
+      logger.info('Posted snapshot scores to DeepID', {
         snapshotId,
         scoreType,
+        posted: entries.length,
+        ok,
         failed,
+        dropped,
+        skipped,
+      });
+    }
+
+    if (totals.failed > warnsLogged) {
+      logger.warn('Further unexpected DeepID rejections were not logged individually', {
+        snapshotId,
+        failed: totals.failed,
         logged: warnsLogged,
       });
     }
 
-    logger.info('Posted snapshot scores to DeepID', {
-      snapshotId,
-      scoreType,
-      posted: entries.length,
-      ok,
-      failed,
-      dropped,
-      skipped,
-    });
-
-    return { posted: entries.length, ok, failed, dropped, skipped };
+    return totals;
   };
 }
 

@@ -51,12 +51,14 @@ After a snapshot completes, the orchestrator runs the `post_snapshot_scores` act
 
 - **Best-effort by design.** A posting failure is retried by Temporal, then logged and
   swallowed — it can never fail the reputation run.
-- The primary CSV output is read, every `did` is validated
-  (`did:(plc|sub):` + 24 alphanumerics), and scores are posted in chunks of 500 to
-  `POST /v1/clients/scores`.
+- The primary CSV output is read (for `custom_score`: one weighted CSV per
+  sub-algorithm), every `did` is validated (`did:(plc|sub):` + 24 alphanumerics), and
+  scores are posted in chunks of 500 to `POST /v1/clients/scores`.
 - The score `type` is the algorithm key — keys map 1:1 to DeepID score types, so there is
-  no translation table. `custom_score` is a valid DeepID type but is currently **not
-  posted** (out of scope).
+  no translation table. A `custom_score` snapshot posts each sub-algorithm's **weighted**
+  score (`normalized score × weight ÷ total weight`) under the sub-algorithm's own type.
+  Nothing is posted under `custom_score` itself — that type is reserved for the future
+  aggregation step.
 - Every entry carries `timestamp = completedAt`. DeepID keeps the newest timestamp per
   `(client, type)`, so re-posting after a retry is safe and an older snapshot can never
   overwrite a newer score.
