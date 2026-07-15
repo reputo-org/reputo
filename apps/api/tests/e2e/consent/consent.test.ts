@@ -177,9 +177,9 @@ describe('OAuth consent e2e', () => {
     };
     fetchMock.mockClear();
 
-    await dataSource.getRepository(OAuthConsentGrantEntity).createQueryBuilder().delete().where('1=1').execute();
-    await dataSource.getRepository(AuthSessionEntity).createQueryBuilder().delete().where('1=1').execute();
-    await dataSource.getRepository(OAuthUserEntity).createQueryBuilder().delete().where('1=1').execute();
+    await dataSource.getRepository(OAuthConsentGrantEntity).createQueryBuilder().delete().execute();
+    await dataSource.getRepository(AuthSessionEntity).createQueryBuilder().delete().execute();
+    await dataSource.getRepository(OAuthUserEntity).createQueryBuilder().delete().execute();
   });
 
   afterAll(async () => {
@@ -350,6 +350,6 @@ describe('OAuth consent e2e', () => {
     const remaining = await grantRepo.findOne({ where: {} });
     expect(remaining?.state).toBe('cleanup-active');
 
-    await grantRepo.createQueryBuilder().delete().where('1=1').execute();
+    await grantRepo.createQueryBuilder().delete().execute();
   });
 });

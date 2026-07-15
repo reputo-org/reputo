@@ -89,8 +89,8 @@ describe.skip('Deep ID auth e2e (mock mode)', () => {
   });
 
   afterEach(async () => {
-    await dataSource.getRepository(AuthSessionEntity).createQueryBuilder().delete().where('1=1').execute();
-    await dataSource.getRepository(OAuthUserEntity).createQueryBuilder().delete().where('1=1').execute();
+    await dataSource.getRepository(AuthSessionEntity).createQueryBuilder().delete().execute();
+    await dataSource.getRepository(OAuthUserEntity).createQueryBuilder().delete().execute();
   });
 
   afterAll(async () => {

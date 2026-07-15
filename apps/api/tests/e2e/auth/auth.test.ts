@@ -122,8 +122,8 @@ describe('OAuth auth e2e', () => {
     const userRepo = dataSource.getRepository(OAuthUserEntity);
     const sessionRepo = dataSource.getRepository(AuthSessionEntity);
     const allowlistRepo = dataSource.getRepository(AccessAllowlistEntity);
-    await sessionRepo.createQueryBuilder().delete().where('1=1').execute();
-    await userRepo.createQueryBuilder().delete().where('1=1').execute();
+    await sessionRepo.createQueryBuilder().delete().execute();
+    await userRepo.createQueryBuilder().delete().execute();
     await allowlistRepo
       .createQueryBuilder()
       .delete()

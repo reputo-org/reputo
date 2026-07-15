@@ -25,9 +25,9 @@ describe('Admin access management e2e', () => {
   });
 
   beforeEach(async () => {
-    await dataSource.getRepository(AccessAllowlistEntity).createQueryBuilder().delete().where('1=1').execute();
-    await dataSource.getRepository(AuthSessionEntity).createQueryBuilder().delete().where('1=1').execute();
-    await dataSource.getRepository(OAuthUserEntity).createQueryBuilder().delete().where('1=1').execute();
+    await dataSource.getRepository(AccessAllowlistEntity).createQueryBuilder().delete().execute();
+    await dataSource.getRepository(AuthSessionEntity).createQueryBuilder().delete().execute();
+    await dataSource.getRepository(OAuthUserEntity).createQueryBuilder().delete().execute();
   });
 
   afterAll(async () => {

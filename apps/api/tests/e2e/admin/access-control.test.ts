@@ -33,9 +33,9 @@ describe('Admin access-control e2e', () => {
 
   beforeEach(async () => {
     oauthProvider.reset();
-    await dataSource.getRepository(AccessAllowlistEntity).createQueryBuilder().delete().where('1=1').execute();
-    await dataSource.getRepository(AuthSessionEntity).createQueryBuilder().delete().where('1=1').execute();
-    await dataSource.getRepository(OAuthUserEntity).createQueryBuilder().delete().where('1=1').execute();
+    await dataSource.getRepository(AccessAllowlistEntity).createQueryBuilder().delete().execute();
+    await dataSource.getRepository(AuthSessionEntity).createQueryBuilder().delete().execute();
+    await dataSource.getRepository(OAuthUserEntity).createQueryBuilder().delete().execute();
   });
 
   afterAll(async () => {
@@ -337,9 +337,9 @@ describe.skip('Admin access-control e2e (mock mode)', () => {
   });
 
   beforeEach(async () => {
-    await dataSource.getRepository(AccessAllowlistEntity).createQueryBuilder().delete().where('1=1').execute();
-    await dataSource.getRepository(AuthSessionEntity).createQueryBuilder().delete().where('1=1').execute();
-    await dataSource.getRepository(OAuthUserEntity).createQueryBuilder().delete().where('1=1').execute();
+    await dataSource.getRepository(AccessAllowlistEntity).createQueryBuilder().delete().execute();
+    await dataSource.getRepository(AuthSessionEntity).createQueryBuilder().delete().execute();
+    await dataSource.getRepository(OAuthUserEntity).createQueryBuilder().delete().execute();
   });
 
   afterAll(async () => {
