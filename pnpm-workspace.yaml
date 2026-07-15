@@ -2,70 +2,96 @@ packages:
   - packages/*
   - apps/*
 
+# Only better-sqlite3 may run its build scripts (native module). The rest
+# work from prebuilt binaries shipped as optional dependencies, and lefthook
+# is installed by the root postinstall script instead.
+allowBuilds:
+  '@scarf/scarf': false
+  '@swc/core': false
+  better-sqlite3: true
+  cpu-features: false
+  esbuild: false
+  lefthook: false
+  protobufjs: false
+  sharp: false
+  ssh2: false
+
 catalog:
-  '@aws-sdk/client-s3': ^3.922.0
-  '@aws-sdk/s3-request-presigner': ^3.922.0
-  '@biomejs/biome': ^2.3.7
+  '@aws-sdk/client-s3': ^3.1086.0
+  '@aws-sdk/s3-request-presigner': ^3.1086.0
+  # Held at 2.3.7: Biome 2.4+ ships new rules (a11y on public SVGs, stricter
+  # organize-imports) that need their own repo-wide migration.
+  '@biomejs/biome': 2.3.7
   '@blockfrost/blockfrost-js': ^6.1.1
-  '@blockfrost/openapi': ^0.1.86
+  '@blockfrost/openapi': ^0.1.90
   '@commitlint/cli': ^19.8.1
   '@commitlint/config-conventional': ^19.8.1
-  '@nestjs/typeorm': ^11.0.0
+  '@nestjs/typeorm': ^11.0.3
   '@semantic-release/commit-analyzer': ^13.0.1
   '@semantic-release/exec': ^7.1.0
-  '@semantic-release/github': ^12.0.6
-  '@semantic-release/release-notes-generator': ^14.1.0
-  '@swc/core': ^1.12.7
+  '@semantic-release/github': ^12.0.9
+  '@semantic-release/release-notes-generator': ^14.1.1
+  '@swc/core': ^1.15.43
   '@tanstack/react-table': ^8.21.3
-  '@temporalio/activity': ^1.16.0
-  '@temporalio/client': ^1.16.0
-  '@temporalio/testing': ^1.16.0
-  '@temporalio/worker': ^1.16.0
-  '@temporalio/workflow': ^1.16.0
-  '@testcontainers/postgresql': ^12.0.1
+  '@temporalio/activity': ^1.20.2
+  '@temporalio/client': ^1.20.2
+  '@temporalio/testing': ^1.20.2
+  '@temporalio/worker': ^1.20.2
+  '@temporalio/workflow': ^1.20.2
+  '@testcontainers/postgresql': ^12.0.4
   '@testing-library/dom': ^10.4.1
   '@testing-library/jest-dom': ^6.9.1
   '@testing-library/react': ^16.3.2
   '@testing-library/user-event': ^14.6.1
   '@types/better-sqlite3': ^7.6.13
-  '@types/node': ^22.17.0
-  '@types/pg': ^8.15.6
-  '@types/react': ^19
-  '@types/react-dom': ^19
+  '@types/node': ^22.20.1
+  '@types/pg': ^8.20.0
+  '@types/react': ^19.2.17
+  '@types/react-dom': ^19.2.3
   '@types/supertest': ^6.0.3
-  '@vitest/coverage-v8': 3.2.4
-  '@vitest/spy': ^3.2.4
-  '@vitest/ui': 3.2.4
-  ajv: ^8.17.1
+  '@vitest/coverage-v8': 3.2.6
+  '@vitest/spy': ^3.2.7
+  '@vitest/ui': 3.2.6
+  ajv: ^8.20.0
   ajv-formats: ^3.0.1
-  axios: ^1.12.2
-  better-sqlite3: ^12.10.0
-  concurrently: ^9.2.1
+  axios: ^1.18.1
+  better-sqlite3: ^12.11.1
+  concurrently: ^9.2.4
   jsdom: ^29.1.1
-  nodemon: ^3.1.9
+  nodemon: ^3.1.14
   p-limit: ^6.2.0
-  pg: ^8.16.3
-  pino: ^9.8.0
-  pino-pretty: ^13.1.2
+  pg: ^8.22.0
+  pino: ^9.14.0
+  pino-pretty: ^13.1.3
   reflect-metadata: 0.2.2
-  semantic-release: ^25.0.3
-  supertest: ^7.1.4
+  semantic-release: ^25.0.7
+  supertest: ^7.2.2
   ts-node: 10.9.2
   tsconfig-paths: ^4.2.0
-  tsx: ^4.7.0
-  typedoc: ^0.28.13
-  typedoc-plugin-markdown: ^4.9.0
-  typeorm: ^1.0.0
+  tsx: ^4.23.1
+  typedoc: ^0.28.20
+  typedoc-plugin-markdown: ^4.12.0
+  typeorm: ^1.1.0
   typeorm-naming-strategies: ^4.1.0
   typescript: 5.9.2
-  undici: ^7.10.0
-  uuid: ^11.1.0
-  vitest: 3.2.4
-  zod: ^4.1.0
+  undici: ^7.28.0
+  uuid: ^11.1.1
+  vitest: 3.2.6
+  zod: ^4.4.3
 
 catalogMode: strict
 
 injectWorkspacePackages: true
+
+# pnpm 11 no longer reads settings from package.json; the security overrides
+# moved here from the root package.json `pnpm` block (the old
+# onlyBuiltDependencies allowlist became allowBuilds above).
+overrides:
+  'fast-xml-parser@^5.0.0': ^5.3.5
+  'file-type@^20.0.0': ^21.3.2
+  'postcss@<8.5.10': ^8.5.10
+  'protobufjs@^7.0.0': ^7.5.5
+  'rollup@^4.0.0': ^4.59.0
 
 syncInjectedDepsAfterScripts:
   - build

@@ -87,8 +87,9 @@ describe('createDeepIdClient', () => {
 
       expect(result.status).toEqual({ ok: 1, failed: 0 });
       const postCall = mockRequest.mock.calls.find((c) => String(c[0]).includes('/v1/clients/scores'));
-      expect(postCall?.[1]).toMatchObject({ method: 'POST' });
-      expect(String((postCall?.[1] as { body: string }).body)).toContain('voting_engagement');
+      const postInit = postCall?.[1] as { method: string; body: string } | undefined;
+      expect(postInit).toMatchObject({ method: 'POST' });
+      expect(String(postInit?.body)).toContain('voting_engagement');
     });
   });
 

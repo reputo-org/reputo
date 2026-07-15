@@ -32,7 +32,7 @@ describe('Admin owner bootstrap conflict e2e', () => {
   });
 
   beforeEach(async () => {
-    await dataSource.getRepository(AccessAllowlistEntity).createQueryBuilder().delete().where('1=1').execute();
+    await dataSource.getRepository(AccessAllowlistEntity).createQueryBuilder().delete().execute();
   });
 
   afterAll(async () => {

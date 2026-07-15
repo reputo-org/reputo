@@ -12,7 +12,7 @@ Three rules shape the pipeline:
 
 | Workflow | Trigger | What it does |
 | --- | --- | --- |
-| [`pull-request.yml`](../.github/workflows/pull-request.yml) | PR opened, updated, or reopened against `main` | Quality gate plus a no-push Docker build for affected apps. |
+| [`pull-request.yml`](../.github/workflows/pull-request.yml) | PR opened, updated, or reopened against `main` | Quality gate, a dependency review, and a no-push Docker build for affected apps. |
 | [`pull-preview.yml`](../.github/workflows/pull-preview.yml) | PR labelled `pullpreview`, plus a cleanup schedule every 4 hours | Builds preview images and deploys a per-PR HTTPS preview on a Lightsail VM via PullPreview. |
 | [`main.yml`](../.github/workflows/main.yml) | Push to `main` | Quality gate, build and push **all** apps (`sha-<commit>`), Trivy scan, semantic-release, version-tag the images, deploy staging via the Komodo API, verify the deployed commit. |
 | [`_release.yml`](../.github/workflows/_release.yml) | Called by `main.yml` | Runs `semantic-release` and outputs the released tag (for image version tags). |
@@ -39,6 +39,8 @@ Previews have no tag of their own: `pull-preview.yml` builds and deploys the sam
 ## Supply chain
 
 - All actions are pinned to commit SHAs; [Dependabot](../.github/dependabot.yml) updates the pins (and npm dependencies, including the pnpm catalog) weekly.
+- Every pull request runs [`dependency-review-action`](https://github.com/actions/dependency-review-action): it compares the PR's dependency changes against GitHub's advisory database and fails the PR when it introduces a dependency with a known high or critical vulnerability. It only looks at the diff, so alerts on already-installed packages never block unrelated PRs — those surface as Dependabot alerts instead.
+- `pnpm audit` needs pnpm 11 or later (npm retired the audit endpoints the 10.x line used).
 - Every workflow grants the minimum `GITHUB_TOKEN` permissions at the workflow level; jobs that push images or create releases raise their own scope.
 - Pushed images get SBOM and provenance attestations and a Trivy scan (gate on `CRITICAL`, unfixed CVEs ignored).
 

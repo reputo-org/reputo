@@ -36,7 +36,7 @@
     "dist",
     "!dist/**/*.test.*"
   ],
-  "packageManager": "pnpm@10.30.3",
+  "packageManager": "pnpm@11.13.0",
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf coverage dist docs node_modules tsconfig.tsbuildinfo",

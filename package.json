@@ -23,7 +23,7 @@
     "url": "https://github.com/reputo-org/reputo/issues"
   },
   "private": true,
-  "packageManager": "pnpm@10.30.3",
+  "packageManager": "pnpm@11.13.0",
   "scripts": {
     "build": "turbo run build",
     "build:packages": "turbo run build --filter=\"./packages/*\"",
@@ -71,32 +71,20 @@
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@vitest/ui": "catalog:",
-    "commitizen": "^4.3.1",
+    "commitizen": "^4.3.2",
     "concurrently": "catalog:",
     "cz-conventional-changelog": "^3.3.0",
-    "lefthook": "^1.11.16",
+    "lefthook": "^1.13.6",
     "semantic-release": "catalog:",
     "tsconfig-paths": "catalog:",
     "tsx": "catalog:",
-    "turbo": "^2.10.4",
+    "turbo": "^2.10.5",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
   "config": {
     "commitizen": {
       "path": "cz-conventional-changelog"
-    }
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@prisma/client",
-      "@prisma/engines",
-      "better-sqlite3",
-      "prisma"
-    ],
-    "overrides": {
-      "fast-xml-parser@^5.0.0": "^5.3.5",
-      "protobufjs@^7.0.0": "^7.5.5"
     }
   }
 }
