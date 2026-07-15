@@ -45,3 +45,6 @@ coverage/
 keyfile.txt
 
 *.db*
+
+#Sema
+./sema
