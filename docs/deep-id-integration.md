@@ -4,7 +4,9 @@ How Reputo reads consented users from DeepID and posts computed reputation score
 Reputo talks to DeepID as a machine-to-machine (M2M) client through the thin
 `@reputo/deep-id-api` package — there is no extra service and no new database. For the
 snapshot flow around it see [Architecture](architecture.md); for the algorithms see
-[Reputation algorithms](reputation-algorithms.md).
+[Reputation algorithms](reputation-algorithms.md). For the distributed Voting Portal
+consent flow, durable source of truth, and ownership boundary see
+[Voting Portal integration](voting-portal-integration.md).
 
 ## Identity model: two DID families
 

@@ -44,6 +44,10 @@ Traefik sits in front of the UI and API and terminates TLS.
   the provider tokens encrypted at rest.
 - Access is gated by an **allowlist**: only emails with an `owner` or `admin` role can sign
   in. There is no open sign-up.
+- Voting Portal consent is a separate, distributed flow. Reputo holds only transient PKCE
+  state; DeepID's Ory Hydra consent session is the durable source of truth. See
+  [Voting Portal integration](voting-portal-integration.md) for the ownership, visibility,
+  and revocation boundary.
 
 ## Infrastructure and deployment
 
