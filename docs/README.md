@@ -13,6 +13,8 @@ Guides for the Reputo monorepo.
 - [Architecture](architecture.md) — how the apps fit together and the snapshot flow.
 - [Data model](data-model.md) — the application database tables.
 - [DeepID integration](deep-id-integration.md) — the M2M pipeline that reads users and posts scores.
+- [Voting Portal integration](voting-portal-integration.md) — the consent flow, storage,
+  ownership, visibility, and revocation across the Voting Portal, Reputo, and DeepID.
 
 ## Build features
 
