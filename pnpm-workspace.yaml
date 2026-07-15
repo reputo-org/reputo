@@ -17,7 +17,7 @@ allowBuilds:
   ssh2: false
 
 catalog:
-  '@aws-sdk/client-s3': ^3.1086.0
+  '@aws-sdk/client-s3': ^3.1087.0
   '@aws-sdk/s3-request-presigner': ^3.1086.0
   # Held at 2.3.7: Biome 2.4+ ships new rules (a11y on public SVGs, stricter
   # organize-imports) that need their own repo-wide migration.
