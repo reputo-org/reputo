@@ -1,8 +1,8 @@
 # Voting Portal integration
 
-How the Voting Portal connects a user's wallet to Reputo through DeepID consent. The
-integration is shared across the Voting Portal, Reputo, and DeepID. Each system has a
-separate role and source repository.
+How the Voting Portal connects to DeepID's existing consent-management platform through
+Reputo. DeepID owns the consent lifecycle, permanent storage, management UI, APIs, and
+revocation. Reputo provides the OAuth integration between the Voting Portal and DeepID.
 
 ## How the consent flow works
 
@@ -21,13 +21,13 @@ separate role and source repository.
 
 ## Ownership
 
+- **DeepID and Ory Hydra** show the consent screen, store consent sessions, list active
+  integrations and scopes, and revoke grants. This functionality already existed in
+  DeepID.
 - **Reputo API** starts the OAuth flow, protects the temporary PKCE state, handles the
   callback, discards the provider tokens, and returns the result to the Portal.
 - **Voting Portal** shows the banner, starts the Reputo flow, handles the callback result,
   and keeps the local display state. 
-- **DeepID and Ory Hydra** show the consent screen, store consent sessions, list active
-  integrations and scopes, and revoke grants. This functionality already existed in
-  DeepID.
 
 ## Where consent is stored
 

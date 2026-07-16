@@ -45,6 +45,11 @@ COPY --from=pruner /repo/out/full/ ./
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm exec turbo run build --filter="@reputo/${APP_NAME}..."
 RUN pnpm deploy --filter="@reputo/${APP_NAME}" --prod /prod/app
+# pnpm 11 re-verifies node_modules against the lockfile before every
+# `pnpm run` and auto-installs on mismatch; the deployed dir records its
+# injected workspace packages under builder-stage paths that don't exist at
+# runtime, so the check must stay off or the container dies at start.
+RUN echo "verifyDepsBeforeRun: false" > /prod/app/pnpm-workspace.yaml
 
 # ---------- runtime ---------------------------------------------------------
 FROM base AS runtime
