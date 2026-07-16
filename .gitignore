@@ -47,4 +47,4 @@ keyfile.txt
 *.db*
 
 #Sema
-./sema
+.sema
