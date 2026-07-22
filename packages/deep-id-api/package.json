@@ -53,7 +53,8 @@
   "dependencies": {
     "p-limit": "catalog:",
     "pino": "catalog:",
-    "undici": "catalog:"
+    "undici": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
