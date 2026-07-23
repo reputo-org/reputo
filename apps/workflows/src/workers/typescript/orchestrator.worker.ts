@@ -4,6 +4,7 @@ import { NativeConnection, Worker } from '@temporalio/worker';
 import {
   createAlgorithmLibraryActivities,
   createDeepIdPostScoresActivities,
+  createDeepIdSubmitCustomScoresActivities,
   createOrchestratorDependencyResolverActivities,
 } from '../../activities/orchestrator/index.js';
 import config from '../../config/index.js';
@@ -50,6 +51,10 @@ async function run(): Promise<void> {
         storageConfig,
       }),
       ...createDeepIdPostScoresActivities({
+        storage,
+        storageConfig,
+      }),
+      ...createDeepIdSubmitCustomScoresActivities({
         storage,
         storageConfig,
       }),

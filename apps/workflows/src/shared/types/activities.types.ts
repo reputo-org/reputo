@@ -5,6 +5,7 @@ import type {
   SnapshotDto,
   UpdateSnapshotInput,
 } from '@reputo/contracts';
+import type { ScoreType } from '@reputo/deep-id-api';
 import type { Storage } from '@reputo/storage';
 
 import type { AlgorithmResult, StorageConfig } from './algorithm.types.js';
@@ -103,6 +104,57 @@ export interface PostSnapshotScoresResult {
   /** Expected "User not found" rejections — users who have not consented to Reputo. */
   dropped: number;
   skipped: number;
+}
+
+/** Observed min–max observation for one child: bounds of its accepted (`OK`) raw scores. */
+export interface ObservedMinMaxObservation {
+  method: 'observed_min_max';
+  min: number;
+  max: number;
+}
+
+/**
+ * Per-child normalization inputs collected by the active normalization method
+ * during raw-score submission. Currently observed min–max is the only method.
+ */
+export type NormalizationObservation = ObservedMinMaxObservation;
+
+/**
+ * Activities that submit a combined snapshot's native raw child scores to
+ * DeepID before the snapshot completes. Unlike `postSnapshotScores`, a failure
+ * here fails the run.
+ */
+export interface DeepIdSubmitCustomScoresActivities {
+  submitCustomRawScores: (input: SubmitCustomRawScoresInput) => Promise<SubmitCustomRawScoresResult>;
+}
+
+export interface SubmitCustomRawScoresInput {
+  snapshotId: string;
+  /** The snapshot's frozen combined preset — the selected children and their weights. */
+  algorithmPresetFrozen: AlgorithmPresetFrozen;
+  /** The compute result's outputs, passed straight from the workflow (never refetched from the stored snapshot). */
+  outputs: AlgorithmResult['outputs'];
+  /** Run-consistent ISO timestamp generated once by the workflow and reused verbatim on every retry. */
+  timestamp: string;
+}
+
+/** Aggregate submission outcome for one child; never carries score rows. */
+export interface CustomRawScoresChildResult {
+  scoreType: ScoreType;
+  /** S3 key of the child's native CSV artifact — its output identifier for later stages. */
+  csvKey: string;
+  observation: NormalizationObservation;
+  posted: number;
+  ok: number;
+  /** Expected "User not found" rejections — users who have not consented to Reputo. */
+  dropped: number;
+  /** Unexpected per-DID rejections; excluded from the observation. */
+  rejected: number;
+  lastRequestId?: string;
+}
+
+export interface SubmitCustomRawScoresResult {
+  children: CustomRawScoresChildResult[];
 }
 
 export type AlgorithmComputeFunction = (snapshot: Snapshot, storage: Storage) => Promise<AlgorithmResult>;
