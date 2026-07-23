@@ -11,7 +11,8 @@ export const DEEP_ID_READINESS_CHECK_TIMEOUT = '30 minutes';
 export const DEEP_ID_READINESS_POLL_DELAYS_MS: readonly number[] = [5 * 60_000, 15 * 60_000, 60 * 60_000];
 export const DEEP_ID_READINESS_STEADY_POLL_DELAY_MS = 60 * 60_000;
 export const DEEP_ID_ENCRYPTION_DEADLINE_MS = 24 * 60 * 60_000;
-export const WORKFLOW_RUN_TIMEOUT = '4 hours';
+// Kept in sync with the enforcing copy in apps/api/src/shared/constants/temporal.constants.ts.
+export const WORKFLOW_RUN_TIMEOUT = '30 hours';
 export const HEARTBEAT_TIMEOUT = '2 minutes';
 export const ACTIVITY_MAX_ATTEMPTS = 3;
 export const HEARTBEAT_INTERVAL = 100;
