@@ -5,7 +5,7 @@ This guide gets the Reputo monorepo running on your machine.
 ## Requirements
 
 - Docker Desktop, or Docker Engine plus the Compose plugin.
-- [mise](https://mise.jdx.dev) for the Node (`24.14.0`) and pnpm (`10.30.3`) versions pinned in [`mise.toml`](../mise.toml). Mise runs on macOS, Linux, and Windows.
+- [mise](https://mise.jdx.dev) for the Node (`24.15.0`) and pnpm (`11.13.0`) versions pinned in [`mise.toml`](../mise.toml). Mise runs on macOS, Linux, and Windows.
 
 Without mise, install the exact Node and pnpm versions yourself. Other versions are not supported.
 
