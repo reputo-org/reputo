@@ -24,7 +24,7 @@ Reputo is a pnpm workspace built with [Turbo](https://turborepo.com).
 ## Tooling
 
 - **Package manager**: pnpm `10.30.3` (pinned in [`mise.toml`](../mise.toml)).
-- **Runtime**: Node `24.14.0`.
+- **Runtime**: Node `24.15.0`.
 - **Build orchestration**: Turbo ([`turbo.json`](../turbo.json)).
 - **Lint and format**: Biome ([`biome.json`](../biome.json)).
 - **Tests**: Vitest ([`vitest.base.ts`](../vitest.base.ts)).

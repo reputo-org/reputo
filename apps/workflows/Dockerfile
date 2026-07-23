@@ -9,7 +9,7 @@
 #
 ARG APP_NAME=workflows
 # Default mirrors mise.toml; CI passes the value parsed from mise.toml.
-ARG NODE_VERSION=24.14.0
+ARG NODE_VERSION=24.15.0
 ARG NPM_VERSION=11.18.0
 ARG TURBO_VERSION=2.9.6
 
