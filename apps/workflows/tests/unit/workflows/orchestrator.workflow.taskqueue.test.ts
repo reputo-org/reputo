@@ -4,6 +4,7 @@ import {
   ACTIVITY_MAX_ATTEMPTS,
   algorithmTypescriptTaskQueue,
   DB_ACTIVITY_TIMEOUT,
+  DEEP_ID_ENCRYPTED_SUBMISSION_TIMEOUT,
   DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
   DEEP_ID_READINESS_CHECK_TIMEOUT,
   DEPENDENCY_RESOLUTION_TIMEOUT,
@@ -30,6 +31,20 @@ function readyReadinessResult() {
     scannedUsers: 1,
     pages: 1,
     cursorRestarts: 0,
+  };
+}
+
+function submittedEncryptedResult() {
+  return {
+    outcome: 'submitted',
+    complete: 1,
+    incomplete: 0,
+    scannedUsers: 1,
+    pages: 1,
+    cursorRestarts: 0,
+    submitted: 1,
+    batches: 1,
+    registeredKeys: 1,
   };
 }
 
@@ -107,6 +122,12 @@ describe('OrchestratorWorkflow task queue routing', () => {
     expect(recordedOptions[7]).toMatchObject({
       taskQueue: 'orchestrator-q',
       startToCloseTimeout: DEEP_ID_READINESS_CHECK_TIMEOUT,
+      heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
+      retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
+    });
+    expect(recordedOptions[8]).toMatchObject({
+      taskQueue: 'orchestrator-q',
+      startToCloseTimeout: DEEP_ID_ENCRYPTED_SUBMISSION_TIMEOUT,
       heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
       retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
     });
@@ -254,6 +275,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
     });
     const submitCustomRawScores = vi.fn().mockResolvedValue({ children: [] });
     const checkEncryptionReadiness = vi.fn().mockResolvedValue(readyReadinessResult());
+    const submitCustomEncryptedScores = vi.fn().mockResolvedValue(submittedEncryptedResult());
 
     proxyActivities.mockImplementation(
       () =>
@@ -265,6 +287,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
           runTypescriptAlgorithm,
           submitCustomRawScores,
           checkEncryptionReadiness,
+          submitCustomEncryptedScores,
         }) as never,
     );
 
@@ -503,6 +526,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
     });
     const submitCustomRawScores = vi.fn().mockResolvedValue({ children: [] });
     const checkEncryptionReadiness = vi.fn().mockResolvedValue(readyReadinessResult());
+    const submitCustomEncryptedScores = vi.fn().mockResolvedValue(submittedEncryptedResult());
 
     proxyActivities.mockImplementation(
       () =>
@@ -514,6 +538,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
           runTypescriptAlgorithm,
           submitCustomRawScores,
           checkEncryptionReadiness,
+          submitCustomEncryptedScores,
         }) as never,
     );
 
