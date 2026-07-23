@@ -1,6 +1,5 @@
 import { ConfigService } from '@nestjs/config';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { WORKFLOW_RUN_TIMEOUT } from '../../../src/shared/constants/temporal.constants';
 
 const { mockConnect, mockClientConstructor } = vi.hoisted(() => ({
   mockConnect: vi.fn(),
@@ -86,15 +85,19 @@ describe('TemporalService', () => {
     expect(mockLogger.error).toHaveBeenCalledWith('Failed to connect to Temporal: cannot connect', expect.any(String));
   });
 
-  it('starts the orchestrator workflow with the configured task queue', async () => {
+  it('starts the orchestrator workflow with the configured task queue and the 30-hour run timeout', async () => {
     (service as { client: typeof mockClientInstance }).client = mockClientInstance;
 
     await service.startRunSnapshotWorkflow('snapshot-123');
 
+    // The literal value matters: the run timeout is only a backstop and must
+    // outlast the workflow's own 24-hour encryption-readiness deadline plus
+    // pre/post work, so asserting the constant against itself would prove
+    // nothing.
     expect(mockClientInstance.workflow.start).toHaveBeenCalledWith('OrchestratorWorkflow', {
       taskQueue: 'orchestrator-q',
       workflowId: 'snapshot-snapshot-123',
-      workflowRunTimeout: WORKFLOW_RUN_TIMEOUT,
+      workflowRunTimeout: '30 hours',
       args: [
         {
           snapshotId: 'snapshot-123',
