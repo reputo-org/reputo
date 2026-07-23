@@ -183,7 +183,9 @@ describe('OrchestratorWorkflow branches', () => {
       (thrown) => thrown as Error,
     );
 
+    // Errors thrown outside the execution try/catch must still fail the run, not retry the task.
     expect(error.message).toContain("Cannot destructure property 'algorithmDefinition'");
+    expect(error).toBeInstanceOf(ApplicationFailure);
 
     expect(activities.updateSnapshot).toHaveBeenNthCalledWith(
       1,
@@ -193,6 +195,55 @@ describe('OrchestratorWorkflow branches', () => {
       }),
     );
     expect(activities.updateSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('converts a plain workflow error into a non-retryable ApplicationFailure and still marks the snapshot failed', async () => {
+    const { proxyActivities, isCancellation } = await loadWorkflowModule();
+    const activities = createProxyActivitiesMock({
+      getSnapshot: vi.fn().mockResolvedValue({
+        status: SnapshotStatus.queued,
+        algorithmPresetFrozen: {
+          key: 'algo-key',
+          version: '1.0.0',
+          inputs: [],
+        },
+      }),
+      // `python` resolves a task queue but has no executable branch, so the
+      // workflow itself throws UnsupportedAlgorithmError (a plain Error).
+      getAlgorithmDefinition: vi.fn().mockResolvedValue({
+        algorithmDefinition: {
+          key: 'algo-key',
+          version: '1.0.0',
+          runtime: 'python',
+          dependencies: [],
+        },
+      }),
+    });
+    proxyActivities.mockImplementation(activities.implementation);
+    isCancellation.mockReturnValue(false);
+
+    const { OrchestratorWorkflow } = await import('../../../src/workflows/orchestrator.workflow.js');
+
+    const error = await OrchestratorWorkflow({ snapshotId: 'snapshot-1' }).then(
+      () => {
+        throw new Error('expected the workflow to reject');
+      },
+      (thrown) => thrown as ApplicationFailure,
+    );
+
+    expect(error).toBeInstanceOf(ApplicationFailure);
+    expect(error.type).toBe('UnsupportedAlgorithmError');
+    expect(error.nonRetryable).toBe(true);
+    expect(error.message).toBe('Unsupported algorithm: algo-key');
+
+    expect(activities.updateSnapshot).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        snapshotId: 'snapshot-1',
+        status: SnapshotStatus.failed,
+        error: { message: 'Unsupported algorithm: algo-key' },
+      }),
+    );
   });
 
   it('rethrows Temporal failures unchanged instead of re-wrapping them', async () => {

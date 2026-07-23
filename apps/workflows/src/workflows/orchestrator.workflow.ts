@@ -146,6 +146,19 @@ function applyDidsOverride(snapshot: Snapshot, didsKey: string): void {
 }
 
 export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Promise<void> {
+  try {
+    await runOrchestrator(input);
+  } catch (error) {
+    if (error instanceof workflow.TemporalFailure) {
+      throw error;
+    }
+    // A non-Temporal error escaping workflow code fails only the workflow
+    // task, which the server retries forever; convert it so the run fails.
+    throw workflow.ApplicationFailure.fromError(error, { nonRetryable: true });
+  }
+}
+
+async function runOrchestrator(input: OrchestratorWorkflowInput): Promise<void> {
   const { snapshotId } = input;
   const workflowInfo = workflow.workflowInfo();
   const orchestratorTaskQueue = workflowInfo.taskQueue;
