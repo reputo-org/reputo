@@ -521,7 +521,10 @@ describe('validateAlgorithmPreset', () => {
     );
   });
 
-  it('rejects sub-algorithm entries with non-positive weights', async () => {
+  it.each([
+    ['zero', 0],
+    ['negative', -1],
+  ])('rejects %s sub-algorithm weights with a greater-than-0 message', async (_case, weight) => {
     const result = await validateAlgorithmPreset({
       definition: combinedDefinition,
       preset: {
@@ -538,7 +541,7 @@ describe('validateAlgorithmPreset', () => {
               {
                 algorithm_key: 'voting_engagement',
                 algorithm_version: '1.0.0',
-                weight: 0,
+                weight,
                 inputs: [],
               },
             ],
@@ -554,6 +557,92 @@ describe('validateAlgorithmPreset', () => {
           field: 'sub_algorithms.0.weight',
           source: 'payload',
           message: expect.stringContaining('greater than 0'),
+        }),
+      ]),
+    );
+  });
+
+  it('rejects configurations whose total weight overflows to Infinity', async () => {
+    const result = await validateAlgorithmPreset({
+      definition: combinedDefinition,
+      preset: {
+        key: 'custom_score',
+        version: '1.0.0',
+        inputs: [
+          {
+            key: 'wallets',
+            value: 'uploads/wallets.json',
+          },
+          {
+            key: 'sub_algorithms',
+            value: [
+              {
+                algorithm_key: 'voting_engagement',
+                algorithm_version: '1.0.0',
+                weight: Number.MAX_VALUE,
+                inputs: [],
+              },
+              {
+                algorithm_key: 'proposal_engagement',
+                algorithm_version: '1.0.0',
+                weight: Number.MAX_VALUE,
+                inputs: [],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: 'sub_algorithms',
+          source: 'payload',
+          message: expect.stringContaining('total weight must be finite'),
+        }),
+      ]),
+    );
+  });
+
+  it.each([
+    ['non-finite', Number.POSITIVE_INFINITY],
+    ['NaN', Number.NaN],
+    ['missing', undefined],
+    ['malformed', 'not-a-number'],
+  ])('rejects %s sub-algorithm weights', async (_case, weight) => {
+    const result = await validateAlgorithmPreset({
+      definition: combinedDefinition,
+      preset: {
+        key: 'custom_score',
+        version: '1.0.0',
+        inputs: [
+          {
+            key: 'wallets',
+            value: 'uploads/wallets.json',
+          },
+          {
+            key: 'sub_algorithms',
+            value: [
+              {
+                algorithm_key: 'voting_engagement',
+                algorithm_version: '1.0.0',
+                weight,
+                inputs: [],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: 'sub_algorithms.0.weight',
+          source: 'payload',
         }),
       ]),
     );

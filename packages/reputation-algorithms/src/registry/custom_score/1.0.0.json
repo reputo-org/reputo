@@ -3,14 +3,14 @@
     "name": "Custom Score",
     "kind": "combined",
     "category": "Custom",
-    "summary": "Runs multiple sub-algorithms on a shared user list and reports each one as a weighted score under its own label.",
-    "description": "### What it does\nWraps one or more sub-algorithms. Each sub-algorithm keeps its own identity: it gets its own weighted-score output file, and its scores are reported under the sub-algorithm's own label — never under `custom_score`.\n\n### How it works\n- Compose one or more sub-algorithms; the user list is shared across them. Each sub-algorithm can be added only once.\n- Each sub-algorithm normalizes its own output to the shared 0–100 scale.\n- The wrapper then applies the weights: `weighted score = normalized score × weight ÷ (sum of all weights)`.\n- Every weighted score stays on the 0–100 scale, and the sum of one user's weighted scores across all sub-algorithms also stays within 0–100. The aggregation itself happens later, outside this algorithm.\n- A user missing from a sub-algorithm's output gets an explicit 0 for that sub-algorithm.\n- Results join directly on `did`.\n\n### Output\n- One CSV file per sub-algorithm with `did` and `weighted_score`, keyed by the sub-algorithm's key.\n- A JSON file with each user's raw and weighted score for every sub-algorithm.",
+    "summary": "Runs every selected child algorithm independently, then normalizes, weights, and aggregates their encrypted scores into one encrypted custom score for every complete unified user.",
+    "description": "### What it does\nComposes one or more child algorithms into one encrypted custom score. Reputo runs every selected child independently — there is no plaintext join, weighting, or aggregation across children. Each child preserves its native DID namespace and its native S3 result artifact, and posts its own raw scores to DeepID under its own label. A child emits a raw `0` only for a no-result user inside that child's own native cohort. DeepID owns the `did:plc`/`did:sub` identity mapping; Reputo does not synthesize missing child rows after DeepID unifies users.\n\n### How it works\n- Compose one or more child algorithms on the shared user list. Each child can be added only once and keeps its own identity.\n- Only unified users with an encrypted value for every selected child enter the final evaluation cohort. A user with any absent selected child field is incomplete and receives no final score; an accepted native `0` is a real child score, not an absent field.\n- Normalization is a configurable phase. The current default method, observed min–max, rescales each child's accepted scores to the shared target range 0–100 using that child's own observed minimum and maximum. When a child's observed bounds are equal, every accepted score for that child normalizes to 0. An accepted native `0` is normalized like any other raw score.\n- Every child weight must be a finite number greater than 0, and the total of all weights must stay finite. Each weight decides that child's share of the final score.\n- Reputo normalizes the encrypted child scores with the active method, applies the configured weights, aggregates one score per complete user (weighted sum ÷ total weight), and submits it to DeepID as `custom_score_encr`.\n\n### Output\n- Native child result files remain S3 artifacts under each child's own key.\n- A `custom_score_details` JSON file with child configuration, observed normalization bounds, and lifecycle diagnostics.",
     "version": "1.0.0",
     "inputs": [
         {
             "key": "sub_algorithms",
             "label": "Sub-Algorithms",
-            "description": "Compose the sub-algorithms to run on the shared user list. Each sub-algorithm can be added only once; its weight decides its share of the total.",
+            "description": "Compose the child algorithms to run independently on the shared user list. Each child can be added only once; its weight must be a finite number greater than 0 and decides its share of the final score.",
             "type": "sub_algorithm",
             "required": true,
             "minItems": 1,
@@ -24,9 +24,14 @@
         {
             "key": "custom_score_details",
             "label": "Custom Score Details (JSON)",
-            "description": "JSON file with each user's raw and weighted score for every sub-algorithm. One weighted-score CSV per sub-algorithm is added to the outputs as well, keyed by the sub-algorithm's key.",
+            "description": "JSON diagnostics for the run: child configuration, observed normalization bounds, and lifecycle diagnostics. It never contains a rewritten parent-DID cross-product, per-user plaintext weighted scores, or ciphertext bodies. Native child result files remain separate S3 artifacts under each child's own key.",
             "type": "json"
         }
     ],
-    "runtime": "typescript"
+    "runtime": "typescript",
+    "normalization": {
+        "method": "observed_min_max",
+        "targetMin": 0,
+        "targetMax": 100
+    }
 }

@@ -15,6 +15,7 @@
 ARG APP_NAME=api
 # Default mirrors mise.toml; CI passes the value parsed from mise.toml.
 ARG NODE_VERSION=24.14.0
+ARG NPM_VERSION=11.18.0
 ARG TURBO_VERSION=2.9.6
 
 # ---------- base ------------------------------------------------------------
@@ -58,8 +59,13 @@ RUN echo "verifyDepsBeforeRun: false" > /prod/app/pnpm-workspace.yaml
 
 # ---------- runtime ---------------------------------------------------------
 FROM base AS runtime
+ARG NPM_VERSION
 # Apply Debian security updates the pinned base image may not carry yet.
-RUN apt-get update && apt-get -y upgrade && rm -rf /var/lib/apt/lists/*
+RUN npm install --global "npm@${NPM_VERSION}" --no-audit --no-fund \
+    && npm cache clean --force \
+    && apt-get update \
+    && apt-get -y upgrade \
+    && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 WORKDIR /prod/app
 COPY --from=builder /prod/app ./

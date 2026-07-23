@@ -1,6 +1,7 @@
 import { request } from 'undici';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDeepIdClient } from '../../../src/api/client.js';
+import { DeepIdContractError } from '../../../src/shared/errors/index.js';
 import { mockUndiciResponse } from '../../utils/mock-helpers.js';
 
 vi.mock('undici', () => ({ request: vi.fn() }));
@@ -90,6 +91,74 @@ describe('createDeepIdClient', () => {
       const postInit = postCall?.[1] as { method: string; body: string } | undefined;
       expect(postInit).toMatchObject({ method: 'POST' });
       expect(String(postInit?.body)).toContain('voting_engagement');
+    });
+  });
+
+  describe('getSealMetadata', () => {
+    const metadata = {
+      id: 'key-1',
+      schemeType: 'ckks',
+      securityLevel: 128,
+      polyModulusDegree: 8192,
+      coeffModulusBitSizes: [60, 40, 60],
+      scale: 2 ** 40,
+      encryptionParameters: 'c2VyaWFsaXplZC1wYXJhbXM=',
+    };
+
+    it('fetches and validates metadata from the app origin', async () => {
+      mockRequest.mockImplementation((url) => {
+        if (isTokenUrl(url)) return Promise.resolve(TOKEN_OK as never);
+        return Promise.resolve(mockUndiciResponse(200, metadata) as never);
+      });
+
+      const result = await createClient().getSealMetadata('/v1/.well-known/seal-metadata/key-1');
+
+      expect(result).toEqual(metadata);
+      const metadataUrl = mockRequest.mock.calls.map((c) => String(c[0])).find((u) => u.includes('seal-metadata'));
+      expect(metadataUrl).toBe('https://app.test.deep-id.ai/v1/.well-known/seal-metadata/key-1');
+    });
+
+    it('rejects an off-origin metadata URL without sending any request', async () => {
+      await expect(createClient().getSealMetadata('https://evil.example/meta')).rejects.toBeInstanceOf(
+        DeepIdContractError,
+      );
+      expect(mockRequest).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('idempotent retries', () => {
+    it('resends the identical body with the fixed run timestamp after a transient 500', async () => {
+      const scores = {
+        'did:sub:aaaaaaaaaaaaaaaaaaaaaaaa': {
+          score: 0,
+          type: 'voting_engagement' as const,
+          timestamp: '2026-07-01T00:00:00Z',
+        },
+        'did:sub:bbbbbbbbbbbbbbbbbbbbbbbb': {
+          ciphertext: 'c2VyaWFsaXplZC1ja2tz',
+          keyId: 'key-1',
+          type: 'custom_score_encr' as const,
+          timestamp: '2026-07-01T00:00:00Z',
+        },
+      };
+
+      let scoresCall = 0;
+      mockRequest.mockImplementation((url) => {
+        if (isTokenUrl(url)) return Promise.resolve(TOKEN_OK as never);
+        scoresCall += 1;
+        if (scoresCall === 1) return Promise.resolve(mockUndiciResponse(500, 'transient') as never);
+        return Promise.resolve(mockUndiciResponse(200, { status: { ok: 2, failed: 0 }, results: {} }) as never);
+      });
+
+      const result = await createClient().postScores(scores);
+
+      expect(result.status.ok).toBe(2);
+      const bodies = mockRequest.mock.calls
+        .filter((c) => String(c[0]).includes('/v1/clients/scores'))
+        .map((c) => String((c[1] as { body?: string })?.body));
+      expect(bodies).toHaveLength(2);
+      expect(bodies[0]).toBe(JSON.stringify(scores));
+      expect(bodies[1]).toBe(bodies[0]);
     });
   });
 

@@ -28,7 +28,7 @@ jobs:
             contents: read
         steps:
             - name: Checkout code
-              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
             - name: Dependency review
               uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
@@ -45,3 +45,30 @@ jobs:
             ref: ${{ github.sha }}
             push: false
             affected: true
+
+    pull-request-gate:
+        name: Pull request gate
+        needs:
+            - quality-gate
+            - dependency-review
+            - build
+        if: ${{ always() }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        steps:
+            - name: Verify required jobs
+              env:
+                  QUALITY_GATE_RESULT: ${{ needs.quality-gate.result }}
+                  DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
+                  BUILD_RESULT: ${{ needs.build.result }}
+              run: |
+                  printf 'quality-gate=%s\ndependency-review=%s\nbuild=%s\n' \
+                    "$QUALITY_GATE_RESULT" \
+                    "$DEPENDENCY_REVIEW_RESULT" \
+                    "$BUILD_RESULT"
+
+                  if [ "$QUALITY_GATE_RESULT" != 'success' ] || \
+                     [ "$DEPENDENCY_REVIEW_RESULT" != 'success' ] || \
+                     [ "$BUILD_RESULT" != 'success' ]; then
+                      exit 1
+                  fi
