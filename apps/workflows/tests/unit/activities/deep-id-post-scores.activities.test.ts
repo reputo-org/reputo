@@ -97,8 +97,8 @@ function makeCombinedSnapshot(overrides: Record<string, unknown> = {}) {
       ],
     },
     outputs: {
-      voting_engagement: 'snapshots/snap-1/voting_engagement_weighted_score.csv',
-      token_value_over_time: 'snapshots/snap-1/token_value_over_time_weighted_score.csv',
+      voting_engagement: 'snapshots/snap-1/voting_engagement.csv',
+      token_value_over_time: 'snapshots/snap-1/token_value_over_time.csv',
       custom_score_details: 'snapshots/snap-1/custom_score_details.json',
     },
     ...overrides,
@@ -111,21 +111,6 @@ function makeActivity(csv: string) {
     storage: { getObject } as never,
     storageConfig: { bucket: 'reputo', maxSizeBytes: 1024 },
   });
-}
-
-function makeKeyedActivity(csvByKey: Record<string, string>) {
-  const getObject = vi.fn().mockImplementation(async ({ key }: { key: string }) => {
-    const csv = csvByKey[key];
-    if (csv === undefined) {
-      throw new Error(`Unexpected key: ${key}`);
-    }
-    return Buffer.from(csv, 'utf8');
-  });
-  const activity = createDeepIdPostScoresActivity({
-    storage: { getObject } as never,
-    storageConfig: { bucket: 'reputo', maxSizeBytes: 1024 },
-  });
-  return { activity, getObject };
 }
 
 function rejectionWarns() {
@@ -169,85 +154,22 @@ describe('createDeepIdPostScoresActivity', () => {
     expect(mockPostScores).not.toHaveBeenCalled();
   });
 
-  it('posts each sub-algorithm of a combined snapshot under its own label, never custom_score', async () => {
-    const { activity, getObject } = makeKeyedActivity({
-      'snapshots/snap-1/voting_engagement_weighted_score.csv': ['did,weighted_score', `${DID_A},25`].join('\n'),
-      'snapshots/snap-1/token_value_over_time_weighted_score.csv': [
-        'did,weighted_score',
-        `${DID_A},75`,
-        `${DID_B},0`,
-      ].join('\n'),
-    });
-
-    mockPostScores.mockImplementation(async (batch: Record<string, unknown>) => {
-      const dids = Object.keys(batch);
-      return {
-        status: { ok: dids.length, failed: 0 },
-        results: Object.fromEntries(dids.map((did) => [did, { message: 'OK' }])),
-      };
-    });
-
-    const result = await activity({ snapshot: makeCombinedSnapshot() });
-
-    expect(result).toEqual({ posted: 3, ok: 3, failed: 0, dropped: 0, skipped: 0 });
-    expect(getObject).toHaveBeenCalledTimes(2);
-    expect(mockPostScores).toHaveBeenCalledTimes(2);
-    expect(mockPostScores).toHaveBeenNthCalledWith(1, {
-      [DID_A]: { score: 25, type: 'voting_engagement', timestamp: '2026-06-12T10:00:00.000Z' },
-    });
-    expect(mockPostScores).toHaveBeenNthCalledWith(2, {
-      [DID_A]: { score: 75, type: 'token_value_over_time', timestamp: '2026-06-12T10:00:00.000Z' },
-      [DID_B]: { score: 0, type: 'token_value_over_time', timestamp: '2026-06-12T10:00:00.000Z' },
-    });
-  });
-
-  it('skips a sub-algorithm whose weighted output is missing and still posts the others', async () => {
-    const { activity } = makeKeyedActivity({
-      'snapshots/snap-1/token_value_over_time_weighted_score.csv': ['did,weighted_score', `${DID_A},75`].join('\n'),
-    });
-
-    mockPostScores.mockResolvedValue({ status: { ok: 1, failed: 0 }, results: { [DID_A]: { message: 'OK' } } });
-
-    const result = await activity({
-      snapshot: makeCombinedSnapshot({
-        outputs: {
-          token_value_over_time: 'snapshots/snap-1/token_value_over_time_weighted_score.csv',
-          custom_score_details: 'snapshots/snap-1/custom_score_details.json',
-        },
-      }),
-    });
-
-    expect(result).toEqual({ posted: 1, ok: 1, failed: 0, dropped: 0, skipped: 0 });
-    expect(mockPostScores).toHaveBeenCalledTimes(1);
-    expect(mockPostScores).toHaveBeenCalledWith({
-      [DID_A]: { score: 75, type: 'token_value_over_time', timestamp: '2026-06-12T10:00:00.000Z' },
-    });
-    expect(mockLog.warn).toHaveBeenCalledWith(
-      'Snapshot is missing a sub-algorithm weighted output; skipping its score post',
-      { snapshotId: 'snap-1', childKey: 'voting_engagement' },
-    );
-  });
-
-  it('skips a combined snapshot without valid sub-algorithm entries', async () => {
+  it('skips a combined snapshot: the custom raw-score path owns its submission', async () => {
     const getObject = vi.fn();
     const activity = createDeepIdPostScoresActivity({
       storage: { getObject } as never,
       storageConfig: { bucket: 'reputo', maxSizeBytes: 1024 },
     });
 
-    const result = await activity({
-      snapshot: makeCombinedSnapshot({
-        algorithmPresetFrozen: {
-          key: 'custom_score',
-          version: '1.0.0',
-          inputs: [{ key: 'sub_algorithms', value: 'not-an-array' }],
-        },
-      }),
-    });
+    const result = await activity({ snapshot: makeCombinedSnapshot() });
 
     expect(result).toEqual({ posted: 0, ok: 0, failed: 0, dropped: 0, skipped: 0 });
     expect(getObject).not.toHaveBeenCalled();
     expect(mockPostScores).not.toHaveBeenCalled();
+    expect(mockLog.info).toHaveBeenCalledWith(
+      'Combined snapshot scores are submitted by the custom raw-score path; skipping score post',
+      { snapshotId: 'snap-1' },
+    );
   });
 
   it('splits more than 500 entries into sequential chunked posts', async () => {
