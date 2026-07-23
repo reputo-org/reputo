@@ -124,6 +124,9 @@ catalogs:
     jsdom:
       specifier: ^29.1.1
       version: 29.1.1
+    node-seal:
+      specifier: 7.0.0
+      version: 7.0.0
     nodemon:
       specifier: ^3.1.14
       version: 3.1.14
@@ -657,6 +660,9 @@ importers:
       csv-stringify:
         specifier: ^6.8.1
         version: 6.8.1
+      node-seal:
+        specifier: 'catalog:'
+        version: 7.0.0
       pino:
         specifier: 'catalog:'
         version: 9.14.0
@@ -6473,6 +6479,9 @@ packages:
   node-releases@2.0.51:
     resolution: {integrity: sha512-wRNIrw4DmVLKQlbgOMdkMx27Wrpzes2hh5Jtbi2bjPd+4wJstWIqP5A+lscnqbm0xxmT5Bpg8Lec5ItEBwx6BQ==}
     engines: {node: '>=18'}
+
+  node-seal@7.0.0:
+    resolution: {integrity: sha512-R5q8PQ6z3Hyq7x1uunNf5yZtDuSlffYkWFA5uvzL2fYF/IHL7+KwCsRdLlG3inBU1dMUgakDWiuqf0csMvcang==}
 
   nodemon@3.1.14:
     resolution: {integrity: sha512-jakjZi93UtB3jHMWsXL68FXSAosbLfY0In5gtKq3niLSkrWznrVBzXFNOEMJUfc9+Ke7SHWoAZsiMkNP3vq6Jw==}
@@ -14277,6 +14286,8 @@ snapshots:
       skin-tone: 2.0.0
 
   node-releases@2.0.51: {}
+
+  node-seal@7.0.0: {}
 
   nodemon@3.1.14:
     dependencies:
