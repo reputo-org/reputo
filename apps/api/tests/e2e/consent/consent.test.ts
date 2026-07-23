@@ -206,12 +206,13 @@ describe('OAuth consent e2e', () => {
     expect(redirectUrl.origin).toBe('https://identity.deep-id.ai');
     expect(redirectUrl.pathname).toBe('/oauth2/auth');
     expect(redirectUrl.searchParams.get('response_type')).toBe('code');
-    // Consent authorizes the DeepID client, not the admin client.
     expect(redirectUrl.searchParams.get('client_id')).toBe('deep-id-client');
     expect(redirectUrl.searchParams.get('redirect_uri')).toBe(
       'http://localhost:3000/api/v1/oauth/consent/deep-id/callback',
     );
-    expect(redirectUrl.searchParams.get('scope')).toBe('api wallets post_scores');
+    expect(redirectUrl.searchParams.get('scope')).toBe(
+      'api wallets post_scores voting_engagement_encr contribution_score_encr proposal_engagement_encr token_value_over_time_encr',
+    );
     expect(redirectUrl.searchParams.get('state')).toBe(state);
     expect(redirectUrl.searchParams.get('code_challenge_method')).toBe('S256');
 
