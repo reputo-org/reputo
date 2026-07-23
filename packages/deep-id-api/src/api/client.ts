@@ -1,6 +1,8 @@
 import pLimit from 'p-limit';
 import { postScores } from '../resources/scores/api.js';
 import type { PostScoresRequest, PostScoresResponse } from '../resources/scores/types.js';
+import { getSealMetadata } from '../resources/seal-metadata/api.js';
+import type { SealMetadata } from '../resources/seal-metadata/types.js';
 import { getUsers, iterateUsers } from '../resources/users/api.js';
 import type { GetUsersOptions, UsersPage, UsersResponse } from '../resources/users/types.js';
 import { HttpError } from '../shared/errors/index.js';
@@ -35,6 +37,12 @@ export interface DeepIdClient {
   iterateUsers(options?: GetUsersOptions): AsyncGenerator<UsersPage, void, void>;
   /** Submit scores via `POST /v1/clients/scores` (synchronous; per-user failures appear in the `200` body). */
   postScores(scores: PostScoresRequest): Promise<PostScoresResponse>;
+  /**
+   * Fetch and validate the public SEAL metadata referenced by
+   * `scores_encr['seal-metadata']`. The URL is resolved against the `appBaseUrl`
+   * origin; off-origin URLs and redirects are rejected.
+   */
+  getSealMetadata(metadataUrl: string): Promise<SealMetadata>;
 }
 
 function resolveConfig(input: DeepIdApiConfigInput): DeepIdApiConfig {
@@ -122,5 +130,6 @@ export function createDeepIdClient(input: DeepIdApiConfigInput): DeepIdClient {
     getUsers: (options) => getUsers(requester, options),
     iterateUsers: (options) => iterateUsers(requester, options),
     postScores: (scores) => postScores(requester, scores),
+    getSealMetadata: (metadataUrl) => getSealMetadata(requester, metadataUrl),
   };
 }

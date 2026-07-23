@@ -14,6 +14,52 @@ export interface DeepIdScore {
 }
 
 /**
+ * Encrypted read scopes for `GET /v1/users` — one per child score type. They
+ * are also the child field names under `scores_encr`.
+ */
+export const ENCRYPTED_SCORE_SCOPES = [
+  'voting_engagement_encr',
+  'contribution_score_encr',
+  'proposal_engagement_encr',
+  'token_value_over_time_encr',
+] as const;
+
+/** One encrypted child scope / `scores_encr` field name, e.g. `voting_engagement_encr`. */
+export type EncryptedScoreScope = (typeof ENCRYPTED_SCORE_SCOPES)[number];
+
+/** Encryption state of one `scores_encr` child field. Any other status is rejected at parse time. */
+export type EncryptedScoreStatus = 'encrypted' | 'pending_encryption';
+
+/** A ready encrypted child score: the ciphertext is present and non-empty. */
+export interface EncryptedScoreReady {
+  status: 'encrypted';
+  /** Serialized CKKS ciphertext. */
+  ciphertext: string;
+}
+
+/** DeepID accepted the raw score but has not finished encrypting it yet. */
+export interface EncryptedScorePending {
+  status: 'pending_encryption';
+  ciphertext: string | null;
+}
+
+/** One `scores_encr` child field, when it is present and non-null. */
+export type EncryptedScoreField = EncryptedScoreReady | EncryptedScorePending;
+
+/**
+ * `scores_encr` on a user, present when encrypted scopes are requested and
+ * consented. A requested child field is absent or `null` when DeepID holds no
+ * encrypted score for that type. Validate with `parseEncryptedScores` before
+ * trusting the shape.
+ */
+export type DeepIdEncryptedScores = {
+  /** Relative URL of the public SEAL metadata for this user's ciphertexts, or `null`. */
+  'seal-metadata': string | null;
+} & {
+  [K in EncryptedScoreScope]?: EncryptedScoreField | null;
+};
+
+/**
  * One user entry from `GET /v1/users` (or `GET /v1/user`). `scopes` is the
  * intersection of token scopes and what the user consented to; a field is only
  * present when its scope is in `scopes`.
@@ -22,6 +68,8 @@ export interface DeepIdUser {
   scopes: string[];
   wallets?: DeepIdWallet[];
   scores?: Record<string, DeepIdScore | null>;
+  /** Present when encrypted score scopes are granted; see {@link DeepIdEncryptedScores}. */
+  scores_encr?: DeepIdEncryptedScores;
   [key: string]: unknown;
 }
 
