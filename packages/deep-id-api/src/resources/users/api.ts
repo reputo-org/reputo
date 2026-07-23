@@ -2,8 +2,11 @@ import type { DeepIdRequester } from '../../api/client.js';
 import { endpoints } from '../../api/endpoints.js';
 import type { GetUsersOptions, UsersPage, UsersResponse } from './types.js';
 
-function readNextCursor(headers: Record<string, string | string[] | undefined>): string | undefined {
-  const header = headers['x-next'];
+function readHeader(
+  headers: Record<string, string | string[] | undefined>,
+  name: 'x-next' | 'x-request-id',
+): string | undefined {
+  const header = headers[name];
   const value = Array.isArray(header) ? header[0] : header;
   return value && value.length > 0 ? value : undefined;
 }
@@ -30,8 +33,11 @@ export async function* iterateUsers(
     }
 
     const response = await requester.request<UsersResponse>('GET', endpoints.users(), { params });
-    next = readNextCursor(response.headers);
-    yield { users: response.data ?? {}, next };
+    next = readHeader(response.headers, 'x-next');
+    const requestId = readHeader(response.headers, 'x-request-id');
+    yield requestId === undefined
+      ? { users: response.data ?? {}, next }
+      : { users: response.data ?? {}, next, requestId };
   } while (next);
 }
 

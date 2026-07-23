@@ -87,4 +87,9 @@ export interface GetUsersOptions {
 export interface UsersPage {
   users: UsersResponse;
   next?: string;
+  /**
+   * The `x-request-id` response header when DeepID sends one — quote it in
+   * diagnostics instead of request or response bodies. Not part of the body.
+   */
+  requestId?: string;
 }
