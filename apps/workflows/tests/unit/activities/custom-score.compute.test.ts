@@ -2,10 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   mockGenerateKey,
-  mockStringifyCsvAsync,
-  mockExtractDidsKey,
-  mockLoadDidInputMap,
-  mockGetDids,
   mockGetAlgorithmDefinition,
   mockComputeVotingEngagement,
   mockComputeContributionScore,
@@ -14,10 +10,6 @@ const {
   mockHeartbeat,
 } = vi.hoisted(() => ({
   mockGenerateKey: vi.fn(),
-  mockStringifyCsvAsync: vi.fn(),
-  mockExtractDidsKey: vi.fn(),
-  mockLoadDidInputMap: vi.fn(),
-  mockGetDids: vi.fn(),
   mockGetAlgorithmDefinition: vi.fn(),
   mockComputeVotingEngagement: vi.fn(),
   mockComputeContributionScore: vi.fn(),
@@ -50,17 +42,9 @@ vi.mock('../../../src/config/index.js', () => ({
     storage: {
       bucket: 'test-bucket',
     },
+    logger: { level: 'silent' },
+    app: { nodeEnv: 'production' },
   },
-}));
-
-vi.mock('../../../src/shared/utils/index.js', () => ({
-  stringifyCsvAsync: mockStringifyCsvAsync,
-}));
-
-vi.mock('../../../src/activities/typescript/algorithms/shared/did-input.js', () => ({
-  extractDidsKey: mockExtractDidsKey,
-  loadDidInputMap: mockLoadDidInputMap,
-  getDids: mockGetDids,
 }));
 
 vi.mock('../../../src/activities/typescript/algorithms/voting-engagement/compute.js', () => ({
@@ -114,20 +98,17 @@ function buildSnapshot(subAlgorithms: unknown) {
   } as never;
 }
 
+function makeStorage() {
+  return {
+    getObject: vi.fn(),
+    putObject: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
 describe('computeCustomScore', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mockExtractDidsKey.mockReturnValue('uploads/dids.json');
-    mockLoadDidInputMap.mockResolvedValue({
-      dids: {
-        'did:sub:1': {},
-        'did:sub:2': {},
-        'did:sub:3': {},
-      },
-    });
-    mockGetDids.mockReturnValue(['did:sub:1', 'did:sub:2', 'did:sub:3']);
-    mockStringifyCsvAsync.mockResolvedValue('csv-body');
     mockGenerateKey.mockImplementation(
       (_prefix: string, id: string, filename: string) => `snapshots/${id}/${filename}`,
     );
@@ -146,22 +127,8 @@ describe('computeCustomScore', () => {
     }));
   });
 
-  it('runs each child once, zero-fills missing users, and writes one weighted CSV per child plus the details JSON', async () => {
-    const putObject = vi.fn().mockResolvedValue(undefined);
-    const storage = {
-      getObject: vi.fn().mockImplementation(async ({ key }: { key: string }) => {
-        if (key === 'snapshots/snapshot-1/voting_engagement.csv') {
-          return Buffer.from(['did,voting_engagement', 'did:sub:1,10', 'did:sub:2,20'].join('\n'));
-        }
-
-        if (key === 'snapshots/snapshot-1/contribution_score.csv') {
-          return Buffer.from(['did,contribution_score', 'did:sub:1,1', 'did:sub:3,3'].join('\n'));
-        }
-
-        throw new Error(`Unexpected key: ${key}`);
-      }),
-      putObject,
-    };
+  it('runs each child once and preserves its native CSV key without reading or rebuilding it', async () => {
+    const storage = makeStorage();
 
     const result = await computeCustomScore(
       buildSnapshot([
@@ -181,11 +148,6 @@ describe('computeCustomScore', () => {
       storage as never,
     );
 
-    expect(mockLoadDidInputMap).toHaveBeenCalledWith({
-      storage,
-      bucket: 'test-bucket',
-      key: 'uploads/dids.json',
-    });
     // Children keep the parent snapshot id so id-derived dependency artifacts
     // (e.g. the run's single deepfunding.db) resolve for every child.
     expect(mockComputeVotingEngagement).toHaveBeenCalledTimes(1);
@@ -216,129 +178,52 @@ describe('computeCustomScore', () => {
       storage,
     );
 
-    // Weighted score = raw × weight ÷ Σweights (Σ = 4).
-    expect(mockStringifyCsvAsync).toHaveBeenNthCalledWith(
-      1,
-      [
-        { did: 'did:sub:1', weighted_score: 2.5 },
-        { did: 'did:sub:2', weighted_score: 5 },
-        { did: 'did:sub:3', weighted_score: 0 },
-      ],
-      { header: true, columns: ['did', 'weighted_score'] },
-    );
-    expect(mockStringifyCsvAsync).toHaveBeenNthCalledWith(
-      2,
-      [
-        { did: 'did:sub:1', weighted_score: 0.75 },
-        { did: 'did:sub:2', weighted_score: 0 },
-        { did: 'did:sub:3', weighted_score: 2.25 },
-      ],
-      { header: true, columns: ['did', 'weighted_score'] },
-    );
-
-    expect(putObject).toHaveBeenNthCalledWith(1, {
+    // The native child artifacts are exposed as-is: no CSV is read back and no
+    // per-child wrapper file is written — only the details JSON is uploaded.
+    expect(storage.getObject).not.toHaveBeenCalled();
+    expect(storage.putObject).toHaveBeenCalledTimes(1);
+    expect(storage.putObject).toHaveBeenCalledWith({
       bucket: 'test-bucket',
-      key: 'snapshots/snapshot-1/voting_engagement_weighted_score.csv',
-      body: 'csv-body',
-      contentType: 'text/csv',
-    });
-    expect(putObject).toHaveBeenNthCalledWith(2, {
-      bucket: 'test-bucket',
-      key: 'snapshots/snapshot-1/contribution_score_weighted_score.csv',
-      body: 'csv-body',
-      contentType: 'text/csv',
-    });
-
-    const detailsPayload = JSON.parse(putObject.mock.calls[2][0].body);
-    expect(detailsPayload).toEqual({
-      snapshot_id: 'snapshot-1',
-      total_child_weight: 4,
-      children: [
-        { algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 1, weight_share: 0.25 },
-        { algorithm_key: 'contribution_score', algorithm_version: '1.0.0', weight: 3, weight_share: 0.75 },
-      ],
-      dids: [
-        {
-          did: 'did:sub:1',
-          child_scores: [
-            { algorithm_key: 'voting_engagement', raw_score: 10, weighted_score: 2.5 },
-            { algorithm_key: 'contribution_score', raw_score: 1, weighted_score: 0.75 },
-          ],
-        },
-        {
-          did: 'did:sub:2',
-          child_scores: [
-            { algorithm_key: 'voting_engagement', raw_score: 20, weighted_score: 5 },
-            { algorithm_key: 'contribution_score', raw_score: 0, weighted_score: 0 },
-          ],
-        },
-        {
-          did: 'did:sub:3',
-          child_scores: [
-            { algorithm_key: 'voting_engagement', raw_score: 0, weighted_score: 0 },
-            { algorithm_key: 'contribution_score', raw_score: 3, weighted_score: 2.25 },
-          ],
-        },
-      ],
+      key: 'snapshots/snapshot-1/custom_score_details.json',
+      body: expect.any(String),
+      contentType: 'application/json',
     });
 
     expect(mockHeartbeat).toHaveBeenCalledWith({ phase: 'children', processed: 0, total: 2 });
-    expect(mockHeartbeat).toHaveBeenCalledWith({ phase: 'upload', processed: 0, total: 2 });
-    expect(mockHeartbeat).toHaveBeenCalledWith({ phase: 'details', processed: 0, total: 3 });
 
     expect(result).toEqual({
       outputs: {
-        voting_engagement: 'snapshots/snapshot-1/voting_engagement_weighted_score.csv',
-        contribution_score: 'snapshots/snapshot-1/contribution_score_weighted_score.csv',
+        voting_engagement: 'snapshots/snapshot-1/voting_engagement.csv',
+        contribution_score: 'snapshots/snapshot-1/contribution_score.csv',
         custom_score_details: 'snapshots/snapshot-1/custom_score_details.json',
       },
     });
   });
 
-  it('keeps already-normalized child scores unchanged when a single child carries the full weight', async () => {
-    // Children already emit 0–100, so custom_score must NOT re-run min–max — an
-    // all-equal child vector keeps its value rather than collapsing to 0.
-    mockGetDids.mockReturnValue(['did:sub:1', 'did:sub:2']);
-
-    const putObject = vi.fn().mockResolvedValue(undefined);
-    const storage = {
-      getObject: vi
-        .fn()
-        .mockResolvedValue(Buffer.from(['did,voting_engagement', 'did:sub:1,5', 'did:sub:2,5'].join('\n'))),
-      putObject,
-    };
+  it('writes configuration-only details without per-user rows or weighted scores', async () => {
+    const storage = makeStorage();
 
     await computeCustomScore(
       buildSnapshot([
-        {
-          algorithm_key: 'voting_engagement',
-          algorithm_version: '1.0.0',
-          weight: 2.5,
-          inputs: [],
-        },
+        { algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 1, inputs: [] },
+        { algorithm_key: 'contribution_score', algorithm_version: '1.0.0', weight: 3, inputs: [] },
       ]),
       storage as never,
     );
 
-    expect(mockStringifyCsvAsync).toHaveBeenCalledWith(
-      [
-        { did: 'did:sub:1', weighted_score: 5 },
-        { did: 'did:sub:2', weighted_score: 5 },
+    const detailsPayload = JSON.parse(storage.putObject.mock.calls[0][0].body);
+    expect(detailsPayload).toEqual({
+      snapshot_id: 'snapshot-1',
+      total_child_weight: 4,
+      children: [
+        { algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 1 },
+        { algorithm_key: 'contribution_score', algorithm_version: '1.0.0', weight: 3 },
       ],
-      { header: true, columns: ['did', 'weighted_score'] },
-    );
-
-    const detailsPayload = JSON.parse(putObject.mock.calls[1][0].body);
-    expect(detailsPayload.children).toEqual([
-      { algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 2.5, weight_share: 1 },
-    ]);
+    });
   });
 
   it('rejects duplicate sub-algorithms before running any child', async () => {
-    const storage = {
-      getObject: vi.fn(),
-      putObject: vi.fn(),
-    };
+    const storage = makeStorage();
 
     await expect(
       computeCustomScore(
@@ -355,10 +240,7 @@ describe('computeCustomScore', () => {
   });
 
   it('rejects a configuration whose total weight overflows to Infinity', async () => {
-    const storage = {
-      getObject: vi.fn(),
-      putObject: vi.fn(),
-    };
+    const storage = makeStorage();
 
     await expect(
       computeCustomScore(
@@ -381,10 +263,7 @@ describe('computeCustomScore', () => {
     ['missing', undefined],
     ['malformed', '2'],
   ])('rejects a %s child weight', async (_case, weight) => {
-    const storage = {
-      getObject: vi.fn(),
-      putObject: vi.fn(),
-    };
+    const storage = makeStorage();
 
     await expect(
       computeCustomScore(
@@ -394,5 +273,19 @@ describe('computeCustomScore', () => {
     ).rejects.toThrow('Invalid sub_algorithms.0.weight');
 
     expect(mockComputeVotingEngagement).not.toHaveBeenCalled();
+  });
+
+  it('fails when a child does not return its native primary CSV output', async () => {
+    const storage = makeStorage();
+    mockComputeVotingEngagement.mockResolvedValue({ outputs: {} });
+
+    await expect(
+      computeCustomScore(
+        buildSnapshot([{ algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 1, inputs: [] }]),
+        storage as never,
+      ),
+    ).rejects.toThrow('Child algorithm "voting_engagement" did not return output "voting_engagement"');
+
+    expect(storage.putObject).not.toHaveBeenCalled();
   });
 });

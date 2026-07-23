@@ -7,6 +7,7 @@ import {
   DB_ACTIVITY_TIMEOUT,
   DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
   DEEP_ID_POST_SCORES_TIMEOUT,
+  DEEP_ID_READINESS_CHECK_TIMEOUT,
   DEPENDENCY_RESOLUTION_TIMEOUT,
   HEARTBEAT_TIMEOUT,
   ONCHAIN_DATA_DEPENDENCY_RESOLUTION_TIMEOUT,
@@ -17,7 +18,9 @@ import { UnsupportedAlgorithmError } from '../shared/errors/index.js';
 import type {
   AlgorithmLibraryActivities,
   AlgorithmResult,
+  DeepIdEncryptionReadinessActivities,
   DeepIdPostScoresActivities,
+  DeepIdSubmitCustomScoresActivities,
   DependencyKey,
   DependencyResolverActivities,
   OrchestratorWorkflowInput,
@@ -31,6 +34,7 @@ import {
   getAlgorithmTaskQueueFromRuntime,
 } from '../shared/utils/orchestrator-input.utils.js';
 import { extractOnchainSyncTargets } from '../shared/utils/sync-targets.utils.js';
+import { pollForEncryptionReadiness } from './encryption-readiness.js';
 
 const { getSnapshot, updateSnapshot } = workflow.proxyActivities<ApiSnapshotActivities>({
   taskQueue: API_SNAPSHOT_ACTIVITIES_TASK_QUEUE,
@@ -142,6 +146,19 @@ function applyDidsOverride(snapshot: Snapshot, didsKey: string): void {
 }
 
 export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Promise<void> {
+  try {
+    await runOrchestrator(input);
+  } catch (error) {
+    if (error instanceof workflow.TemporalFailure) {
+      throw error;
+    }
+    // A non-Temporal error escaping workflow code fails only the workflow
+    // task, which the server retries forever; convert it so the run fails.
+    throw workflow.ApplicationFailure.fromError(error, { nonRetryable: true });
+  }
+}
+
+async function runOrchestrator(input: OrchestratorWorkflowInput): Promise<void> {
   const { snapshotId } = input;
   const workflowInfo = workflow.workflowInfo();
   const orchestratorTaskQueue = workflowInfo.taskQueue;
@@ -221,6 +238,20 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
   const { postSnapshotScores } = workflow.proxyActivities<DeepIdPostScoresActivities>({
     taskQueue: orchestratorTaskQueue,
     startToCloseTimeout: DEEP_ID_POST_SCORES_TIMEOUT,
+    heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
+    retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
+  });
+
+  const { submitCustomRawScores } = workflow.proxyActivities<DeepIdSubmitCustomScoresActivities>({
+    taskQueue: orchestratorTaskQueue,
+    startToCloseTimeout: DEEP_ID_POST_SCORES_TIMEOUT,
+    heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
+    retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
+  });
+
+  const { checkEncryptionReadiness } = workflow.proxyActivities<DeepIdEncryptionReadinessActivities>({
+    taskQueue: orchestratorTaskQueue,
+    startToCloseTimeout: DEEP_ID_READINESS_CHECK_TIMEOUT,
     heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
     retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
   });
@@ -347,6 +378,49 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
       outputKeys: Object.keys(result.outputs),
     });
 
+    if (algorithmDefinition.kind === 'combined') {
+      // The custom path submits every child's native raw scores before the
+      // snapshot completes, and a submission failure fails the run. One
+      // run-consistent timestamp (the workflow start) keys DeepID's idempotent
+      // dedup, so activity retries and later run stages reuse the same value.
+      const runTimestamp = workflowInfo.startTime.toISOString();
+      const submission = await submitCustomRawScores({
+        snapshotId,
+        algorithmPresetFrozen: snapshot.algorithmPresetFrozen,
+        outputs: result.outputs,
+        timestamp: runTimestamp,
+      });
+
+      workflow.log.info('Submitted custom raw child scores to DeepID', {
+        snapshotId,
+        timestamp: runTimestamp,
+        children: submission.children.map(({ scoreType, observation, posted, ok, dropped, rejected }) => ({
+          scoreType,
+          observation,
+          posted,
+          ok,
+          dropped,
+          rejected,
+        })),
+      });
+
+      // Nothing encrypted may be evaluated or submitted while a selected
+      // child score is still pending_encryption.
+      const readiness = await pollForEncryptionReadiness({
+        snapshotId,
+        algorithmPresetFrozen: snapshot.algorithmPresetFrozen,
+        checkEncryptionReadiness,
+      });
+
+      workflow.log.info('DeepID encrypted child scores are ready for evaluation', {
+        snapshotId,
+        ...readiness.counts,
+        pollCount: readiness.pollCount,
+        elapsedMs: readiness.elapsedMs,
+        lastRequestId: readiness.lastRequestId,
+      });
+    }
+
     await updateSnapshot({
       snapshotId,
       status: SnapshotStatus.completed,
@@ -389,18 +463,21 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
     throw error;
   }
 
-  // Best-effort: post the computed scores back to DeepID. This runs only after a
-  // successful completion (the catch above re-throws on failure) and never affects
-  // the snapshot status — a posting failure is retried by Temporal, then logged and
-  // swallowed so it can never fail the reputation run.
-  try {
-    const completedSnapshot = await getSnapshot({ snapshotId });
-    const postResult = await postSnapshotScores({ snapshot: completedSnapshot });
-    workflow.log.info('DeepID score posting finished', { snapshotId, ...postResult });
-  } catch (postError) {
-    workflow.log.error('DeepID score posting failed (non-fatal)', {
-      snapshotId,
-      error: (postError as Error).message,
-    });
+  // Best-effort: post a non-custom snapshot's scores back to DeepID. This runs
+  // only after a successful completion (the catch above re-throws on failure) and
+  // never affects the snapshot status — a posting failure is retried by Temporal,
+  // then logged and swallowed so it can never fail the reputation run. Combined
+  // snapshots already submitted their native child scores before completion.
+  if (algorithmDefinition.kind !== 'combined') {
+    try {
+      const completedSnapshot = await getSnapshot({ snapshotId });
+      const postResult = await postSnapshotScores({ snapshot: completedSnapshot });
+      workflow.log.info('DeepID score posting finished', { snapshotId, ...postResult });
+    } catch (postError) {
+      workflow.log.error('DeepID score posting failed (non-fatal)', {
+        snapshotId,
+        error: (postError as Error).message,
+      });
+    }
   }
 }

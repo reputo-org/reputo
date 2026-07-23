@@ -58,6 +58,31 @@ describe('createDeepIdClient', () => {
       expect(usersCall).toBe(2);
     });
 
+    it('exposes the x-request-id header on each streamed page', async () => {
+      const page1 = mockUndiciResponse(
+        200,
+        { 'did:sub:aaaaaaaaaaaaaaaaaaaaaaaa': { scopes: ['api'] } },
+        { 'x-next': 'cursor-2', 'x-request-id': 'req-1' },
+      );
+      const page2 = mockUndiciResponse(200, { 'did:sub:bbbbbbbbbbbbbbbbbbbbbbbb': { scopes: ['api'] } });
+
+      let usersCall = 0;
+      mockRequest.mockImplementation((url) => {
+        if (isTokenUrl(url)) return Promise.resolve(TOKEN_OK as never);
+        usersCall += 1;
+        return Promise.resolve((usersCall === 1 ? page1 : page2) as never);
+      });
+
+      const pages = [];
+      for await (const page of createClient().iterateUsers()) {
+        pages.push(page);
+      }
+
+      expect(pages).toHaveLength(2);
+      expect(pages[0].requestId).toBe('req-1');
+      expect(pages[1].requestId).toBeUndefined();
+    });
+
     it('passes pageSize and the next cursor as query params', async () => {
       mockRequest.mockImplementation((url) => {
         if (isTokenUrl(url)) return Promise.resolve(TOKEN_OK as never);

@@ -3,7 +3,9 @@ import { createS3Client, Storage } from '@reputo/storage';
 import { NativeConnection, Worker } from '@temporalio/worker';
 import {
   createAlgorithmLibraryActivities,
+  createDeepIdEncryptionReadinessActivities,
   createDeepIdPostScoresActivities,
+  createDeepIdSubmitCustomScoresActivities,
   createOrchestratorDependencyResolverActivities,
 } from '../../activities/orchestrator/index.js';
 import config from '../../config/index.js';
@@ -53,6 +55,11 @@ async function run(): Promise<void> {
         storage,
         storageConfig,
       }),
+      ...createDeepIdSubmitCustomScoresActivities({
+        storage,
+        storageConfig,
+      }),
+      ...createDeepIdEncryptionReadinessActivities(),
     },
     bundlerOptions: {
       ignoreModules: ['fs', 'path', 'os', 'crypto'],

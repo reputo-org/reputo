@@ -49,13 +49,13 @@ function flatVotes(collectionId: string): Array<[string, string, string]> {
 }
 
 /**
- * Two distinct children sharing one DID set (a, b, c). Each child normalizes its
- * own output to 0–100 before the wrapper applies the weights (Σ = 4):
- *  - voting_engagement (weight 1): a→100 (uniform votes), b→0 (flat votes), c→0
- *    (no collection). Weighted: a=25, b=0, c=0.
- *  - proposal_engagement (weight 3): a→100 (funded-concluded reward 1.8),
- *    b→0 (unfunded penalty −0.4 is the cohort min), c absent from the portal → 0.
- *    Weighted: a=75, b=0, c=0.
+ * Two distinct children whose native cohorts differ. Each child normalizes its
+ * own output to 0–100 and zero-fills only inside its own cohort:
+ *  - voting_engagement (weight 1) scores the shared DID input (a, b, c):
+ *    a→100 (uniform votes), b→0 (flat votes), c→0 (no collection).
+ *  - proposal_engagement (weight 3) scores the portal users with a DID (a, b):
+ *    a→100 (funded-concluded reward), b→0 (unfunded penalty is the cohort
+ *    min), and c is not part of the portal cohort at all.
  */
 const PORTAL_SEED = {
   users: [userSeed({ id: 1, did: 'did:plc:a' }), userSeed({ id: 2, did: 'did:plc:b' })],
@@ -76,7 +76,7 @@ function seedInputs(storage: InMemoryStorage, dbBytes: Buffer): void {
     JSON.stringify({
       'did:plc:a': { userWallets: [{ address: '0xa', chain: 'ethereum' }] },
       'did:plc:b': { userWallets: [{ address: '0xb', chain: 'ethereum' }] },
-      'did:plc:c': { userWallets: [{ address: '0xc', chain: 'ethereum' }] }, // inactive everywhere → 0
+      'did:plc:c': { userWallets: [{ address: '0xc', chain: 'ethereum' }] }, // no votes → native 0 in the voting cohort
     }),
   );
 
@@ -141,15 +141,6 @@ interface CustomScoreDetails {
     algorithm_key: string;
     algorithm_version: string;
     weight: number;
-    weight_share: number;
-  }>;
-  dids: Array<{
-    did: string;
-    child_scores: Array<{
-      algorithm_key: string;
-      raw_score: number;
-      weighted_score: number;
-    }>;
   }>;
 }
 
@@ -172,62 +163,58 @@ describe('custom_score (e2e)', () => {
     vi.useRealTimers();
   });
 
-  it('runs real children and returns one weighted CSV per child plus the details JSON', async () => {
+  it('runs real children and exposes each native CSV plus the details JSON, with no wrapper files', async () => {
     const result = await computeCustomScore(buildCustomSnapshot(), storage);
 
     expect(result).toEqual({
       outputs: {
-        voting_engagement: `snapshots/${SNAPSHOT_ID}/voting_engagement_weighted_score.csv`,
-        proposal_engagement: `snapshots/${SNAPSHOT_ID}/proposal_engagement_weighted_score.csv`,
+        voting_engagement: `snapshots/${SNAPSHOT_ID}/voting_engagement.csv`,
+        proposal_engagement: `snapshots/${SNAPSHOT_ID}/proposal_engagement.csv`,
         custom_score_details: `snapshots/${SNAPSHOT_ID}/custom_score_details.json`,
       },
     });
 
-    // Each child wrote its own raw CSV under the shared parent snapshot prefix.
+    // Each child wrote its own native CSV under the shared parent snapshot
+    // prefix; no weighted or parent-DID wrapper files exist.
     expect(storage.has(`snapshots/${SNAPSHOT_ID}/voting_engagement.csv`)).toBe(true);
     expect(storage.has(`snapshots/${SNAPSHOT_ID}/proposal_engagement.csv`)).toBe(true);
+    expect(storage.has(`snapshots/${SNAPSHOT_ID}/voting_engagement_weighted_score.csv`)).toBe(false);
+    expect(storage.has(`snapshots/${SNAPSHOT_ID}/proposal_engagement_weighted_score.csv`)).toBe(false);
   });
 
-  it('scales each child by weight ÷ total weight and zero-fills missing users', async () => {
+  it('preserves each native cohort: no parent-DID zero-fill and no weighting', async () => {
     const { outputs } = await computeCustomScore(buildCustomSnapshot(), storage);
 
+    // The voting child's native cohort is the shared DID input, with its own
+    // zero for the vote-less did:plc:c — raw child scores, not weighted shares.
     const votingRows = parseCsv(storage.readText(outputs.voting_engagement as string) as string);
     expect(votingRows).toEqual([
-      { did: 'did:plc:a', weighted_score: '25' }, // 100 × 1/4
-      { did: 'did:plc:b', weighted_score: '0' },
-      { did: 'did:plc:c', weighted_score: '0' },
+      { did: 'did:plc:a', voting_engagement: '100' },
+      { did: 'did:plc:b', voting_engagement: '0' },
+      { did: 'did:plc:c', voting_engagement: '0' },
     ]);
 
+    // The portal child's native cohort is the portal user set: did:plc:c has no
+    // portal identity, so no row is rebuilt for it from the parent DID list.
     const proposalRows = parseCsv(storage.readText(outputs.proposal_engagement as string) as string);
     expect(proposalRows).toEqual([
-      { did: 'did:plc:a', weighted_score: '75' }, // 100 × 3/4
-      { did: 'did:plc:b', weighted_score: '0' },
-      { did: 'did:plc:c', weighted_score: '0' }, // absent from the portal → explicit 0
+      { did: 'did:plc:a', proposal_engagement: '100' },
+      { did: 'did:plc:b', proposal_engagement: '0' },
     ]);
   });
 
-  it('writes the per-user raw and weighted breakdown in the details JSON', async () => {
+  it('writes configuration-only details without per-user scores', async () => {
     const { outputs } = await computeCustomScore(buildCustomSnapshot(), storage);
     const details = storage.readJson<CustomScoreDetails>(outputs.custom_score_details as string);
 
-    expect(details).toMatchObject({
+    expect(details).toEqual({
       snapshot_id: SNAPSHOT_ID,
       total_child_weight: 4,
       children: [
-        { algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 1, weight_share: 0.25 },
-        { algorithm_key: 'proposal_engagement', algorithm_version: '1.0.0', weight: 3, weight_share: 0.75 },
+        { algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 1 },
+        { algorithm_key: 'proposal_engagement', algorithm_version: '1.0.0', weight: 3 },
       ],
     });
-    expect(details.dids.map((d) => d.did)).toEqual(['did:plc:a', 'did:plc:b', 'did:plc:c']);
-
-    const a = details.dids.find((d) => d.did === 'did:plc:a');
-    expect(a?.child_scores).toEqual([
-      { algorithm_key: 'voting_engagement', raw_score: 100, weighted_score: 25 },
-      { algorithm_key: 'proposal_engagement', raw_score: 100, weighted_score: 75 },
-    ]);
-
-    const c = details.dids.find((d) => d.did === 'did:plc:c');
-    expect(c?.child_scores.every((s) => s.raw_score === 0 && s.weighted_score === 0)).toBe(true);
   });
 
   it("portal children share the run's single deepfunding.db under the parent snapshot id", async () => {
@@ -316,24 +303,21 @@ describe('custom_score (e2e)', () => {
       portalStorage,
     );
 
-    // Both children read the same DB and wrote their raw CSVs under the parent prefix.
-    expect(portalStorage.has(`snapshots/${portalSnapshotId}/proposal_engagement.csv`)).toBe(true);
-    expect(portalStorage.has(`snapshots/${portalSnapshotId}/contribution_score.csv`)).toBe(true);
-
-    // alice tops both cohorts (raw 100 each), so each weighted share is 100 × 1/2.
+    // Both children read the same DB and kept their native CSVs under the
+    // parent prefix; alice tops both native cohorts at the raw 0–100 scale.
     expect(parseCsv(portalStorage.readText(outputs.proposal_engagement as string) as string)).toEqual([
-      { did: 'did:plc:a', weighted_score: '50' },
-      { did: 'did:plc:b', weighted_score: '0' },
+      { did: 'did:plc:a', proposal_engagement: '100' },
+      { did: 'did:plc:b', proposal_engagement: '0' },
     ]);
     expect(parseCsv(portalStorage.readText(outputs.contribution_score as string) as string)).toEqual([
-      { did: 'did:plc:a', weighted_score: '50' },
-      { did: 'did:plc:b', weighted_score: '0' },
+      { did: 'did:plc:a', contribution_score: '100' },
+      { did: 'did:plc:b', contribution_score: '0' },
     ]);
   });
 });
 
 describe('custom_score (e2e) — edge cases', () => {
-  it('keeps an all-equal, already-normalized child vector unchanged under full weight', async () => {
+  it('keeps an all-equal, already-normalized child vector unchanged', async () => {
     const storage = createInMemoryStorage();
     storage.seed(
       'uploads/dids.json',
@@ -352,9 +336,9 @@ describe('custom_score (e2e) — edge cases', () => {
         ],
       ),
     );
-    // Both collections vote uniformly → the voting child scores both DIDs at 100.
-    // custom_score must NOT re-run min–max (which would collapse the equal vector
-    // to 0); with a single child the full weight applies and 100 flows through.
+    // Both collections vote uniformly → the voting child scores both DIDs at
+    // 100. custom_score must NOT re-run min–max (which would collapse the equal
+    // vector to 0) or rescale by weight; the native 100s flow through.
     storage.seed(
       'uploads/v.csv',
       toCsv(['collection_id', 'question_id', 'answer'], [...uniformVotes('colA'), ...uniformVotes('colB')]),
@@ -387,8 +371,8 @@ describe('custom_score (e2e) — edge cases', () => {
 
     const rows = parseCsv(storage.readText(outputs.voting_engagement as string) as string);
     expect(rows).toEqual([
-      { did: 'did:plc:a', weighted_score: '100' },
-      { did: 'did:plc:b', weighted_score: '100' },
+      { did: 'did:plc:a', voting_engagement: '100' },
+      { did: 'did:plc:b', voting_engagement: '100' },
     ]);
   });
 

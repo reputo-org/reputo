@@ -85,6 +85,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
+    "@temporalio/testing": "catalog:",
     "@testcontainers/postgresql": "catalog:",
     "@types/node": "catalog:",
     "concurrently": "catalog:",
