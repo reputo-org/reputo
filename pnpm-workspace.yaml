@@ -75,7 +75,7 @@ catalog:
   typeorm-naming-strategies: ^4.1.0
   typescript: 5.9.2
   undici: ^7.28.0
-  uuid: ^11.1.1
+  uuid: ^14.0.1
   vitest: 3.2.6
   zod: ^4.4.3
 
