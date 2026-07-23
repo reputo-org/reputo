@@ -51,6 +51,9 @@
         },
         "validation": {
             "$ref": "#/$defs/validationConfig"
+        },
+        "normalization": {
+            "$ref": "#/$defs/normalizationConfig"
         }
     },
     "$defs": {
@@ -588,6 +591,28 @@
                 "iconUrl": {
                     "type": "string",
                     "format": "uri"
+                }
+            }
+        },
+
+        "normalizationConfig": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["method", "targetMin", "targetMax"],
+            "properties": {
+                "method": {
+                    "type": "string",
+                    "enum": ["observed_min_max"],
+                    "default": "observed_min_max",
+                    "description": "Normalization is a configurable phase; observed min-max is currently the only supported method and the default when a definition has no method value."
+                },
+                "targetMin": {
+                    "const": 0,
+                    "description": "Lower bound of the shared normalization target range."
+                },
+                "targetMax": {
+                    "const": 100,
+                    "description": "Upper bound of the shared normalization target range."
                 }
             }
         },

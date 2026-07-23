@@ -426,6 +426,89 @@ describe('Build: Schema Validation', () => {
     });
   });
 
+  describe('Normalization', () => {
+    function buildDefinition(normalization?: unknown) {
+      return {
+        key: 'test_algo',
+        name: 'Test',
+        category: 'Activity',
+        summary: 'Test',
+        description: 'Test',
+        version: '1.0.0',
+        inputs: [],
+        outputs: [
+          {
+            key: 'result',
+            type: 'csv',
+            csv: {
+              hasHeader: true,
+              delimiter: ',',
+              columns: [
+                { key: 'collection_id', type: 'string', description: 'User identifier' },
+                { key: 'result', type: 'number', description: 'Result score' },
+              ],
+            },
+          },
+        ],
+        runtime: 'typescript',
+        ...(normalization === undefined ? {} : { normalization }),
+      };
+    }
+
+    it('should accept the observed min-max method with the 0-100 target range', () => {
+      const result = validator.validate(buildDefinition({ method: 'observed_min_max', targetMin: 0, targetMax: 100 }));
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('should keep definitions without normalization metadata valid', () => {
+      const result = validator.validate(buildDefinition());
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('should reject unsupported normalization methods', () => {
+      const result = validator.validate(buildDefinition({ method: 'z_score', targetMin: 0, targetMax: 100 }));
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some((e) => e.instancePath === '/normalization/method')).toBe(true);
+    });
+
+    it('should reject target ranges other than 0-100', () => {
+      const shiftedMin = validator.validate(
+        buildDefinition({ method: 'observed_min_max', targetMin: 1, targetMax: 100 }),
+      );
+      const shiftedMax = validator.validate(
+        buildDefinition({ method: 'observed_min_max', targetMin: 0, targetMax: 10 }),
+      );
+
+      expect(shiftedMin.isValid).toBe(false);
+      expect(shiftedMin.errors.some((e) => e.instancePath === '/normalization/targetMin')).toBe(true);
+      expect(shiftedMax.isValid).toBe(false);
+      expect(shiftedMax.errors.some((e) => e.instancePath === '/normalization/targetMax')).toBe(true);
+    });
+
+    it('should reject incomplete normalization metadata', () => {
+      const result = validator.validate(buildDefinition({ method: 'observed_min_max' }));
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some((e) => e.instancePath === '/normalization' && e.keyword === 'required')).toBe(true);
+    });
+
+    it('should reject source-range fields on normalization metadata', () => {
+      const result = validator.validate(
+        buildDefinition({ method: 'observed_min_max', targetMin: 0, targetMax: 100, sourceMin: 0, sourceMax: 10 }),
+      );
+
+      expect(result.isValid).toBe(false);
+      expect(
+        result.errors.some((e) => e.instancePath === '/normalization' && e.keyword === 'additionalProperties'),
+      ).toBe(true);
+    });
+  });
+
   describe('Runtime', () => {
     it('should accept valid runtime values', () => {
       const runtimes = ['typescript', 'python'];

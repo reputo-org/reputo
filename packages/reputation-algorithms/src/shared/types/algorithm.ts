@@ -331,6 +331,32 @@ export interface AlgorithmValidationConfig {
 }
 
 /**
+ * Supported score normalization methods.
+ *
+ * Normalization is a configurable phase; observed min-max is currently the only
+ * supported method.
+ */
+export type AlgorithmNormalizationMethod = 'observed_min_max';
+
+/**
+ * Definition-level normalization metadata.
+ *
+ * Describes how an algorithm rescales scores into the shared target range.
+ * It is definition metadata only — presets carry no normalization input.
+ */
+export interface AlgorithmNormalization {
+  /**
+   * Active normalization method.
+   * Older definitions and frozen presets without a method value default to 'observed_min_max'.
+   */
+  method: AlgorithmNormalizationMethod;
+  /** Lower bound of the shared normalization target range (currently always 0). */
+  targetMin: number;
+  /** Upper bound of the shared normalization target range (currently always 100). */
+  targetMax: number;
+}
+
+/**
  * Supported runtimes (languages) for algorithm execution.
  *
  * Orchestration layers use this field to route algorithm activities to the correct language-specific worker.
@@ -375,6 +401,8 @@ export interface AlgorithmDefinition {
   dependencies?: AlgorithmDependency[];
   /** Optional root-level validation rules enforced by the shared validator */
   validation?: AlgorithmValidationConfig;
+  /** Optional normalization metadata; absent values default to observed min-max */
+  normalization?: AlgorithmNormalization;
 }
 
 /**
