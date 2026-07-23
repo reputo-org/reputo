@@ -2,6 +2,8 @@ export type {
   AlgorithmCategory,
   AlgorithmDefinition,
   AlgorithmKind,
+  AlgorithmNormalization,
+  AlgorithmNormalizationMethod,
   AlgorithmRuntime,
   AlgorithmValidationConfig,
   AlgorithmValidationRule,
