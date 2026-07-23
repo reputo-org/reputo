@@ -135,6 +135,13 @@ function extractInputs(inputs: PresetInputLike[]): CustomScoreParams {
     seenKeys.add(child.algorithm_key);
   }
 
+  // Entry weights are positive, but the aggregation divides by their sum,
+  // which can still overflow to Infinity.
+  const totalWeight = subAlgorithms.reduce((sum, child) => sum + child.weight, 0);
+  if (!Number.isFinite(totalWeight)) {
+    throw new Error('Invalid sub_algorithms weights: the total weight must be finite');
+  }
+
   return { didsKey, subAlgorithms };
 }
 

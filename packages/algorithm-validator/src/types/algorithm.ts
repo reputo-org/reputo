@@ -220,6 +220,22 @@ export interface AlgorithmValidationConfig {
   rules: AlgorithmValidationRule[];
 }
 
+/** Normalization is a configurable phase; observed min-max is currently the only supported method. */
+export type AlgorithmNormalizationMethod = 'observed_min_max';
+
+/**
+ * Definition-level normalization metadata.
+ * Definition metadata only — presets carry no normalization input.
+ */
+export interface AlgorithmNormalization {
+  /** Older definitions and frozen presets without a method value default to 'observed_min_max'. */
+  method: AlgorithmNormalizationMethod;
+  /** Lower bound of the shared normalization target range (currently always 0). */
+  targetMin: number;
+  /** Upper bound of the shared normalization target range (currently always 100). */
+  targetMax: number;
+}
+
 export type AlgorithmRuntime = 'typescript' | 'python';
 
 export interface AlgorithmDefinition {
@@ -235,4 +251,5 @@ export interface AlgorithmDefinition {
   runtime: AlgorithmRuntime;
   dependencies?: Array<{ key: string }>;
   validation?: AlgorithmValidationConfig;
+  normalization?: AlgorithmNormalization;
 }

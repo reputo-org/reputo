@@ -354,7 +354,7 @@ describe('computeCustomScore', () => {
     expect(storage.putObject).not.toHaveBeenCalled();
   });
 
-  it('rejects a non-positive child weight', async () => {
+  it('rejects a configuration whose total weight overflows to Infinity', async () => {
     const storage = {
       getObject: vi.fn(),
       putObject: vi.fn(),
@@ -362,7 +362,33 @@ describe('computeCustomScore', () => {
 
     await expect(
       computeCustomScore(
-        buildSnapshot([{ algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 0, inputs: [] }]),
+        buildSnapshot([
+          { algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: Number.MAX_VALUE, inputs: [] },
+          { algorithm_key: 'contribution_score', algorithm_version: '1.0.0', weight: Number.MAX_VALUE, inputs: [] },
+        ]),
+        storage as never,
+      ),
+    ).rejects.toThrow('Invalid sub_algorithms weights: the total weight must be finite');
+
+    expect(mockComputeVotingEngagement).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['zero', 0],
+    ['negative', -1],
+    ['non-finite', Number.POSITIVE_INFINITY],
+    ['NaN', Number.NaN],
+    ['missing', undefined],
+    ['malformed', '2'],
+  ])('rejects a %s child weight', async (_case, weight) => {
+    const storage = {
+      getObject: vi.fn(),
+      putObject: vi.fn(),
+    };
+
+    await expect(
+      computeCustomScore(
+        buildSnapshot([{ algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight, inputs: [] }]),
         storage as never,
       ),
     ).rejects.toThrow('Invalid sub_algorithms.0.weight');

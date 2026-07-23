@@ -263,7 +263,13 @@ function buildFieldSchema(input: any, label: string): z.ZodType {
         },
         { message: `${label} must not contain the same sub-algorithm more than once` },
       );
-      schema = subAlgorithmInput.required === false ? uniqueSchema.optional() : uniqueSchema;
+      // Entry weights are finite and positive, but their sum can still overflow to Infinity.
+      const weightRuleSchema = uniqueSchema.refine(
+        (entries) =>
+          Number.isFinite(entries.reduce((total: number, entry) => total + getSubAlgorithmEntryWeight(entry), 0)),
+        { message: `${label} total weight must be finite` },
+      );
+      schema = subAlgorithmInput.required === false ? weightRuleSchema.optional() : weightRuleSchema;
       break;
     }
 
@@ -303,6 +309,13 @@ function buildSubAlgorithmEntrySchema(label: string): z.ZodType {
       }),
     ),
   });
+}
+
+function getSubAlgorithmEntryWeight(entry: unknown): number {
+  if (!isRecord(entry) || typeof entry.weight !== 'number') {
+    return 0;
+  }
+  return entry.weight;
 }
 
 function buildObjectPropertySchema(prop: ObjectPropertyParam): z.ZodType {
