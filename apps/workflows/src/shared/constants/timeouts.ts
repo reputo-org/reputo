@@ -6,6 +6,11 @@ export const DEPENDENCY_RESOLUTION_TIMEOUT = '30 minutes';
 export const ONCHAIN_DATA_DEPENDENCY_RESOLUTION_TIMEOUT = '2 hours';
 export const DEEP_ID_POST_SCORES_TIMEOUT = '15 minutes';
 export const DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT = '5 minutes';
+// Covers one readiness pass (bounded by DeepID's 5-minute cursor lifetime) plus its cursor restarts.
+export const DEEP_ID_READINESS_CHECK_TIMEOUT = '30 minutes';
+export const DEEP_ID_READINESS_POLL_DELAYS_MS: readonly number[] = [5 * 60_000, 15 * 60_000, 60 * 60_000];
+export const DEEP_ID_READINESS_STEADY_POLL_DELAY_MS = 60 * 60_000;
+export const DEEP_ID_ENCRYPTION_DEADLINE_MS = 24 * 60 * 60_000;
 export const WORKFLOW_RUN_TIMEOUT = '4 hours';
 export const HEARTBEAT_TIMEOUT = '2 minutes';
 export const ACTIVITY_MAX_ATTEMPTS = 3;

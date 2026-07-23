@@ -157,6 +157,38 @@ export interface SubmitCustomRawScoresResult {
   children: CustomRawScoresChildResult[];
 }
 
+/** Activities that check whether a combined snapshot's child scores are ready for encrypted evaluation. */
+export interface DeepIdEncryptionReadinessActivities {
+  checkEncryptionReadiness: (input: CheckEncryptionReadinessInput) => Promise<CheckEncryptionReadinessResult>;
+}
+
+export interface CheckEncryptionReadinessInput {
+  snapshotId: string;
+  /** The snapshot's frozen combined preset — the selected children define the encrypted scopes. */
+  algorithmPresetFrozen: AlgorithmPresetFrozen;
+}
+
+/** Aggregate classification of one full readiness pass; never carries DIDs or ciphertexts. */
+export interface EncryptionReadinessCounts {
+  /** Unified users whose every selected child field is `encrypted`. */
+  complete: number;
+  /** Every selected field present but at least one still `pending_encryption` — the run keeps waiting. */
+  potentiallyComplete: number;
+  /** At least one selected field `null` or absent — excluded from the cohort, never zero-filled. */
+  incomplete: number;
+}
+
+export interface CheckEncryptionReadinessResult {
+  /** True only when a full pass contains no potentially complete user. */
+  ready: boolean;
+  counts: EncryptionReadinessCounts;
+  scannedUsers: number;
+  pages: number;
+  /** Full-pass restarts caused by cursor expiry within this poll. */
+  cursorRestarts: number;
+  lastRequestId?: string;
+}
+
 export type AlgorithmComputeFunction = (snapshot: Snapshot, storage: Storage) => Promise<AlgorithmResult>;
 
 export type TypescriptAlgorithmDispatcherActivities = {
