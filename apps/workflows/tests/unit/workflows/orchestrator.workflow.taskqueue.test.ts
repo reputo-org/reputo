@@ -4,6 +4,8 @@ import {
   ACTIVITY_MAX_ATTEMPTS,
   algorithmTypescriptTaskQueue,
   DB_ACTIVITY_TIMEOUT,
+  DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
+  DEEP_ID_READINESS_CHECK_TIMEOUT,
   DEPENDENCY_RESOLUTION_TIMEOUT,
   ONCHAIN_DATA_DEPENDENCY_RESOLUTION_TIMEOUT,
   onchainDataTaskQueue,
@@ -13,12 +15,23 @@ import {
 vi.mock('@temporalio/workflow', () => ({
   proxyActivities: vi.fn(),
   workflowInfo: vi.fn(),
+  sleep: vi.fn(async () => {}),
   log: {
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
   },
 }));
+
+function readyReadinessResult() {
+  return {
+    ready: true,
+    counts: { complete: 1, potentiallyComplete: 0, incomplete: 0 },
+    scannedUsers: 1,
+    pages: 1,
+    cursorRestarts: 0,
+  };
+}
 
 describe('OrchestratorWorkflow task queue routing', () => {
   it('routes dependency resolution to the orchestrator task queue and algorithm execution to the algorithm task queue', async () => {
@@ -91,6 +104,12 @@ describe('OrchestratorWorkflow task queue routing', () => {
     });
     expect(recordedOptions[3]).not.toHaveProperty('heartbeatTimeout');
     expect(recordedOptions[4]).toMatchObject({ taskQueue: algorithmTypescriptTaskQueue });
+    expect(recordedOptions[7]).toMatchObject({
+      taskQueue: 'orchestrator-q',
+      startToCloseTimeout: DEEP_ID_READINESS_CHECK_TIMEOUT,
+      heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
+      retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
+    });
     expect(resolveDependency).toHaveBeenCalledWith({
       dependencyKey: 'deepfunding-portal-api',
       snapshotId: 'snapshot-1',
@@ -234,6 +253,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
       },
     });
     const submitCustomRawScores = vi.fn().mockResolvedValue({ children: [] });
+    const checkEncryptionReadiness = vi.fn().mockResolvedValue(readyReadinessResult());
 
     proxyActivities.mockImplementation(
       () =>
@@ -244,6 +264,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
           resolveDependency,
           runTypescriptAlgorithm,
           submitCustomRawScores,
+          checkEncryptionReadiness,
         }) as never,
     );
 
@@ -271,6 +292,12 @@ describe('OrchestratorWorkflow task queue routing', () => {
         custom_score_details: 'snapshots/snapshot-1/custom_score_details.json',
       },
       timestamp: '2026-07-22T10:00:00.000Z',
+    });
+
+    expect(checkEncryptionReadiness).toHaveBeenCalledTimes(1);
+    expect(checkEncryptionReadiness).toHaveBeenCalledWith({
+      snapshotId: 'snapshot-1',
+      algorithmPresetFrozen: expect.objectContaining({ key: 'custom_score' }),
     });
   });
 
@@ -475,6 +502,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
       outputs: { token_value_over_time: 'snapshots/snapshot-1/token_value_over_time.csv' },
     });
     const submitCustomRawScores = vi.fn().mockResolvedValue({ children: [] });
+    const checkEncryptionReadiness = vi.fn().mockResolvedValue(readyReadinessResult());
 
     proxyActivities.mockImplementation(
       () =>
@@ -485,6 +513,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
           resolveDependency,
           runTypescriptAlgorithm,
           submitCustomRawScores,
+          checkEncryptionReadiness,
         }) as never,
     );
 

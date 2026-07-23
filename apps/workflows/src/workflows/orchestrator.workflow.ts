@@ -7,6 +7,7 @@ import {
   DB_ACTIVITY_TIMEOUT,
   DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
   DEEP_ID_POST_SCORES_TIMEOUT,
+  DEEP_ID_READINESS_CHECK_TIMEOUT,
   DEPENDENCY_RESOLUTION_TIMEOUT,
   HEARTBEAT_TIMEOUT,
   ONCHAIN_DATA_DEPENDENCY_RESOLUTION_TIMEOUT,
@@ -17,6 +18,7 @@ import { UnsupportedAlgorithmError } from '../shared/errors/index.js';
 import type {
   AlgorithmLibraryActivities,
   AlgorithmResult,
+  DeepIdEncryptionReadinessActivities,
   DeepIdPostScoresActivities,
   DeepIdSubmitCustomScoresActivities,
   DependencyKey,
@@ -32,6 +34,7 @@ import {
   getAlgorithmTaskQueueFromRuntime,
 } from '../shared/utils/orchestrator-input.utils.js';
 import { extractOnchainSyncTargets } from '../shared/utils/sync-targets.utils.js';
+import { pollForEncryptionReadiness } from './encryption-readiness.js';
 
 const { getSnapshot, updateSnapshot } = workflow.proxyActivities<ApiSnapshotActivities>({
   taskQueue: API_SNAPSHOT_ACTIVITIES_TASK_QUEUE,
@@ -233,6 +236,13 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
     retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
   });
 
+  const { checkEncryptionReadiness } = workflow.proxyActivities<DeepIdEncryptionReadinessActivities>({
+    taskQueue: orchestratorTaskQueue,
+    startToCloseTimeout: DEEP_ID_READINESS_CHECK_TIMEOUT,
+    heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
+    retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
+  });
+
   if (algorithmDefinition.kind === 'combined') {
     const childPresets = buildCombinedChildAlgorithmPresets(snapshot.algorithmPresetFrozen, algorithmDefinition);
     const childDependencySources = await Promise.all(
@@ -379,6 +389,22 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
           dropped,
           rejected,
         })),
+      });
+
+      // Nothing encrypted may be evaluated or submitted while a selected
+      // child score is still pending_encryption.
+      const readiness = await pollForEncryptionReadiness({
+        snapshotId,
+        algorithmPresetFrozen: snapshot.algorithmPresetFrozen,
+        checkEncryptionReadiness,
+      });
+
+      workflow.log.info('DeepID encrypted child scores are ready for evaluation', {
+        snapshotId,
+        ...readiness.counts,
+        pollCount: readiness.pollCount,
+        elapsedMs: readiness.elapsedMs,
+        lastRequestId: readiness.lastRequestId,
       });
     }
 
