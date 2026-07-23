@@ -6,6 +6,7 @@ import {
   createDeepIdEncryptionReadinessActivities,
   createDeepIdPostScoresActivities,
   createDeepIdSubmitCustomScoresActivities,
+  createDeepIdSubmitEncryptedScoresActivities,
   createOrchestratorDependencyResolverActivities,
 } from '../../activities/orchestrator/index.js';
 import config from '../../config/index.js';
@@ -60,6 +61,7 @@ async function run(): Promise<void> {
         storageConfig,
       }),
       ...createDeepIdEncryptionReadinessActivities(),
+      ...createDeepIdSubmitEncryptedScoresActivities(),
     },
     bundlerOptions: {
       ignoreModules: ['fs', 'path', 'os', 'crypto'],

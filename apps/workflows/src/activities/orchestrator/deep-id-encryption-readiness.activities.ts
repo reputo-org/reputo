@@ -1,12 +1,4 @@
-import {
-  createDeepIdClient,
-  type DeepIdClient,
-  DeepIdContractError,
-  ENCRYPTED_SCORE_SCOPES,
-  type EncryptedScoreScope,
-  HttpError,
-  parseEncryptedScores,
-} from '@reputo/deep-id-api';
+import { createDeepIdClient, type DeepIdClient, DeepIdContractError, HttpError } from '@reputo/deep-id-api';
 import { ApplicationFailure, Context } from '@temporalio/activity';
 
 import config from '../../config/index.js';
@@ -17,14 +9,18 @@ import type {
   DeepIdEncryptionReadinessActivities,
   EncryptionReadinessCounts,
 } from '../../shared/types/index.js';
-import { type CustomScoreChild, parseCustomScoreChildren } from '../../shared/utils/index.js';
+import { parseCustomScoreChildren } from '../../shared/utils/index.js';
+import {
+  classifyEncryptedUser,
+  EncryptedCohortViolation,
+  resolveSelectedEncryptedChildren,
+  type SelectedEncryptedChild,
+} from './deep-id-encrypted-cohort.js';
 
 const READINESS_PAGE_SIZE = 1000;
 
 /** Full-pass restarts allowed after cursor-expiry `400`s within one poll. */
 const CURSOR_RESTART_LIMIT = 3;
-
-const ENCRYPTED_SCOPE_SET = new Set<string>(ENCRYPTED_SCORE_SCOPES);
 
 class CursorExpiredError extends Error {
   constructor(readonly pagesSeen: number) {
@@ -37,62 +33,6 @@ function fatal(message: string, details: Record<string, unknown>): ApplicationFa
   return ApplicationFailure.nonRetryable(message, DEEP_ID_ENCRYPTION_READINESS_FATAL_ERROR_TYPE, details);
 }
 
-function resolveEncryptedScopes(children: CustomScoreChild[]): EncryptedScoreScope[] {
-  return children.map((child) => {
-    const scope = `${child.algorithm_key}_encr`;
-    if (!ENCRYPTED_SCOPE_SET.has(scope)) {
-      throw fatal(`Child algorithm "${child.algorithm_key}" has no DeepID encrypted score scope`, {
-        childKey: child.algorithm_key,
-      });
-    }
-    return scope as EncryptedScoreScope;
-  });
-}
-
-function classifyUser(
-  did: string,
-  scoresEncrValue: unknown,
-  selectedScopes: EncryptedScoreScope[],
-): keyof EncryptionReadinessCounts {
-  let scoresEncr: ReturnType<typeof parseEncryptedScores>;
-  try {
-    scoresEncr = parseEncryptedScores(scoresEncrValue);
-  } catch (error) {
-    if (error instanceof DeepIdContractError) {
-      throw fatal(`DeepID user "${did}" has malformed scores_encr: ${error.message}`, {
-        did,
-        issues: error.issues.map((issue) => issue.path),
-      });
-    }
-    throw error;
-  }
-
-  // No scores_encr at all means every selected field is absent.
-  if (scoresEncr === undefined) {
-    return 'incomplete';
-  }
-
-  let pending = 0;
-  for (const scope of selectedScopes) {
-    const field = scoresEncr[scope];
-    if (field === undefined || field === null) {
-      return 'incomplete';
-    }
-    if (field.status === 'pending_encryption') {
-      pending += 1;
-    }
-  }
-  if (pending > 0) {
-    return 'potentiallyComplete';
-  }
-
-  // A user with every selected ciphertext ready must reference metadata.
-  if (scoresEncr['seal-metadata'] === null) {
-    throw fatal(`DeepID user "${did}" has every selected child encrypted but no seal-metadata reference`, { did });
-  }
-  return 'complete';
-}
-
 interface ReadinessPass {
   counts: EncryptionReadinessCounts;
   scannedUsers: number;
@@ -101,7 +41,7 @@ interface ReadinessPass {
 
 async function scanUsers(
   client: DeepIdClient,
-  selectedScopes: EncryptedScoreScope[],
+  selectedChildren: SelectedEncryptedChild[],
   tokenScopes: string,
   onRequestId: (requestId: string) => void,
 ): Promise<ReadinessPass> {
@@ -119,7 +59,7 @@ async function scanUsers(
         onRequestId(page.requestId);
       }
       for (const [did, user] of Object.entries(page.users)) {
-        counts[classifyUser(did, user.scores_encr, selectedScopes)] += 1;
+        counts[classifyEncryptedUser(did, user.scores_encr, selectedChildren).state] += 1;
         scannedUsers += 1;
       }
       Context.current().heartbeat({ pages, scannedUsers });
@@ -138,6 +78,9 @@ async function scanUsers(
 function toReadinessFailure(error: unknown, snapshotId: string, lastRequestId: string | undefined): unknown {
   if (error instanceof ApplicationFailure) {
     return error;
+  }
+  if (error instanceof EncryptedCohortViolation) {
+    return fatal(error.message, error.details);
   }
   if (error instanceof DeepIdContractError) {
     return fatal(`DeepID readiness response broke the contract: ${error.message}`, {
@@ -175,8 +118,16 @@ export function createCheckEncryptionReadinessActivity() {
     const logger = Context.current().log;
 
     const children = parseCustomScoreChildren(algorithmPresetFrozen.inputs);
-    const selectedScopes = resolveEncryptedScopes(children);
-    const tokenScopes = ['api', ...selectedScopes].join(' ');
+    let selectedChildren: SelectedEncryptedChild[];
+    try {
+      selectedChildren = resolveSelectedEncryptedChildren(children);
+    } catch (error) {
+      if (error instanceof EncryptedCohortViolation) {
+        throw fatal(error.message, error.details);
+      }
+      throw error;
+    }
+    const tokenScopes = ['api', ...selectedChildren.map((child) => child.scope)].join(' ');
 
     const client = createDeepIdClient({
       identityBaseUrl: config.deepId.identityBaseUrl,
@@ -201,7 +152,7 @@ export function createCheckEncryptionReadinessActivity() {
 
     for (let cursorRestarts = 0; ; cursorRestarts++) {
       try {
-        const pass = await scanUsers(client, selectedScopes, tokenScopes, trackRequestId);
+        const pass = await scanUsers(client, selectedChildren, tokenScopes, trackRequestId);
         const ready = pass.counts.potentiallyComplete === 0;
 
         logger.info('DeepID encryption readiness pass finished', {
