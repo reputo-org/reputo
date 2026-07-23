@@ -18,6 +18,7 @@ import type {
   AlgorithmLibraryActivities,
   AlgorithmResult,
   DeepIdPostScoresActivities,
+  DeepIdSubmitCustomScoresActivities,
   DependencyKey,
   DependencyResolverActivities,
   OrchestratorWorkflowInput,
@@ -225,6 +226,13 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
     retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
   });
 
+  const { submitCustomRawScores } = workflow.proxyActivities<DeepIdSubmitCustomScoresActivities>({
+    taskQueue: orchestratorTaskQueue,
+    startToCloseTimeout: DEEP_ID_POST_SCORES_TIMEOUT,
+    heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
+    retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
+  });
+
   if (algorithmDefinition.kind === 'combined') {
     const childPresets = buildCombinedChildAlgorithmPresets(snapshot.algorithmPresetFrozen, algorithmDefinition);
     const childDependencySources = await Promise.all(
@@ -347,6 +355,33 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
       outputKeys: Object.keys(result.outputs),
     });
 
+    if (algorithmDefinition.kind === 'combined') {
+      // The custom path submits every child's native raw scores before the
+      // snapshot completes, and a submission failure fails the run. One
+      // run-consistent timestamp (the workflow start) keys DeepID's idempotent
+      // dedup, so activity retries and later run stages reuse the same value.
+      const runTimestamp = workflowInfo.startTime.toISOString();
+      const submission = await submitCustomRawScores({
+        snapshotId,
+        algorithmPresetFrozen: snapshot.algorithmPresetFrozen,
+        outputs: result.outputs,
+        timestamp: runTimestamp,
+      });
+
+      workflow.log.info('Submitted custom raw child scores to DeepID', {
+        snapshotId,
+        timestamp: runTimestamp,
+        children: submission.children.map(({ scoreType, observation, posted, ok, dropped, rejected }) => ({
+          scoreType,
+          observation,
+          posted,
+          ok,
+          dropped,
+          rejected,
+        })),
+      });
+    }
+
     await updateSnapshot({
       snapshotId,
       status: SnapshotStatus.completed,
@@ -389,18 +424,21 @@ export async function OrchestratorWorkflow(input: OrchestratorWorkflowInput): Pr
     throw error;
   }
 
-  // Best-effort: post the computed scores back to DeepID. This runs only after a
-  // successful completion (the catch above re-throws on failure) and never affects
-  // the snapshot status — a posting failure is retried by Temporal, then logged and
-  // swallowed so it can never fail the reputation run.
-  try {
-    const completedSnapshot = await getSnapshot({ snapshotId });
-    const postResult = await postSnapshotScores({ snapshot: completedSnapshot });
-    workflow.log.info('DeepID score posting finished', { snapshotId, ...postResult });
-  } catch (postError) {
-    workflow.log.error('DeepID score posting failed (non-fatal)', {
-      snapshotId,
-      error: (postError as Error).message,
-    });
+  // Best-effort: post a non-custom snapshot's scores back to DeepID. This runs
+  // only after a successful completion (the catch above re-throws on failure) and
+  // never affects the snapshot status — a posting failure is retried by Temporal,
+  // then logged and swallowed so it can never fail the reputation run. Combined
+  // snapshots already submitted their native child scores before completion.
+  if (algorithmDefinition.kind !== 'combined') {
+    try {
+      const completedSnapshot = await getSnapshot({ snapshotId });
+      const postResult = await postSnapshotScores({ snapshot: completedSnapshot });
+      workflow.log.info('DeepID score posting finished', { snapshotId, ...postResult });
+    } catch (postError) {
+      workflow.log.error('DeepID score posting failed (non-fatal)', {
+        snapshotId,
+        error: (postError as Error).message,
+      });
+    }
   }
 }
