@@ -4,7 +4,6 @@ import { Context } from '@temporalio/activity';
 import { parse } from 'csv-parse/sync';
 
 import config from '../../config/index.js';
-import { CUSTOM_SCORE_WEIGHTED_COLUMN } from '../../shared/constants/index.js';
 import type {
   DeepIdPostScoresActivities,
   DeepIdSyncContext,
@@ -12,13 +11,12 @@ import type {
   PostSnapshotScoresResult,
   Snapshot,
 } from '../../shared/types/index.js';
-import { buildCombinedChildAlgorithmPresets } from '../../shared/utils/orchestrator-input.utils.js';
 
 /**
  * Algorithm keys that are also DeepID score types (keys map 1:1 to types — no
- * translation). `custom_score` itself is never posted: a combined snapshot posts
- * each child's weighted scores under the child's own label, and the `custom_score`
- * type is reserved for the future aggregation step.
+ * translation). `custom_score` itself is never posted: a combined snapshot
+ * submits each child's native raw scores through the dedicated
+ * `submitCustomRawScores` path before it completes.
  */
 const POSTABLE_SCORE_TYPES = new Set<ScoreType>([
   'voting_engagement',
@@ -96,52 +94,13 @@ function collectStandaloneSource(snapshot: Snapshot, definition: AlgorithmDefini
 }
 
 /**
- * One source per sub-algorithm of a combined snapshot: the child's weighted-score
- * CSV (stored under the child's key), posted under the child's own label.
- */
-function collectCombinedSources(snapshot: Snapshot, definition: AlgorithmDefinition): ScoreSource[] {
-  const logger = Context.current().log;
-  const snapshotId = snapshot.id;
-  const children = buildCombinedChildAlgorithmPresets(snapshot.algorithmPresetFrozen, definition);
-
-  if (children.length === 0) {
-    logger.warn('Combined snapshot has no sub-algorithms; skipping score post', { snapshotId });
-    return [];
-  }
-
-  const sources: ScoreSource[] = [];
-  for (const child of children) {
-    if (!POSTABLE_SCORE_TYPES.has(child.key as ScoreType)) {
-      logger.warn('Sub-algorithm is not a DeepID score type; skipping its score post', {
-        snapshotId,
-        childKey: child.key,
-      });
-      continue;
-    }
-
-    const csvKey = snapshot.outputs?.[child.key];
-    if (typeof csvKey !== 'string' || csvKey.trim() === '') {
-      logger.warn('Snapshot is missing a sub-algorithm weighted output; skipping its score post', {
-        snapshotId,
-        childKey: child.key,
-      });
-      continue;
-    }
-
-    sources.push({ scoreType: child.key as ScoreType, csvKey, scoreColumnKey: CUSTOM_SCORE_WEIGHTED_COLUMN });
-  }
-
-  return sources;
-}
-
-/**
- * Posts a completed snapshot's scores back to DeepID via `POST /v1/clients/scores`.
- * A standalone snapshot posts its primary CSV under its own algorithm key; a
- * combined (`custom_score`) snapshot posts each child's weighted CSV under the
- * child's own key — never under `custom_score`. `did` is posted verbatim and must
- * be a valid DID; non-DID rows are logged and skipped. Best-effort by design — the
- * caller treats a thrown error as non-fatal so a posting failure never fails the
- * snapshot.
+ * Posts a completed standalone snapshot's primary CSV back to DeepID via
+ * `POST /v1/clients/scores` under the snapshot's own algorithm key. Combined
+ * (`custom_score`) snapshots are skipped: their native child scores are
+ * submitted by the fatal `submitCustomRawScores` path before completion. `did`
+ * is posted verbatim and must be a valid DID; non-DID rows are logged and
+ * skipped. Best-effort by design — the caller treats a thrown error as
+ * non-fatal so a posting failure never fails the snapshot.
  */
 export function createDeepIdPostScoresActivity(ctx: DeepIdSyncContext) {
   const { storage, storageConfig } = ctx;
@@ -156,10 +115,14 @@ export function createDeepIdPostScoresActivity(ctx: DeepIdSyncContext) {
       getAlgorithmDefinition({ key: algorithmKey, version: snapshot.algorithmPresetFrozen.version }),
     ) as AlgorithmDefinition;
 
-    const sources =
-      definition.kind === 'combined'
-        ? collectCombinedSources(snapshot, definition)
-        : collectStandaloneSource(snapshot, definition);
+    if (definition.kind === 'combined') {
+      logger.info('Combined snapshot scores are submitted by the custom raw-score path; skipping score post', {
+        snapshotId,
+      });
+      return EMPTY_RESULT;
+    }
+
+    const sources = collectStandaloneSource(snapshot, definition);
     if (sources.length === 0) {
       return EMPTY_RESULT;
     }
