@@ -18,6 +18,12 @@ export interface EncryptionReadinessPollInput {
   algorithmPresetFrozen: AlgorithmPresetFrozen;
   /** The proxied readiness activity — injected so the caller owns its Temporal options. */
   checkEncryptionReadiness: DeepIdEncryptionReadinessActivities['checkEncryptionReadiness'];
+  /**
+   * Workflow-time deadline (ms since epoch) anchored at raw-score submission.
+   * Re-entries after a pending processing pass pass it explicitly so the
+   * 24-hour deadline never restarts; when absent it is derived from now.
+   */
+  deadlineAtMs?: number;
 }
 
 export interface EncryptionReadinessPollOutcome {
@@ -44,7 +50,7 @@ export async function pollForEncryptionReadiness(
 
   // Date.now() is the deterministic workflow clock inside the sandbox.
   const submittedAtMs = Date.now();
-  const deadlineAtMs = submittedAtMs + DEEP_ID_ENCRYPTION_DEADLINE_MS;
+  const deadlineAtMs = input.deadlineAtMs ?? submittedAtMs + DEEP_ID_ENCRYPTION_DEADLINE_MS;
   const polledAtOffsetsMs: number[] = [];
 
   for (;;) {
