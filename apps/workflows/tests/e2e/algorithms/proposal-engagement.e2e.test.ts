@@ -139,11 +139,11 @@ describe('proposal_engagement (e2e)', () => {
     const { outputs } = await computeProposalEngagement(buildProposalSnapshot(), storage);
 
     const rows = parseCsv(storage.readText(outputs.proposal_engagement as string) as string);
-    // Raw scores (alice 1.8 = 2 × 0.9, bob −0.4 = −1 × 0.4) are min–max-normalized:
-    // the max maps to 100 and the min (bob's negative) to 0. Raw values are in the details.
+    // The CSV carries the raw scores (alice 1.8 = 2 × 0.9, bob −0.4 = −1 × 0.4) — no
+    // normalization, so a negative score stays negative.
     expect(rows).toEqual([
-      { did: 'did:plc:alice', proposal_engagement: '100' },
-      { did: 'did:plc:bob', proposal_engagement: '0' },
+      { did: 'did:plc:alice', proposal_engagement: '1.8' },
+      { did: 'did:plc:bob', proposal_engagement: '-0.4' },
     ]);
   });
 
@@ -264,11 +264,10 @@ describe('proposal_engagement (e2e) — edge cases', () => {
     );
 
     const rows = parseCsv(storage.readText(outputs.proposal_engagement as string) as string);
-    // Both owners share the same raw reward (1) → an all-equal cohort → min–max floor 0.
-    // The raw positive_sum (1) is asserted from the details JSON below.
+    // Both owners are credited the same raw reward (1) — the proposal is not split.
     expect(rows).toEqual([
-      { did: 'did:plc:alice', proposal_engagement: '0' },
-      { did: 'did:plc:bob', proposal_engagement: '0' },
+      { did: 'did:plc:alice', proposal_engagement: '1' },
+      { did: 'did:plc:bob', proposal_engagement: '1' },
     ]);
 
     const details = storage.readJson<ProposalDetails>(outputs.proposal_engagement_details as string);
@@ -301,8 +300,8 @@ describe('proposal_engagement (e2e) — edge cases', () => {
     );
 
     const rows = parseCsv(storage.readText(outputs.proposal_engagement as string) as string);
-    // Single-user cohort → min–max floor 0. Raw score 0.8 = tw 0.8 × norm 1 (see details).
-    expect(rows).toEqual([{ did: 'did:plc:alice', proposal_engagement: '0' }]);
+    // Raw score 0.8 = tw 0.8 × norm 1 (both asserted from the details below).
+    expect(rows).toEqual([{ did: 'did:plc:alice', proposal_engagement: '0.8' }]);
 
     const details = storage.readJson<ProposalDetails>(outputs.proposal_engagement_details as string);
     const p1 = details.dids[0].proposals.find((p) => p.proposal_id === 1);

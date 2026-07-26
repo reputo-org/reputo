@@ -189,7 +189,7 @@ describe('custom_score (e2e)', () => {
     // zero for the vote-less did:plc:c — raw child scores, not weighted shares.
     const votingRows = parseCsv(storage.readText(outputs.voting_engagement as string) as string);
     expect(votingRows).toEqual([
-      { did: 'did:plc:a', voting_engagement: '100' },
+      { did: 'did:plc:a', voting_engagement: '1' },
       { did: 'did:plc:b', voting_engagement: '0' },
       { did: 'did:plc:c', voting_engagement: '0' },
     ]);
@@ -198,8 +198,8 @@ describe('custom_score (e2e)', () => {
     // portal identity, so no row is rebuilt for it from the parent DID list.
     const proposalRows = parseCsv(storage.readText(outputs.proposal_engagement as string) as string);
     expect(proposalRows).toEqual([
-      { did: 'did:plc:a', proposal_engagement: '100' },
-      { did: 'did:plc:b', proposal_engagement: '0' },
+      { did: 'did:plc:a', proposal_engagement: '1.8' },
+      { did: 'did:plc:b', proposal_engagement: '-0.4' },
     ]);
   });
 
@@ -303,21 +303,21 @@ describe('custom_score (e2e)', () => {
       portalStorage,
     );
 
-    // Both children read the same DB and kept their native CSVs under the
-    // parent prefix; alice tops both native cohorts at the raw 0–100 scale.
+    // Both children read the same DB and kept their native CSVs under the parent
+    // prefix, each on its own raw scale.
     expect(parseCsv(portalStorage.readText(outputs.proposal_engagement as string) as string)).toEqual([
-      { did: 'did:plc:a', proposal_engagement: '100' },
-      { did: 'did:plc:b', proposal_engagement: '0' },
+      { did: 'did:plc:a', proposal_engagement: '1.8' },
+      { did: 'did:plc:b', proposal_engagement: '-0.4' },
     ]);
     expect(parseCsv(portalStorage.readText(outputs.contribution_score as string) as string)).toEqual([
-      { did: 'did:plc:a', contribution_score: '100' },
+      { did: 'did:plc:a', contribution_score: '10' },
       { did: 'did:plc:b', contribution_score: '0' },
     ]);
   });
 });
 
 describe('custom_score (e2e) — edge cases', () => {
-  it('keeps an all-equal, already-normalized child vector unchanged', async () => {
+  it('keeps an all-equal child vector unchanged', async () => {
     const storage = createInMemoryStorage();
     storage.seed(
       'uploads/dids.json',
@@ -371,8 +371,8 @@ describe('custom_score (e2e) — edge cases', () => {
 
     const rows = parseCsv(storage.readText(outputs.voting_engagement as string) as string);
     expect(rows).toEqual([
-      { did: 'did:plc:a', voting_engagement: '100' },
-      { did: 'did:plc:b', voting_engagement: '100' },
+      { did: 'did:plc:a', voting_engagement: '1' },
+      { did: 'did:plc:b', voting_engagement: '1' },
     ]);
   });
 
