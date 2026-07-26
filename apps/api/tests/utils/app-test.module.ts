@@ -11,6 +11,7 @@ import { HealthModule } from '../../src/health';
 import { PersistenceModule, SnapshotListenerService } from '../../src/persistence';
 import { HttpExceptionFilter } from '../../src/shared/filters/http-exception.filter';
 import { SnapshotModule } from '../../src/snapshot/snapshot.module';
+import { SnapshotReconcilerService } from '../../src/snapshot/snapshot-reconciler.service';
 import { StorageService } from '../../src/storage/storage.service';
 import { TemporalService } from '../../src/temporal';
 import { AUTH_TEST_ENV, applyAuthTestEnv } from './auth-session';
@@ -86,11 +87,21 @@ export async function createTestApp(options: TestAppOptions) {
   };
 
   const mockTemporalService = {
-    startSnapshotWorkflow: async () => undefined,
+    snapshotWorkflowId: (snapshotId: string) => `snapshot-${snapshotId}`,
+    startRunSnapshotWorkflow: async (snapshotId: string) => ({ workflowId: `snapshot-${snapshotId}` }),
+    describeSnapshotWorkflow: async () => ({ outcome: 'not_found' as const }),
+    getAvailability: () => 'down' as const,
     cancelSnapshotWorkflow: async () => undefined,
     terminateSnapshotWorkflow: async () => undefined,
     cancelSnapshotWorkflows: async () => undefined,
     terminateSnapshotWorkflows: async () => undefined,
+  };
+
+  // The reconciler would sweep rows the e2e tests seeded with old timestamps;
+  // its behavior is covered by unit tests.
+  const noopReconciler = {
+    onApplicationBootstrap: () => undefined,
+    onModuleDestroy: () => undefined,
   };
 
   const mockOAuthService =
@@ -148,6 +159,8 @@ export async function createTestApp(options: TestAppOptions) {
     .useValue(mockStorageService)
     .overrideProvider(TemporalService)
     .useValue(mockTemporalService)
+    .overrideProvider(SnapshotReconcilerService)
+    .useValue(noopReconciler)
     .compile();
 
   const app = moduleRef.createNestApplication();

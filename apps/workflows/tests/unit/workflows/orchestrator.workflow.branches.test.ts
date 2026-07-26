@@ -221,7 +221,7 @@ describe('OrchestratorWorkflow branches', () => {
       (thrown) => thrown as Error,
     );
 
-    // Errors thrown outside the execution try/catch must still fail the run, not retry the task.
+    // Errors thrown before the algorithm phase must still fail the run, not retry the task.
     expect(error.message).toContain("Cannot destructure property 'algorithmDefinition'");
     expect(error).toBeInstanceOf(ApplicationFailure);
 
@@ -232,7 +232,160 @@ describe('OrchestratorWorkflow branches', () => {
         status: SnapshotStatus.running,
       }),
     );
+    // The definition phase now sits inside the run-wide failure handler, so
+    // the row is finalized instead of being stranded in `running`.
+    expect(activities.updateSnapshot).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        snapshotId: 'snapshot-1',
+        status: SnapshotStatus.failed,
+        error: { message: expect.stringContaining("Cannot destructure property 'algorithmDefinition'") },
+      }),
+    );
+    expect(activities.updateSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it('marks the snapshot as failed when the definition lookup activity fails', async () => {
+    const { proxyActivities, isCancellation } = await loadWorkflowModule();
+    const lookupError = ApplicationFailure.create({ message: 'definition service unavailable' });
+    const activities = createProxyActivitiesMock({
+      getSnapshot: vi.fn().mockResolvedValue({
+        status: SnapshotStatus.queued,
+        algorithmPresetFrozen: {
+          key: 'algo-key',
+          version: '1.0.0',
+          inputs: [],
+        },
+      }),
+      getAlgorithmDefinition: vi.fn().mockRejectedValue(lookupError),
+    });
+    proxyActivities.mockImplementation(activities.implementation);
+    isCancellation.mockReturnValue(false);
+
+    const { OrchestratorWorkflow } = await import('../../../src/workflows/orchestrator.workflow.js');
+
+    await expect(OrchestratorWorkflow({ snapshotId: 'snapshot-1' })).rejects.toBe(lookupError);
+
+    expect(activities.updateSnapshot).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        snapshotId: 'snapshot-1',
+        status: SnapshotStatus.failed,
+        error: { message: 'definition service unavailable' },
+      }),
+    );
+  });
+
+  it('marks the snapshot as cancelled when dependency resolution is cancelled', async () => {
+    const { proxyActivities, isCancellation } = await loadWorkflowModule();
+    const cancelError = new CancelledFailure('cancelled during dependency resolution');
+    const activities = createProxyActivitiesMock({
+      getSnapshot: vi.fn().mockResolvedValue({
+        status: SnapshotStatus.queued,
+        algorithmPresetFrozen: {
+          key: 'algo-key',
+          version: '1.0.0',
+          inputs: [],
+        },
+      }),
+      getAlgorithmDefinition: vi.fn().mockResolvedValue({
+        algorithmDefinition: {
+          key: 'algo-key',
+          version: '1.0.0',
+          runtime: 'typescript',
+          dependencies: [{ key: 'deep-id' }],
+        },
+      }),
+      resolveDependency: vi.fn().mockRejectedValue(cancelError),
+    });
+    proxyActivities.mockImplementation(activities.implementation);
+    isCancellation.mockReturnValue(true);
+
+    const { OrchestratorWorkflow } = await import('../../../src/workflows/orchestrator.workflow.js');
+
+    await expect(OrchestratorWorkflow({ snapshotId: 'snapshot-1' })).rejects.toBe(cancelError);
+
+    expect(activities.runTypescriptAlgorithm).not.toHaveBeenCalled();
+    expect(activities.updateSnapshot).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        snapshotId: 'snapshot-1',
+        status: SnapshotStatus.cancelled,
+        error: { message: 'Workflow was cancelled' },
+      }),
+    );
+  });
+
+  it('skips the terminal write when the snapshot row was deleted mid-run', async () => {
+    const { proxyActivities, isCancellation } = await loadWorkflowModule();
+    const notFound = ApplicationFailure.create({
+      message: 'Snapshot snapshot-1 not found',
+      type: 'SnapshotNotFoundError',
+      nonRetryable: true,
+    });
+    const activities = createProxyActivitiesMock({
+      getSnapshot: vi.fn().mockResolvedValue({
+        status: SnapshotStatus.queued,
+        algorithmPresetFrozen: {
+          key: 'algo-key',
+          version: '1.0.0',
+          inputs: [],
+        },
+      }),
+      getAlgorithmDefinition: vi.fn().mockResolvedValue({
+        algorithmDefinition: {
+          key: 'algo-key',
+          version: '1.0.0',
+          runtime: 'typescript',
+          dependencies: [],
+        },
+      }),
+      runTypescriptAlgorithm: vi.fn().mockRejectedValue(notFound),
+    });
+    proxyActivities.mockImplementation(activities.implementation);
+    isCancellation.mockReturnValue(false);
+
+    const { OrchestratorWorkflow } = await import('../../../src/workflows/orchestrator.workflow.js');
+
+    await expect(OrchestratorWorkflow({ snapshotId: 'snapshot-1' })).rejects.toBe(notFound);
+
+    // Only the initial `running` write — no failed/cancelled write for a row that is gone.
     expect(activities.updateSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('rethrows the original failure when the terminal status write itself fails', async () => {
+    const { proxyActivities, isCancellation } = await loadWorkflowModule();
+    const executionError = ApplicationFailure.create({ message: 'algorithm failed' });
+    const updateSnapshot = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValue(ApplicationFailure.create({ message: 'db write failed' }));
+    const activities = createProxyActivitiesMock({
+      getSnapshot: vi.fn().mockResolvedValue({
+        status: SnapshotStatus.queued,
+        algorithmPresetFrozen: {
+          key: 'algo-key',
+          version: '1.0.0',
+          inputs: [],
+        },
+      }),
+      updateSnapshot,
+      getAlgorithmDefinition: vi.fn().mockResolvedValue({
+        algorithmDefinition: {
+          key: 'algo-key',
+          version: '1.0.0',
+          runtime: 'typescript',
+          dependencies: [],
+        },
+      }),
+      runTypescriptAlgorithm: vi.fn().mockRejectedValue(executionError),
+    });
+    proxyActivities.mockImplementation(activities.implementation);
+    isCancellation.mockReturnValue(false);
+
+    const { OrchestratorWorkflow } = await import('../../../src/workflows/orchestrator.workflow.js');
+
+    await expect(OrchestratorWorkflow({ snapshotId: 'snapshot-1' })).rejects.toBe(executionError);
   });
 
   it('converts a plain workflow error into a non-retryable ApplicationFailure and still marks the snapshot failed', async () => {

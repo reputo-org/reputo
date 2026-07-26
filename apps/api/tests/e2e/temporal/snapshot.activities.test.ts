@@ -172,6 +172,8 @@ describe('API snapshot activities (integration)', () => {
     ])('stamps completedAt on transition to %s', async (status) => {
       const { snapshot } = await seedSnapshot();
 
+      // Terminal statuses are reached from running (queued → completed is blocked).
+      await env.run(activities.updateSnapshot, { snapshotId: snapshot.id, status: SnapshotStatus.running });
       await env.run(activities.updateSnapshot, { snapshotId: snapshot.id, status });
 
       const persisted = await dataSource.getRepository(SnapshotEntity).findOne({ where: { id: snapshot.id } });
@@ -210,6 +212,7 @@ describe('API snapshot activities (integration)', () => {
         outputs: { csv: 'snapshots/result.csv' },
       } satisfies UpdateSnapshotInput;
 
+      await env.run(activities.updateSnapshot, { snapshotId: snapshot.id, status: SnapshotStatus.running });
       await env.run(activities.updateSnapshot, input);
       const snapshotRepo = dataSource.getRepository(SnapshotEntity);
       const after1 = await snapshotRepo.findOne({ where: { id: snapshot.id }, relations: { outputs: true } });
@@ -222,6 +225,19 @@ describe('API snapshot activities (integration)', () => {
       expect(after2?.outputs.map((o) => ({ key: o.key, value: o.value }))).toEqual(
         after1?.outputs.map((o) => ({ key: o.key, value: o.value })),
       );
+    });
+
+    it('ignores a status write that would leave a terminal state', async () => {
+      const { snapshot } = await seedSnapshot();
+
+      await env.run(activities.updateSnapshot, { snapshotId: snapshot.id, status: SnapshotStatus.running });
+      await env.run(activities.updateSnapshot, { snapshotId: snapshot.id, status: SnapshotStatus.cancelled });
+      // A late workflow write must not resurrect the settled row, and the
+      // activity must still succeed so the workflow does not retry forever.
+      await env.run(activities.updateSnapshot, { snapshotId: snapshot.id, status: SnapshotStatus.completed });
+
+      const persisted = await dataSource.getRepository(SnapshotEntity).findOne({ where: { id: snapshot.id } });
+      expect(persisted?.status).toBe(SnapshotStatus.cancelled);
     });
 
     it('throws non-retryable ApplicationFailure when the snapshot is missing', async () => {

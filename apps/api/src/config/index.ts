@@ -5,6 +5,7 @@ import consentConfig from './consent.config';
 import databaseConfig from './database.config';
 import { env, envSchema } from './env';
 import loggerConfig from './logger.config';
+import snapshotConfig from './snapshot.config';
 import storageConfig from './storage.config';
 import temporalConfig from './temporal.config';
 
@@ -15,6 +16,7 @@ export const configModules = [
   consentConfig,
   databaseConfig,
   loggerConfig,
+  snapshotConfig,
   storageConfig,
   temporalConfig,
 ];

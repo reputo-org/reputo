@@ -273,13 +273,18 @@ describe('SnapshotRepository', () => {
 
       expect(snapshotRepoMock.manager.transaction).toHaveBeenCalledOnce();
       expect(txSnapshotRepo.save).toHaveBeenCalled();
+      expect(txSnapshotRepo.findOne).toHaveBeenNthCalledWith(1, {
+        where: { id: SNAPSHOT_ID },
+        lock: { mode: 'pessimistic_write' },
+      });
       expect(txManager.query).toHaveBeenCalledWith('SELECT pg_notify($1, $2)', expect.arrayContaining([SNAPSHOT_ID]));
-      expect(result?._id).toBe(SNAPSHOT_ID);
-      expect(result?.status).toBe(SnapshotStatus.running);
+      expect(result?.applied).toBe(true);
+      expect(result?.row._id).toBe(SNAPSHOT_ID);
+      expect(result?.row.status).toBe(SnapshotStatus.running);
     });
 
     it('replaces outputs via `delete + save` inside the same transaction', async () => {
-      const initial = createEntity();
+      const initial = createEntity({ status: SnapshotStatus.running, startedAt: FIXED_NOW });
       const refreshed = createEntity({
         status: SnapshotStatus.completed,
         completedAt: FIXED_NOW,
@@ -296,7 +301,7 @@ describe('SnapshotRepository', () => {
       expect(txOutputRepo.delete).toHaveBeenCalledWith({ snapshotId: SNAPSHOT_ID });
       const savedRows = txOutputRepo.save.mock.calls[0][0] as Array<{ key: string; value: string }>;
       expect(savedRows).toEqual([expect.objectContaining({ key: 'csv', value: 'snapshots/out.csv' })]);
-      expect(result?.outputs).toEqual({ csv: 'snapshots/out.csv' });
+      expect(result?.row.outputs).toEqual({ csv: 'snapshots/out.csv' });
     });
 
     it('skips undefined output values when building child rows', async () => {
@@ -328,6 +333,65 @@ describe('SnapshotRepository', () => {
       await expect(repository.applyExternalUpdate(SNAPSHOT_ID, { status: SnapshotStatus.completed })).rejects.toThrow(
         'boom',
       );
+    });
+
+    it.each([
+      [SnapshotStatus.queued, SnapshotStatus.completed],
+      [SnapshotStatus.completed, SnapshotStatus.running],
+      [SnapshotStatus.cancelled, SnapshotStatus.completed],
+      [SnapshotStatus.failed, SnapshotStatus.running],
+      [SnapshotStatus.running, SnapshotStatus.queued],
+    ])('ignores the whole update on a blocked %s → %s transition', async (from, to) => {
+      const current = createEntity({ status: from });
+      txSnapshotRepo.findOne.mockResolvedValueOnce(current).mockResolvedValueOnce(current);
+
+      const result = await repository.applyExternalUpdate(SNAPSHOT_ID, {
+        status: to,
+        outputs: { csv: 'snapshots/late.csv' },
+      });
+
+      expect(result?.applied).toBe(false);
+      expect(result?.row.status).toBe(from);
+      expect(txSnapshotRepo.save).not.toHaveBeenCalled();
+      expect(txOutputRepo.delete).not.toHaveBeenCalled();
+      expect(txManager.query).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [SnapshotStatus.queued, SnapshotStatus.failed],
+      [SnapshotStatus.queued, SnapshotStatus.cancelled],
+      [SnapshotStatus.running, SnapshotStatus.completed],
+      [SnapshotStatus.completed, SnapshotStatus.completed],
+    ])('applies an allowed %s → %s transition', async (from, to) => {
+      const initial = createEntity({ status: from });
+      const refreshed = createEntity({ status: to });
+      txSnapshotRepo.findOne.mockResolvedValueOnce(initial).mockResolvedValueOnce(refreshed);
+
+      const result = await repository.applyExternalUpdate(SNAPSHOT_ID, { status: to });
+
+      expect(result?.applied).toBe(true);
+      expect(result?.row.status).toBe(to);
+      expect(txSnapshotRepo.save).toHaveBeenCalled();
+      expect(txManager.query).toHaveBeenCalled();
+    });
+  });
+
+  describe('findUnsettled', () => {
+    it('selects queued/running rows older than the cutoff, oldest first', async () => {
+      const cutoff = new Date('2026-05-21T00:10:00.000Z');
+      snapshotRepoMock.find.mockResolvedValue([createEntity()]);
+
+      const rows = await repository.findUnsettled(cutoff);
+
+      expect(snapshotRepoMock.find).toHaveBeenCalledWith({
+        where: {
+          status: expect.anything(),
+          updatedAt: expect.anything(),
+        },
+        order: { createdAt: 'ASC' },
+      });
+      expect(rows).toHaveLength(1);
+      expect(rows[0]._id).toBe(SNAPSHOT_ID);
     });
   });
 

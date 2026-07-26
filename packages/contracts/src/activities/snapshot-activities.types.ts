@@ -1,6 +1,13 @@
 import type { SnapshotStatus } from '../enums/snapshot-status.js';
 import type { SnapshotDto, SnapshotError, SnapshotOutputs, SnapshotTemporalInfo } from '../snapshot/snapshot.dto.js';
 
+/**
+ * `ApplicationFailure.type` thrown (non-retryable) by the API snapshot
+ * activities when the snapshot row no longer exists. Shared so workflow code
+ * can recognize a deleted snapshot without matching on message text.
+ */
+export const SNAPSHOT_NOT_FOUND_ERROR_TYPE = 'SnapshotNotFoundError' as const;
+
 export interface GetSnapshotInput {
   snapshotId: string;
 }

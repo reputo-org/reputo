@@ -8,6 +8,7 @@ import { SnapshotController } from './snapshot.controller';
 import { SnapshotRepository } from './snapshot.repository';
 import { SnapshotService } from './snapshot.service';
 import { SnapshotEventsService } from './snapshot-events.service';
+import { SnapshotReconcilerService } from './snapshot-reconciler.service';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { SnapshotEventsService } from './snapshot-events.service';
     StorageModule,
   ],
   controllers: [SnapshotController],
-  providers: [SnapshotRepository, SnapshotService, SnapshotEventsService],
+  providers: [SnapshotRepository, SnapshotService, SnapshotEventsService, SnapshotReconcilerService],
   exports: [SnapshotService, SnapshotRepository],
 })
 export class SnapshotModule {}

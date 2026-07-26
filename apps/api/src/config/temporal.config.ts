@@ -7,4 +7,5 @@ export default registerAs('temporal', () => ({
   namespace: env.TEMPORAL_NAMESPACE,
   orchestratorTaskQueue: env.TEMPORAL_ORCHESTRATOR_TASK_QUEUE,
   apiSnapshotActivitiesTaskQueue: env.TEMPORAL_API_SNAPSHOT_ACTIVITIES_TASK_QUEUE,
+  healthCheckIntervalMs: env.TEMPORAL_HEALTH_CHECK_INTERVAL_MS,
 }));

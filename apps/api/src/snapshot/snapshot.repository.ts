@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SnapshotStatus } from '@reputo/contracts';
-import { type EntityManager, type FindOptionsWhere, Raw, Repository } from 'typeorm';
+import { type EntityManager, type FindOptionsWhere, In, LessThan, Raw, Repository } from 'typeorm';
 import type { AlgorithmPresetInput } from '../algorithm-preset/algorithm-preset.repository';
 import { SNAPSHOT_UPDATES_CHANNEL, SnapshotEntity, SnapshotOutputEntity } from '../persistence';
 import type { PaginateOptions, PaginateResult } from '../shared/persistence';
@@ -70,6 +70,31 @@ export interface SnapshotApplyExternalUpdate {
   temporal?: SnapshotTemporal;
   outputs?: SnapshotOutputs;
   error?: SnapshotError;
+}
+
+export interface SnapshotExternalUpdateResult {
+  row: SnapshotRow;
+  /** False when the whole update was ignored because of a blocked status transition. */
+  applied: boolean;
+}
+
+const TERMINAL_SNAPSHOT_STATUSES: readonly SnapshotStatus[] = [
+  SnapshotStatus.completed,
+  SnapshotStatus.failed,
+  SnapshotStatus.cancelled,
+];
+
+/**
+ * Snapshot status state machine: `queued → running → completed|failed|cancelled`
+ * (queued may also fail or be cancelled directly). Terminal statuses are
+ * immutable; re-applying the current status stays allowed so retried activity
+ * writes remain idempotent.
+ */
+function canTransition(from: SnapshotStatus, to: SnapshotStatus): boolean {
+  if (from === to) return true;
+  if (from === SnapshotStatus.queued) return to !== SnapshotStatus.completed;
+  if (from === SnapshotStatus.running) return TERMINAL_SNAPSHOT_STATUSES.includes(to);
+  return false;
 }
 
 function mapOutputs(outputs: SnapshotOutputEntity[]): SnapshotOutputs | undefined {
@@ -220,18 +245,32 @@ export class SnapshotRepository {
    * outputs are provided, and the `pg_notify(snapshot_updates, <id>)` all
    * share one transaction so SSE listeners only see committed rows.
    *
+   * The row is read `FOR UPDATE` so concurrent writers (workflow activity vs.
+   * reconciler) serialize, and a status change outside the state machine
+   * (see `canTransition`) turns the whole update into a no-op with
+   * `applied: false` — a late workflow write can never resurrect a row the
+   * reconciler or a cancellation already settled.
+   *
    * Output writes use `delete + save` for full-replacement idempotency:
    * re-applying the same input yields the same final row set.
    *
-   * Returns the mapped row or `null` when no snapshot matches the id.
+   * Returns `null` when no snapshot matches the id.
    */
-  async applyExternalUpdate(id: string, data: SnapshotApplyExternalUpdate): Promise<SnapshotRow | null> {
+  async applyExternalUpdate(
+    id: string,
+    data: SnapshotApplyExternalUpdate,
+  ): Promise<SnapshotExternalUpdateResult | null> {
     return this.snapshots.manager.transaction(async (manager) => {
       const snapshotRepo = manager.getRepository(SnapshotEntity);
       const outputRepo = manager.getRepository(SnapshotOutputEntity);
 
-      const entity = await snapshotRepo.findOne({ where: { id } });
+      const entity = await snapshotRepo.findOne({ where: { id }, lock: { mode: 'pessimistic_write' } });
       if (!entity) return null;
+
+      if (data.status !== undefined && !canTransition(entity.status, data.status)) {
+        const current = await snapshotRepo.findOne({ where: { id }, relations: { outputs: true } });
+        return current ? { row: mapSnapshotRow(current), applied: false } : null;
+      }
 
       let touched = false;
       if (data.status !== undefined) {
@@ -271,7 +310,19 @@ export class SnapshotRepository {
       await manager.query('SELECT pg_notify($1, $2)', [SNAPSHOT_UPDATES_CHANNEL, id]);
 
       const refreshed = await snapshotRepo.findOne({ where: { id }, relations: { outputs: true } });
-      return refreshed ? mapSnapshotRow(refreshed) : null;
+      return refreshed ? { row: mapSnapshotRow(refreshed), applied: true } : null;
     });
+  }
+
+  /** Non-terminal (queued/running) rows not touched since `updatedBefore`, oldest first. */
+  async findUnsettled(updatedBefore: Date): Promise<SnapshotRow[]> {
+    const rows = await this.snapshots.find({
+      where: {
+        status: In([SnapshotStatus.queued, SnapshotStatus.running]),
+        updatedAt: LessThan(updatedBefore),
+      },
+      order: { createdAt: 'ASC' },
+    });
+    return rows.map(mapSnapshotRow);
   }
 }

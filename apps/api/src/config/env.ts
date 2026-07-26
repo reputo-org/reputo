@@ -179,6 +179,31 @@ export const envSchema = z
       .min(1)
       .default(API_SNAPSHOT_ACTIVITIES_TASK_QUEUE)
       .describe('Temporal task queue the API worker hosts snapshot activities on'),
+    TEMPORAL_HEALTH_CHECK_INTERVAL_MS: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .default(30_000)
+      .describe('Interval (ms) for the Temporal reachability probe reported by /health; 0 disables the probe'),
+
+    SNAPSHOT_RECONCILE_INTERVAL_MS: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .default(60_000)
+      .describe('Interval (ms) between snapshot lifecycle reconciliation passes; 0 disables the reconciler'),
+    SNAPSHOT_RECONCILE_GRACE_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(120_000)
+      .describe('Minimum age (ms) since the last update before a queued/running snapshot is reconciled'),
+    SNAPSHOT_START_FAILED_AFTER_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(600_000)
+      .describe('Age (ms) after which a queued snapshot whose workflow cannot be started is marked failed'),
   })
   .refine((e) => e.NODE_ENV !== 'production' || e.AUTH_MODE !== AUTH_MODE_MOCK, {
     error: 'AUTH_MODE=mock is not permitted when NODE_ENV=production.',
