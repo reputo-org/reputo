@@ -108,7 +108,7 @@
                     {
                         "key": "contribution_score",
                         "type": "number",
-                        "description": "Final contribution score for the user, normalized to a 0–100 scale across all scored users."
+                        "description": "Raw contribution score for the user. It is not normalized, so its range depends on the scored comments."
                     }
                 ]
             }

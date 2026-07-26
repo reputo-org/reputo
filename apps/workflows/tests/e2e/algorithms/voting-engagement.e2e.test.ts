@@ -122,16 +122,15 @@ describe('voting_engagement (e2e)', () => {
     expect(storage.has(`snapshots/${SNAPSHOT_ID}/voting_engagement_details.json`)).toBe(true);
   });
 
-  it('writes one CSV row per DID, sorted, with entropy scores rescaled to 0–100', async () => {
+  it('writes one CSV row per DID, sorted, with the raw entropy scores on 0–1', async () => {
     const { outputs } = await computeVotingEngagement(buildVotingSnapshot(), storage);
 
     const csv = storage.readText(outputs.voting_engagement as string);
     expect(csv).toBeDefined();
     const rows = parseCsv(csv as string);
 
-    // Normalized entropy [0,1] is rescaled linearly onto 0–100 (×100).
     expect(rows).toEqual([
-      { did: 'did:plc:alice', voting_engagement: '100' }, // uniform over 11 categories → 1 → 100
+      { did: 'did:plc:alice', voting_engagement: '1' }, // uniform over 11 categories → 1
       { did: 'did:plc:bob', voting_engagement: '0' }, // all identical votes → 0
       { did: 'did:plc:carol', voting_engagement: '0' }, // no resolved collections → 0
     ]);
@@ -270,7 +269,7 @@ describe('voting_engagement (e2e) — edge cases', () => {
     const { outputs } = await computeVotingEngagement(snapshot, storage);
 
     const rows = parseCsv(storage.readText(outputs.voting_engagement as string) as string);
-    expect(rows).toEqual([{ did: 'did:plc:multi', voting_engagement: '100' }]); // entropy 1 → 100
+    expect(rows).toEqual([{ did: 'did:plc:multi', voting_engagement: '1' }]); // entropy 1
 
     const details = storage.readJson<{
       dids: Array<{ did: string; collection_ids: string[]; total_votes: number }>;

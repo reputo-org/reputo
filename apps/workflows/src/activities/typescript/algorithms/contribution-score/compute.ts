@@ -9,7 +9,6 @@ import config from '../../../../config/index.js';
 import { HEARTBEAT_INTERVAL } from '../../../../shared/constants/index.js';
 import type { AlgorithmResult, Snapshot } from '../../../../shared/types/index.js';
 import { stringifyCsvAsync } from '../../../../shared/utils/index.js';
-import { normalizeScores } from '../shared/normalization/index.js';
 import { buildCommentBenchmarkRecord, formatBenchmarkOutput } from './benchmark/index.js';
 import {
   aggregateVotesByComment,
@@ -123,24 +122,12 @@ export async function computeContributionScore(snapshot: Snapshot, storage: Stor
       }
     }
 
-    const rawResults: ContributionScoreResult[] = dids.map((did) => ({
+    const results: ContributionScoreResult[] = dids.map((did) => ({
       did,
       contribution_score: roundScore(didScores.get(did) ?? 0),
     }));
 
-    rawResults.sort((a, b) => a.did.localeCompare(b.did));
-
-    // Normalize the final per-user scores into the canonical 0–100 range for the CSV
-    // output (what custom_score, DeepID and the UI read). The details JSON below keeps
-    // the raw pre-normalization scores.
-    const normalizedScores = normalizeScores(
-      rawResults.map((result) => result.contribution_score),
-      'min_max',
-    );
-    const results: ContributionScoreResult[] = rawResults.map((result, index) => ({
-      did: result.did,
-      contribution_score: roundScore(normalizedScores[index] ?? 0),
-    }));
+    results.sort((a, b) => a.did.localeCompare(b.did));
 
     logger.info('Computed contribution scores', {
       userCount: results.length,
@@ -164,7 +151,7 @@ export async function computeContributionScore(snapshot: Snapshot, storage: Stor
 
     logger.info('Uploaded contribution score results', { outputKey });
 
-    const roundedDidScores = new Map(rawResults.map((result) => [result.did, result.contribution_score]));
+    const roundedDidScores = new Map(results.map((result) => [result.did, result.contribution_score]));
     const benchmark = formatBenchmarkOutput({
       records: benchmarkRecords,
       snapshotId,
