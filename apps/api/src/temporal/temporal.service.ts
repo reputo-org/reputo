@@ -5,14 +5,24 @@ import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { WORKFLOW_RUN_TIMEOUT } from '../shared/constants/temporal.constants';
 
 export interface TerminableSnapshot {
+  _id?: string;
   status: string;
   temporal?: { workflowId?: string } | null;
 }
+
+export type TemporalAvailability = 'up' | 'down';
+
+export type SnapshotWorkflowDescription = { outcome: 'described'; status: string } | { outcome: 'not_found' };
+
+const ACTIVE_SNAPSHOT_STATUSES: readonly string[] = ['queued', 'running'];
 
 @Injectable()
 export class TemporalService implements OnModuleInit, OnModuleDestroy {
   private connection: Connection | null = null;
   private client: Client | null = null;
+  private available = false;
+  private healthTimer: NodeJS.Timeout | null = null;
+  private healthCheckInFlight = false;
 
   constructor(
     @InjectPinoLogger(TemporalService.name)
@@ -20,30 +30,38 @@ export class TemporalService implements OnModuleInit, OnModuleDestroy {
     private readonly configService: ConfigService,
   ) {}
 
-  async onModuleInit(): Promise<void> {
-    try {
-      const address = this.configService.get<string>('temporal.address');
-      const namespace = this.configService.get<string>('temporal.namespace');
+  /**
+   * The connection is lazy: it dials on first use and recovers on its own, so
+   * Temporal being down while the API boots never permanently disables
+   * workflow starts (the previous eager connect left `client` null forever).
+   * A periodic gRPC health probe keeps `getAvailability()` fresh for /health
+   * without putting a Temporal round-trip on the health request path.
+   */
+  onModuleInit(): void {
+    const address = this.configService.get<string>('temporal.address');
+    const namespace = this.configService.get<string>('temporal.namespace');
 
-      this.logger.info(`Connecting to Temporal at ${address} (namespace: ${namespace})`);
+    this.logger.info(`Creating lazy Temporal connection to ${address} (namespace: ${namespace})`);
 
-      this.connection = await Connection.connect({
-        address,
-      });
+    this.connection = Connection.lazy({ address });
+    this.client = new Client({
+      connection: this.connection,
+      namespace,
+    });
 
-      this.client = new Client({
-        connection: this.connection,
-        namespace,
-      });
-
-      this.logger.info('Temporal client connected successfully');
-    } catch (error) {
-      const err = error as Error;
-      this.logger.error(`Failed to connect to Temporal: ${err.message}`, err.stack);
+    const probeIntervalMs = this.configService.get<number>('temporal.healthCheckIntervalMs') ?? 30_000;
+    if (probeIntervalMs > 0) {
+      this.healthTimer = setInterval(() => void this.refreshAvailability(), probeIntervalMs);
+      this.healthTimer.unref?.();
+      void this.refreshAvailability();
     }
   }
 
   async onModuleDestroy(): Promise<void> {
+    if (this.healthTimer) {
+      clearInterval(this.healthTimer);
+      this.healthTimer = null;
+    }
     try {
       if (this.connection) {
         await this.connection.close();
@@ -55,20 +73,57 @@ export class TemporalService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /** Last observed reachability of the Temporal server (updated by the probe). */
+  getAvailability(): TemporalAvailability {
+    return this.available ? 'up' : 'down';
+  }
+
+  private async refreshAvailability(): Promise<void> {
+    if (!this.connection || this.healthCheckInFlight) return;
+    this.healthCheckInFlight = true;
+    try {
+      await this.connection.healthService.check({});
+      this.setAvailability(true);
+    } catch (error) {
+      this.setAvailability(false, error as Error);
+    } finally {
+      this.healthCheckInFlight = false;
+    }
+  }
+
+  private setAvailability(up: boolean, cause?: Error): void {
+    if (this.available === up) return;
+    this.available = up;
+    if (up) {
+      this.logger.info('Temporal server is reachable');
+    } else {
+      this.logger.error(`Temporal server is unreachable: ${cause?.message ?? 'unknown error'}`);
+    }
+  }
+
+  /** Deterministic workflow id for a snapshot; also derivable for legacy rows. */
+  snapshotWorkflowId(snapshotId: string): string {
+    return `snapshot-${snapshotId}`;
+  }
+
   /**
    * Starts the OrchestratorWorkflow for a given snapshot.
    *
+   * Idempotent: a workflow that is already running for this snapshot counts
+   * as a successful start, so create-time retries and the reconciler can call
+   * this without coordination.
+   *
    * @param snapshotId - UUID v7 of the snapshot to execute
-   * @returns Promise that resolves when workflow is started
+   * @returns The deterministic workflow id
    * @throws Error if Temporal client is not available or workflow start fails
    */
-  async startRunSnapshotWorkflow(snapshotId: string): Promise<void> {
+  async startRunSnapshotWorkflow(snapshotId: string): Promise<{ workflowId: string }> {
     if (!this.client) {
       throw new Error('Temporal client is not available. Check TEMPORAL_ADDRESS configuration.');
     }
 
     const orchestratorTaskQueue = this.configService.get<string>('temporal.orchestratorTaskQueue') as string;
-    const workflowId = `snapshot-${snapshotId}`;
+    const workflowId = this.snapshotWorkflowId(snapshotId);
 
     try {
       this.logger.info(`Starting OrchestratorWorkflow for snapshot ${snapshotId}`, {
@@ -94,6 +149,13 @@ export class TemporalService implements OnModuleInit, OnModuleDestroy {
       });
     } catch (error) {
       const err = error as Error;
+      if (err.name === 'WorkflowExecutionAlreadyStartedError') {
+        this.logger.warn(`OrchestratorWorkflow already started for snapshot ${snapshotId}`, {
+          workflowId,
+          snapshotId,
+        });
+        return { workflowId };
+      }
       this.logger.error(`Failed to start OrchestratorWorkflow for snapshot ${snapshotId}: ${err.message}`, err.stack, {
         workflowId,
         taskQueue: orchestratorTaskQueue,
@@ -101,19 +163,31 @@ export class TemporalService implements OnModuleInit, OnModuleDestroy {
       });
       throw error;
     }
+
+    return { workflowId };
   }
 
   /**
-   * Fire-and-forget start for snapshot workflow with error logging only.
+   * Describes the workflow execution behind a snapshot.
+   *
+   * @returns The Temporal close/run status name, or `not_found` when no
+   *   execution exists (never started, or already past retention)
+   * @throws Error on transport failures so callers can tell "gone" from
+   *   "unreachable"
    */
-  async startSnapshotWorkflow(snapshotId: string): Promise<void> {
+  async describeSnapshotWorkflow(workflowId: string): Promise<SnapshotWorkflowDescription> {
+    if (!this.client) {
+      throw new Error('Temporal client is not available. Check TEMPORAL_ADDRESS configuration.');
+    }
+
     try {
-      await this.startRunSnapshotWorkflow(snapshotId);
+      const description = await this.client.workflow.getHandle(workflowId).describe();
+      return { outcome: 'described', status: description.status.name };
     } catch (error) {
-      const err = error as Error;
-      this.logger.error(`Failed to start workflow for snapshot ${snapshotId}: ${err.message}`, err.stack, {
-        snapshotId,
-      });
+      if ((error as Error).name === 'WorkflowNotFoundError') {
+        return { outcome: 'not_found' };
+      }
+      throw error;
     }
   }
 
@@ -224,51 +298,51 @@ export class TemporalService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async cancelSnapshotWorkflows(snapshots: TerminableSnapshot[]): Promise<void> {
-    const runningSnapshots = snapshots.filter(
-      (snapshot) => snapshot.status === 'running' && snapshot.temporal?.workflowId,
-    );
+  /**
+   * Workflow ids for snapshots that may have a live execution: queued or
+   * running rows. Queued rows already have a started workflow (the id is
+   * persisted at create time); for legacy rows without one the deterministic
+   * id is derived from the snapshot id.
+   */
+  private collectActiveWorkflowIds(snapshots: TerminableSnapshot[]): string[] {
+    const workflowIds: string[] = [];
+    for (const snapshot of snapshots) {
+      if (!ACTIVE_SNAPSHOT_STATUSES.includes(snapshot.status)) continue;
+      const workflowId =
+        snapshot.temporal?.workflowId ?? (snapshot._id ? this.snapshotWorkflowId(snapshot._id) : undefined);
+      if (workflowId) workflowIds.push(workflowId);
+    }
+    return workflowIds;
+  }
 
-    for (const snapshot of runningSnapshots) {
-      const workflowId = snapshot.temporal?.workflowId;
-      if (workflowId) {
-        await this.cancelSnapshotWorkflow(workflowId);
-      }
+  async cancelSnapshotWorkflows(snapshots: TerminableSnapshot[]): Promise<void> {
+    for (const workflowId of this.collectActiveWorkflowIds(snapshots)) {
+      await this.cancelSnapshotWorkflow(workflowId);
     }
   }
 
   /**
-   * Terminates workflows for all running snapshots.
+   * Terminates workflows for all queued/running snapshots.
    *
-   * This immediately stops all running workflows without allowing cleanup.
+   * This immediately stops the workflows without allowing cleanup.
    * Used when deleting algorithm presets or snapshots.
    *
    * @param snapshots - Array of snapshots to terminate workflows for
    * @param waitForCompletion - If true, waits for all workflows to reach terminal state before returning
    */
   async terminateSnapshotWorkflows(snapshots: TerminableSnapshot[], waitForCompletion = false): Promise<void> {
-    const runningSnapshots = snapshots.filter(
-      (snapshot) => snapshot.status === 'running' && snapshot.temporal?.workflowId,
-    );
+    const workflowIds = this.collectActiveWorkflowIds(snapshots);
 
-    if (runningSnapshots.length === 0) {
+    if (workflowIds.length === 0) {
       return;
     }
 
-    this.logger.info(`Terminating ${runningSnapshots.length} running workflow(s)`, {
+    this.logger.info(`Terminating ${workflowIds.length} active workflow(s)`, {
       waitForCompletion,
     });
 
-    await Promise.all(
-      runningSnapshots.map((snapshot) => {
-        const workflowId = snapshot.temporal?.workflowId;
-        if (workflowId) {
-          return this.terminateSnapshotWorkflow(workflowId, waitForCompletion);
-        }
-        return Promise.resolve();
-      }),
-    );
+    await Promise.all(workflowIds.map((workflowId) => this.terminateSnapshotWorkflow(workflowId, waitForCompletion)));
 
-    this.logger.info(`All ${runningSnapshots.length} workflow(s) terminated`);
+    this.logger.info(`All ${workflowIds.length} workflow(s) terminated`);
   }
 }

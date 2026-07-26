@@ -16,6 +16,7 @@ vi.mock('@temporalio/worker', () => ({
 }));
 
 import { ApiWorkerBootstrap } from '../../../src/temporal/api-worker.bootstrap';
+import { ApiWorkerStatus } from '../../../src/temporal/api-worker.status';
 
 describe('ApiWorkerBootstrap', () => {
   const logger = {
@@ -32,6 +33,7 @@ describe('ApiWorkerBootstrap', () => {
   let snapshotService: { findByIdOrNull: ReturnType<typeof vi.fn>; applyExternalUpdate: ReturnType<typeof vi.fn> };
   let connection: { close: ReturnType<typeof vi.fn> };
   let worker: { run: ReturnType<typeof vi.fn>; shutdown: ReturnType<typeof vi.fn> };
+  let workerStatus: ApiWorkerStatus;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -51,17 +53,28 @@ describe('ApiWorkerBootstrap', () => {
     };
 
     connection = { close: vi.fn().mockResolvedValue(undefined) };
+    // Like the real SDK, run() resolves only once shutdown() is requested.
     worker = {
-      run: vi.fn().mockResolvedValue(undefined),
-      shutdown: vi.fn().mockResolvedValue(undefined),
+      run: vi.fn().mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveRun = resolve;
+          }),
+      ),
+      shutdown: vi.fn().mockImplementation(async () => {
+        resolveRun?.();
+      }),
     };
 
     mockNativeConnect.mockResolvedValue(connection);
     mockWorkerCreate.mockResolvedValue(worker);
+    workerStatus = new ApiWorkerStatus();
   });
 
+  let resolveRun: (() => void) | undefined;
+
   function createBootstrap() {
-    return new ApiWorkerBootstrap(logger as never, configService, snapshotService as never);
+    return new ApiWorkerBootstrap(logger as never, configService, snapshotService as never, workerStatus);
   }
 
   it('starts a worker on bootstrap with the configured task queue', async () => {
@@ -80,6 +93,29 @@ describe('ApiWorkerBootstrap', () => {
     expect(worker.run).toHaveBeenCalledOnce();
   });
 
+  it('publishes the worker state for the health endpoint', async () => {
+    const bootstrap = createBootstrap();
+    await bootstrap.onApplicationBootstrap();
+
+    expect(workerStatus.get()).toBe('up');
+
+    await bootstrap.onApplicationShutdown();
+    expect(workerStatus.get()).toBe('down');
+  });
+
+  it('schedules a restart when the worker exits unexpectedly', async () => {
+    const bootstrap = createBootstrap();
+    await bootstrap.onApplicationBootstrap();
+
+    resolveRun?.();
+    await vi.waitFor(() => expect(workerStatus.get()).toBe('down'));
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('stopped unexpectedly'));
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Retrying'));
+
+    await bootstrap.onApplicationShutdown();
+  });
+
   it('skips worker startup when TEMPORAL_ADDRESS is not configured', async () => {
     configValues['temporal.address'] = undefined;
 
@@ -89,6 +125,7 @@ describe('ApiWorkerBootstrap', () => {
     expect(mockNativeConnect).not.toHaveBeenCalled();
     expect(mockWorkerCreate).not.toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('disabled'));
+    expect(workerStatus.get()).toBe('disabled');
   });
 
   it('falls back to the default task queue when env override is unset', async () => {
@@ -110,7 +147,10 @@ describe('ApiWorkerBootstrap', () => {
   });
 
   it('does not propagate "already stopped" errors during shutdown', async () => {
-    worker.shutdown.mockRejectedValueOnce(new Error('Worker STOPPED'));
+    worker.shutdown.mockImplementationOnce(async () => {
+      resolveRun?.();
+      throw new Error('Worker STOPPED');
+    });
 
     const bootstrap = createBootstrap();
     await bootstrap.onApplicationBootstrap();
@@ -126,5 +166,10 @@ describe('ApiWorkerBootstrap', () => {
     await expect(bootstrap.onApplicationBootstrap()).resolves.toBeUndefined();
 
     expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Failed to start'), expect.any(String));
+    // The failure schedules a retry with backoff instead of giving up for good.
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Retrying'));
+    expect(workerStatus.get()).toBe('down');
+
+    await bootstrap.onApplicationShutdown();
   });
 });
