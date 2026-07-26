@@ -3,3 +3,4 @@ export * from './auth.crypto';
 export * from './oauth.util';
 export * from './pick.util';
 export * from './redact.util';
+export * from './upload-keys.util';
