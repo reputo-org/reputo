@@ -309,17 +309,38 @@ describe('AlgorithmPresetService', () => {
       expect(mockRepository.deleteById).toHaveBeenCalled();
     });
 
-    it('cleans up S3 keys from preset inputs and snapshot prefixes', async () => {
+    it('cleans up S3 keys from preset inputs (nested included), frozen inputs, and snapshot prefixes', async () => {
       const preset = {
         _id: PRESET_ID,
         inputs: [
           { key: 'votes', value: 'uploads/uuid-1/votes.csv' },
           { key: 'config', value: 'some-value' },
+          {
+            key: 'sub_algorithms',
+            value: [
+              {
+                algorithm_key: 'voting_engagement',
+                algorithm_version: '1.0.0',
+                weight: 1,
+                inputs: [{ key: 'wallets', value: 'uploads/uuid-2/wallets.json' }],
+              },
+            ],
+          },
         ],
       };
       const snapshots = [
-        { _id: 's1', status: 'completed', algorithmPresetFrozen: { inputs: [] } },
-        { _id: 's2', status: 'running', temporal: { workflowId: 'wf-1' }, algorithmPresetFrozen: { inputs: [] } },
+        {
+          _id: 's1',
+          status: 'completed',
+          // Frozen before the preset replaced uploads/uuid-0 with uploads/uuid-1.
+          algorithmPresetFrozen: { inputs: [{ key: 'votes', value: 'uploads/uuid-0/votes.csv' }] },
+        },
+        {
+          _id: 's2',
+          status: 'running',
+          temporal: { workflowId: 'wf-1' },
+          algorithmPresetFrozen: { inputs: [{ key: 'votes', value: 'uploads/uuid-1/votes.csv' }] },
+        },
       ];
       mockRepository.findById = vi.fn().mockResolvedValue(preset);
       mockSnapshotRepository.find = vi.fn().mockResolvedValue(snapshots);
@@ -329,7 +350,7 @@ describe('AlgorithmPresetService', () => {
         .mockResolvedValueOnce(['snapshots/s1/output1.csv'])
         .mockResolvedValueOnce(['snapshots/s2/output2.json']);
       mockStorageService.deleteObjects = vi.fn().mockResolvedValue({
-        deleted: ['uploads/uuid-1/votes.csv', 'snapshots/s1/output1.csv', 'snapshots/s2/output2.json'],
+        deleted: [],
         errors: [],
       });
 
@@ -337,6 +358,8 @@ describe('AlgorithmPresetService', () => {
 
       expect(mockStorageService.deleteObjects).toHaveBeenCalledWith([
         'uploads/uuid-1/votes.csv',
+        'uploads/uuid-2/wallets.json',
+        'uploads/uuid-0/votes.csv',
         'snapshots/s1/output1.csv',
         'snapshots/s2/output2.json',
       ]);
