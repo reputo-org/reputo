@@ -179,27 +179,13 @@ export class SnapshotService {
     await this.deleteS3Objects(snapshot);
   }
 
+  // Frozen `uploads/` inputs stay: the live preset and sibling snapshots still
+  // reference them, so only preset deletion may remove upload objects.
   private async deleteS3Objects(snapshot: SnapshotRow): Promise<void> {
-    const keysToDelete: string[] = [];
-
     try {
-      if (snapshot.algorithmPresetFrozen?.inputs) {
-        for (const input of snapshot.algorithmPresetFrozen.inputs) {
-          if (typeof input.value === 'string' && input.value.startsWith('uploads/')) {
-            keysToDelete.push(input.value);
-          }
-        }
-      }
-
-      try {
-        const prefix = `snapshots/${snapshot._id}/`;
-        const snapshotKeys = await this.storageService.listObjectsByPrefix(prefix);
-        keysToDelete.push(...snapshotKeys);
-        this.logger.info(`Found ${snapshotKeys.length} objects for snapshot ${snapshot._id}`);
-      } catch (error) {
-        const err = error as Error;
-        this.logger.error(`Failed to list S3 objects for snapshot ${snapshot._id}: ${err.message}`, err.stack);
-      }
+      const prefix = `snapshots/${snapshot._id}/`;
+      const keysToDelete = await this.storageService.listObjectsByPrefix(prefix);
+      this.logger.info(`Found ${keysToDelete.length} objects for snapshot ${snapshot._id}`);
 
       if (keysToDelete.length > 0) {
         this.logger.info(`Deleting ${keysToDelete.length} S3 objects for snapshot ${snapshot._id}`);
