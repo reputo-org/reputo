@@ -8,6 +8,9 @@ export const DEEP_ID_POST_SCORES_TIMEOUT = '15 minutes';
 export const DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT = '5 minutes';
 // Covers one readiness pass (bounded by DeepID's 5-minute cursor lifetime) plus its cursor restarts.
 export const DEEP_ID_READINESS_CHECK_TIMEOUT = '30 minutes';
+// Covers one full encrypted processing pass — paginated reads, CKKS evaluation,
+// and bounded final posts — plus its cursor restarts.
+export const DEEP_ID_ENCRYPTED_SUBMISSION_TIMEOUT = '2 hours';
 export const DEEP_ID_READINESS_POLL_DELAYS_MS: readonly number[] = [5 * 60_000, 15 * 60_000, 60 * 60_000];
 export const DEEP_ID_READINESS_STEADY_POLL_DELAY_MS = 60 * 60_000;
 export const DEEP_ID_ENCRYPTION_DEADLINE_MS = 24 * 60 * 60_000;

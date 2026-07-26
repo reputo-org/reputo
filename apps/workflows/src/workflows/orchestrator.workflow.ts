@@ -5,6 +5,7 @@ import {
   ALGORITHM_EXECUTION_TIMEOUT,
   ALGORITHM_LIBRARY_TIMEOUT,
   DB_ACTIVITY_TIMEOUT,
+  DEEP_ID_ENCRYPTED_SUBMISSION_TIMEOUT,
   DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
   DEEP_ID_POST_SCORES_TIMEOUT,
   DEEP_ID_READINESS_CHECK_TIMEOUT,
@@ -21,6 +22,7 @@ import type {
   DeepIdEncryptionReadinessActivities,
   DeepIdPostScoresActivities,
   DeepIdSubmitCustomScoresActivities,
+  DeepIdSubmitEncryptedScoresActivities,
   DependencyKey,
   DependencyResolverActivities,
   OrchestratorWorkflowInput,
@@ -34,7 +36,7 @@ import {
   getAlgorithmTaskQueueFromRuntime,
 } from '../shared/utils/orchestrator-input.utils.js';
 import { extractOnchainSyncTargets } from '../shared/utils/sync-targets.utils.js';
-import { pollForEncryptionReadiness } from './encryption-readiness.js';
+import { runEncryptedCustomScoreLifecycle } from './encrypted-custom-score.js';
 
 const { getSnapshot, updateSnapshot } = workflow.proxyActivities<ApiSnapshotActivities>({
   taskQueue: API_SNAPSHOT_ACTIVITIES_TASK_QUEUE,
@@ -256,6 +258,13 @@ async function runOrchestrator(input: OrchestratorWorkflowInput): Promise<void> 
     retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
   });
 
+  const { submitCustomEncryptedScores } = workflow.proxyActivities<DeepIdSubmitEncryptedScoresActivities>({
+    taskQueue: orchestratorTaskQueue,
+    startToCloseTimeout: DEEP_ID_ENCRYPTED_SUBMISSION_TIMEOUT,
+    heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
+    retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
+  });
+
   if (algorithmDefinition.kind === 'combined') {
     const childPresets = buildCombinedChildAlgorithmPresets(snapshot.algorithmPresetFrozen, algorithmDefinition);
     const childDependencySources = await Promise.all(
@@ -379,6 +388,20 @@ async function runOrchestrator(input: OrchestratorWorkflowInput): Promise<void> 
     });
 
     if (algorithmDefinition.kind === 'combined') {
+      // Persist the native child artifacts while the snapshot stays running so
+      // they survive the long encryption window and a workflow retry. The raw
+      // submission still receives result.outputs directly — never a refetch.
+      await updateSnapshot({
+        snapshotId,
+        outputs: result.outputs as Record<string, string>,
+        temporal: {
+          workflowId: workflowInfo.workflowId,
+          runId: workflowInfo.runId,
+          taskQueue: orchestratorTaskQueue,
+          algorithmTaskQueue,
+        },
+      });
+
       // The custom path submits every child's native raw scores before the
       // snapshot completes, and a submission failure fails the run. One
       // run-consistent timestamp (the workflow start) keys DeepID's idempotent
@@ -405,19 +428,28 @@ async function runOrchestrator(input: OrchestratorWorkflowInput): Promise<void> 
       });
 
       // Nothing encrypted may be evaluated or submitted while a selected
-      // child score is still pending_encryption.
-      const readiness = await pollForEncryptionReadiness({
+      // child score is still pending_encryption; the snapshot completes only
+      // after DeepID accepts every complete user's final encrypted entry.
+      const lifecycle = await runEncryptedCustomScoreLifecycle({
         snapshotId,
         algorithmPresetFrozen: snapshot.algorithmPresetFrozen,
+        observations: submission.children.map(({ scoreType, observation }) => ({ scoreType, observation })),
+        timestamp: runTimestamp,
         checkEncryptionReadiness,
+        submitCustomEncryptedScores,
       });
 
-      workflow.log.info('DeepID encrypted child scores are ready for evaluation', {
+      workflow.log.info('DeepID accepted every final encrypted custom score', {
         snapshotId,
-        ...readiness.counts,
-        pollCount: readiness.pollCount,
-        elapsedMs: readiness.elapsedMs,
-        lastRequestId: readiness.lastRequestId,
+        rounds: lifecycle.rounds,
+        complete: lifecycle.submission.complete,
+        incomplete: lifecycle.submission.incomplete,
+        submitted: lifecycle.submission.submitted,
+        batches: lifecycle.submission.batches,
+        pages: lifecycle.submission.pages,
+        cursorRestarts: lifecycle.submission.cursorRestarts,
+        registeredKeys: lifecycle.submission.registeredKeys,
+        lastRequestId: lifecycle.submission.lastRequestId,
       });
     }
 
@@ -467,7 +499,8 @@ async function runOrchestrator(input: OrchestratorWorkflowInput): Promise<void> 
   // only after a successful completion (the catch above re-throws on failure) and
   // never affects the snapshot status — a posting failure is retried by Temporal,
   // then logged and swallowed so it can never fail the reputation run. Combined
-  // snapshots already submitted their native child scores before completion.
+  // snapshots already submitted their native child scores and final encrypted
+  // entries before completion.
   if (algorithmDefinition.kind !== 'combined') {
     try {
       const completedSnapshot = await getSnapshot({ snapshotId });

@@ -61,6 +61,39 @@ function readinessResult(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function rawSubmissionResult() {
+  return {
+    children: [
+      {
+        scoreType: 'voting_engagement',
+        csvKey: 'snapshots/snapshot-1/voting_engagement.csv',
+        observation: { method: 'observed_min_max', min: 0, max: 10 },
+        posted: 3,
+        ok: 3,
+        dropped: 0,
+        rejected: 0,
+        lastRequestId: 'req-raw',
+      },
+    ],
+  };
+}
+
+function encryptedSubmissionResult(overrides: Record<string, unknown> = {}) {
+  return {
+    outcome: 'submitted',
+    complete: 1,
+    incomplete: 0,
+    scannedUsers: 1,
+    pages: 1,
+    cursorRestarts: 0,
+    submitted: 1,
+    batches: 1,
+    registeredKeys: 1,
+    lastRequestId: 'req-encr',
+    ...overrides,
+  };
+}
+
 function createProxyActivitiesMock(args: {
   getSnapshot?: ReturnType<typeof vi.fn>;
   updateSnapshot?: ReturnType<typeof vi.fn>;
@@ -70,6 +103,7 @@ function createProxyActivitiesMock(args: {
   postSnapshotScores?: ReturnType<typeof vi.fn>;
   submitCustomRawScores?: ReturnType<typeof vi.fn>;
   checkEncryptionReadiness?: ReturnType<typeof vi.fn>;
+  submitCustomEncryptedScores?: ReturnType<typeof vi.fn>;
 }) {
   const getSnapshot = args.getSnapshot ?? vi.fn();
   const updateSnapshot = args.updateSnapshot ?? vi.fn().mockResolvedValue(undefined);
@@ -78,8 +112,10 @@ function createProxyActivitiesMock(args: {
   const runTypescriptAlgorithm = args.runTypescriptAlgorithm ?? vi.fn();
   const postSnapshotScores =
     args.postSnapshotScores ?? vi.fn().mockResolvedValue({ posted: 0, ok: 0, failed: 0, dropped: 0, skipped: 0 });
-  const submitCustomRawScores = args.submitCustomRawScores ?? vi.fn().mockResolvedValue({ children: [] });
+  const submitCustomRawScores = args.submitCustomRawScores ?? vi.fn().mockResolvedValue(rawSubmissionResult());
   const checkEncryptionReadiness = args.checkEncryptionReadiness ?? vi.fn().mockResolvedValue(readinessResult());
+  const submitCustomEncryptedScores =
+    args.submitCustomEncryptedScores ?? vi.fn().mockResolvedValue(encryptedSubmissionResult());
 
   return {
     getSnapshot,
@@ -90,6 +126,7 @@ function createProxyActivitiesMock(args: {
     postSnapshotScores,
     submitCustomRawScores,
     checkEncryptionReadiness,
+    submitCustomEncryptedScores,
     implementation: () =>
       ({
         getSnapshot,
@@ -100,6 +137,7 @@ function createProxyActivitiesMock(args: {
         postSnapshotScores,
         submitCustomRawScores,
         checkEncryptionReadiness,
+        submitCustomEncryptedScores,
       }) as never,
   };
 }
@@ -400,8 +438,8 @@ describe('OrchestratorWorkflow branches', () => {
     });
 
     // The submission happens before the readiness poll, the poll before the
-    // snapshot is marked completed, and the combined path never uses the
-    // best-effort post.
+    // encrypted submission, that before the snapshot is marked completed, and
+    // the combined path never uses the best-effort post.
     expect(activities.checkEncryptionReadiness).toHaveBeenCalledTimes(1);
     expect(activities.checkEncryptionReadiness).toHaveBeenCalledWith({
       snapshotId: 'snapshot-1',
@@ -409,14 +447,139 @@ describe('OrchestratorWorkflow branches', () => {
     });
     const submitOrder = activities.submitCustomRawScores.mock.invocationCallOrder[0];
     const readinessOrder = activities.checkEncryptionReadiness.mock.invocationCallOrder[0];
-    const completedOrder = activities.updateSnapshot.mock.invocationCallOrder[1];
+    const encryptedOrder = activities.submitCustomEncryptedScores.mock.invocationCallOrder[0];
+    const completedOrder = activities.updateSnapshot.mock.invocationCallOrder[2];
     expect(submitOrder).toBeLessThan(readinessOrder);
-    expect(readinessOrder).toBeLessThan(completedOrder);
+    expect(readinessOrder).toBeLessThan(encryptedOrder);
+    expect(encryptedOrder).toBeLessThan(completedOrder);
     expect(activities.updateSnapshot).toHaveBeenNthCalledWith(
-      2,
+      3,
       expect.objectContaining({ snapshotId: 'snapshot-1', status: SnapshotStatus.completed }),
     );
     expect(activities.postSnapshotScores).not.toHaveBeenCalled();
+  });
+
+  it('persists the compute outputs while the combined snapshot is still running', async () => {
+    const { proxyActivities, isCancellation } = await loadWorkflowModule();
+    const activities = createProxyActivitiesMock({
+      getSnapshot: vi.fn().mockResolvedValue(combinedSnapshot()),
+      getAlgorithmDefinition: vi.fn().mockResolvedValue(combinedDefinition()),
+      runTypescriptAlgorithm: vi.fn().mockResolvedValue({
+        outputs: { voting_engagement: 'snapshots/snapshot-1/voting_engagement.csv' },
+      }),
+    });
+    proxyActivities.mockImplementation(activities.implementation);
+    isCancellation.mockReturnValue(false);
+
+    const { OrchestratorWorkflow } = await import('../../../src/workflows/orchestrator.workflow.js');
+
+    await OrchestratorWorkflow({ snapshotId: 'snapshot-1' });
+
+    // The mid-run persist carries the outputs but no status change, so the
+    // snapshot stays running (and startedAt is not rewritten) while DeepID
+    // encrypts; it also happens before the raw submission.
+    const outputsPersist = activities.updateSnapshot.mock.calls[1][0];
+    expect(outputsPersist).toMatchObject({
+      snapshotId: 'snapshot-1',
+      outputs: { voting_engagement: 'snapshots/snapshot-1/voting_engagement.csv' },
+    });
+    expect(outputsPersist.status).toBeUndefined();
+    const persistOrder = activities.updateSnapshot.mock.invocationCallOrder[1];
+    const submitOrder = activities.submitCustomRawScores.mock.invocationCallOrder[0];
+    expect(persistOrder).toBeLessThan(submitOrder);
+  });
+
+  it('runs the encrypted lifecycle with the raw observations and the fixed run timestamp', async () => {
+    const { proxyActivities, isCancellation } = await loadWorkflowModule();
+    const activities = createProxyActivitiesMock({
+      getSnapshot: vi.fn().mockResolvedValue(combinedSnapshot()),
+      getAlgorithmDefinition: vi.fn().mockResolvedValue(combinedDefinition()),
+      runTypescriptAlgorithm: vi.fn().mockResolvedValue({
+        outputs: { voting_engagement: 'snapshots/snapshot-1/voting_engagement.csv' },
+      }),
+    });
+    proxyActivities.mockImplementation(activities.implementation);
+    isCancellation.mockReturnValue(false);
+
+    const { OrchestratorWorkflow } = await import('../../../src/workflows/orchestrator.workflow.js');
+
+    await OrchestratorWorkflow({ snapshotId: 'snapshot-1' });
+
+    expect(activities.submitCustomEncryptedScores).toHaveBeenCalledTimes(1);
+    expect(activities.submitCustomEncryptedScores).toHaveBeenCalledWith({
+      snapshotId: 'snapshot-1',
+      algorithmPresetFrozen: expect.objectContaining({ key: 'custom_score' }),
+      observations: [{ scoreType: 'voting_engagement', observation: { method: 'observed_min_max', min: 0, max: 10 } }],
+      timestamp: '2026-07-22T10:00:00.000Z',
+    });
+  });
+
+  it('returns to readiness polling when the processing pass finds a pending selected score', async () => {
+    const { proxyActivities, isCancellation, sleep } = await loadWorkflowModule();
+    const activities = createProxyActivitiesMock({
+      getSnapshot: vi.fn().mockResolvedValue(combinedSnapshot()),
+      getAlgorithmDefinition: vi.fn().mockResolvedValue(combinedDefinition()),
+      runTypescriptAlgorithm: vi.fn().mockResolvedValue({
+        outputs: { voting_engagement: 'snapshots/snapshot-1/voting_engagement.csv' },
+      }),
+      submitCustomEncryptedScores: vi
+        .fn()
+        .mockResolvedValueOnce(
+          encryptedSubmissionResult({ outcome: 'pending_encryption', complete: 2, scannedUsers: 3 }),
+        )
+        .mockResolvedValue(encryptedSubmissionResult()),
+    });
+    proxyActivities.mockImplementation(activities.implementation);
+    isCancellation.mockReturnValue(false);
+
+    const { OrchestratorWorkflow } = await import('../../../src/workflows/orchestrator.workflow.js');
+
+    await OrchestratorWorkflow({ snapshotId: 'snapshot-1' });
+
+    // Round 1 polls once (ready), processes, finds pending; round 2 restarts
+    // the poll schedule from its first delay, then the pass submits.
+    expect(activities.checkEncryptionReadiness).toHaveBeenCalledTimes(2);
+    expect(activities.submitCustomEncryptedScores).toHaveBeenCalledTimes(2);
+    expect(sleep.mock.calls.map(([duration]) => duration)).toEqual([300_000, 300_000]);
+    expect(activities.updateSnapshot).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ snapshotId: 'snapshot-1', status: SnapshotStatus.completed }),
+    );
+  });
+
+  it('marks the snapshot as failed when the encrypted submission fails fatally and never completes it', async () => {
+    const { proxyActivities, isCancellation } = await loadWorkflowModule();
+    const submissionError = ApplicationFailure.create({
+      message: 'DEEPID_ENCRYPTED_SUBMISSION_FATAL: DeepID rejected the final custom_score_encr entry',
+      type: 'DEEPID_ENCRYPTED_SUBMISSION_FATAL',
+      nonRetryable: true,
+    });
+    const activities = createProxyActivitiesMock({
+      getSnapshot: vi.fn().mockResolvedValue(combinedSnapshot()),
+      getAlgorithmDefinition: vi.fn().mockResolvedValue(combinedDefinition()),
+      runTypescriptAlgorithm: vi.fn().mockResolvedValue({
+        outputs: { voting_engagement: 'snapshots/snapshot-1/voting_engagement.csv' },
+      }),
+      submitCustomEncryptedScores: vi.fn().mockRejectedValue(submissionError),
+    });
+    proxyActivities.mockImplementation(activities.implementation);
+    isCancellation.mockReturnValue(false);
+
+    const { OrchestratorWorkflow } = await import('../../../src/workflows/orchestrator.workflow.js');
+
+    await expect(OrchestratorWorkflow({ snapshotId: 'snapshot-1' })).rejects.toBe(submissionError);
+
+    expect(activities.updateSnapshot).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        snapshotId: 'snapshot-1',
+        status: SnapshotStatus.failed,
+        error: { message: submissionError.message },
+      }),
+    );
+    expect(activities.updateSnapshot).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: SnapshotStatus.completed }),
+    );
   });
 
   it('keeps polling on the documented delays until readiness before completing', async () => {
@@ -444,7 +607,7 @@ describe('OrchestratorWorkflow branches', () => {
     expect(activities.checkEncryptionReadiness).toHaveBeenCalledTimes(3);
     expect(sleep.mock.calls.map(([duration]) => duration)).toEqual([300_000, 900_000, 3_600_000]);
     expect(activities.updateSnapshot).toHaveBeenNthCalledWith(
-      2,
+      3,
       expect.objectContaining({ snapshotId: 'snapshot-1', status: SnapshotStatus.completed }),
     );
   });
@@ -473,7 +636,7 @@ describe('OrchestratorWorkflow branches', () => {
     await expect(OrchestratorWorkflow({ snapshotId: 'snapshot-1' })).rejects.toBe(readinessError);
 
     expect(activities.updateSnapshot).toHaveBeenNthCalledWith(
-      2,
+      3,
       expect.objectContaining({
         snapshotId: 'snapshot-1',
         status: SnapshotStatus.failed,
@@ -506,7 +669,7 @@ describe('OrchestratorWorkflow branches', () => {
 
     expect(activities.checkEncryptionReadiness).not.toHaveBeenCalled();
     expect(activities.updateSnapshot).toHaveBeenNthCalledWith(
-      2,
+      3,
       expect.objectContaining({ snapshotId: 'snapshot-1', status: SnapshotStatus.cancelled }),
     );
   });
@@ -530,7 +693,7 @@ describe('OrchestratorWorkflow branches', () => {
     await expect(OrchestratorWorkflow({ snapshotId: 'snapshot-1' })).rejects.toBe(submissionError);
 
     expect(activities.updateSnapshot).toHaveBeenNthCalledWith(
-      2,
+      3,
       expect.objectContaining({
         snapshotId: 'snapshot-1',
         status: SnapshotStatus.failed,

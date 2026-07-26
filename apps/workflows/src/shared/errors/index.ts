@@ -4,6 +4,9 @@ export const DEEP_ID_ENCRYPTION_TIMEOUT_ERROR_TYPE = 'DEEPID_ENCRYPTION_TIMEOUT'
 /** Temporal failure type for fatal, non-retryable readiness-pass errors. */
 export const DEEP_ID_ENCRYPTION_READINESS_FATAL_ERROR_TYPE = 'DEEPID_ENCRYPTION_READINESS_FATAL';
 
+/** Temporal failure type for fatal, non-retryable encrypted evaluation/submission errors. */
+export const DEEP_ID_ENCRYPTED_SUBMISSION_FATAL_ERROR_TYPE = 'DEEPID_ENCRYPTED_SUBMISSION_FATAL';
+
 export class WorkflowError extends Error {
   constructor(
     message: string,

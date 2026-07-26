@@ -157,6 +157,67 @@ export interface SubmitCustomRawScoresResult {
   children: CustomRawScoresChildResult[];
 }
 
+/** One child's observed normalization inputs, carried from raw submission to encrypted evaluation. */
+export interface EncryptedChildObservation {
+  scoreType: ScoreType;
+  observation: NormalizationObservation;
+}
+
+/**
+ * Activities that evaluate a combined snapshot's encrypted child scores and
+ * submit the final `custom_score_encr` entries. Like `submitCustomRawScores`,
+ * a fatal failure here fails the run.
+ */
+export interface DeepIdSubmitEncryptedScoresActivities {
+  submitCustomEncryptedScores: (input: SubmitCustomEncryptedScoresInput) => Promise<SubmitCustomEncryptedScoresResult>;
+}
+
+export interface SubmitCustomEncryptedScoresInput {
+  snapshotId: string;
+  /** The snapshot's frozen combined preset — the selected children and their weights. */
+  algorithmPresetFrozen: AlgorithmPresetFrozen;
+  /** Per-child observations collected from the raw submission's accepted (`OK`) rows. */
+  observations: EncryptedChildObservation[];
+  /** Run-consistent ISO timestamp generated once by the workflow and reused verbatim on every retry. */
+  timestamp: string;
+}
+
+/** Aggregate diagnostics of one encrypted processing pass; never carries DIDs or ciphertexts. */
+export interface EncryptedSubmissionPassDiagnostics {
+  /** Unified users whose every selected child field was `encrypted`. */
+  complete: number;
+  /** Unified users excluded for a `null` or absent selected field; never zero-filled. */
+  incomplete: number;
+  scannedUsers: number;
+  pages: number;
+  /** Full-pass restarts caused by cursor expiry within this activity invocation. */
+  cursorRestarts: number;
+  lastRequestId?: string;
+}
+
+/** Every complete user was evaluated and every final entry returned `OK`. */
+export interface EncryptedScoresSubmittedResult extends EncryptedSubmissionPassDiagnostics {
+  outcome: 'submitted';
+  /** Final `custom_score_encr` entries DeepID accepted (equals `complete`). */
+  submitted: number;
+  /** Bounded `POST /v1/clients/scores` batches sent. */
+  batches: number;
+  /** Distinct SEAL metadata keys registered during the pass. */
+  registeredKeys: number;
+}
+
+/**
+ * A potentially complete user still had a selected field in
+ * `pending_encryption`, so the pass stopped before evaluating its page. The
+ * workflow returns to readiness polling; entries already accepted this pass
+ * are safely resubmitted later under the same logical identity and timestamp.
+ */
+export interface EncryptedScoresPendingResult extends EncryptedSubmissionPassDiagnostics {
+  outcome: 'pending_encryption';
+}
+
+export type SubmitCustomEncryptedScoresResult = EncryptedScoresSubmittedResult | EncryptedScoresPendingResult;
+
 /** Activities that check whether a combined snapshot's child scores are ready for encrypted evaluation. */
 export interface DeepIdEncryptionReadinessActivities {
   checkEncryptionReadiness: (input: CheckEncryptionReadinessInput) => Promise<CheckEncryptionReadinessResult>;
