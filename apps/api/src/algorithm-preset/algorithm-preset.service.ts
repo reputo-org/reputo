@@ -4,7 +4,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { DataSource } from 'typeorm';
 import { throwNotFoundError } from '../shared/exceptions';
-import { getAlgorithmDefinitionOrThrow, validateAlgorithmInputs } from '../shared/utils';
+import { collectUploadKeys, getAlgorithmDefinitionOrThrow, validateAlgorithmInputs } from '../shared/utils';
 import type { SnapshotRow } from '../snapshot/snapshot.repository';
 import { SnapshotRepository } from '../snapshot/snapshot.repository';
 import { StorageService } from '../storage/storage.service';
@@ -129,14 +129,10 @@ export class AlgorithmPresetService {
   }
 
   private async deleteS3Objects(algorithmPreset: AlgorithmPresetRow, snapshots: SnapshotRow[]): Promise<void> {
-    const keysToDelete: string[] = [];
-
     try {
-      for (const input of algorithmPreset.inputs) {
-        if (typeof input.value === 'string' && input.value.startsWith('uploads/')) {
-          keysToDelete.push(input.value);
-        }
-      }
+      // Frozen inputs can still reference uploads the preset replaced since the snapshot froze them.
+      const frozenInputs = snapshots.flatMap((snapshot) => snapshot.algorithmPresetFrozen?.inputs ?? []);
+      const keysToDelete = collectUploadKeys([...algorithmPreset.inputs, ...frozenInputs]);
 
       for (const snapshot of snapshots) {
         try {

@@ -367,5 +367,57 @@ describe('SnapshotService', () => {
 
       await expect(service.deleteById(SNAPSHOT_ID)).rejects.toBeInstanceOf(NotFoundException);
     });
+
+    it('deletes only the snapshot prefix, never preset-owned uploads/ inputs', async () => {
+      mockSnapshotRepository.findById = vi.fn().mockResolvedValue({
+        _id: SNAPSHOT_ID,
+        status: 'completed',
+        algorithmPresetFrozen: {
+          inputs: [
+            { key: 'votes', value: 'uploads/uuid-1/votes.csv' },
+            {
+              key: 'sub_algorithms',
+              value: [
+                {
+                  algorithm_key: 'voting_engagement',
+                  algorithm_version: '1.0.0',
+                  weight: 1,
+                  inputs: [{ key: 'votes', value: 'uploads/uuid-2/votes.csv' }],
+                },
+              ],
+            },
+          ],
+        },
+      });
+      mockSnapshotRepository.deleteById = vi.fn().mockResolvedValue({ _id: SNAPSHOT_ID });
+      mockStorageService.listObjectsByPrefix = vi
+        .fn()
+        .mockResolvedValue([`snapshots/${SNAPSHOT_ID}/output.csv`, `snapshots/${SNAPSHOT_ID}/details.json`]);
+      mockStorageService.deleteObjects = vi.fn().mockResolvedValue({
+        deleted: [`snapshots/${SNAPSHOT_ID}/output.csv`, `snapshots/${SNAPSHOT_ID}/details.json`],
+        errors: [],
+      });
+
+      await service.deleteById(SNAPSHOT_ID);
+
+      expect(mockStorageService.listObjectsByPrefix).toHaveBeenCalledWith(`snapshots/${SNAPSHOT_ID}/`);
+      expect(mockStorageService.deleteObjects).toHaveBeenCalledWith([
+        `snapshots/${SNAPSHOT_ID}/output.csv`,
+        `snapshots/${SNAPSHOT_ID}/details.json`,
+      ]);
+    });
+
+    it('skips the S3 delete call when the snapshot prefix is empty', async () => {
+      mockSnapshotRepository.findById = vi.fn().mockResolvedValue({
+        _id: SNAPSHOT_ID,
+        status: 'completed',
+        algorithmPresetFrozen: { inputs: [{ key: 'votes', value: 'uploads/uuid-1/votes.csv' }] },
+      });
+      mockSnapshotRepository.deleteById = vi.fn().mockResolvedValue({ _id: SNAPSHOT_ID });
+
+      await service.deleteById(SNAPSHOT_ID);
+
+      expect(mockStorageService.deleteObjects).not.toHaveBeenCalled();
+    });
   });
 });
