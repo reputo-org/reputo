@@ -1,15 +1,14 @@
-import type {
-  AlgorithmPresetFrozenDto,
-  ApiSnapshotActivities,
-  GetSnapshotInput,
-  SnapshotDto,
-  UpdateSnapshotInput,
+import {
+  type AlgorithmPresetFrozenDto,
+  type ApiSnapshotActivities,
+  type GetSnapshotInput,
+  SNAPSHOT_NOT_FOUND_ERROR_TYPE,
+  type SnapshotDto,
+  type UpdateSnapshotInput,
 } from '@reputo/contracts';
 import { ApplicationFailure, Context } from '@temporalio/activity';
 import type { AlgorithmPresetFrozen, SnapshotRow } from '../snapshot/snapshot.repository';
 import type { SnapshotService } from '../snapshot/snapshot.service';
-
-const SNAPSHOT_NOT_FOUND_TYPE = 'SnapshotNotFoundError';
 
 const toIso = (value: Date | string | undefined): string | undefined => {
   if (value === undefined) return undefined;
@@ -65,7 +64,7 @@ export function createSnapshotActivities(snapshotService: SnapshotService): ApiS
         logger.warn('Snapshot not found', { snapshotId: input.snapshotId });
         throw ApplicationFailure.create({
           message: `Snapshot ${input.snapshotId} not found`,
-          type: SNAPSHOT_NOT_FOUND_TYPE,
+          type: SNAPSHOT_NOT_FOUND_ERROR_TYPE,
           nonRetryable: true,
         });
       }
@@ -81,7 +80,7 @@ export function createSnapshotActivities(snapshotService: SnapshotService): ApiS
       if (!updated) {
         throw ApplicationFailure.create({
           message: `Snapshot ${input.snapshotId} not found`,
-          type: SNAPSHOT_NOT_FOUND_TYPE,
+          type: SNAPSHOT_NOT_FOUND_ERROR_TYPE,
           nonRetryable: true,
         });
       }
