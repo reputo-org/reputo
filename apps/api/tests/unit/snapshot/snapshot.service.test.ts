@@ -37,6 +37,7 @@ describe('SnapshotService', () => {
   let mockTemporalService: {
     snapshotWorkflowId: ReturnType<typeof vi.fn>;
     startRunSnapshotWorkflow: ReturnType<typeof vi.fn>;
+    describeSnapshotWorkflow: ReturnType<typeof vi.fn>;
     cancelSnapshotWorkflow: ReturnType<typeof vi.fn>;
     terminateSnapshotWorkflow: ReturnType<typeof vi.fn>;
   };
@@ -75,6 +76,7 @@ describe('SnapshotService', () => {
     mockTemporalService = {
       snapshotWorkflowId: vi.fn((id: string) => `snapshot-${id}`),
       startRunSnapshotWorkflow: vi.fn().mockImplementation(async (id: string) => ({ workflowId: `snapshot-${id}` })),
+      describeSnapshotWorkflow: vi.fn().mockResolvedValue({ outcome: 'not_found' }),
       cancelSnapshotWorkflow: vi.fn().mockResolvedValue(undefined),
       terminateSnapshotWorkflow: vi.fn().mockResolvedValue(undefined),
     };
@@ -170,7 +172,7 @@ describe('SnapshotService', () => {
       expect(result).toMatchObject({ _id: SNAPSHOT_ID, temporal: { workflowId: `snapshot-${SNAPSHOT_ID}` } });
     });
 
-    it('marks the snapshot failed and throws 503 when the workflow cannot be started', async () => {
+    it('marks the snapshot failed and throws 503 when the start failure is confirmed', async () => {
       mockAlgorithmPresetRepository.findById = vi.fn().mockResolvedValue({
         _id: PRESET_ID,
         key: 'k',
@@ -181,16 +183,62 @@ describe('SnapshotService', () => {
       });
       mockSnapshotRepository.create = vi.fn().mockResolvedValue({ _id: SNAPSHOT_ID, status: 'queued' });
       mockTemporalService.startRunSnapshotWorkflow.mockRejectedValue(new Error('temporal is down'));
+      // Temporal is reachable and reports no execution: the start truly failed.
+      mockTemporalService.describeSnapshotWorkflow.mockResolvedValue({ outcome: 'not_found' });
 
       await expect(service.create({ algorithmPresetId: PRESET_ID })).rejects.toBeInstanceOf(
         SnapshotWorkflowStartException,
       );
 
+      expect(mockTemporalService.describeSnapshotWorkflow).toHaveBeenCalledWith(`snapshot-${SNAPSHOT_ID}`);
       const applyCalls = (mockSnapshotRepository.applyExternalUpdate as ReturnType<typeof vi.fn>).mock.calls;
       const failedWrite = applyCalls.find(([, data]) => (data as { status?: string }).status === 'failed');
       expect(failedWrite).toBeDefined();
       const [, failedData] = failedWrite as [string, { status: string; error: { message: string } }];
       expect(failedData.error.message).toContain('temporal is down');
+    });
+
+    it('treats the start as successful when the workflow exists despite the failed call', async () => {
+      mockAlgorithmPresetRepository.findById = vi.fn().mockResolvedValue({
+        _id: PRESET_ID,
+        key: 'k',
+        version: '1.0.0',
+        inputs: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      mockSnapshotRepository.create = vi.fn().mockResolvedValue({ _id: SNAPSHOT_ID, status: 'queued' });
+      // The start RPC lost its response, but the workflow was registered.
+      mockTemporalService.startRunSnapshotWorkflow.mockRejectedValue(new Error('DEADLINE_EXCEEDED'));
+      mockTemporalService.describeSnapshotWorkflow.mockResolvedValue({ outcome: 'described', status: 'RUNNING' });
+
+      const result = await service.create({ algorithmPresetId: PRESET_ID });
+
+      expect(result).toMatchObject({ _id: SNAPSHOT_ID });
+      const applyCalls = (mockSnapshotRepository.applyExternalUpdate as ReturnType<typeof vi.fn>).mock.calls;
+      expect(applyCalls.some(([, data]) => (data as { status?: string }).status === 'failed')).toBe(false);
+    });
+
+    it('leaves the snapshot queued when the start failure cannot be classified', async () => {
+      mockAlgorithmPresetRepository.findById = vi.fn().mockResolvedValue({
+        _id: PRESET_ID,
+        key: 'k',
+        version: '1.0.0',
+        inputs: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      mockSnapshotRepository.create = vi.fn().mockResolvedValue({ _id: SNAPSHOT_ID, status: 'queued' });
+      mockTemporalService.startRunSnapshotWorkflow.mockRejectedValue(new Error('UNAVAILABLE'));
+      // Temporal is unreachable, so the workflow may or may not exist; the
+      // reconciler retries the start or settles the row after the budget.
+      mockTemporalService.describeSnapshotWorkflow.mockRejectedValue(new Error('transport down'));
+
+      const result = await service.create({ algorithmPresetId: PRESET_ID });
+
+      expect(result).toMatchObject({ _id: SNAPSHOT_ID });
+      const applyCalls = (mockSnapshotRepository.applyExternalUpdate as ReturnType<typeof vi.fn>).mock.calls;
+      expect(applyCalls.some(([, data]) => (data as { status?: string }).status === 'failed')).toBe(false);
     });
 
     it('still throws 503 when marking the row failed also fails', async () => {
