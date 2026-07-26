@@ -23,4 +23,14 @@ describe('Health endpoint', () => {
     expect(typeof response.body.sha).toBe('string');
     expect(response.body.sha.length).toBeGreaterThan(0);
   });
+
+  it('reports the temporal and worker component states without failing liveness', async () => {
+    const response = await supertest(app.getHttpServer()).get(base('/health')).expect(200);
+
+    // Components are informational; `status` must stay "ok" so Traefik keeps
+    // routing to the container during a Temporal outage.
+    expect(response.body.status).toBe('ok');
+    expect(['up', 'down']).toContain(response.body.temporal);
+    expect(['up', 'down', 'disabled']).toContain(response.body.worker);
+  });
 });
