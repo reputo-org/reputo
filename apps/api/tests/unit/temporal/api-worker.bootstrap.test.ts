@@ -159,6 +159,29 @@ describe('ApiWorkerBootstrap', () => {
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('already stopped'));
   });
 
+  it('abandons a start whose connection resolves after shutdown began', async () => {
+    let resolveConnect: ((value: typeof connection) => void) | undefined;
+    mockNativeConnect.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveConnect = resolve;
+        }),
+    );
+
+    const bootstrap = createBootstrap();
+    const bootPromise = bootstrap.onApplicationBootstrap();
+    // SIGTERM while the connect is still in flight; the continuation must not
+    // start a worker in a process that already shut down.
+    const shutdownPromise = bootstrap.onApplicationShutdown();
+    resolveConnect?.(connection);
+    await bootPromise;
+    await shutdownPromise;
+
+    expect(mockWorkerCreate).not.toHaveBeenCalled();
+    expect(connection.close).toHaveBeenCalledOnce();
+    expect(workerStatus.get()).toBe('down');
+  });
+
   it('logs and swallows connection errors so the HTTP server keeps running', async () => {
     mockNativeConnect.mockRejectedValueOnce(new Error('cannot reach temporal'));
 

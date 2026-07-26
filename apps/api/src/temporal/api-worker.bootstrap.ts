@@ -31,6 +31,7 @@ export class ApiWorkerBootstrap implements OnApplicationBootstrap, OnApplication
   private connection: NativeConnection | null = null;
   private worker: Worker | null = null;
   private runPromise: Promise<void> | null = null;
+  private startPromise: Promise<void> | null = null;
   private retryTimer: NodeJS.Timeout | null = null;
   private failedAttempts = 0;
   private shuttingDown = false;
@@ -50,7 +51,8 @@ export class ApiWorkerBootstrap implements OnApplicationBootstrap, OnApplication
       this.workerStatus.set('disabled');
       return;
     }
-    await this.startWorker();
+    this.startPromise = this.startWorker();
+    await this.startPromise;
   }
 
   private async startWorker(): Promise<void> {
@@ -65,12 +67,23 @@ export class ApiWorkerBootstrap implements OnApplicationBootstrap, OnApplication
       this.logger.info({ address, namespace, taskQueue }, 'Connecting API snapshot activities worker to Temporal');
 
       this.connection = await NativeConnection.connect({ address });
+      // Shutdown may have begun while the connect was in flight; continuing
+      // would start a worker in a process that believes it already stopped.
+      if (this.shuttingDown) {
+        await this.closeConnection();
+        return;
+      }
       this.worker = await Worker.create({
         connection: this.connection,
         namespace,
         taskQueue,
         activities: createSnapshotActivities(this.snapshotService),
       });
+      if (this.shuttingDown) {
+        this.worker = null;
+        await this.closeConnection();
+        return;
+      }
 
       this.failedAttempts = 0;
       this.workerStatus.set('up');
@@ -108,7 +121,7 @@ export class ApiWorkerBootstrap implements OnApplicationBootstrap, OnApplication
     this.logger.info(`Retrying API snapshot activities worker start in ${delayMs}ms`);
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
-      void this.startWorker();
+      this.startPromise = this.startWorker();
     }, delayMs);
     this.retryTimer.unref?.();
   }
@@ -129,6 +142,12 @@ export class ApiWorkerBootstrap implements OnApplicationBootstrap, OnApplication
     if (this.retryTimer) {
       clearTimeout(this.retryTimer);
       this.retryTimer = null;
+    }
+    // Wait for any in-flight start attempt so its outcome (a worker to drain,
+    // or a connection it abandoned) is visible to the teardown below.
+    if (this.startPromise) {
+      await this.startPromise;
+      this.startPromise = null;
     }
     try {
       if (this.worker) {
