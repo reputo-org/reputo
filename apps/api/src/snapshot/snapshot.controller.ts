@@ -23,6 +23,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiQuery,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -54,6 +55,9 @@ export class SnapshotController {
   })
   @ApiBadRequestResponse({
     description: 'Invalid request body or AlgorithmPreset ID format',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'The snapshot workflow could not be started; the snapshot is stored as "failed"',
   })
   create(@Body() createDto: CreateSnapshotDto) {
     return this.snapshotService.create(createDto);
