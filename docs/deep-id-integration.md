@@ -57,6 +57,9 @@ After a standalone (non-`custom_score`) snapshot completes, the orchestrator run
 - The primary CSV output is read, every `did` is validated
   (`did:(plc|sub):` + 24 alphanumerics), and scores are posted in chunks of 500 to
   `POST /v1/clients/scores`.
+- The posted value is the algorithm's **raw** score. Nothing is normalized, rescaled, or
+  weighted on this path, and negative values are posted as-is — see
+  [Raw scores](reputation-algorithms.md#raw-scores).
 - The score `type` is the algorithm key — keys map 1:1 to DeepID score types, so there is
   no translation table.
 - Every entry carries `timestamp = completedAt`. DeepID keeps the newest timestamp per

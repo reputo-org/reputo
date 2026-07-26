@@ -191,7 +191,7 @@
                     {
                         "key": "token_value",
                         "type": "number",
-                        "description": "Final token value score for the user, normalized to a 0–100 scale across all scored users."
+                        "description": "Raw token value score for the user. It is not normalized, so its range depends on the held amounts."
                     }
                 ]
             }

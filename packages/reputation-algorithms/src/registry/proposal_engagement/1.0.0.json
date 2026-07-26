@@ -73,7 +73,7 @@
                     {
                         "key": "proposal_engagement",
                         "type": "number",
-                        "description": "Final proposal engagement score for the user, normalized to a 0–100 scale across all scored users."
+                        "description": "Raw proposal engagement score for the user. It is not normalized, so it can be negative when penalties outweigh rewards."
                     }
                 ]
             }

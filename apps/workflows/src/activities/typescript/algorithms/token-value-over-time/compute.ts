@@ -5,7 +5,6 @@ import config from '../../../../config/index.js';
 import { HEARTBEAT_INTERVAL } from '../../../../shared/constants/index.js';
 import type { AlgorithmResult, Snapshot } from '../../../../shared/types/index.js';
 import { stringifyCsvAsync } from '../../../../shared/utils/index.js';
-import { normalizeScores } from '../shared/normalization/index.js';
 import { formatBenchmarkOutput } from './benchmark/index.js';
 import { replayTransfers, scoreWalletLots } from './pipeline/index.js';
 import { type DidScoreDetail, type ResolvedResource, roundScore, type WalletScoreDetail } from './types.js';
@@ -202,16 +201,9 @@ export async function computeTokenValueOverTime(snapshot: Snapshot, storage: Sto
     ctx.heartbeat({ phase: 'upload' });
     logger.info('Uploading outputs');
 
-    // Normalize the final per-user scores into the canonical 0–100 range for the CSV
-    // output (what custom_score, DeepID and the UI read). The details JSON keeps the
-    // raw pre-normalization scores (`didScores`).
-    const normalizedScores = normalizeScores(
-      didScores.map((detail) => detail.token_value),
-      'min_max',
-    );
-    const csvRows = didScores.map((detail, index) => ({
+    const csvRows = didScores.map((detail) => ({
       did: detail.did,
-      token_value: roundScore(normalizedScores[index] ?? 0),
+      token_value: roundScore(detail.token_value),
     }));
     const csv = await stringifyCsvAsync(csvRows, {
       header: true,

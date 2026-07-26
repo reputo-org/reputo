@@ -9,7 +9,6 @@ import config from '../../../../config/index.js';
 import { HEARTBEAT_INTERVAL } from '../../../../shared/constants/index.js';
 import type { AlgorithmResult, Snapshot } from '../../../../shared/types/index.js';
 import { stringifyCsvAsync } from '../../../../shared/utils/index.js';
-import { normalizeScores } from '../shared/normalization/index.js';
 import { buildProposalBenchmarkRecord, formatBenchmarkOutput } from './benchmark/index.js';
 import {
   aggregateCommunityRatings,
@@ -156,19 +155,7 @@ export async function computeProposalEngagement(snapshot: Snapshot, storage: Sto
 
     ctx.heartbeat({ phase: 'upload' });
 
-    // Normalize the final per-user scores into the canonical 0–100 range for the CSV
-    // output (what custom_score, DeepID and the UI read). The details JSON keeps the
-    // raw pre-normalization scores (`didScores`).
-    const normalizedScores = normalizeScores(
-      results.map((result) => result.proposal_engagement),
-      'min_max',
-    );
-    const csvResults: ProposalEngagementResult[] = results.map((result, index) => ({
-      did: result.did,
-      proposal_engagement: roundScore(normalizedScores[index] ?? 0),
-    }));
-
-    const csvContent = await stringifyCsvAsync(csvResults, {
+    const csvContent = await stringifyCsvAsync(results, {
       header: true,
       columns: ['did', 'proposal_engagement'],
     });

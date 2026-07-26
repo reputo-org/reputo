@@ -28,20 +28,20 @@ apps/workflows/src/activities/typescript/algorithms/<kebab-key>/
 
 Only TypeScript is wired up today. The workflows app uses Temporal task queues, so other languages can be added later.
 
-## Score normalization
+## Raw scores
 
-Every algorithm's final per-user score is normalized to a fixed **0–100** range before it is written to the CSV output (the value the `custom_score` wrapper, the DeepID post step, and the UI read). This is a default; it is not user-configurable.
+A standalone algorithm writes its **raw** per-user score to its CSV output. There is no normalization, rescaling, or weighting in the algorithm: the CSV, the `*_details.json` benchmark file, and the score posted to DeepID all carry the same number, on the algorithm's own scale.
 
-The reusable logic lives in [`shared/normalization`](../apps/workflows/src/activities/typescript/algorithms/shared/normalization). Each algorithm picks a method and calls `normalizeScores(values, method)`:
+| Algorithm | Raw scale |
+| --- | --- |
+| `contribution_score` | Sum of the user's scored comment values. Range depends on the data. |
+| `proposal_engagement` | Weighted rewards minus weighted penalties. **Can be negative.** |
+| `token_value_over_time` | Sum of the user's matured lot values. Range depends on the held amounts. |
+| `voting_engagement` | Normalized vote entropy, already on **0–1** by construction. |
 
-| Method | Behavior | Used by |
-| --- | --- | --- |
-| `min_max` | Cohort min–max: the lowest score maps to 0, the highest to 100, the rest interpolate. Scores are **relative to the scored population**. An empty, single-member, or all-equal cohort has no spread, so every score collapses to 0. | `contribution_score`, `proposal_engagement`, `token_value_over_time` |
-| `from_unit_interval` | Linear rescale of a score already on `[0, 1]` onto 0–100 (×100). Keeps its absolute meaning and comparability across snapshots. | `voting_engagement` |
+DeepID accepts any finite score, so negative and unbounded values are posted as-is. Both posting paths read these CSVs verbatim: [`postSnapshotScores`](../apps/workflows/src/activities/orchestrator/deep-id-post-scores.activities.ts) for a standalone snapshot, and [`submitCustomRawScores`](../apps/workflows/src/activities/orchestrator/deep-id-submit-custom-scores.activities.ts) for every child of a `custom_score` run.
 
-`custom_score` does not normalize again: each sub-algorithm normalizes its own output to 0–100 first. The wrapper then only scales each sub-algorithm's score by `weight ÷ total weight` and writes one weighted CSV per sub-algorithm — it does not combine them into one score. Each weighted score stays within 0–100, and the sum of one user's weighted scores across all sub-algorithms also stays within 0–100 (the aggregation itself happens later, outside the algorithm). Add a new method by implementing a `NormalizationStrategy` and registering it in `normalize.ts` — no call site changes.
-
-The `*_details.json` benchmark files keep the **raw, pre-normalization** scores; only the CSV output is normalized.
+Normalization exists in exactly one place: the `custom_score` homomorphic phase. It rescales each child's encrypted scores to 0–100 with that child's observed min–max bounds, applies the configured weights, and aggregates one `custom_score_encr` per complete user — all on ciphertexts, never in plaintext. See [`encrypted-evaluator`](../apps/workflows/src/activities/typescript/algorithms/custom-score/encrypted-evaluator) and [DeepID integration](deep-id-integration.md).
 
 ## Add a new algorithm
 
@@ -81,7 +81,7 @@ Open the new `compute.ts`. The function must:
 - Read frozen inputs from `snapshot.algorithmPresetFrozen.inputs`.
 - Download any input files with `storage.getObject(...)`.
 - Call `Context.current().heartbeat(...)` inside long loops so Temporal does not time it out.
-- Normalize the final per-user scores to 0–100 with `normalizeScores(...)` (see [Score normalization](#score-normalization)) before writing the CSV.
+- Write the raw per-user score to the CSV (see [Raw scores](#raw-scores)). Do not normalize, rescale, or weight it.
 - Write output files through [`@reputo/storage`](../packages/storage). Do not call the AWS SDK directly.
 - Return `{ outputs: { <key>: <storage_key> } }`, with one entry for every `outputs[].key` in the JSON.
 
