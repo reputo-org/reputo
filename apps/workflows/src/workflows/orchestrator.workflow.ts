@@ -1,4 +1,8 @@
-import { API_SNAPSHOT_ACTIVITIES_TASK_QUEUE, type ApiSnapshotActivities } from '@reputo/contracts';
+import {
+  API_SNAPSHOT_ACTIVITIES_TASK_QUEUE,
+  type ApiSnapshotActivities,
+  SNAPSHOT_NOT_FOUND_ERROR_TYPE,
+} from '@reputo/contracts';
 import * as workflow from '@temporalio/workflow';
 import {
   ACTIVITY_MAX_ATTEMPTS,
@@ -199,6 +203,108 @@ async function runOrchestrator(input: OrchestratorWorkflowInput): Promise<void> 
   });
   workflow.log.info('Snapshot marked as running', { snapshotId });
 
+  // One failure handler covers every phase after the running write —
+  // definition lookups, dependency resolution, algorithm execution, DeepID
+  // submissions — so no error or cancellation can strand the row in
+  // `running`. Paths where no workflow code runs at all (run timeout,
+  // terminate) are settled by the API-side snapshot reconciler instead.
+  const run: SnapshotRunState = {};
+  try {
+    await runSnapshotPhases({ snapshotId, snapshot, workflowInfo, orchestratorTaskQueue, run });
+  } catch (error) {
+    if (isSnapshotNotFound(error)) {
+      workflow.log.warn('Snapshot row is gone; skipping the terminal status write', { snapshotId });
+      throw error;
+    }
+
+    const isCancelled = workflow.isCancellation(error);
+    const status = isCancelled ? SnapshotStatus.cancelled : SnapshotStatus.failed;
+    const message = isCancelled ? 'Workflow was cancelled' : (error as Error).message || 'Unknown error';
+
+    workflow.log.error('Snapshot run failed', {
+      snapshotId,
+      cancelled: isCancelled,
+      error: message,
+    });
+
+    await workflow.CancellationScope.nonCancellable(async () => {
+      try {
+        await updateSnapshot({
+          snapshotId,
+          status,
+          temporal: {
+            workflowId: workflowInfo.workflowId,
+            runId: workflowInfo.runId,
+            taskQueue: orchestratorTaskQueue,
+            algorithmTaskQueue: run.algorithmTaskQueue,
+          },
+          error: { message },
+        });
+        workflow.log.info(`Snapshot marked as ${status}`, { snapshotId });
+      } catch (updateError) {
+        // Never mask the original failure; the reconciler settles the row.
+        workflow.log.error('Failed to record the terminal snapshot status', {
+          snapshotId,
+          status,
+          error: (updateError as Error).message,
+        });
+      }
+    });
+
+    throw error;
+  }
+
+  // Best-effort: post a non-custom snapshot's scores back to DeepID. This runs
+  // only after a successful completion and never affects the snapshot status —
+  // a posting failure is retried by Temporal, then logged and swallowed so it
+  // can never fail the reputation run. Combined snapshots already submitted
+  // their native child scores and final encrypted entries before completion.
+  if (run.algorithmKind !== 'combined') {
+    const { postSnapshotScores } = workflow.proxyActivities<DeepIdPostScoresActivities>({
+      taskQueue: orchestratorTaskQueue,
+      startToCloseTimeout: DEEP_ID_POST_SCORES_TIMEOUT,
+      heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
+      retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
+    });
+    try {
+      const completedSnapshot = await getSnapshot({ snapshotId });
+      const postResult = await postSnapshotScores({ snapshot: completedSnapshot });
+      workflow.log.info('DeepID score posting finished', { snapshotId, ...postResult });
+    } catch (postError) {
+      workflow.log.error('DeepID score posting failed (non-fatal)', {
+        snapshotId,
+        error: (postError as Error).message,
+      });
+    }
+  }
+}
+
+interface SnapshotRunState {
+  algorithmTaskQueue?: string;
+  algorithmKind?: string;
+}
+
+/** True when the error chain contains the non-retryable snapshot-deleted failure. */
+function isSnapshotNotFound(error: unknown): boolean {
+  let current: unknown = error;
+  while (current instanceof Error) {
+    if (current instanceof workflow.ApplicationFailure && current.type === SNAPSHOT_NOT_FOUND_ERROR_TYPE) {
+      return true;
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
+async function runSnapshotPhases(args: {
+  snapshotId: string;
+  snapshot: Snapshot;
+  workflowInfo: workflow.WorkflowInfo;
+  orchestratorTaskQueue: string;
+  run: SnapshotRunState;
+}): Promise<void> {
+  const { snapshotId, snapshot, workflowInfo, orchestratorTaskQueue, run } = args;
+
   const algorithmKey = snapshot.algorithmPresetFrozen.key;
   const algorithmVersion = snapshot.algorithmPresetFrozen.version;
 
@@ -214,8 +320,10 @@ async function runOrchestrator(input: OrchestratorWorkflowInput): Promise<void> 
     algorithmVersion: algorithmDefinition.version,
   });
 
+  run.algorithmKind = algorithmDefinition.kind;
   const runtime = algorithmDefinition.runtime;
   const algorithmTaskQueue = getAlgorithmTaskQueueFromRuntime(runtime);
+  run.algorithmTaskQueue = algorithmTaskQueue;
 
   const { resolveDependency: resolveOrchestratorDependency } = workflow.proxyActivities<DependencyResolverActivities>({
     taskQueue: orchestratorTaskQueue,
@@ -234,13 +342,6 @@ async function runOrchestrator(input: OrchestratorWorkflowInput): Promise<void> 
     taskQueue: algorithmTaskQueue,
     startToCloseTimeout: ALGORITHM_EXECUTION_TIMEOUT,
     heartbeatTimeout: HEARTBEAT_TIMEOUT,
-    retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
-  });
-
-  const { postSnapshotScores } = workflow.proxyActivities<DeepIdPostScoresActivities>({
-    taskQueue: orchestratorTaskQueue,
-    startToCloseTimeout: DEEP_ID_POST_SCORES_TIMEOUT,
-    heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
     retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
   });
 
@@ -367,95 +468,31 @@ async function runOrchestrator(input: OrchestratorWorkflowInput): Promise<void> 
     });
   }
 
-  try {
-    workflow.log.info('Executing algorithm activity (on-chain PostgreSQL may be used for transfer data)', {
-      algorithmKey,
-      algorithmTaskQueue,
-      snapshotId,
-    });
+  workflow.log.info('Executing algorithm activity (on-chain PostgreSQL may be used for transfer data)', {
+    algorithmKey,
+    algorithmTaskQueue,
+    snapshotId,
+  });
 
-    let result: AlgorithmResult;
-    if (runtime === 'typescript') {
-      result = await typescriptAlgorithmActivities.runTypescriptAlgorithm(snapshot);
-    } else {
-      throw new UnsupportedAlgorithmError(algorithmKey);
-    }
+  let result: AlgorithmResult;
+  if (runtime === 'typescript') {
+    result = await typescriptAlgorithmActivities.runTypescriptAlgorithm(snapshot);
+  } else {
+    throw new UnsupportedAlgorithmError(algorithmKey);
+  }
 
-    workflow.log.info('Algorithm execution completed successfully', {
-      snapshotId,
-      algorithmKey,
-      outputKeys: Object.keys(result.outputs),
-    });
+  workflow.log.info('Algorithm execution completed successfully', {
+    snapshotId,
+    algorithmKey,
+    outputKeys: Object.keys(result.outputs),
+  });
 
-    if (algorithmDefinition.kind === 'combined') {
-      // Persist the native child artifacts while the snapshot stays running so
-      // they survive the long encryption window and a workflow retry. The raw
-      // submission still receives result.outputs directly — never a refetch.
-      await updateSnapshot({
-        snapshotId,
-        outputs: result.outputs as Record<string, string>,
-        temporal: {
-          workflowId: workflowInfo.workflowId,
-          runId: workflowInfo.runId,
-          taskQueue: orchestratorTaskQueue,
-          algorithmTaskQueue,
-        },
-      });
-
-      // The custom path submits every child's native raw scores before the
-      // snapshot completes, and a submission failure fails the run. One
-      // run-consistent timestamp (the workflow start) keys DeepID's idempotent
-      // dedup, so activity retries and later run stages reuse the same value.
-      const runTimestamp = workflowInfo.startTime.toISOString();
-      const submission = await submitCustomRawScores({
-        snapshotId,
-        algorithmPresetFrozen: snapshot.algorithmPresetFrozen,
-        outputs: result.outputs,
-        timestamp: runTimestamp,
-      });
-
-      workflow.log.info('Submitted custom raw child scores to DeepID', {
-        snapshotId,
-        timestamp: runTimestamp,
-        children: submission.children.map(({ scoreType, observation, posted, ok, dropped, rejected }) => ({
-          scoreType,
-          observation,
-          posted,
-          ok,
-          dropped,
-          rejected,
-        })),
-      });
-
-      // Nothing encrypted may be evaluated or submitted while a selected
-      // child score is still pending_encryption; the snapshot completes only
-      // after DeepID accepts every complete user's final encrypted entry.
-      const lifecycle = await runEncryptedCustomScoreLifecycle({
-        snapshotId,
-        algorithmPresetFrozen: snapshot.algorithmPresetFrozen,
-        observations: submission.children.map(({ scoreType, observation }) => ({ scoreType, observation })),
-        timestamp: runTimestamp,
-        checkEncryptionReadiness,
-        submitCustomEncryptedScores,
-      });
-
-      workflow.log.info('DeepID accepted every final encrypted custom score', {
-        snapshotId,
-        rounds: lifecycle.rounds,
-        complete: lifecycle.submission.complete,
-        incomplete: lifecycle.submission.incomplete,
-        submitted: lifecycle.submission.submitted,
-        batches: lifecycle.submission.batches,
-        pages: lifecycle.submission.pages,
-        cursorRestarts: lifecycle.submission.cursorRestarts,
-        registeredKeys: lifecycle.submission.registeredKeys,
-        lastRequestId: lifecycle.submission.lastRequestId,
-      });
-    }
-
+  if (algorithmDefinition.kind === 'combined') {
+    // Persist the native child artifacts while the snapshot stays running so
+    // they survive the long encryption window and a workflow retry. The raw
+    // submission still receives result.outputs directly — never a refetch.
     await updateSnapshot({
       snapshotId,
-      status: SnapshotStatus.completed,
       outputs: result.outputs as Record<string, string>,
       temporal: {
         workflowId: workflowInfo.workflowId,
@@ -465,52 +502,68 @@ async function runOrchestrator(input: OrchestratorWorkflowInput): Promise<void> 
       },
     });
 
-    workflow.log.info('Snapshot marked as completed', { snapshotId });
-  } catch (error) {
-    const isCancelled = workflow.isCancellation(error);
-    const status = isCancelled ? SnapshotStatus.cancelled : SnapshotStatus.failed;
-    const message = isCancelled ? 'Workflow was cancelled' : (error as Error).message || 'Unknown error';
-
-    workflow.log.error('Algorithm execution failed', {
+    // The custom path submits every child's native raw scores before the
+    // snapshot completes, and a submission failure fails the run. One
+    // run-consistent timestamp (the workflow start) keys DeepID's idempotent
+    // dedup, so activity retries and later run stages reuse the same value.
+    const runTimestamp = workflowInfo.startTime.toISOString();
+    const submission = await submitCustomRawScores({
       snapshotId,
-      cancelled: isCancelled,
-      error: message,
+      algorithmPresetFrozen: snapshot.algorithmPresetFrozen,
+      outputs: result.outputs,
+      timestamp: runTimestamp,
     });
 
-    await workflow.CancellationScope.nonCancellable(async () => {
-      await updateSnapshot({
-        snapshotId,
-        status,
-        temporal: {
-          workflowId: workflowInfo.workflowId,
-          runId: workflowInfo.runId,
-          taskQueue: orchestratorTaskQueue,
-          algorithmTaskQueue,
-        },
-        error: { message },
-      });
+    workflow.log.info('Submitted custom raw child scores to DeepID', {
+      snapshotId,
+      timestamp: runTimestamp,
+      children: submission.children.map(({ scoreType, observation, posted, ok, dropped, rejected }) => ({
+        scoreType,
+        observation,
+        posted,
+        ok,
+        dropped,
+        rejected,
+      })),
     });
 
-    workflow.log.info(`Snapshot marked as ${status}`, { snapshotId });
-    throw error;
+    // Nothing encrypted may be evaluated or submitted while a selected
+    // child score is still pending_encryption; the snapshot completes only
+    // after DeepID accepts every complete user's final encrypted entry.
+    const lifecycle = await runEncryptedCustomScoreLifecycle({
+      snapshotId,
+      algorithmPresetFrozen: snapshot.algorithmPresetFrozen,
+      observations: submission.children.map(({ scoreType, observation }) => ({ scoreType, observation })),
+      timestamp: runTimestamp,
+      checkEncryptionReadiness,
+      submitCustomEncryptedScores,
+    });
+
+    workflow.log.info('DeepID accepted every final encrypted custom score', {
+      snapshotId,
+      rounds: lifecycle.rounds,
+      complete: lifecycle.submission.complete,
+      incomplete: lifecycle.submission.incomplete,
+      submitted: lifecycle.submission.submitted,
+      batches: lifecycle.submission.batches,
+      pages: lifecycle.submission.pages,
+      cursorRestarts: lifecycle.submission.cursorRestarts,
+      registeredKeys: lifecycle.submission.registeredKeys,
+      lastRequestId: lifecycle.submission.lastRequestId,
+    });
   }
 
-  // Best-effort: post a non-custom snapshot's scores back to DeepID. This runs
-  // only after a successful completion (the catch above re-throws on failure) and
-  // never affects the snapshot status — a posting failure is retried by Temporal,
-  // then logged and swallowed so it can never fail the reputation run. Combined
-  // snapshots already submitted their native child scores and final encrypted
-  // entries before completion.
-  if (algorithmDefinition.kind !== 'combined') {
-    try {
-      const completedSnapshot = await getSnapshot({ snapshotId });
-      const postResult = await postSnapshotScores({ snapshot: completedSnapshot });
-      workflow.log.info('DeepID score posting finished', { snapshotId, ...postResult });
-    } catch (postError) {
-      workflow.log.error('DeepID score posting failed (non-fatal)', {
-        snapshotId,
-        error: (postError as Error).message,
-      });
-    }
-  }
+  await updateSnapshot({
+    snapshotId,
+    status: SnapshotStatus.completed,
+    outputs: result.outputs as Record<string, string>,
+    temporal: {
+      workflowId: workflowInfo.workflowId,
+      runId: workflowInfo.runId,
+      taskQueue: orchestratorTaskQueue,
+      algorithmTaskQueue,
+    },
+  });
+
+  workflow.log.info('Snapshot marked as completed', { snapshotId });
 }

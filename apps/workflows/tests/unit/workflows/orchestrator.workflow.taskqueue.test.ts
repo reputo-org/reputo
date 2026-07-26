@@ -119,13 +119,15 @@ describe('OrchestratorWorkflow task queue routing', () => {
     });
     expect(recordedOptions[3]).not.toHaveProperty('heartbeatTimeout');
     expect(recordedOptions[4]).toMatchObject({ taskQueue: algorithmTypescriptTaskQueue });
-    expect(recordedOptions[7]).toMatchObject({
+    // The best-effort post proxy is created after the phases, so the DeepID
+    // proxies sit one index earlier than before the finalizer restructure.
+    expect(recordedOptions[6]).toMatchObject({
       taskQueue: 'orchestrator-q',
       startToCloseTimeout: DEEP_ID_READINESS_CHECK_TIMEOUT,
       heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
       retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
     });
-    expect(recordedOptions[8]).toMatchObject({
+    expect(recordedOptions[7]).toMatchObject({
       taskQueue: 'orchestrator-q',
       startToCloseTimeout: DEEP_ID_ENCRYPTED_SUBMISSION_TIMEOUT,
       heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
