@@ -103,7 +103,14 @@ function ReputoFormInner({
         }
         return <RepeaterField key={input.key} {...commonProps} />
       case "sub_algorithm":
-        return <SubAlgorithmComposerField key={input.key} {...commonProps} />
+        return (
+          <SubAlgorithmComposerField
+            key={input.key}
+            {...commonProps}
+            scoringCopy={schema.description}
+            normalization={schema.normalization}
+          />
+        )
       default:
         return null
     }
