@@ -29,6 +29,15 @@ Traefik sits in front of the UI and API and terminates TLS.
 6. Each status change is written to Postgres and announced with `pg_notify`. The API turns
    that into an SSE stream, so the UI updates live (`running` → `completed` or `failed`).
 
+A snapshot always reaches a final status. Starting the workflow is part of the create
+request: if the start fails, the API marks the row `failed` and returns 503. If the run
+fails or is cancelled at any later point, the workflow itself writes `failed` or
+`cancelled`. For the cases where no workflow code can run (run timeout, terminate, a lost
+start), a reconciler in the API periodically checks queued and running rows against
+Temporal and settles them. Status changes follow a fixed state machine
+(`queued → running → completed | failed | cancelled`), so a late write can never reopen a
+finished snapshot.
+
 ## Data stores
 
 - **Application Postgres** — system of record for presets, snapshots, outputs, users,
