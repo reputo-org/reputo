@@ -143,6 +143,16 @@ interface ProcessingContext {
   lastRequestId: string | undefined;
 }
 
+/**
+ * Page reads, metadata reads, and posts can each spend minutes inside the
+ * client's retry/backoff loop, and two of them back to back would outlive the
+ * activity's 5-minute heartbeat timeout — so every network await is followed
+ * by a heartbeat (the SDK throttles the actual RPCs).
+ */
+function heartbeatProgress(pass: ProcessingPassState): void {
+  Context.current().heartbeat({ pages: pass.pages, scannedUsers: pass.scannedUsers, submitted: pass.submitted });
+}
+
 /** Registers the user's SEAL metadata with the evaluator (once per URL); returns the key id the final entry echoes. */
 async function resolveUserKeyId(ctx: ProcessingContext, metadataUrl: string): Promise<string> {
   const cached = ctx.metadataByUrl.get(metadataUrl);
@@ -191,7 +201,7 @@ async function submitPage(
 
     pass.submitted += batch.length;
     pass.batches += 1;
-    Context.current().heartbeat({ pages: pass.pages, scannedUsers: pass.scannedUsers, submitted: pass.submitted });
+    heartbeatProgress(pass);
   }
 }
 
@@ -235,6 +245,7 @@ async function runProcessingPass(ctx: ProcessingContext): Promise<ProcessingPass
     const page = next.value;
     pass.pages += 1;
     ctx.lastRequestId = page.requestId ?? ctx.lastRequestId;
+    heartbeatProgress(pass);
 
     // The whole page is classified before anything is evaluated or posted, so
     // a pending user stops its page from submitting at all.
@@ -252,12 +263,13 @@ async function runProcessingPass(ctx: ProcessingContext): Promise<ProcessingPass
       pass.complete += 1;
       const keyId = await resolveUserKeyId(ctx, classification.metadataUrl);
       pageUsers.push({ did, keyId, ciphertexts: classification.ciphertexts });
+      heartbeatProgress(pass);
     }
 
     if (pageUsers.length > 0) {
       await submitPage(ctx, pageUsers, pass);
     }
-    Context.current().heartbeat({ pages: pass.pages, scannedUsers: pass.scannedUsers, submitted: pass.submitted });
+    heartbeatProgress(pass);
   }
 
   return pass;

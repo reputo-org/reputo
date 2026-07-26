@@ -1,5 +1,6 @@
 import {
   type AlgorithmDefinition,
+  type AlgorithmNormalization,
   type ArrayIoItem,
   getAlgorithmDefinition,
   type JsonIoItem,
@@ -90,6 +91,8 @@ export interface FormSchema {
   category: string
   description: string
   version: string
+  /** Definition-level normalization metadata; absent values mean observed min-max */
+  normalization?: AlgorithmNormalization
   inputs: FormInput[]
   outputs: any[]
 }
@@ -158,6 +161,7 @@ export function buildSchemaFromAlgorithm(
     category: algorithm.category,
     description: algorithm.description,
     version,
+    normalization: fullDefinition?.normalization,
     inputs: [
       keyInput,
       versionInput,

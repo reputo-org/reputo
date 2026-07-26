@@ -56,6 +56,34 @@ describe("preset payload serialization", () => {
     ])
   })
 
+  it("round-trips a stored 1.0.0 custom_score payload without drift", () => {
+    const stored = [
+      {
+        algorithm_key: "voting_engagement",
+        algorithm_version: "1.0.0",
+        weight: 2,
+        inputs: [
+          { key: "votes", value: "uploads/votes.csv" },
+          { key: "minimum_votes", value: 3 },
+        ],
+      },
+      {
+        algorithm_key: "proposal_engagement",
+        algorithm_version: "1.0.0",
+        weight: 0.5,
+        inputs: [{ key: "proposals", value: "uploads/proposals.csv" }],
+      },
+    ]
+
+    expect(
+      buildPresetInputsFromForm({
+        algorithmInputs: [{ key: "sub_algorithms", type: "sub_algorithm" }],
+        data: { sub_algorithms: stored },
+        existingInputs: [{ key: "sub_algorithms", value: stored }],
+      })
+    ).toEqual([{ key: "sub_algorithms", value: stored }])
+  })
+
   it("reuses persisted values for unchanged edit fields", () => {
     expect(
       buildPresetInputsFromForm({

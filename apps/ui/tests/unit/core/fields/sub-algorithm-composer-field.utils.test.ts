@@ -19,6 +19,7 @@ vi.mock("@reputo/reputation-algorithms", () => ({
 
 import {
   buildChildInputsArray,
+  describeNormalization,
   getSelectableChildAlgorithms,
 } from "../../../../src/core/fields/sub-algorithm-composer-field.utils"
 
@@ -146,5 +147,46 @@ describe("sub-algorithm composer helpers", () => {
         value: "",
       },
     ])
+  })
+
+  it("defaults normalization display to observed min-max over [0, 100]", () => {
+    expect(describeNormalization(undefined)).toEqual({
+      methodLabel: "Observed min–max",
+      targetMin: 0,
+      targetMax: 100,
+    })
+    expect(describeNormalization(null)).toEqual({
+      methodLabel: "Observed min–max",
+      targetMin: 0,
+      targetMax: 100,
+    })
+  })
+
+  it("describes the active normalization method from definition metadata", () => {
+    expect(
+      describeNormalization({
+        method: "observed_min_max",
+        targetMin: 0,
+        targetMax: 100,
+      })
+    ).toEqual({
+      methodLabel: "Observed min–max",
+      targetMin: 0,
+      targetMax: 100,
+    })
+  })
+
+  it("falls back to a readable label for future methods", () => {
+    expect(
+      describeNormalization({
+        method: "z_score" as never,
+        targetMin: -3,
+        targetMax: 3,
+      })
+    ).toEqual({
+      methodLabel: "z score",
+      targetMin: -3,
+      targetMax: 3,
+    })
   })
 })

@@ -16,7 +16,11 @@ const { mockIterateUsers, mockPostScores, mockGetSealMetadata, mockCreateDeepIdC
       mockIterateUsers: iterate,
       mockPostScores: post,
       mockGetSealMetadata: metadata,
-      mockCreateDeepIdClient: vi.fn(() => ({ iterateUsers: iterate, postScores: post, getSealMetadata: metadata })),
+      mockCreateDeepIdClient: vi.fn(() => ({
+        iterateUsers: iterate,
+        postScores: post,
+        getSealMetadata: metadata,
+      })),
       mockLog: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
       mockHeartbeat: vi.fn(),
     };
@@ -26,7 +30,13 @@ const { evaluatorState, mockCreateEvaluator } = vi.hoisted(() => {
   const state = {
     createInputs: [] as unknown[],
     registered: [] as string[],
-    batches: [] as Array<Array<{ did: string; keyId: string; ciphertexts: Record<string, string> }>>,
+    batches: [] as Array<
+      Array<{
+        did: string;
+        keyId: string;
+        ciphertexts: Record<string, string>;
+      }>
+    >,
     disposed: 0,
     /** When set, the next evaluateBatch call throws it (then clears). */
     failNextBatch: null as Error | null,
@@ -41,16 +51,29 @@ const { evaluatorState, mockCreateEvaluator } = vi.hoisted(() => {
         },
         hasKey: (keyId: string) => state.registered.includes(keyId),
         evaluateUser: vi.fn(),
-        evaluateBatch: (users: Array<{ did: string; keyId: string; ciphertexts: Record<string, string> }>) => {
+        evaluateBatch: (
+          users: Array<{
+            did: string;
+            keyId: string;
+            ciphertexts: Record<string, string>;
+          }>,
+        ) => {
           if (state.failNextBatch) {
             const error = state.failNextBatch;
             state.failNextBatch = null;
             throw error;
           }
           state.batches.push(users.map((user) => ({ ...user })));
-          return users.map((user) => ({ did: user.did, keyId: user.keyId, ciphertext: `ENC(${user.did})` }));
+          return users.map((user) => ({
+            did: user.did,
+            keyId: user.keyId,
+            ciphertext: `ENC(${user.did})`,
+          }));
         },
-        stats: () => ({ registeredKeys: new Set(state.registered).size, liveHandles: 0 }),
+        stats: () => ({
+          registeredKeys: new Set(state.registered).size,
+          liveHandles: 0,
+        }),
         dispose: () => {
           state.disposed += 1;
         },
@@ -75,7 +98,9 @@ vi.mock('@temporalio/activity', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@temporalio/activity')>();
   return {
     ...actual,
-    Context: { current: () => ({ log: mockLog, heartbeat: mockHeartbeat }) },
+    Context: {
+      current: () => ({ log: mockLog, heartbeat: mockHeartbeat }),
+    },
   };
 });
 
@@ -108,12 +133,23 @@ const METADATA_URL = '/v1/seal-metadata/key-1';
 const didFor = (i: number) => `did:sub:${String(i).padStart(24, '0')}`;
 
 function child(key: string, weight = 1) {
-  return { algorithm_key: key, algorithm_version: '1.0.0', weight, inputs: [] };
+  return {
+    algorithm_key: key,
+    algorithm_version: '1.0.0',
+    weight,
+    inputs: [],
+  };
 }
 
 const OBSERVATIONS = [
-  { scoreType: 'voting_engagement', observation: { method: 'observed_min_max', min: 0, max: 10 } },
-  { scoreType: 'token_value_over_time', observation: { method: 'observed_min_max', min: 5, max: 25 } },
+  {
+    scoreType: 'voting_engagement',
+    observation: { method: 'observed_min_max', min: 0, max: 10 },
+  },
+  {
+    scoreType: 'token_value_over_time',
+    observation: { method: 'observed_min_max', min: 5, max: 25 },
+  },
 ];
 
 function makeInput(overrides: Record<string, unknown> = {}) {
@@ -124,7 +160,10 @@ function makeInput(overrides: Record<string, unknown> = {}) {
       version: '1.0.0',
       inputs: [
         { key: 'dids', value: 'uploads/dids.json' },
-        { key: 'sub_algorithms', value: [child('voting_engagement'), child('token_value_over_time', 2)] },
+        {
+          key: 'sub_algorithms',
+          value: [child('voting_engagement'), child('token_value_over_time', 2)],
+        },
       ],
     },
     observations: OBSERVATIONS,
@@ -133,24 +172,39 @@ function makeInput(overrides: Record<string, unknown> = {}) {
   } as never;
 }
 
-const encrypted = (ciphertext = 'CIPHERTEXT-BODY') => ({ status: 'encrypted', ciphertext });
-const pendingEncryption = () => ({ status: 'pending_encryption', ciphertext: null });
+const encrypted = (ciphertext = 'CIPHERTEXT-BODY') => ({
+  status: 'encrypted',
+  ciphertext,
+});
+const pendingEncryption = () => ({
+  status: 'pending_encryption',
+  ciphertext: null,
+});
 
 function user(fields?: Record<string, unknown>, sealMetadata: string | null = METADATA_URL) {
   return fields === undefined
     ? { scopes: ['api'] }
-    : { scopes: ['api'], scores_encr: { 'seal-metadata': sealMetadata, ...fields } };
+    : {
+        scopes: ['api'],
+        scores_encr: { 'seal-metadata': sealMetadata, ...fields },
+      };
 }
 
 function completeUser(sealMetadata: string | null = METADATA_URL) {
   return user(
-    { voting_engagement_encr: encrypted('CT-VOTING'), token_value_over_time_encr: encrypted('CT-TOKEN') },
+    {
+      voting_engagement_encr: encrypted('CT-VOTING'),
+      token_value_over_time_encr: encrypted('CT-TOKEN'),
+    },
     sealMetadata,
   );
 }
 
 function pendingUser() {
-  return user({ voting_engagement_encr: encrypted(), token_value_over_time_encr: pendingEncryption() });
+  return user({
+    voting_engagement_encr: encrypted(),
+    token_value_over_time_encr: pendingEncryption(),
+  });
 }
 
 function pageOf(users: Record<string, unknown>, extras: Partial<UsersPage> = {}) {
@@ -236,7 +290,10 @@ describe('submitCustomEncryptedScores activity', () => {
     const result = (await createSubmitCustomEncryptedScoresActivity()(makeInput())) as EncryptedScoresSubmittedResult;
 
     expect(mockCreateDeepIdClient).toHaveBeenCalledWith(expect.objectContaining({ scopes: SELECTED_SCOPES }));
-    expect(mockIterateUsers).toHaveBeenCalledWith({ pageSize: 100, filteredTokenScopes: SELECTED_SCOPES });
+    expect(mockIterateUsers).toHaveBeenCalledWith({
+      pageSize: 100,
+      filteredTokenScopes: SELECTED_SCOPES,
+    });
 
     // One evaluation batch per page, complete users only, ciphertexts keyed by child.
     expect(evaluatorState.batches).toHaveLength(2);
@@ -245,7 +302,10 @@ describe('submitCustomEncryptedScores activity', () => {
     expect(evaluatorState.batches[0][0]).toEqual({
       did: didFor(1),
       keyId: 'key-1',
-      ciphertexts: { voting_engagement: 'CT-VOTING', token_value_over_time: 'CT-TOKEN' },
+      ciphertexts: {
+        voting_engagement: 'CT-VOTING',
+        token_value_over_time: 'CT-TOKEN',
+      },
     });
 
     // 30 → 25 + 5, then 10: three bounded batches, every entry OK.
@@ -278,7 +338,17 @@ describe('submitCustomEncryptedScores activity', () => {
       lastRequestId: 'req-post',
     });
     expect(evaluatorState.disposed).toBe(1);
-    expect(mockHeartbeat).toHaveBeenCalled();
+
+    expect(mockHeartbeat.mock.calls[0][0]).toEqual({
+      pages: 1,
+      scannedUsers: 0,
+      submitted: 0,
+    });
+    const metadataOrder = mockGetSealMetadata.mock.invocationCallOrder[0];
+    const firstPostOrder = mockPostScores.mock.invocationCallOrder[0];
+    expect(
+      mockHeartbeat.mock.invocationCallOrder.some((order) => order > metadataOrder && order < firstPostOrder),
+    ).toBe(true);
   });
 
   it('passes the resolved method and per-child observations to the evaluator', async () => {
@@ -290,8 +360,24 @@ describe('submitCustomEncryptedScores activity', () => {
     expect(evaluatorState.createInputs[0]).toEqual({
       method: 'observed_min_max',
       children: [
-        { key: 'voting_engagement', weight: 1, observation: { method: 'observed_min_max', min: 0, max: 10 } },
-        { key: 'token_value_over_time', weight: 2, observation: { method: 'observed_min_max', min: 5, max: 25 } },
+        {
+          key: 'voting_engagement',
+          weight: 1,
+          observation: {
+            method: 'observed_min_max',
+            min: 0,
+            max: 10,
+          },
+        },
+        {
+          key: 'token_value_over_time',
+          weight: 2,
+          observation: {
+            method: 'observed_min_max',
+            min: 5,
+            max: 25,
+          },
+        },
       ],
     });
   });
@@ -300,7 +386,13 @@ describe('submitCustomEncryptedScores activity', () => {
     const didA = 'did:sub:aAbBcCdDeEfFgGhHiIjJkKlL';
     const didB = didFor(2);
     enqueuePass([
-      pageOf({ [didA]: completeUser(), [didB]: completeUser('/v1/seal-metadata/key-2') }, { requestId: 'req-1' }),
+      pageOf(
+        {
+          [didA]: completeUser(),
+          [didB]: completeUser('/v1/seal-metadata/key-2'),
+        },
+        { requestId: 'req-1' },
+      ),
     ]);
 
     const result = (await createSubmitCustomEncryptedScoresActivity()(makeInput())) as EncryptedScoresSubmittedResult;
@@ -317,7 +409,10 @@ describe('submitCustomEncryptedScores activity', () => {
     enqueuePass([
       pageOf({
         [didFor(1)]: completeUser(),
-        [didFor(2)]: user({ voting_engagement_encr: encrypted(), token_value_over_time_encr: null }),
+        [didFor(2)]: user({
+          voting_engagement_encr: encrypted(),
+          token_value_over_time_encr: null,
+        }),
         [didFor(3)]: user({ voting_engagement_encr: encrypted() }),
         [didFor(4)]: user(),
       }),
@@ -325,7 +420,13 @@ describe('submitCustomEncryptedScores activity', () => {
 
     const result = (await createSubmitCustomEncryptedScoresActivity()(makeInput())) as EncryptedScoresSubmittedResult;
 
-    expect(result).toMatchObject({ outcome: 'submitted', complete: 1, incomplete: 3, scannedUsers: 4, submitted: 1 });
+    expect(result).toMatchObject({
+      outcome: 'submitted',
+      complete: 1,
+      incomplete: 3,
+      scannedUsers: 4,
+      submitted: 1,
+    });
     expect(evaluatorState.batches).toHaveLength(1);
     expect(evaluatorState.batches[0].map((entry) => entry.did)).toEqual([didFor(1)]);
     const request = mockPostScores.mock.calls[0][0] as Record<string, unknown>;
@@ -335,7 +436,11 @@ describe('submitCustomEncryptedScores activity', () => {
   it('stops the page and returns pending_encryption when a potentially complete user is still pending', async () => {
     enqueuePass([
       completePage(1, 2, { next: 'cursor-2' }),
-      pageOf({ [didFor(3)]: completeUser(), [didFor(4)]: pendingUser(), [didFor(5)]: completeUser() }),
+      pageOf({
+        [didFor(3)]: completeUser(),
+        [didFor(4)]: pendingUser(),
+        [didFor(5)]: completeUser(),
+      }),
     ]);
 
     const result = await createSubmitCustomEncryptedScoresActivity()(makeInput());
@@ -360,7 +465,10 @@ describe('submitCustomEncryptedScores activity', () => {
 
     const result = await createSubmitCustomEncryptedScoresActivity()(makeInput());
 
-    expect(result).toMatchObject({ outcome: 'pending_encryption', pages: 1 });
+    expect(result).toMatchObject({
+      outcome: 'pending_encryption',
+      pages: 1,
+    });
     expect(evaluatorState.batches).toHaveLength(0);
     expect(mockPostScores).not.toHaveBeenCalled();
   });
@@ -488,7 +596,16 @@ describe('submitCustomEncryptedScores activity', () => {
   });
 
   it('fails immediately for malformed scores_encr', async () => {
-    enqueuePass([pageOf({ [didFor(1)]: user({ voting_engagement_encr: { status: 'exploded', ciphertext: 'x' } }) })]);
+    enqueuePass([
+      pageOf({
+        [didFor(1)]: user({
+          voting_engagement_encr: {
+            status: 'exploded',
+            ciphertext: 'x',
+          },
+        }),
+      }),
+    ]);
 
     const failure = await expectFatal(createSubmitCustomEncryptedScoresActivity()(makeInput()));
 
@@ -531,7 +648,12 @@ describe('submitCustomEncryptedScores activity', () => {
           algorithmPresetFrozen: {
             key: 'custom_score',
             version: '1.0.0',
-            inputs: [{ key: 'sub_algorithms', value: [child('bogus_child')] }],
+            inputs: [
+              {
+                key: 'sub_algorithms',
+                value: [child('bogus_child')],
+              },
+            ],
           },
         }),
       ),

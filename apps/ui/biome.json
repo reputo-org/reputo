@@ -10,7 +10,8 @@
       "!.next",
       "!dist",
       "!build",
-      "!coverage"
+      "!coverage",
+      "!next-env.d.ts"
     ]
   },
   "formatter": {

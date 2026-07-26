@@ -1,7 +1,10 @@
 "use client"
 
-import type { AlgorithmDefinition } from "@reputo/reputation-algorithms"
-import { ChevronDown, GripVertical, Plus, Trash2 } from "lucide-react"
+import type {
+  AlgorithmDefinition,
+  AlgorithmNormalization,
+} from "@reputo/reputation-algorithms"
+import { ChevronDown, Plus, Trash2 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import {
   type Control,
@@ -45,10 +48,14 @@ import {
   safeGetDefinition,
   safeGetVersions,
 } from "./sub-algorithm-composer-field.utils"
+import { SubAlgorithmScoringExplanation } from "./sub-algorithm-scoring-explanation"
 
 interface SubAlgorithmComposerFieldProps {
   input: FormInput
   control: Control<any>
+  /** Canonical scoring copy from the parent algorithm definition (markdown). */
+  scoringCopy?: string
+  normalization?: AlgorithmNormalization | null
 }
 
 interface CachedDefinition {
@@ -64,6 +71,8 @@ interface RowValue {
 export function SubAlgorithmComposerField({
   input,
   control,
+  scoringCopy,
+  normalization,
 }: SubAlgorithmComposerFieldProps) {
   const fieldName = input.key
   const { fields, append, remove } = useFieldArray({ control, name: fieldName })
@@ -133,6 +142,11 @@ export function SubAlgorithmComposerField({
       {input.description && (
         <FormDescription>{input.description}</FormDescription>
       )}
+
+      <SubAlgorithmScoringExplanation
+        copy={scoringCopy}
+        normalization={normalization}
+      />
 
       <div className="space-y-2">
         {fields.map((field, index) => {
@@ -328,10 +342,6 @@ function SubAlgorithmRow({
             aria-label={`${expanded ? "Collapse" : "Expand"} sub-algorithm ${index + 1}`}
             aria-expanded={expanded}
           >
-            <GripVertical
-              className="size-4 text-muted-foreground shrink-0"
-              aria-hidden="true"
-            />
             <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
               {index + 1}
             </span>

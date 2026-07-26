@@ -1,5 +1,6 @@
 import {
   type AlgorithmDefinition,
+  type AlgorithmNormalization,
   getAlgorithmDefinition,
   getAlgorithmDefinitionKeys,
   getAlgorithmDefinitionVersions,
@@ -8,6 +9,33 @@ import {
 export interface ChildAlgorithmOption {
   key: string
   label: string
+}
+
+const NORMALIZATION_METHOD_LABELS: Record<string, string> = {
+  observed_min_max: "Observed min–max",
+}
+
+export interface NormalizationSummary {
+  methodLabel: string
+  targetMin: number
+  targetMax: number
+}
+
+/**
+ * Display summary of the active normalization method. Definitions without
+ * metadata default to observed min–max over [0, 100].
+ */
+export function describeNormalization(
+  normalization?: AlgorithmNormalization | null
+): NormalizationSummary {
+  const method = normalization?.method ?? "observed_min_max"
+
+  return {
+    methodLabel:
+      NORMALIZATION_METHOD_LABELS[method] ?? method.replace(/_/g, " "),
+    targetMin: normalization?.targetMin ?? 0,
+    targetMax: normalization?.targetMax ?? 100,
+  }
 }
 
 export function safeGetDefinition(
