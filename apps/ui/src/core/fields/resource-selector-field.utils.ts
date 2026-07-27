@@ -27,6 +27,7 @@ export interface ResourceSelectorRowViewModel {
   kind: "token" | "contract"
   kindLabel: string
   iconUrl?: string
+  shortIdentifier: string
   explorer: ResourceSelectorExplorerViewModel
 }
 
@@ -99,6 +100,30 @@ export function sortResourceSelections(
   })
 }
 
+/** Shortens a chain identifier for display: 0xCB85…3475 / e824c001…4554. */
+export function formatShortIdentifier(identifier: string): string {
+  if (identifier.startsWith("0x") && identifier.length > 12) {
+    return `${identifier.slice(0, 6)}…${identifier.slice(-4)}`
+  }
+  if (identifier.length > 16) {
+    return `${identifier.slice(0, 8)}…${identifier.slice(-4)}`
+  }
+  return identifier
+}
+
+/**
+ * Registry labels may end in "· <short identifier>" to stay unambiguous in
+ * label-only surfaces; the selector row shows the identifier on its own
+ * line, so the suffix is stripped there.
+ */
+function stripIdentifierSuffix(label: string, shortIdentifier: string): string {
+  const suffix = `· ${shortIdentifier}`
+  if (label.endsWith(suffix)) {
+    return label.slice(0, -suffix.length).trimEnd()
+  }
+  return label
+}
+
 function buildExplorerViewModel(resource: ResourceCatalogResource) {
   const title = resource.identifier
   const label = resource.explorerLabel ?? "Explorer"
@@ -129,17 +154,21 @@ export function buildResourceSelectorPanels(args: {
     key: chain.key,
     label: chain.label,
     supportedCount: chain.resources.length,
-    rows: chain.resources.map((resource) => ({
-      key: `${chain.key}:${resource.key}`,
-      chainKey: chain.key,
-      resourceKey: resource.key,
-      selected: selectionKeys.has(`${chain.key}:${resource.key}`),
-      label: resource.label,
-      description: resource.description,
-      kind: resource.kind,
-      kindLabel: resource.kind === "token" ? "Token" : "Contract",
-      iconUrl: resource.iconUrl ?? args.getChainIconUrl?.(chain.key),
-      explorer: buildExplorerViewModel(resource),
-    })),
+    rows: chain.resources.map((resource) => {
+      const shortIdentifier = formatShortIdentifier(resource.identifier)
+      return {
+        key: `${chain.key}:${resource.key}`,
+        chainKey: chain.key,
+        resourceKey: resource.key,
+        selected: selectionKeys.has(`${chain.key}:${resource.key}`),
+        label: stripIdentifierSuffix(resource.label, shortIdentifier),
+        description: resource.description,
+        kind: resource.kind,
+        kindLabel: resource.kind === "token" ? "Token" : "Contract",
+        iconUrl: resource.iconUrl ?? args.getChainIconUrl?.(chain.key),
+        shortIdentifier,
+        explorer: buildExplorerViewModel(resource),
+      }
+    }),
   }))
 }

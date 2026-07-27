@@ -9,6 +9,10 @@ import {
 export interface ChildAlgorithmOption {
   key: string
   label: string
+  /** One-line summary from the definition, for the picker menu. */
+  summary: string
+  /** Latest registry version, pre-assigned when the child is added. */
+  latestVersion: string
 }
 
 const NORMALIZATION_METHOD_LABELS: Record<string, string> = {
@@ -79,10 +83,58 @@ export function getSelectableChildAlgorithms(): ChildAlgorithmOption[] {
       continue
     }
 
-    options.push({ key, label: definition.name })
+    options.push({
+      key,
+      label: definition.name,
+      summary: definition.summary ?? "",
+      latestVersion,
+    })
   }
 
   return options.sort((a, b) => a.label.localeCompare(b.label))
+}
+
+export interface WeightShare {
+  /** Percentage share of the total weight, or null when not computable. */
+  sharePercent: number | null
+}
+
+/**
+ * Computes each entry's share of the total weight. An entry with a
+ * non-finite or non-positive weight gets a null share; when the total is
+ * not a positive finite number, every share is null.
+ */
+export function computeWeightShares(
+  rows: ReadonlyArray<{ weight?: number | string | null } | undefined>
+): WeightShare[] {
+  const weights = rows.map((row) => {
+    const weight = row?.weight
+    const parsed =
+      typeof weight === "number"
+        ? weight
+        : typeof weight === "string" && weight.trim() !== ""
+          ? Number(weight.replace(",", "."))
+          : Number.NaN
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+  })
+
+  const total = weights.reduce<number>((sum, weight) => sum + (weight ?? 0), 0)
+  const totalValid = Number.isFinite(total) && total > 0
+
+  return weights.map((weight) => ({
+    sharePercent: totalValid && weight !== null ? (weight / total) * 100 : null,
+  }))
+}
+
+/** Display form of a share: "62%", "<1%", or "—" when not computable. */
+export function formatSharePercent(sharePercent: number | null): string {
+  if (sharePercent === null) {
+    return "—"
+  }
+  if (sharePercent > 0 && sharePercent < 1) {
+    return "<1%"
+  }
+  return `${Math.round(sharePercent)}%`
 }
 
 /** Build a fresh inputs array for the selected child algorithm definition. */

@@ -59,12 +59,12 @@ describe("ui algorithms", () => {
         category: "Engagement",
         summary: "Scores voting diversity.",
         description: "Calculates voting engagement from a vote file.",
-        duration: "~1-3 min",
-        inputSummary: "1 configurable input",
+        duration: "1–3 min",
+        inputSummary: "1 input",
         level: "Beginner",
         kind: "standalone",
         inputs: [{ key: "votes_csv", type: "csv", label: "Votes CSV" }],
-        dependencyLabels: ["DeepFunding Portal API"],
+        dependencyLabels: ["Deep Funding Portal"],
       },
     ])
     expect(getAlgorithmById("voting_engagement")).toEqual(algorithms[0])
@@ -107,8 +107,8 @@ describe("ui algorithms", () => {
         category: "Engagement",
         summary: "Scores proposal outcomes.",
         description: "Calculates proposal engagement.",
-        duration: "~2-4 min",
-        inputSummary: "2 configurable inputs",
+        duration: "2–4 min",
+        inputSummary: "2 inputs",
         level: "Beginner",
         kind: "standalone",
         inputs: [
@@ -163,8 +163,8 @@ describe("ui algorithms", () => {
         category: "Activity",
         summary: "Scores held token value.",
         description: "Measures holdings over time.",
-        duration: "~4-8 min",
-        inputSummary: "2 configurable inputs",
+        duration: "4–8 min",
+        inputSummary: "2 inputs",
         level: "Intermediate",
         kind: "standalone",
         inputs: [
@@ -175,7 +175,7 @@ describe("ui algorithms", () => {
             label: "Resources to Score",
           },
         ],
-        dependencyLabels: ["Onchain Data"],
+        dependencyLabels: ["On-chain data"],
       },
     ])
   })

@@ -12,7 +12,6 @@ import {
   RepeaterField,
   ResourceSelectorField,
   SelectField,
-  SliderField,
   TextField,
 } from "./fields"
 import type { FormInput } from "./schema-builder"
@@ -45,8 +44,6 @@ export function renderScalarField(
       return <EnumField key={input.key} {...commonProps} />
     case "select":
       return <SelectField key={input.key} {...commonProps} />
-    case "slider":
-      return <SliderField key={input.key} {...commonProps} />
     case "csv":
       return <CSVField key={input.key} {...commonProps} />
     case "json":

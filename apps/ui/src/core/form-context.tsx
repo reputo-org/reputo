@@ -5,13 +5,14 @@ import {
   useCallback,
   useContext,
   useMemo,
-  useRef,
   useState,
 } from "react"
 
 interface FormUploadState {
   setFieldUploading: (fieldKey: string, isUploading: boolean) => void
   isUploading: boolean
+  /** Keys of fields with an upload or validation still in flight. */
+  uploadingFields: string[]
 }
 
 const FormUploadContext = createContext<FormUploadState | null>(null)
@@ -21,32 +22,33 @@ export function FormUploadProvider({
 }: {
   children: React.ReactNode
 }) {
-  const uploadingFieldsRef = useRef<Set<string>>(new Set())
-  const [uploadCount, setUploadCount] = useState(0)
+  const [uploadingFields, setUploadingFields] = useState<string[]>([])
 
   const setFieldUploading = useCallback(
     (fieldKey: string, isUploading: boolean) => {
-      const hadField = uploadingFieldsRef.current.has(fieldKey)
-
-      if (isUploading && !hadField) {
-        uploadingFieldsRef.current.add(fieldKey)
-        setUploadCount((prev) => prev + 1)
-      } else if (!isUploading && hadField) {
-        uploadingFieldsRef.current.delete(fieldKey)
-        setUploadCount((prev) => Math.max(0, prev - 1))
-      }
+      setUploadingFields((prev) => {
+        const hasField = prev.includes(fieldKey)
+        if (isUploading && !hasField) {
+          return [...prev, fieldKey]
+        }
+        if (!isUploading && hasField) {
+          return prev.filter((key) => key !== fieldKey)
+        }
+        return prev
+      })
     },
     []
   )
 
-  const isUploading = uploadCount > 0
+  const isUploading = uploadingFields.length > 0
 
   const contextValue = useMemo(
     () => ({
       setFieldUploading,
       isUploading,
+      uploadingFields,
     }),
-    [setFieldUploading, isUploading]
+    [setFieldUploading, isUploading, uploadingFields]
   )
 
   return (

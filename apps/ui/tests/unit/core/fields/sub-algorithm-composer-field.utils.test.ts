@@ -19,7 +19,9 @@ vi.mock("@reputo/reputation-algorithms", () => ({
 
 import {
   buildChildInputsArray,
+  computeWeightShares,
   describeNormalization,
+  formatSharePercent,
   getSelectableChildAlgorithms,
 } from "../../../../src/core/fields/sub-algorithm-composer-field.utils"
 
@@ -79,16 +81,62 @@ describe("sub-algorithm composer helpers", () => {
       {
         key: "proposal_engagement",
         label: "Proposal Engagement",
+        summary: "Standalone child algorithm.",
+        latestVersion: "1.0.0",
       },
       {
         key: "voting_engagement",
         label: "Voting Engagement",
+        summary: "Standalone child algorithm.",
+        latestVersion: "1.0.0",
       },
     ])
     expect(mockGetAlgorithmDefinition).toHaveBeenCalledWith({
       key: "proposal_engagement",
       version: "1.0.0",
     })
+  })
+
+  it("computes weight shares and excludes invalid weights", () => {
+    expect(
+      computeWeightShares([{ weight: 1 }, { weight: 3 }]).map(
+        (share) => share.sharePercent
+      )
+    ).toEqual([25, 75])
+
+    expect(
+      computeWeightShares([{ weight: "1,5" }, { weight: "1.5" }]).map(
+        (share) => share.sharePercent
+      )
+    ).toEqual([50, 50])
+
+    // Invalid entries get no share; valid ones still split the total.
+    expect(
+      computeWeightShares([
+        { weight: "" },
+        { weight: 0 },
+        { weight: -2 },
+        { weight: 2 },
+        undefined,
+      ]).map((share) => share.sharePercent)
+    ).toEqual([null, null, null, 100, null])
+
+    // A non-finite total invalidates every share.
+    expect(
+      computeWeightShares([
+        { weight: Number.MAX_VALUE },
+        { weight: Number.MAX_VALUE },
+      ]).map((share) => share.sharePercent)
+    ).toEqual([null, null])
+
+    expect(computeWeightShares([])).toEqual([])
+  })
+
+  it("formats share percentages for display", () => {
+    expect(formatSharePercent(null)).toBe("—")
+    expect(formatSharePercent(0.4)).toBe("<1%")
+    expect(formatSharePercent(25)).toBe("25%")
+    expect(formatSharePercent(66.6)).toBe("67%")
   })
 
   it("builds child input rows without inherited keys and preserves defaults", () => {

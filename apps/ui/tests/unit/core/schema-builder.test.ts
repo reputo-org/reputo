@@ -120,12 +120,15 @@ describe("buildSchemaFromAlgorithm", () => {
     expect(result.key).toBe("preset_voting_engagement")
     expect(result.version).toBe("2.0.0")
     expect(result.outputs).toEqual(definition.outputs)
-    expect(result.inputs.slice(0, 4).map((input) => input.key)).toEqual([
-      "key",
-      "version",
+    expect(result.inputs.slice(-2).map((input) => input.key)).toEqual([
       "name",
       "description",
     ])
+    expect(
+      result.inputs.some(
+        (input) => input.key === "key" || input.key === "version"
+      )
+    ).toBe(false)
     expect(result.inputs).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -158,7 +161,8 @@ describe("buildSchemaFromAlgorithm", () => {
         }),
         expect.objectContaining({
           key: "threshold",
-          type: "slider",
+          type: "number",
+          sliderHint: true,
           min: 0,
           max: 10,
           step: 0.5,

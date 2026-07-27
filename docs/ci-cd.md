@@ -12,8 +12,9 @@ Three rules shape the pipeline:
 
 | Workflow | Trigger | What it does |
 | --- | --- | --- |
-| [`pull-request.yml`](../.github/workflows/pull-request.yml) | PR opened, updated, or reopened against `main` | Quality gate, a dependency review, and a no-push Docker build for affected apps. |
-| [`pull-preview.yml`](../.github/workflows/pull-preview.yml) | PR labelled `pullpreview`, plus a cleanup schedule every 4 hours | Builds preview images and deploys a per-PR HTTPS preview on a Lightsail VM via PullPreview. |
+| [`pull-request.yml`](../.github/workflows/pull-request.yml) | PR opened, updated, or reopened against `main` | Quality gate, dependency review, and Docker builds. For a PR labelled `pullpreview`, it publishes the complete image set and redeploys the preview without starting a second workflow run. |
+| [`pull-preview.yml`](../.github/workflows/pull-preview.yml) | The `pullpreview` label is added or removed, or a labelled PR closes | Builds the initial preview images and creates or destroys the per-PR Lightsail preview. There is no scheduled cleanup; label removal and PR closure own teardown. |
+| [`_pull-preview.yml`](../.github/workflows/_pull-preview.yml) | Called by `pull-request.yml` and `pull-preview.yml` | Reusable PullPreview deploy/destroy job. Only real deploys update the GitHub `preview` environment; teardown does not replace its last-deployment status. |
 | [`main.yml`](../.github/workflows/main.yml) | Push to `main` | Quality gate, build and push **all** apps (`sha-<commit>`), Trivy scan, semantic-release, version-tag the images, deploy staging via the Komodo API, verify the deployed commit. |
 | [`_release.yml`](../.github/workflows/_release.yml) | Called by `main.yml` | Runs `semantic-release` and outputs the released tag (for image version tags). |
 | [`promote-production.yml`](../.github/workflows/promote-production.yml) | Manual `workflow_dispatch` | Takes a commit SHA **or release tag**, requires the commit to be on `main` and to have a complete image set, retags `production` / `prod-<commit>` aliases, then deploys via `_deploy.yml`. |
@@ -34,7 +35,9 @@ Two pieces keep the workflows small:
 | `vX.Y.Z` | `main.yml` after semantic-release | Alias for the `sha-<commit>` of the released commit. |
 | `prod-<commit>`, `production` | `promote-production.yml` | Aliases recording what was promoted; not used for deploys. |
 
-Previews have no tag of their own: `pull-preview.yml` builds and deploys the same immutable `sha-<commit>` images as every other channel.
+Previews have no tag of their own: the initial label workflow and subsequent
+pull-request workflow runs publish and deploy the same immutable `sha-<commit>`
+images as every other channel.
 
 ## Supply chain
 
@@ -55,9 +58,10 @@ Repository secrets used by the build:
 - `CODECOV_TOKEN` — coverage upload.
 - `GITHUB_TOKEN` — provided by GitHub Actions.
 
-Secrets used by `pull-preview.yml`:
+Secrets used by the PullPreview lifecycle workflow:
 
 - `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` — provision the Lightsail preview VM (region `eu-central-1`).
 - `DEEPFUNDING_API_KEY`, `ALCHEMY_API_KEY`, `BLOCKFROST_API_KEY` — passed into the preview so the workers can run snapshots end to end.
+- `DEEP_ID_CLIENT_ID` / `DEEP_ID_CLIENT_SECRET` — authenticate the preview API with Deep ID.
 
 `KOMODO_WEBHOOK_SECRET` is no longer used by the pipelines (deploys go through the Komodo API); it is still needed by Komodo Core itself.

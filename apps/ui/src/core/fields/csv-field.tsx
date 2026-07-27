@@ -1,8 +1,8 @@
 "use client"
 
 import { validateCSVContent } from "@reputo/algorithm-validator"
-import { AlertCircle, CheckCircle2, Download } from "lucide-react"
-import { useEffect, useState } from "react"
+import { AlertCircle, CheckCircle2, ChevronDown, Download } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import type { Control, FieldValues } from "react-hook-form"
 import { useFormContext } from "react-hook-form"
 import {
@@ -13,6 +13,11 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import {
   FormControl,
   FormDescription,
   FormField,
@@ -21,12 +26,100 @@ import {
 } from "@/components/ui/form"
 import { Spinner } from "@/components/ui/spinner"
 import { storageApi } from "@/lib/api/services"
+import { cn } from "@/lib/utils"
 import { useFormUploadOptional } from "../form-context"
 import type { FormInput } from "../schema-builder"
 
 interface CSVFieldProps {
   input: FormInput
   control: Control<FieldValues>
+}
+
+interface ExpectedColumn {
+  key: string
+  required?: boolean
+  description?: string
+}
+
+function ExpectedColumns({
+  inputKey,
+  columns,
+}: {
+  inputKey: string
+  columns: ExpectedColumn[]
+}) {
+  const [open, setOpen] = useState(false)
+
+  const downloadTemplate = () => {
+    const headers = columns.map((col) => col.key).join(",")
+    const blob = new Blob([`${headers}\n`], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${inputKey}_sample.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="rounded-md border bg-muted/30"
+    >
+      <div className="flex items-center justify-between gap-2 px-3 py-1.5">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-xs font-medium"
+          >
+            Expected columns ({columns.length})
+            <ChevronDown
+              className={cn(
+                "size-3.5 transition-transform",
+                open && "rotate-180"
+              )}
+              aria-hidden="true"
+            />
+          </button>
+        </CollapsibleTrigger>
+        <button
+          type="button"
+          onClick={downloadTemplate}
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-xs hover:underline"
+        >
+          <Download className="size-3" />
+          Sample template
+        </button>
+      </div>
+      <CollapsibleContent>
+        <div className="border-t px-3 py-2">
+          <ul className="space-y-1">
+            {columns.map((column) => (
+              <li
+                key={column.key}
+                className="flex items-baseline gap-2 text-xs"
+              >
+                <Badge variant="outline" className="shrink-0 font-mono text-xs">
+                  {column.key}
+                  {column.required !== false && (
+                    <span className="text-destructive ml-0.5">*</span>
+                  )}
+                </Badge>
+                {column.description && (
+                  <span className="text-muted-foreground min-w-0">
+                    {column.description}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
 }
 
 export function CSVField({ input, control }: CSVFieldProps) {
@@ -40,10 +133,24 @@ export function CSVField({ input, control }: CSVFieldProps) {
   const [isUploading, setIsUploading] = useState(false)
 
   const isBusy = isUploading || isValidating
+  const isMountedRef = useRef(true)
 
   useEffect(() => {
-    if (formUpload) {
-      formUpload.setFieldUploading(input.key, isBusy)
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  // The cleanup matters: a composer row can be removed mid-upload, and a
+  // field left registered as uploading would disable submit forever.
+  useEffect(() => {
+    if (!formUpload) {
+      return
+    }
+    formUpload.setFieldUploading(input.key, isBusy)
+    return () => {
+      formUpload.setFieldUploading(input.key, false)
     }
   }, [isBusy, input.key, formUpload])
 
@@ -65,6 +172,11 @@ export function CSVField({ input, control }: CSVFieldProps) {
     setIsValidating(true)
     try {
       const result = await validateCSVContent(file, input.csv)
+      // Field names are positional inside a composer row, so a late write
+      // from an unmounted field would land on whichever row took its place.
+      if (!isMountedRef.current) {
+        return
+      }
       setValidationResult(result)
 
       if (result.valid) {
@@ -84,8 +196,14 @@ export function CSVField({ input, control }: CSVFieldProps) {
           if (putResponse.status < 200 || putResponse.status >= 300) {
             throw new Error(`Upload failed with status ${putResponse.status}`)
           }
+          if (!isMountedRef.current) {
+            return
+          }
           onChange(key)
         } catch (uploadError) {
+          if (!isMountedRef.current) {
+            return
+          }
           const errorMessage = `Upload failed: ${
             uploadError instanceof Error ? uploadError.message : "Unknown error"
           }`
@@ -110,6 +228,9 @@ export function CSVField({ input, control }: CSVFieldProps) {
         onChange(null)
       }
     } catch (error) {
+      if (!isMountedRef.current) {
+        return
+      }
       const errorMessage = `Validation failed: ${
         error instanceof Error ? error.message : "Unknown error"
       }`
@@ -149,7 +270,7 @@ export function CSVField({ input, control }: CSVFieldProps) {
                   <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground bg-muted rounded-md border">
                     <div className="flex-1">{filenameValue}</div>
                     <span className="text-xs text-muted-foreground">
-                      (Upload new file to replace)
+                      Upload a new file to replace it
                     </span>
                   </div>
                 )}
@@ -170,7 +291,7 @@ export function CSVField({ input, control }: CSVFieldProps) {
                 {isUploading && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Spinner />
-                    <span>Uploading file...</span>
+                    <span>Uploading file…</span>
                   </div>
                 )}
 
@@ -188,12 +309,12 @@ export function CSVField({ input, control }: CSVFieldProps) {
                         <AlertDescription>
                           {validationResult.valid ? (
                             <span className="text-green-600 dark:text-green-400 whitespace-nowrap">
-                              CSV structure is valid
+                              CSV file is valid
                             </span>
                           ) : (
                             <div className="space-y-1">
                               <div className="font-semibold">
-                                Validation Errors:
+                                Fix these issues:
                               </div>
                               <ul className="list-disc list-inside space-y-1">
                                 {validationResult.errors.map((error) => (
@@ -220,48 +341,10 @@ export function CSVField({ input, control }: CSVFieldProps) {
             )}
 
             {input.csv?.columns && input.csv.columns.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Download className="size-3.5" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const columns = input.csv?.columns || []
-                      const headers = columns
-                        .map((col: { key: string }) => col.key)
-                        .join(",")
-                      const blob = new Blob([`${headers}\n`], {
-                        type: "text/csv",
-                      })
-                      const url = URL.createObjectURL(blob)
-                      const a = document.createElement("a")
-                      a.href = url
-                      a.download = `${input.key}_sample.csv`
-                      document.body.appendChild(a)
-                      a.click()
-                      document.body.removeChild(a)
-                      URL.revokeObjectURL(url)
-                    }}
-                    className="hover:text-foreground hover:underline transition-colors"
-                  >
-                    Download sample template
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {input.csv.columns.map((column: any) => (
-                    <Badge
-                      key={column.key}
-                      variant="outline"
-                      className="text-xs font-mono"
-                    >
-                      {column.key}
-                      {column.required !== false && (
-                        <span className="text-destructive ml-0.5">*</span>
-                      )}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
+              <ExpectedColumns
+                inputKey={input.key}
+                columns={input.csv.columns}
+              />
             )}
           </FormItem>
         )

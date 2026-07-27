@@ -61,7 +61,7 @@ function AdminsPageContent() {
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">Admins</h1>
         <p className="text-muted-foreground text-sm">
-          Manage who can sign in and administer Reputo.
+          Manage who can sign in and change access settings.
         </p>
       </header>
 

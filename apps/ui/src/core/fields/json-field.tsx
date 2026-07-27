@@ -2,7 +2,7 @@
 
 import { validateJSONContent } from "@reputo/algorithm-validator"
 import { AlertCircle, CheckCircle2 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { Control, FieldValues } from "react-hook-form"
 import { useFormContext } from "react-hook-form"
 import {
@@ -38,10 +38,24 @@ export function JSONField({ input, control }: JSONFieldProps) {
   const [isUploading, setIsUploading] = useState(false)
 
   const isBusy = isUploading || isValidating
+  const isMountedRef = useRef(true)
 
   useEffect(() => {
-    if (formUpload) {
-      formUpload.setFieldUploading(input.key, isBusy)
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  // The cleanup matters: a composer row can be removed mid-upload, and a
+  // field left registered as uploading would disable submit forever.
+  useEffect(() => {
+    if (!formUpload) {
+      return
+    }
+    formUpload.setFieldUploading(input.key, isBusy)
+    return () => {
+      formUpload.setFieldUploading(input.key, false)
     }
   }, [formUpload, input.key, isBusy])
 
@@ -63,6 +77,11 @@ export function JSONField({ input, control }: JSONFieldProps) {
     setIsValidating(true)
     try {
       const result = await validateJSONContent(file, input.json)
+      // Field names are positional inside a composer row, so a late write
+      // from an unmounted field would land on whichever row took its place.
+      if (!isMountedRef.current) {
+        return
+      }
       setValidationResult(result)
 
       if (result.valid) {
@@ -85,8 +104,14 @@ export function JSONField({ input, control }: JSONFieldProps) {
             throw new Error(`Upload failed with status ${putResponse.status}`)
           }
 
+          if (!isMountedRef.current) {
+            return
+          }
           onChange(key)
         } catch (uploadError) {
+          if (!isMountedRef.current) {
+            return
+          }
           const errorMessage = `Upload failed: ${
             uploadError instanceof Error ? uploadError.message : "Unknown error"
           }`
@@ -111,6 +136,9 @@ export function JSONField({ input, control }: JSONFieldProps) {
         onChange(null)
       }
     } catch (error) {
+      if (!isMountedRef.current) {
+        return
+      }
       const errorMessage = `Validation failed: ${
         error instanceof Error ? error.message : "Unknown error"
       }`
@@ -150,7 +178,7 @@ export function JSONField({ input, control }: JSONFieldProps) {
                   <div className="flex items-center gap-2 rounded-md border bg-muted p-2 text-sm text-muted-foreground">
                     <div className="flex-1">{filenameValue}</div>
                     <span className="text-xs text-muted-foreground">
-                      (Upload new file to replace)
+                      Upload a new file to replace it
                     </span>
                   </div>
                 )}
@@ -171,7 +199,7 @@ export function JSONField({ input, control }: JSONFieldProps) {
                 {isUploading && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Spinner />
-                    <span>Uploading file...</span>
+                    <span>Uploading file…</span>
                   </div>
                 )}
 
@@ -189,12 +217,12 @@ export function JSONField({ input, control }: JSONFieldProps) {
                         <AlertDescription>
                           {validationResult.valid ? (
                             <span className="text-green-600 dark:text-green-400 whitespace-nowrap">
-                              JSON structure is valid
+                              JSON file is valid
                             </span>
                           ) : (
                             <div className="space-y-1">
                               <div className="font-semibold">
-                                Validation Errors:
+                                Fix these issues:
                               </div>
                               <ul className="list-disc list-inside space-y-1">
                                 {validationResult.errors.map((error) => (

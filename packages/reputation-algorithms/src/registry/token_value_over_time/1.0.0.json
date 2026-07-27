@@ -3,14 +3,14 @@
     "name": "Token Value Over Time",
     "kind": "standalone",
     "category": "Activity",
-    "summary": "Scores each user by wallet value kept over time, with more weight for longer-held FET.",
-    "description": "### What it does\nScores each user from the FET still held in their linked wallets.\n\n### How it works\n- Users and their wallets come from DeepID.\n- Each incoming transfer becomes a separate lot.\n- A lot gains value as it gets older and reaches full value at the maturation period.\n- When tokens leave a wallet, the oldest lots are used first.\n- Wallet scores are added together for each user.\n\n### Resource selection\nChoose the FET token or staking resources to include in scoring.\n\n### Data source\nUses indexed token transfer data for each user's wallets.\n\n### Output\n- CSV file with `did` and `token_value`.\n- JSON file with score details for each user, wallet, and lot.",
+    "summary": "Scores users by the FET value they hold over time, with higher scores for longer holding periods.",
+    "description": "### What it does\nScores each user based on the FET still held in their linked wallets.\n\n### How it works\n- Users and their wallets come from DeepID.\n- Each incoming transfer creates a separate token lot.\n- A lot gains value as it gets older and reaches full value at the end of the maturation period.\n- When tokens leave a wallet, the oldest lots are used first.\n- Wallet scores are added together for each user.\n\n### Resources\nChoose the FET tokens and staking contracts to include.\n\n### Data source\nUses indexed token transfer data for each user's wallets.\n\n### Outputs\n- CSV file with `did` and `token_value`.\n- JSON file with score details for each user, wallet, and token lot.",
     "version": "1.0.0",
     "inputs": [
         {
             "key": "maturation_threshold_days",
-            "label": "Maturation Period (Days)",
-            "description": "Number of days a token lot must be held to reach full value.",
+            "label": "Maturation period (days)",
+            "description": "Number of days a token lot must be held before it reaches full value.",
             "type": "integer",
             "min": 1,
             "max": 3650,
@@ -25,8 +25,8 @@
         },
         {
             "key": "selected_resources",
-            "label": "Token Resources to Score",
-            "description": "Choose the FET token or staking resources to include.",
+            "label": "Token resources",
+            "description": "Choose the FET tokens and staking contracts to include.",
             "type": "array",
             "minItems": 1,
             "required": true,
@@ -68,8 +68,8 @@
                                 },
                                 {
                                     "key": "fet_staking_1",
-                                    "label": "FET Staking",
-                                    "description": "FET staking contract on Ethereum.",
+                                    "label": "FET Staking · 0xCB85…3475",
+                                    "description": "FET staking contract on Ethereum at 0xCB85b101C4822A4E3ABCa20e57f1DFf0E2673475.",
                                     "kind": "contract",
                                     "identifier": "0xCB85b101C4822A4E3ABCa20e57f1DFf0E2673475",
                                     "tokenIdentifier": "0xaea46A60368A7bD060eec7DF8CBa43b7EF41Ad85",
@@ -81,8 +81,8 @@
                                 },
                                 {
                                     "key": "fet_staking_2",
-                                    "label": "FET Staking",
-                                    "description": "FET staking contract on Ethereum.",
+                                    "label": "FET Staking · 0x351b…7DE2",
+                                    "description": "FET staking contract on Ethereum at 0x351baC612B50e87B46e4b10A282f632D41397DE2.",
                                     "kind": "contract",
                                     "identifier": "0x351baC612B50e87B46e4b10A282f632D41397DE2",
                                     "tokenIdentifier": "0xaea46A60368A7bD060eec7DF8CBa43b7EF41Ad85",
@@ -121,8 +121,8 @@
                 "properties": [
                     {
                         "key": "chain",
-                        "label": "Chain",
-                        "description": "Blockchain for the selected resource.",
+                        "label": "Blockchain",
+                        "description": "Blockchain that contains the selected resource.",
                         "type": "string",
                         "enum": ["ethereum", "cardano"],
                         "required": true,
@@ -137,7 +137,7 @@
                     {
                         "key": "resource_key",
                         "label": "Resource",
-                        "description": "Token or staking contract to score on that chain.",
+                        "description": "Token or staking contract to include on this blockchain.",
                         "type": "string",
                         "enum": ["fet_token", "fet_staking_1", "fet_staking_2"],
                         "required": true,
@@ -152,12 +152,12 @@
                                 },
                                 {
                                     "value": "fet_staking_1",
-                                    "label": "FET Staking",
+                                    "label": "FET Staking · 0xCB85…3475",
                                     "filterBy": "ethereum"
                                 },
                                 {
                                     "value": "fet_staking_2",
-                                    "label": "FET Staking",
+                                    "label": "FET Staking · 0x351b…7DE2",
                                     "filterBy": "ethereum"
                                 },
                                 {
@@ -176,8 +176,8 @@
     "outputs": [
         {
             "key": "token_value_over_time",
-            "label": "Token Value Over Time (CSV)",
-            "description": "CSV file with one row per user and the final token value score.",
+            "label": "Token value over time (CSV)",
+            "description": "One row per user with their final token value score.",
             "type": "csv",
             "csv": {
                 "hasHeader": true,
@@ -186,20 +186,20 @@
                     {
                         "key": "did",
                         "type": "string",
-                        "description": "The user's DID (did:plc or did:sub)."
+                        "description": "User DID (`did:plc` or `did:sub`)."
                     },
                     {
                         "key": "token_value",
                         "type": "number",
-                        "description": "Raw token value score for the user. It is not normalized, so its range depends on the held amounts."
+                        "description": "Raw user score. It is not normalized, so its range depends on the amount of FET held."
                     }
                 ]
             }
         },
         {
             "key": "token_value_over_time_details",
-            "label": "Token Value Over Time Details (JSON)",
-            "description": "JSON file with score details for each user, wallet, and lot.",
+            "label": "Token value over time details (JSON)",
+            "description": "Score details for each user, wallet, and token lot.",
             "type": "json"
         }
     ],

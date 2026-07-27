@@ -12,6 +12,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Slider } from "@/components/ui/slider"
 import type { FormInput } from "../schema-builder"
 
 interface NumberFieldProps {
@@ -70,7 +71,10 @@ function NumberFieldInner({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value
     setLocalValue(raw)
-    if (raw === "") field.onChange("")
+    // Keep the form value in step with the text: pressing Enter submits the
+    // form without firing blur, so a deferred update would save a stale
+    // number while the field shows the new one.
+    field.onChange(fromDisplayValue(raw))
   }
 
   const handleBlur = () => {
@@ -94,17 +98,36 @@ function NumberFieldInner({
 
   const suffix = input.suffix as string | undefined
   const presets = input.presets as number[] | undefined
+  const hasSlider =
+    input.sliderHint === true &&
+    typeof input.min === "number" &&
+    typeof input.max === "number"
+  const hasRange =
+    typeof input.min === "number" || typeof input.max === "number"
+
+  const sliderValue =
+    typeof field.value === "number" && Number.isFinite(field.value)
+      ? field.value
+      : (input.min ?? 0)
 
   return (
     <FormItem>
-      <FormLabel>
-        {input.label}
-        {input.required !== false && (
-          <span className="text-destructive ml-1">*</span>
+      <div className="flex items-baseline justify-between gap-2">
+        <FormLabel>
+          {input.label}
+          {input.required !== false && (
+            <span className="text-destructive ml-1">*</span>
+          )}
+        </FormLabel>
+        {hasRange && (
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {input.min ?? "−∞"}–{input.max ?? "∞"}
+            {suffix ? ` ${suffix}` : ""}
+          </span>
         )}
-      </FormLabel>
-      <FormControl>
-        <div className="flex items-center gap-2">
+      </div>
+      <div className="flex items-center gap-2">
+        <FormControl>
           <Input
             type="text"
             inputMode={isIntegerField ? "numeric" : "decimal"}
@@ -116,15 +139,29 @@ function NumberFieldInner({
             onChange={handleChange}
             onBlur={handleBlur}
             onFocus={handleFocus}
-            className={suffix ? "flex-1" : undefined}
+            className={hasSlider ? "w-28" : suffix ? "flex-1" : undefined}
           />
-          {suffix && (
-            <span className="text-sm text-muted-foreground whitespace-nowrap">
-              {suffix}
-            </span>
-          )}
-        </div>
-      </FormControl>
+        </FormControl>
+        {suffix && (
+          <span className="text-sm text-muted-foreground whitespace-nowrap">
+            {suffix}
+          </span>
+        )}
+        {hasSlider && (
+          <Slider
+            min={input.min}
+            max={input.max}
+            step={input.step || 1}
+            value={[sliderValue]}
+            onValueChange={(vals) => {
+              field.onChange(vals[0])
+              setLocalValue(String(vals[0]))
+            }}
+            aria-label={`${input.label} slider`}
+            className="flex-1"
+          />
+        )}
+      </div>
       {presets && presets.length > 0 && (
         <div className="flex flex-wrap gap-1.5 pt-1">
           {presets.map((preset) => {

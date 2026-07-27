@@ -2,6 +2,7 @@ import type { ResourceCatalog } from "@reputo/reputation-algorithms"
 import { describe, expect, it } from "vitest"
 import {
   buildResourceSelectorPanels,
+  formatShortIdentifier,
   sortResourceSelections,
 } from "../../../../src/core/fields/resource-selector-field.utils"
 
@@ -93,6 +94,49 @@ describe("resource-selector-field utils", () => {
         href: undefined,
         label: "Explorer",
       },
+    })
+  })
+
+  it("shortens identifiers for display", () => {
+    expect(
+      formatShortIdentifier("0xCB85b101C4822A4E3ABCa20e57f1DFf0E2673475")
+    ).toBe("0xCB85…3475")
+    expect(
+      formatShortIdentifier(
+        "e824c0011176f0926ad51f492bcc63ac6a03a589653520839dc7e3d9464554"
+      )
+    ).toBe("e824c001…4554")
+    expect(formatShortIdentifier("afet")).toBe("afet")
+  })
+
+  it("adds short identifiers to rows and strips label suffixes that repeat them", () => {
+    const suffixCatalog: ResourceCatalog = {
+      chains: [
+        {
+          key: "ethereum",
+          label: "Ethereum",
+          resources: [
+            {
+              key: "fet_staking_1",
+              label: "FET Staking · 0xCB85…3475",
+              kind: "contract",
+              identifier: "0xCB85b101C4822A4E3ABCa20e57f1DFf0E2673475",
+              tokenIdentifier: "0xaea46A60368A7bD060eec7DF8CBa43b7EF41Ad85",
+              tokenKey: "fet",
+            },
+          ],
+        },
+      ],
+    }
+
+    const panels = buildResourceSelectorPanels({
+      catalog: suffixCatalog,
+      selections: [],
+    })
+
+    expect(panels[0]?.rows[0]).toMatchObject({
+      label: "FET Staking",
+      shortIdentifier: "0xCB85…3475",
     })
   })
 })

@@ -1,37 +1,32 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { AlgorithmPresets } from "@/components/app/presets/algorithm-presets"
+import type { Algorithm } from "@/core/algorithms"
 import {
   useAlgorithmPresets,
-  useCreateAlgorithmPreset,
   useCreateSnapshot,
   useDeleteAlgorithmPreset,
-  useUpdateAlgorithmPreset,
 } from "@/lib/api/hooks"
 
-const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }))
+const { pushMock, replaceMock, searchParamsRef } = vi.hoisted(() => ({
+  pushMock: vi.fn(),
+  replaceMock: vi.fn(),
+  searchParamsRef: { current: new URLSearchParams() },
+}))
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock }),
-  usePathname: () => "/dashboard/algorithms/reputation",
-  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: pushMock, replace: replaceMock }),
+  usePathname: () => "/dashboard/algorithms/reputation_score",
+  useSearchParams: () => searchParamsRef.current,
 }))
 
 vi.mock("@/lib/api/hooks", () => ({
   useAlgorithmPresets: vi.fn(),
-  useCreateAlgorithmPreset: vi.fn(),
-  useUpdateAlgorithmPreset: vi.fn(),
   useDeleteAlgorithmPreset: vi.fn(),
   useCreateSnapshot: vi.fn(),
 }))
 
-vi.mock("@/components/app/presets/create-preset-dialog", () => ({
-  CreatePresetDialog: () => null,
-}))
-vi.mock("@/components/app/presets/edit-preset-dialog", () => ({
-  EditPresetDialog: () => null,
-}))
 vi.mock("@/components/app/presets/preset-delete-dialog", () => ({
   PresetDeleteDialog: () => null,
 }))
@@ -41,9 +36,21 @@ vi.mock("@/components/app/presets/preset-details-dialog", () => ({
 
 const mockUsePresets = vi.mocked(useAlgorithmPresets)
 const mockUseCreateSnapshot = vi.mocked(useCreateSnapshot)
-const mockUseCreatePreset = vi.mocked(useCreateAlgorithmPreset)
-const mockUseUpdatePreset = vi.mocked(useUpdateAlgorithmPreset)
 const mockUseDeletePreset = vi.mocked(useDeleteAlgorithmPreset)
+
+const algo: Algorithm = {
+  id: "reputation_score",
+  title: "Reputation Score",
+  category: "Engagement",
+  summary: "Scores reputation.",
+  description: "Scores reputation.",
+  duration: "~2-5 min",
+  inputSummary: "1 configurable input",
+  level: "Beginner",
+  kind: "standalone",
+  inputs: [],
+  dependencyLabels: [],
+}
 
 const preset = {
   _id: "p1",
@@ -67,6 +74,7 @@ let createSnapshotMutateAsync: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   vi.clearAllMocks()
+  searchParamsRef.current = new URLSearchParams()
 
   mockUsePresets.mockReturnValue({
     data: { results: [preset] },
@@ -81,15 +89,13 @@ beforeEach(() => {
     error: null,
   } as unknown as ReturnType<typeof useCreateSnapshot>)
 
-  mockUseCreatePreset.mockReturnValue(
-    mutationStub() as unknown as ReturnType<typeof useCreateAlgorithmPreset>
-  )
-  mockUseUpdatePreset.mockReturnValue(
-    mutationStub() as unknown as ReturnType<typeof useUpdateAlgorithmPreset>
-  )
   mockUseDeletePreset.mockReturnValue(
     mutationStub() as unknown as ReturnType<typeof useDeleteAlgorithmPreset>
   )
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe("AlgorithmPresets", () => {
@@ -102,7 +108,7 @@ describe("AlgorithmPresets", () => {
 
     render(<AlgorithmPresets />)
 
-    expect(screen.getByText("Loading Presets")).toBeInTheDocument()
+    expect(screen.getByText("Loading presets")).toBeInTheDocument()
   })
 
   it("renders an error state when the query fails", () => {
@@ -114,59 +120,123 @@ describe("AlgorithmPresets", () => {
 
     render(<AlgorithmPresets />)
 
-    expect(screen.getByText("Failed to Load Presets")).toBeInTheDocument()
+    expect(screen.getByText("Could not load presets")).toBeInTheDocument()
     expect(
-      screen.getByRole("button", { name: "Try Again" })
+      screen.getByRole("button", { name: "Try again" })
     ).toBeInTheDocument()
   })
 
-  it("renders an empty state when there are no presets", () => {
+  it("renders an empty state that links to the composer", () => {
     mockUsePresets.mockReturnValue({
       data: { results: [] },
       isLoading: false,
       error: null,
     } as unknown as ReturnType<typeof useAlgorithmPresets>)
 
-    render(<AlgorithmPresets />)
+    render(<AlgorithmPresets algo={algo} />)
 
-    expect(screen.getByText("No Presets Found")).toBeInTheDocument()
+    expect(screen.getByText("No presets yet")).toBeInTheDocument()
+    expect(
+      screen.getByRole("link", { name: /create a preset/i })
+    ).toHaveAttribute(
+      "href",
+      "/dashboard/algorithms/reputation_score/presets/new"
+    )
+  })
+
+  it("links the header button to the composer route", () => {
+    render(<AlgorithmPresets algo={algo} />)
+
+    expect(screen.getByRole("link", { name: /new preset/i })).toHaveAttribute(
+      "href",
+      "/dashboard/algorithms/reputation_score/presets/new"
+    )
   })
 
   it("renders a row per preset with its details", () => {
-    render(<AlgorithmPresets />)
+    render(<AlgorithmPresets algo={algo} />)
 
     expect(screen.getByText("My Preset")).toBeInTheDocument()
     expect(screen.getByText("Reputation Score")).toBeInTheDocument()
     expect(screen.getByText("1.0.0")).toBeInTheDocument()
-    expect(screen.getByText("1 inputs")).toBeInTheDocument()
+    expect(screen.getByText("1 input")).toBeInTheDocument()
   })
 
-  it("creates a snapshot and navigates when Run is clicked", async () => {
+  it("runs a preset only after the confirmation dialog is accepted", async () => {
     const user = userEvent.setup()
-    render(<AlgorithmPresets />)
+    render(<AlgorithmPresets algo={algo} />)
 
-    await user.click(screen.getByRole("button", { name: "Run" }))
+    await user.click(screen.getByRole("button", { name: /^run$/i }))
+    expect(createSnapshotMutateAsync).not.toHaveBeenCalled()
 
-    expect(createSnapshotMutateAsync).toHaveBeenCalledWith({
-      algorithmPresetId: "p1",
-      outputs: {},
-    })
+    const dialog = await screen.findByRole("dialog")
+    expect(dialog).toHaveTextContent(/My Preset/)
+
+    await user.click(within(dialog).getByRole("button", { name: /^run$/i }))
+
+    await waitFor(() =>
+      expect(createSnapshotMutateAsync).toHaveBeenCalledWith({
+        algorithmPresetId: "p1",
+        outputs: {},
+      })
+    )
     await waitFor(() => expect(pushMock).toHaveBeenCalledTimes(1))
     const url = String(pushMock.mock.calls[0][0])
     expect(url).toContain("tab=snapshots")
     expect(url).toContain("preset=p1")
   })
 
-  it("navigates to snapshots without running when View Snapshots is clicked", async () => {
+  it("exposes edit and duplicate links in the actions menu", async () => {
     const user = userEvent.setup()
-    render(<AlgorithmPresets />)
+    render(<AlgorithmPresets algo={algo} />)
 
-    await user.click(screen.getByRole("button", { name: "View Snapshots" }))
+    await user.click(screen.getByRole("button", { name: "Preset actions" }))
+
+    const editLink = await screen.findByRole("menuitem", { name: /edit/i })
+    expect(editLink).toHaveAttribute(
+      "href",
+      "/dashboard/algorithms/reputation_score/presets/p1/edit"
+    )
+    expect(
+      screen.getByRole("menuitem", { name: /duplicate/i })
+    ).toHaveAttribute(
+      "href",
+      "/dashboard/algorithms/reputation_score/presets/new?from=p1"
+    )
+  })
+
+  it("navigates to snapshots from the actions menu without running", async () => {
+    const user = userEvent.setup()
+    render(<AlgorithmPresets algo={algo} />)
+
+    await user.click(screen.getByRole("button", { name: "Preset actions" }))
+    await user.click(
+      await screen.findByRole("menuitem", { name: /view snapshots/i })
+    )
 
     expect(createSnapshotMutateAsync).not.toHaveBeenCalled()
     expect(pushMock).toHaveBeenCalledTimes(1)
     const url = String(pushMock.mock.calls[0][0])
     expect(url).toContain("tab=snapshots")
     expect(url).toContain("preset=p1")
+  })
+
+  it("highlights a freshly created preset and strips the marker param", () => {
+    vi.useFakeTimers()
+    searchParamsRef.current = new URLSearchParams("tab=presets&created=p1")
+
+    render(<AlgorithmPresets algo={algo} />)
+
+    const row = screen.getByText("My Preset").closest("tr")
+    expect(row?.className).toContain("bg-primary/5")
+
+    act(() => {
+      vi.advanceTimersByTime(4001)
+    })
+
+    expect(replaceMock).toHaveBeenCalledTimes(1)
+    const url = String(replaceMock.mock.calls[0][0])
+    expect(url).toContain("tab=presets")
+    expect(url).not.toContain("created=p1")
   })
 })

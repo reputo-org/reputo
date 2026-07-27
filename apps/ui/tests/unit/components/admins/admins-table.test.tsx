@@ -70,7 +70,7 @@ describe("AdminsTable", () => {
   it("shows an error message when the query failed", () => {
     renderTable({ isError: true, data: undefined })
 
-    expect(screen.getByText(/Failed to load admins/)).toBeInTheDocument()
+    expect(screen.getByText(/Could not load admins/)).toBeInTheDocument()
   })
 
   it("shows an empty message when there are no matches", () => {

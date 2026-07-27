@@ -20,8 +20,13 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -44,6 +49,8 @@ import {
 import {
   buildChildInputsArray,
   type ChildAlgorithmOption,
+  computeWeightShares,
+  formatSharePercent,
   getSelectableChildAlgorithms,
   safeGetDefinition,
   safeGetVersions,
@@ -82,15 +89,14 @@ export function SubAlgorithmComposerField({
     () => input.sharedInputKeys ?? [],
     [input.sharedInputKeys]
   )
-  const minItems = input.minItems ?? 1
 
   const rowValues =
     (useWatch({ control, name: fieldName }) as RowValue[] | undefined) ?? []
 
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
 
-  const toggleExpanded = (id: string) => {
-    setExpandedIds((prev) => {
+  const toggleCollapsed = (id: string) => {
+    setCollapsedIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) {
         next.delete(id)
@@ -101,34 +107,28 @@ export function SubAlgorithmComposerField({
     })
   }
 
-  const handleAddRow = () => {
+  const usedKeys = new Set(
+    rowValues
+      .map((row) => row?.algorithm_key)
+      .filter((key): key is string => Boolean(key))
+  )
+  const remainingOptions = childOptions.filter(
+    (option) => !usedKeys.has(option.key)
+  )
+  const maxItems = input.maxItems
+  const atMaxItems = maxItems !== undefined && fields.length >= maxItems
+  const addDisabled = remainingOptions.length === 0 || atMaxItems
+
+  const handleAdd = (option: ChildAlgorithmOption) => {
     append({
-      algorithm_key: "",
-      algorithm_version: "",
+      algorithm_key: option.key,
+      algorithm_version: option.latestVersion,
       weight: 1,
       inputs: [],
     })
-    setPendingExpand(true)
   }
 
-  const [pendingExpand, setPendingExpand] = useState(false)
-  useEffect(() => {
-    if (!pendingExpand) return
-    const last = fields[fields.length - 1]
-    if (!last) {
-      setPendingExpand(false)
-      return
-    }
-    setExpandedIds((prev) => {
-      if (prev.has(last.id)) return prev
-      const next = new Set(prev)
-      next.add(last.id)
-      return next
-    })
-    setPendingExpand(false)
-  }, [fields, pendingExpand])
-
-  const selectedKeysByIndex = rowValues.map((row) => row?.algorithm_key ?? "")
+  const shares = computeWeightShares(rowValues)
 
   return (
     <FormItem>
@@ -140,7 +140,7 @@ export function SubAlgorithmComposerField({
       </FormLabel>
 
       {input.description && (
-        <FormDescription>{input.description}</FormDescription>
+        <p className="text-muted-foreground text-sm">{input.description}</p>
       )}
 
       <SubAlgorithmScoringExplanation
@@ -148,55 +148,77 @@ export function SubAlgorithmComposerField({
         normalization={normalization}
       />
 
-      <div className="space-y-2">
-        {fields.map((field, index) => {
-          const row = rowValues[index]
-          const takenByOthers = selectedKeysByIndex
-            .filter((key, keyIndex) => keyIndex !== index && key)
-            .filter((key): key is string => Boolean(key))
-
-          return (
-            <SubAlgorithmRow
+      {fields.length === 0 ? (
+        <div className="rounded-lg border border-dashed px-4 py-8 text-center">
+          <p className="text-muted-foreground text-sm">
+            No algorithms added. Add at least one to build a custom score.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {fields.map((field, index) => (
+            <SubAlgorithmCard
               key={field.id}
               index={index}
               rowPrefix={`${fieldName}.${index}`}
               control={control}
               childOptions={childOptions}
               sharedInputKeys={sharedInputKeys}
-              canRemove={fields.length > minItems}
               onRemove={() => {
                 remove(index)
-                setExpandedIds((prev) => {
+                setCollapsedIds((prev) => {
                   if (!prev.has(field.id)) return prev
                   const next = new Set(prev)
                   next.delete(field.id)
                   return next
                 })
               }}
-              expanded={expandedIds.has(field.id)}
-              onToggle={() => toggleExpanded(field.id)}
-              takenByOthers={takenByOthers}
-              rowSummary={row}
+              expanded={!collapsedIds.has(field.id)}
+              onToggle={() => toggleCollapsed(field.id)}
+              rowSummary={rowValues[index]}
+              shareLabel={formatSharePercent(
+                shares[index]?.sharePercent ?? null
+              )}
             />
-          )
-        })}
-      </div>
+          ))}
+        </div>
+      )}
 
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="mt-3"
-        onClick={handleAddRow}
-        disabled={
-          childOptions.length > 0 &&
-          rowValues.filter((r) => r?.algorithm_key).length >=
-            childOptions.length
-        }
-      >
-        <Plus className="mr-2 size-4" />
-        {input.addButtonLabel ?? "Add sub-algorithm"}
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            disabled={addDisabled}
+          >
+            <Plus className="mr-2 size-4" />
+            {input.addButtonLabel ?? "Add algorithm"}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-80">
+          {remainingOptions.map((option) => (
+            <DropdownMenuItem
+              key={option.key}
+              onSelect={() => handleAdd(option)}
+              className="flex flex-col items-start gap-0.5 py-2"
+            >
+              <span className="text-sm font-medium">{option.label}</span>
+              {option.summary && (
+                <span className="text-muted-foreground line-clamp-2 text-xs">
+                  {option.summary}
+                </span>
+              )}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {remainingOptions.length === 0 && fields.length > 0 && (
+        <p className="text-muted-foreground text-xs">
+          You have added every available algorithm.
+        </p>
+      )}
 
       <FormField
         control={control}
@@ -207,36 +229,35 @@ export function SubAlgorithmComposerField({
   )
 }
 
-interface SubAlgorithmRowProps {
+interface SubAlgorithmCardProps {
   index: number
   rowPrefix: string
   control: Control<any>
   childOptions: ChildAlgorithmOption[]
   sharedInputKeys: ReadonlyArray<string>
-  canRemove: boolean
   onRemove: () => void
   expanded: boolean
   onToggle: () => void
-  takenByOthers: string[]
   rowSummary: RowValue | undefined
+  shareLabel: string
 }
 
-function SubAlgorithmRow({
+function SubAlgorithmCard({
   index,
   rowPrefix,
   control,
   childOptions,
   sharedInputKeys,
-  canRemove,
   onRemove,
   expanded,
   onToggle,
-  takenByOthers,
   rowSummary,
-}: SubAlgorithmRowProps) {
-  const { setValue } = useFormContext()
+  shareLabel,
+}: SubAlgorithmCardProps) {
+  const { setValue, getValues, getFieldState, formState } = useFormContext()
   const selectedKey = rowSummary?.algorithm_key ?? ""
   const selectedVersion = rowSummary?.algorithm_version ?? ""
+  const weightError = getFieldState(`${rowPrefix}.weight`, formState).error
 
   const availableVersions = useMemo(() => {
     if (!selectedKey) return []
@@ -254,14 +275,12 @@ function SubAlgorithmRow({
     if (selectedVersion && availableVersions.includes(selectedVersion)) return
     const latest = availableVersions[availableVersions.length - 1]
     if (latest) {
+      // Normalization, not user intent — must not mark the form dirty.
       setValue(`${rowPrefix}.algorithm_version`, latest, {
-        shouldDirty: true,
         shouldValidate: true,
       })
     }
   }, [availableVersions, rowPrefix, selectedKey, selectedVersion, setValue])
-
-  const { getValues } = useFormContext()
 
   useEffect(() => {
     if (!childDefinition) {
@@ -291,7 +310,6 @@ function SubAlgorithmRow({
         : expectedItem
     })
     setValue(`${rowPrefix}.inputs`, merged, {
-      shouldDirty: true,
       shouldValidate: true,
     })
   }, [childDefinition, getValues, rowPrefix, setValue, sharedInputKeys])
@@ -312,19 +330,6 @@ function SubAlgorithmRow({
     )
   }, [childOptions, selectedKey])
 
-  const takenByOthersSet = useMemo(
-    () => new Set(takenByOthers),
-    [takenByOthers]
-  )
-
-  const weightValue = rowSummary?.weight
-  const weightDisplay =
-    typeof weightValue === "number" && Number.isFinite(weightValue)
-      ? weightValue
-      : typeof weightValue === "string" && weightValue !== ""
-        ? weightValue
-        : null
-
   return (
     <Collapsible
       open={expanded}
@@ -338,36 +343,26 @@ function SubAlgorithmRow({
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="flex flex-1 items-center gap-2 text-left hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
-            aria-label={`${expanded ? "Collapse" : "Expand"} sub-algorithm ${index + 1}`}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`${expanded ? "Collapse" : "Expand"} child algorithm ${index + 1}`}
             aria-expanded={expanded}
           >
             <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
               {index + 1}
             </span>
             <span className="flex min-w-0 flex-1 items-center gap-2">
-              <span
-                className={cn(
-                  "truncate text-sm",
-                  selectedLabel ? "font-medium" : "text-muted-foreground italic"
-                )}
-              >
-                {selectedLabel ?? "Unassigned sub-algorithm"}
+              <span className="truncate text-sm font-medium">
+                {selectedLabel ?? "Child algorithm"}
               </span>
               {selectedVersion && (
                 <Badge variant="secondary" className="shrink-0 text-[10px]">
                   v{selectedVersion}
                 </Badge>
               )}
-              {weightDisplay !== null && (
-                <Badge variant="outline" className="shrink-0 text-[10px]">
-                  × {weightDisplay}
-                </Badge>
-              )}
             </span>
             <ChevronDown
               className={cn(
-                "size-4 text-muted-foreground transition-transform shrink-0",
+                "size-4 shrink-0 text-muted-foreground transition-transform",
                 expanded && "rotate-180"
               )}
               aria-hidden="true"
@@ -375,80 +370,75 @@ function SubAlgorithmRow({
           </button>
         </CollapsibleTrigger>
 
+        <div className="flex shrink-0 items-center gap-1.5">
+          <FormField
+            control={control}
+            name={`${rowPrefix}.weight`}
+            render={({ field, fieldState }) => (
+              <Input
+                type="number"
+                step="any"
+                value={field.value ?? ""}
+                onChange={(event) => {
+                  const raw = event.target.value
+                  if (raw === "") {
+                    field.onChange("")
+                    return
+                  }
+                  const parsed = Number(raw.replace(",", "."))
+                  field.onChange(Number.isFinite(parsed) ? parsed : raw)
+                }}
+                aria-label={`Weight for child algorithm ${index + 1}`}
+                aria-invalid={fieldState.invalid}
+                aria-errormessage={
+                  fieldState.error ? `${rowPrefix}-weight-error` : undefined
+                }
+                className="h-8 w-20"
+              />
+            )}
+          />
+          <Badge
+            variant="outline"
+            className="w-12 shrink-0 justify-center font-mono text-[10px]"
+            title="Share of the final score"
+          >
+            {shareLabel}
+          </Badge>
+        </div>
+
         <Button
           type="button"
           variant="ghost"
           size="icon"
           className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
-          disabled={!canRemove}
           onClick={onRemove}
-          aria-label={`Remove sub-algorithm ${index + 1}`}
+          aria-label={`Remove child algorithm ${index + 1}`}
         >
           <Trash2 className="size-4" />
         </Button>
       </div>
 
-      <CollapsibleContent>
-        <div className="border-t px-3 py-3 space-y-4">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <FormField
-              control={control}
-              name={`${rowPrefix}.algorithm_key`}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs">Algorithm</FormLabel>
-                  <Select
-                    onValueChange={(value) => {
-                      field.onChange(value)
-                      setValue(`${rowPrefix}.algorithm_version`, "", {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      })
-                    }}
-                    value={field.value ?? ""}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select algorithm" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {childOptions.map((option) => {
-                        const takenElsewhere = takenByOthersSet.has(option.key)
-                        return (
-                          <SelectItem
-                            key={option.key}
-                            value={option.key}
-                            disabled={takenElsewhere}
-                          >
-                            <span className="flex items-center gap-2">
-                              <span>{option.label}</span>
-                              {takenElsewhere && (
-                                <span className="text-[10px] text-muted-foreground">
-                                  (already added)
-                                </span>
-                              )}
-                            </span>
-                          </SelectItem>
-                        )
-                      })}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+      {weightError?.message && (
+        <p
+          id={`${rowPrefix}-weight-error`}
+          className="text-destructive px-3 pb-2 text-xs"
+        >
+          {String(weightError.message)}
+        </p>
+      )}
 
+      <CollapsibleContent>
+        <div className="space-y-4 border-t px-3 py-3">
+          {availableVersions.length > 1 && (
             <FormField
               control={control}
               name={`${rowPrefix}.algorithm_version`}
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="max-w-48">
                   <FormLabel className="text-xs">Version</FormLabel>
                   <Select
                     onValueChange={field.onChange}
                     value={field.value ?? ""}
-                    disabled={!selectedKey || availableVersions.length === 0}
                   >
                     <FormControl>
                       <SelectTrigger className="w-full">
@@ -467,38 +457,10 @@ function SubAlgorithmRow({
                 </FormItem>
               )}
             />
-
-            <FormField
-              control={control}
-              name={`${rowPrefix}.weight`}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs">Weight</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="any"
-                      min="0"
-                      value={field.value ?? ""}
-                      onChange={(event) => {
-                        const raw = event.target.value
-                        if (raw === "") {
-                          field.onChange("")
-                          return
-                        }
-                        const parsed = Number(raw.replace(",", "."))
-                        field.onChange(Number.isFinite(parsed) ? parsed : raw)
-                      }}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+          )}
 
           {childDefinition && childFormFields.length > 0 && (
-            <div className="flex flex-col gap-3 pl-3 border-l-2 border-border">
+            <div className="flex flex-col gap-4">
               {childFormFields.map((childField, childIndex) =>
                 renderScalarField(
                   {

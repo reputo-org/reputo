@@ -28,10 +28,10 @@ export function PresetDeleteDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Delete Preset</DialogTitle>
+          <DialogTitle>Delete preset?</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete this preset? This action cannot be
-            undone and will also delete all associated snapshots.
+            This will also delete every snapshot created from this preset. You
+            cannot undo this action.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -44,7 +44,7 @@ export function PresetDeleteDialog({
             disabled={isLoading}
           >
             {isLoading && <Loader2 className="mr-2 size-4 animate-spin" />}
-            Delete Preset
+            Delete preset
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -314,7 +314,7 @@ export function CSVViewer({
           className="w-60"
         />
         <div className="text-xs text-muted-foreground">
-          Showing {sortedRows.length} of {csv.rows.length} rows
+          {sortedRows.length} of {csv.rows.length} rows
           {lastRefreshedAt
             ? ` • Updated ${new Date(lastRefreshedAt).toLocaleTimeString(
                 "en-US",
@@ -326,9 +326,9 @@ export function CSVViewer({
               )}`
             : ""}
           {csv.truncated
-            ? ` • Preview limited to ${maxPreviewRows} rows / ${Math.round(
+            ? ` • Preview limited to ${maxPreviewRows} rows or ${Math.round(
                 maxPreviewBytes / 1_000_000
-              )}MB`
+              )} MB`
             : ""}
         </div>
         <div className="flex-1" />
@@ -347,10 +347,10 @@ export function CSVViewer({
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={loading || pageRows.page <= 1}
           >
-            Prev
+            Previous
           </Button>
           <div className="text-xs text-muted-foreground whitespace-nowrap">
-            Page {pageRows.page} / {pageCount}
+            Page {pageRows.page} of {pageCount}
           </div>
           <Button
             variant="outline"
@@ -381,7 +381,7 @@ export function CSVViewer({
 
       {error && (
         <div className="text-sm text-red-600 dark:text-red-400 mb-2">
-          Failed to load CSV: {error}
+          Could not load the CSV: {error}
         </div>
       )}
 
@@ -442,7 +442,9 @@ export function CSVViewer({
                 <TableRow>
                   <TableCell colSpan={csv.headers.length}>
                     <div className="text-center py-10 text-muted-foreground">
-                      No rows found
+                      {query
+                        ? "No rows match your search."
+                        : "This CSV file has no rows."}
                     </div>
                   </TableCell>
                 </TableRow>

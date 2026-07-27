@@ -42,9 +42,34 @@ jobs:
             packages: write
         uses: ./.github/workflows/_build-and-push.yml
         with:
-            ref: ${{ github.sha }}
-            push: false
-            affected: true
+            ref: ${{ github.event.pull_request.head.sha }}
+            push: ${{ contains(github.event.pull_request.labels.*.name, 'pullpreview') }}
+            affected: ${{ !contains(github.event.pull_request.labels.*.name, 'pullpreview') }}
+
+    # PullPreview's label workflow handles initial deploy and teardown.
+    # Subsequent PR pushes reuse this workflow's image build, avoiding a
+    # second Pull Preview run and a duplicate all-app build.
+    preview:
+        needs:
+            - dependency-review
+            - build
+        if: ${{ contains(github.event.pull_request.labels.*.name, 'pullpreview') }}
+        permissions:
+            contents: read
+            pull-requests: write
+            statuses: write
+        uses: ./.github/workflows/_pull-preview.yml
+        with:
+            ref: ${{ github.event.pull_request.head.sha }}
+            deployment: true
+        secrets:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            DEEPFUNDING_API_KEY: ${{ secrets.DEEPFUNDING_API_KEY }}
+            ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
+            BLOCKFROST_API_KEY: ${{ secrets.BLOCKFROST_API_KEY }}
+            DEEP_ID_CLIENT_ID: ${{ secrets.DEEP_ID_CLIENT_ID }}
+            DEEP_ID_CLIENT_SECRET: ${{ secrets.DEEP_ID_CLIENT_SECRET }}
 
     pull-request-gate:
         name: Pull request gate

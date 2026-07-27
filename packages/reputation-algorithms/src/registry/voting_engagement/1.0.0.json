@@ -3,14 +3,14 @@
     "name": "Voting Engagement",
     "kind": "standalone",
     "category": "Engagement",
-    "summary": "Scores each user by how widely their wallets' voting history uses the full rating scale.",
-    "description": "### What it does\nScores how varied each user's linked voting history is.\n\n### How it works\n- Users and their wallets come from DeepID; each wallet is resolved to its `collection_id`(s) through the wallet collections CSV.\n- Votes are read from the votes CSV, grouped by `collection_id`.\n- Using many different ratings increases the score.\n- Repeating the same rating lowers the score.\n- Scores are shown on a 0 to 1 scale.\n\n### Input\nUpload two CSV files: the votes CSV and the wallet collections CSV (mapping each voting `collection_id` to a wallet `address`).\n\n### Output\n- CSV file with `did` and `voting_engagement`.\n- JSON file with vote distribution details for each scored user.",
+    "summary": "Scores users based on how varied their wallet-linked votes are.",
+    "description": "### What it does\nMeasures the variety in each user's wallet-linked voting history.\n\n### How it works\n- Users and their wallets come from DeepID.\n- The wallet collections file links each wallet to one or more voting collections.\n- The vote history file groups votes by collection.\n- Using a wider range of ratings increases the score.\n- Repeating the same rating lowers the score.\n- Scores range from 0 to 1.\n\n### Inputs\nUpload a vote history CSV and a wallet collections CSV. The second file links each voting `collection_id` to a wallet `address`.\n\n### Outputs\n- CSV file with `did` and `voting_engagement`.\n- JSON file with vote distribution details for each user.",
     "version": "1.0.0",
     "inputs": [
         {
             "key": "votes",
-            "label": "Vote History (CSV)",
-            "description": "Upload a CSV file of votes. Each row needs `collection_id`, `question_id`, and an `answer` from `skip` or `1` to `10`.",
+            "label": "Vote history (CSV)",
+            "description": "Upload a CSV file of votes. Each row must include `collection_id`, `question_id`, and an `answer` of `skip` or `1` to `10`.",
             "type": "csv",
             "csv": {
                 "hasHeader": true,
@@ -46,19 +46,19 @@
                             "9",
                             "10"
                         ],
-                        "description": "Vote answer: `skip` or a number from `1` to `10`."
+                        "description": "Vote answer: `skip` or a rating from `1` to `10`."
                     },
                     {
                         "key": "created_on",
                         "type": "date",
                         "required": false,
-                        "description": "Optional time when the vote was created."
+                        "description": "Optional date and time when the vote was created."
                     },
                     {
                         "key": "updated_on",
                         "type": "date",
                         "required": false,
-                        "description": "Optional time when the vote was last updated."
+                        "description": "Optional date and time when the vote was last updated."
                     },
                     {
                         "key": "question_id",
@@ -80,7 +80,7 @@
                     {
                         "key": "collection_id",
                         "type": "string",
-                        "description": "Voting identity used to group votes before mapping them to users."
+                        "description": "Voting collection used to group votes before linking them to users."
                     },
                     {
                         "key": "vote_id",
@@ -93,8 +93,8 @@
         },
         {
             "key": "wallet_collections",
-            "label": "Wallet Collections (CSV)",
-            "description": "CSV mapping each voting `collection_id` to a wallet `address`. Each user's wallets are resolved to their collection_id(s) and joined to the votes CSV.",
+            "label": "Wallet collections (CSV)",
+            "description": "Map each voting `collection_id` to a wallet `address`. Reputo uses this file to link votes to users.",
             "type": "csv",
             "csv": {
                 "hasHeader": true,
@@ -105,18 +105,18 @@
                     {
                         "key": "collection_id",
                         "type": "string",
-                        "description": "Voting identity that groups votes in the votes CSV."
+                        "description": "Voting collection used to group votes in the vote history file."
                     },
                     {
                         "key": "address",
                         "type": "string",
-                        "description": "Wallet address linked to the collection_id; matched against user wallets (case-insensitive)."
+                        "description": "Wallet address linked to the `collection_id`. Matching is not case-sensitive."
                     },
                     {
                         "key": "network",
                         "type": "string",
                         "required": false,
-                        "description": "Chain the wallet belongs to (e.g. Ethereum, Cardano). Not used for matching."
+                        "description": "Optional blockchain name, such as Ethereum or Cardano. It is not used for matching."
                     }
                 ]
             }
@@ -125,8 +125,8 @@
     "outputs": [
         {
             "key": "voting_engagement",
-            "label": "Voting Engagement (CSV)",
-            "description": "CSV file with one row per user and the final voting engagement score.",
+            "label": "Voting engagement (CSV)",
+            "description": "One row per user with their final voting engagement score.",
             "type": "csv",
             "csv": {
                 "hasHeader": true,
@@ -135,20 +135,20 @@
                     {
                         "key": "did",
                         "type": "string",
-                        "description": "The user's DID (did:plc or did:sub)."
+                        "description": "User DID (`did:plc` or `did:sub`)."
                     },
                     {
                         "key": "voting_engagement",
                         "type": "number",
-                        "description": "Raw voting engagement score from 0 to 1. It is normalized entropy, so it is not rescaled further."
+                        "description": "User score from 0 to 1, based on the variety of ratings used."
                     }
                 ]
             }
         },
         {
             "key": "voting_engagement_details",
-            "label": "Voting Engagement Details (JSON)",
-            "description": "JSON file with vote distribution details for each scored user.",
+            "label": "Voting engagement details (JSON)",
+            "description": "Vote distribution details for each user.",
             "type": "json"
         }
     ],

@@ -40,7 +40,7 @@ export const SIGN_IN_PROVIDERS: readonly SignInProviderConfig[] = [
   {
     status: "live",
     id: "deep-id",
-    ariaLabel: "Continue with DeepID",
+    ariaLabel: "Sign in with DeepID",
     loginPath: "/api/v1/auth/deep-id/login",
     logoHeight: 18,
   },
@@ -48,12 +48,12 @@ export const SIGN_IN_PROVIDERS: readonly SignInProviderConfig[] = [
     status: "soon",
     id: "google",
     label: "Google",
-    ariaLabel: "Google sign-in (coming soon)",
+    ariaLabel: "Google sign-in is coming soon",
   },
   {
     status: "soon",
     id: "github",
     label: "GitHub",
-    ariaLabel: "GitHub sign-in (coming soon)",
+    ariaLabel: "GitHub sign-in is coming soon",
   },
 ]

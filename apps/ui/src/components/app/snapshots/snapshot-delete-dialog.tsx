@@ -28,10 +28,10 @@ export function SnapshotDeleteDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Delete Snapshot</DialogTitle>
+          <DialogTitle>Delete snapshot?</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete this snapshot? This action cannot be
-            undone and will permanently remove all execution data.
+            This will remove the snapshot and all its run data. You cannot undo
+            this action.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -46,10 +46,10 @@ export function SnapshotDeleteDialog({
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
-                Deleting...
+                Deleting…
               </>
             ) : (
-              "Delete Snapshot"
+              "Delete snapshot"
             )}
           </Button>
         </DialogFooter>

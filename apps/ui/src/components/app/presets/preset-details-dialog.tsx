@@ -283,9 +283,9 @@ export function PresetDetailsDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
-          <DialogTitle>{preset?.name || "Preset Details"}</DialogTitle>
+          <DialogTitle>{preset?.name || "Preset details"}</DialogTitle>
           <DialogDescription>
-            {preset?.description || "Algorithm preset configuration"}
+            {preset?.description || "Saved inputs for this algorithm."}
           </DialogDescription>
         </DialogHeader>
 
@@ -325,7 +325,7 @@ export function PresetDetailsDialog({
             <div className="border-t" />
 
             <div>
-              <h3 className="text-sm font-medium mb-2">Parameters</h3>
+              <h3 className="text-sm font-medium mb-2">Inputs</h3>
               <div className="rounded-lg border divide-y">
                 {preset.inputs.map((input) => {
                   if (Array.isArray(input.value)) {

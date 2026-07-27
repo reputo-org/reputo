@@ -235,7 +235,7 @@ export function AdminsTable({
                     colSpan={visibleColumnsCount}
                     className="text-muted-foreground py-10 text-center"
                   >
-                    Failed to load admins. Please refresh and try again.
+                    Could not load admins. Refresh and try again.
                   </TableCell>
                 </TableRow>
               ) : table.getRowModel().rows.length === 0 ? (

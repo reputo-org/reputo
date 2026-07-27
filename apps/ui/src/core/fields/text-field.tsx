@@ -10,6 +10,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import type { FormInput } from "../schema-builder"
 
 interface TextFieldProps {
@@ -31,11 +32,18 @@ export function TextField({ input, control }: TextFieldProps) {
             )}
           </FormLabel>
           <FormControl>
-            <Input
-              placeholder={input.description || input.label}
-              disabled={input.key === "key" || input.key === "version"}
-              {...field}
-            />
+            {input.multiline ? (
+              <Textarea
+                placeholder={input.description || input.label}
+                rows={3}
+                {...field}
+              />
+            ) : (
+              <Input
+                placeholder={input.description || input.label}
+                {...field}
+              />
+            )}
           </FormControl>
           {input.description && (
             <FormDescription>{input.description}</FormDescription>

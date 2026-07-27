@@ -84,14 +84,14 @@ export function AddAdminDialog({ open, onOpenChange }: AddAdminDialogProps) {
       const status = extractApiStatus(error)
       if (status === 409) {
         toast.error(
-          `${validation.email} already has an allowlist row. Use Restore from the table if it's revoked.`
+          `${validation.email} already has access. Restore it from the table if it was removed.`
         )
       } else if (status === 400) {
         toast.error("Provider or email is invalid.")
       } else if (status === 403) {
         toast.error("You don't have permission to add admins.")
       } else {
-        toast.error("Failed to add admin. Please try again.")
+        toast.error("Could not add the admin. Try again.")
       }
     }
   }
@@ -102,10 +102,9 @@ export function AddAdminDialog({ open, onOpenChange }: AddAdminDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add an administrator</DialogTitle>
+          <DialogTitle>Add admin</DialogTitle>
           <DialogDescription>
-            New entries gain access the next time they sign in with the chosen
-            provider.
+            They can access Reputo when they next sign in with this provider.
           </DialogDescription>
         </DialogHeader>
 
@@ -184,8 +183,7 @@ export function AddAdminDialog({ open, onOpenChange }: AddAdminDialogProps) {
             </Select>
             {role === "owner" ? (
               <p className="text-muted-foreground text-xs">
-                Owners can add, remove, promote, and demote other
-                administrators.
+                Owners can add and remove admins or change their roles.
               </p>
             ) : null}
           </div>

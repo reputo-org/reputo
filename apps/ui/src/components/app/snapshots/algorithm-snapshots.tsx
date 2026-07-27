@@ -3,15 +3,25 @@
 import {
   AlertCircle,
   Eye,
-  FolderOpen,
   Loader2,
+  MoreHorizontal,
   Play,
+  Plus,
   Trash2,
 } from "lucide-react"
-import { useSearchParams } from "next/navigation"
+import Link from "next/link"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Empty,
   EmptyContent,
@@ -49,16 +59,59 @@ import { useAuthAwareSnapshotEvents } from "@/lib/api/use-snapshot-events"
 import { SnapshotDeleteDialog } from "./snapshot-delete-dialog"
 import { SnapshotDetailsDialog } from "./snapshot-details-dialog"
 
+type SnapshotStatus = SnapshotResponseDto["status"]
+
+const STATUS_OPTIONS: Array<{ value: SnapshotStatus; label: string }> = [
+  { value: "completed", label: "Completed" },
+  { value: "running", label: "Running" },
+  { value: "queued", label: "Queued" },
+  { value: "failed", label: "Failed" },
+  { value: "cancelled", label: "Cancelled" },
+]
+
+/**
+ * The frozen preset is what the run actually used, so it names the row even
+ * after the live preset is renamed or deleted.
+ */
+function getSnapshotPresetName(snapshot: SnapshotResponseDto): string {
+  if (snapshot.algorithmPresetFrozen?.name) {
+    return snapshot.algorithmPresetFrozen.name
+  }
+
+  if (
+    snapshot.algorithmPreset &&
+    typeof snapshot.algorithmPreset === "object"
+  ) {
+    const preset = snapshot.algorithmPreset as AlgorithmPresetResponseDto
+    if (preset.name) {
+      return preset.name
+    }
+    return `Preset ${preset._id?.slice(-8) ?? "unknown"}`
+  }
+
+  if (typeof snapshot.algorithmPreset === "string") {
+    return `Preset ${snapshot.algorithmPreset.slice(-8)}`
+  }
+
+  return "Unknown preset"
+}
+
 export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
-  const [selectedPreset, setSelectedPreset] = useState("all")
-  const [selectedStatus, setSelectedStatus] = useState("all")
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const [selectedStatus, setSelectedStatus] = useState<SnapshotStatus | "all">(
+    "all"
+  )
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
   const [snapshotToDelete, setSnapshotToDelete] = useState<string | null>(null)
   const [snapshotToView, setSnapshotToView] =
     useState<SnapshotResponseDto | null>(null)
+  const [deletingSnapshotId, setDeletingSnapshotId] = useState<string | null>(
+    null
+  )
   const [isMounted, setIsMounted] = useState(false)
-  const searchParams = useSearchParams()
 
   useEffect(() => {
     setIsMounted(true)
@@ -73,15 +126,7 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
   } = useSnapshots({
     key: algo?.id,
     algorithmPreset: presetFilter ?? undefined,
-    status:
-      selectedStatus !== "all"
-        ? (selectedStatus as
-            | "queued"
-            | "running"
-            | "completed"
-            | "failed"
-            | "cancelled")
-        : undefined,
+    status: selectedStatus !== "all" ? selectedStatus : undefined,
     limit: 50,
     populate: "algorithmPreset",
   })
@@ -98,6 +143,20 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
 
   const deleteSnapshotMutation = useDeleteSnapshot()
 
+  const newPresetUrl = algo
+    ? `/dashboard/algorithms/${algo.id}/presets/new`
+    : null
+
+  const handlePresetFilterChange = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (value === "all") {
+      params.delete("preset")
+    } else {
+      params.set("preset", value)
+    }
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
+
   const handleDeleteSnapshot = (snapshotId: string) => {
     setSnapshotToDelete(snapshotId)
     setIsDeleteDialogOpen(true)
@@ -111,26 +170,31 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
   const confirmDeleteSnapshot = async () => {
     if (!snapshotToDelete) return
 
+    setDeletingSnapshotId(snapshotToDelete)
     try {
       await deleteSnapshotMutation.mutateAsync(snapshotToDelete)
       setIsDeleteDialogOpen(false)
       setSnapshotToDelete(null)
-    } catch (error) {
-      console.error("Failed to delete snapshot:", error)
+      toast.success("Snapshot deleted")
+    } catch {
+      toast.error("Could not delete the snapshot. Try again.")
+    } finally {
+      setDeletingSnapshotId(null)
     }
   }
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: SnapshotStatus) => {
     switch (status) {
       case "running":
         return (
-          <Badge variant="secondary" className="w-fit">
+          <Badge variant="secondary" className="w-fit gap-1.5">
+            <Loader2 className="size-3 animate-spin" aria-hidden="true" />
             Running
           </Badge>
         )
       case "completed":
         return (
-          <Badge className="bg-foreground text-background border-transparent">
+          <Badge className="bg-emerald-500 text-white border-transparent">
             Completed
           </Badge>
         )
@@ -157,27 +221,22 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
       (now.getTime() - date.getTime()) / (1000 * 60)
     )
 
+    if (diffInMinutes < 1) {
+      return "just now"
+    }
     if (diffInMinutes < 60) {
       return `${diffInMinutes} min ago`
-    } else if (diffInMinutes < 1440) {
+    }
+    if (diffInMinutes < 1440) {
       const hours = Math.floor(diffInMinutes / 60)
       return `${hours} hour${hours > 1 ? "s" : ""} ago`
-    } else {
-      const days = Math.floor(diffInMinutes / 1440)
-      return `${days} day${days > 1 ? "s" : ""} ago`
     }
+    const days = Math.floor(diffInMinutes / 1440)
+    return `${days} day${days > 1 ? "s" : ""} ago`
   }
 
   const formatDuration = (snapshot: SnapshotResponseDto) => {
     if (!isMounted) {
-      return "—"
-    }
-
-    if (snapshot.status === "running") {
-      return "—"
-    }
-
-    if (snapshot.status === "queued" || snapshot.status === "cancelled") {
       return "—"
     }
 
@@ -212,69 +271,56 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
     return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`
   }
 
+  const filteredPresetName = presetFilter
+    ? presetsData?.results.find((preset) => preset._id === presetFilter)?.name
+    : null
+
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-3">
-        <Select
-          value={presetFilter || selectedPreset}
-          onValueChange={(value) => {
-            if (value === "all") {
-              setSelectedPreset("all")
-              const params = new URLSearchParams(searchParams.toString())
-              params.delete("preset")
-              window.history.replaceState(
-                {},
-                "",
-                `${window.location.pathname}?${params.toString()}`
-              )
-            } else {
-              setSelectedPreset(value)
-              const params = new URLSearchParams(searchParams.toString())
-              params.set("preset", value)
-              window.history.replaceState(
-                {},
-                "",
-                `${window.location.pathname}?${params.toString()}`
-              )
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Snapshots</h2>
+          <p className="text-sm text-muted-foreground">
+            Runs created from this algorithm's presets. Results appear after a
+            run finishes.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select
+            value={presetFilter ?? "all"}
+            onValueChange={handlePresetFilterChange}
+          >
+            <SelectTrigger className="w-48" aria-label="Filter by preset">
+              <SelectValue placeholder="All presets" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All presets</SelectItem>
+              {presetsData?.results.map((preset) => (
+                <SelectItem key={preset._id} value={preset._id}>
+                  {preset.name || `${preset.key} preset`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={selectedStatus}
+            onValueChange={(value) =>
+              setSelectedStatus(value as SnapshotStatus | "all")
             }
-          }}
-        >
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="All Presets" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Presets</SelectItem>
-            {presetsData?.results.map((preset) => (
-              <SelectItem key={preset._id} value={preset._id}>
-                {preset.name || `${preset.key} preset`}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="grow" />
-        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="All Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="running">Running</SelectItem>
-            <SelectItem value="queued">Queued</SelectItem>
-            <SelectItem value="failed">Failed</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select defaultValue="7d">
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Last 7 days" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7d">Last 7 days</SelectItem>
-            <SelectItem value="30d">Last 30 days</SelectItem>
-            <SelectItem value="90d">Last 90 days</SelectItem>
-          </SelectContent>
-        </Select>
+          >
+            <SelectTrigger className="w-40" aria-label="Filter by status">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              {STATUS_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {isLoading ? (
@@ -283,10 +329,8 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
             <EmptyMedia variant="icon">
               <Loader2 className="size-6 animate-spin" />
             </EmptyMedia>
-            <EmptyTitle>Loading Snapshots</EmptyTitle>
-            <EmptyDescription>
-              Please wait while we fetch your snapshot executions...
-            </EmptyDescription>
+            <EmptyTitle>Loading snapshots</EmptyTitle>
+            <EmptyDescription>Getting your snapshots…</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : error ? (
@@ -295,11 +339,16 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
             <EmptyMedia variant="icon">
               <AlertCircle className="size-6 text-red-500" />
             </EmptyMedia>
-            <EmptyTitle>Failed to Load Snapshots</EmptyTitle>
+            <EmptyTitle>Could not load snapshots</EmptyTitle>
             <EmptyDescription>
-              There was an error loading your snapshots. Please try again.
+              Check your connection and try again.
             </EmptyDescription>
           </EmptyHeader>
+          <EmptyContent>
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Try again
+            </Button>
+          </EmptyContent>
         </Empty>
       ) : snapshotsData?.results.length === 0 ? (
         <Empty className="h-[400px]">
@@ -307,46 +356,69 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
             <EmptyMedia variant="icon">
               <Play className="size-6" />
             </EmptyMedia>
-            <EmptyTitle>No Snapshots Found</EmptyTitle>
+            <EmptyTitle>No snapshots yet</EmptyTitle>
             <EmptyDescription>
-              No snapshot executions found. Create a preset and run it to see
-              snapshots here.
+              {presetFilter || selectedStatus !== "all"
+                ? "No snapshots match the current filters."
+                : "Run a preset from the Presets tab to start a snapshot."}
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <Button variant="outline" onClick={() => window.history.back()}>
-              <FolderOpen className="mr-2 size-4" />
-              Go to Presets
-            </Button>
+            {presetFilter || selectedStatus !== "all" ? (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSelectedStatus("all")
+                  handlePresetFilterChange("all")
+                }}
+              >
+                Clear filters
+              </Button>
+            ) : (
+              newPresetUrl && (
+                <Button asChild variant="outline">
+                  <Link href={newPresetUrl}>
+                    <Plus className="mr-2 size-4" /> Create a preset
+                  </Link>
+                </Button>
+              )
+            )}
           </EmptyContent>
         </Empty>
       ) : (
-        <div className="space-y-4">
+        <>
+          {filteredPresetName && (
+            <p className="text-sm text-muted-foreground">
+              Showing snapshots for{" "}
+              <span className="font-medium text-foreground">
+                {filteredPresetName}
+              </span>
+              .{" "}
+              <button
+                type="button"
+                onClick={() => handlePresetFilterChange("all")}
+                className="text-primary hover:underline"
+              >
+                Show all
+              </button>
+            </p>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="max-w-[200px]">Preset Name</TableHead>
+                <TableHead className="max-w-[200px]">Preset</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Started</TableHead>
+                <TableHead>Created</TableHead>
                 <TableHead>Duration</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {snapshotsData?.results.map((snapshot) => {
-                let presetName = "Unknown Preset"
-                if (typeof snapshot.algorithmPreset === "string") {
-                  presetName = `Preset ${snapshot.algorithmPreset.slice(-8)}`
-                } else if (
-                  snapshot.algorithmPreset &&
-                  typeof snapshot.algorithmPreset === "object"
-                ) {
-                  const preset =
-                    snapshot.algorithmPreset as AlgorithmPresetResponseDto
-                  presetName =
-                    preset.name ||
-                    `Preset ${preset._id?.slice(-8) || "Unknown"}`
-                }
+                const presetName = getSnapshotPresetName(snapshot)
+                const outputCount = snapshot.outputs
+                  ? Object.keys(snapshot.outputs).length
+                  : 0
 
                 return (
                   <TableRow key={snapshot._id}>
@@ -354,10 +426,7 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
                       <div className="flex flex-col">
                         <div className="font-medium truncate">{presetName}</div>
                         <div className="text-muted-foreground text-xs">
-                          {snapshot.outputs
-                            ? Object.keys(snapshot.outputs).length
-                            : 0}{" "}
-                          outputs
+                          {outputCount} output{outputCount !== 1 ? "s" : ""}
                         </div>
                       </div>
                     </TableCell>
@@ -369,28 +438,47 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
                       {formatDuration(snapshot)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2">
                         <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="View"
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleViewSnapshot(snapshot)}
                         >
-                          <Eye className="size-4" />
+                          <Eye className="mr-2 size-4" />
+                          Details
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Delete"
-                          onClick={() => handleDeleteSnapshot(snapshot._id)}
-                          disabled={deleteSnapshotMutation.isPending}
-                        >
-                          {deleteSnapshotMutation.isPending ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="size-4" />
-                          )}
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label="Snapshot actions"
+                              disabled={deletingSnapshotId === snapshot._id}
+                            >
+                              {deletingSnapshotId === snapshot._id ? (
+                                <Loader2 className="size-4 animate-spin" />
+                              ) : (
+                                <MoreHorizontal className="size-4" />
+                              )}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onSelect={() => handleViewSnapshot(snapshot)}
+                            >
+                              <Eye className="mr-2 size-4" /> View details
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onSelect={() =>
+                                handleDeleteSnapshot(snapshot._id)
+                              }
+                            >
+                              <Trash2 className="mr-2 size-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -398,10 +486,7 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
               })}
             </TableBody>
           </Table>
-          <div className="text-center text-sm text-muted-foreground">
-            Monitor snapshot executions and download results
-          </div>
-        </div>
+        </>
       )}
 
       <SnapshotDetailsDialog

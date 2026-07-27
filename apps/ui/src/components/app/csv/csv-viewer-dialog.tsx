@@ -24,7 +24,7 @@ export function CSVViewerDialog({
   isOpen,
   onClose,
   href,
-  title = "CSV Viewer",
+  title = "CSV preview",
 }: CSVViewerDialogProps) {
   const [isFullscreen, setIsFullscreen] = useState(true)
 
@@ -40,9 +40,7 @@ export function CSVViewerDialog({
       >
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            Preview CSV content with search and sorting
-          </DialogDescription>
+          <DialogDescription>Search and sort the CSV data.</DialogDescription>
         </DialogHeader>
         <div
           className={cn(
@@ -57,7 +55,9 @@ export function CSVViewerDialog({
               fillHeight={isFullscreen}
             />
           ) : (
-            <div className="text-sm text-muted-foreground">No CSV selected</div>
+            <div className="text-sm text-muted-foreground">
+              No CSV file selected.
+            </div>
           )}
         </div>
         <DialogFooter className="flex items-center justify-between flex-shrink-0">
@@ -66,7 +66,7 @@ export function CSVViewerDialog({
             variant="secondary"
             onClick={() => setIsFullscreen((v) => !v)}
           >
-            {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+            {isFullscreen ? "Exit full screen" : "Full screen"}
           </Button>
           <Button type="button" variant="outline" onClick={onClose}>
             Close

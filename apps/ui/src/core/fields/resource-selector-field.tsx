@@ -2,7 +2,7 @@
 
 import { ExternalLink } from "lucide-react"
 import Image from "next/image"
-import type { KeyboardEvent } from "react"
+import { useId } from "react"
 import type { Control } from "react-hook-form"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -19,6 +19,7 @@ import type { FormInput } from "../schema-builder"
 import {
   buildResourceSelectorPanels,
   normalizeResourceSelections,
+  type ResourceSelectorRowViewModel,
   sortResourceSelections,
 } from "./resource-selector-field.utils"
 
@@ -31,35 +32,96 @@ function ResourceIcon({ url, label }: { url: string; label: string }) {
   return (
     <Image
       src={url}
-      alt={label}
-      width={24}
-      height={24}
+      alt=""
+      title={label}
+      width={20}
+      height={20}
       className="rounded-full shrink-0"
       unoptimized
     />
   )
 }
 
-function shouldIgnoreRowToggle(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false
-  }
+/**
+ * One catalog entry. The checkbox is the only control for the row — the
+ * label spans the whole entry so the entire row stays clickable without a
+ * second, redundant tab stop.
+ */
+function ResourceRow({
+  row,
+  fieldId,
+  onToggle,
+}: {
+  row: ResourceSelectorRowViewModel
+  fieldId: string
+  onToggle: (checked: boolean) => void
+}) {
+  const checkboxId = `${fieldId}-${row.key}`
 
-  if (target.closest("a")) {
-    return true
-  }
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-2.5 rounded-md border px-2.5 py-2 transition-colors",
+        row.selected
+          ? "border-primary/60 bg-primary/5"
+          : "border-border hover:border-border/80 hover:bg-accent/20"
+      )}
+    >
+      <Checkbox
+        id={checkboxId}
+        checked={row.selected}
+        onCheckedChange={(value) => onToggle(value === true)}
+        className="mt-0.5"
+      />
 
-  if (target.closest('[data-slot="checkbox"]')) {
-    return true
-  }
+      <label
+        htmlFor={checkboxId}
+        className="flex min-w-0 flex-1 cursor-pointer items-start gap-2.5"
+        title={row.description}
+      >
+        {row.iconUrl && (
+          <span className="mt-0.5">
+            <ResourceIcon url={row.iconUrl} label={row.label} />
+          </span>
+        )}
+        <span className="min-w-0 flex-1 space-y-0.5">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-sm font-medium">{row.label}</span>
+            <Badge
+              variant={row.kind === "token" ? "secondary" : "outline"}
+              className="shrink-0 rounded-full px-2 text-[10px] capitalize"
+            >
+              {row.kindLabel}
+            </Badge>
+          </span>
+          <code className="text-muted-foreground block truncate font-mono text-xs">
+            {row.shortIdentifier}
+          </code>
+        </span>
+      </label>
 
-  return target.tagName === "INPUT"
+      {row.explorer.href && (
+        <a
+          href={row.explorer.href}
+          target="_blank"
+          rel="noreferrer"
+          className="text-muted-foreground hover:text-foreground mt-0.5 inline-flex shrink-0 items-center gap-1 text-xs"
+          title={row.explorer.title}
+          aria-label={row.explorer.ariaLabel}
+        >
+          <ExternalLink className="size-3" aria-hidden="true" />
+          <span className="sr-only md:not-sr-only">{row.explorer.label}</span>
+        </a>
+      )}
+    </div>
+  )
 }
 
 export function ResourceSelectorField({
   input,
   control,
 }: ResourceSelectorFieldProps) {
+  const fieldId = useId()
   const catalog = input.resourceCatalog
 
   if (!catalog) {
@@ -98,180 +160,64 @@ export function ResourceSelectorField({
           field.onChange(sortResourceSelections(nextSelections, catalog))
         }
 
-        const handleRowKeyDown = (
-          event: KeyboardEvent<HTMLDivElement>,
-          chainKey: string,
-          resourceKey: string,
-          selected: boolean
-        ) => {
-          if (event.key !== "Enter" && event.key !== " ") {
-            return
-          }
-
-          event.preventDefault()
-          toggleSelection(chainKey, resourceKey, !selected)
-        }
-
         return (
           <FormItem className="space-y-3">
-            <div className="rounded-2xl border bg-card p-4 shadow-sm md:p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <FormLabel className="text-base font-semibold">
-                    {input.label}
-                    {input.required !== false && (
-                      <span className="text-destructive ml-1">*</span>
-                    )}
-                  </FormLabel>
-                  {input.description && (
-                    <FormDescription className="max-w-3xl">
-                      {input.description}
-                    </FormDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <FormLabel>
+                  {input.label}
+                  {input.required !== false && (
+                    <span className="text-destructive ml-1">*</span>
                   )}
-                </div>
-
-                <Badge
-                  variant="secondary"
-                  className="shrink-0 rounded-full px-3 py-1 text-sm font-medium"
-                >
-                  {selections.length} selected
-                </Badge>
+                </FormLabel>
+                {input.description && (
+                  <FormDescription>{input.description}</FormDescription>
+                )}
               </div>
 
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                {panels.map((panel) => (
-                  <section
-                    key={panel.key}
-                    className="overflow-hidden rounded-xl border bg-muted/20"
-                  >
-                    <div className="border-b px-4 py-4">
-                      <h3 className="text-xl font-semibold leading-none">
-                        {panel.label}
-                      </h3>
-                      <p className="text-muted-foreground mt-2 text-sm">
-                        {panel.supportedCount} supported resources
-                      </p>
-                    </div>
-
-                    <div className="px-3 pb-3 pt-2 md:px-4 md:pb-4">
-                      <div className="text-muted-foreground grid grid-cols-[minmax(0,1.8fr)_120px] gap-3 px-3 pb-2 text-xs font-semibold uppercase tracking-wide">
-                        <span>Name</span>
-                        <span>Explorer</span>
-                      </div>
-
-                      <div className="space-y-2">
-                        {panel.rows.map((row) => (
-                          <div
-                            key={row.key}
-                            role="button"
-                            tabIndex={0}
-                            onClick={(event) => {
-                              if (shouldIgnoreRowToggle(event.target)) {
-                                return
-                              }
-
-                              toggleSelection(
-                                row.chainKey,
-                                row.resourceKey,
-                                !row.selected
-                              )
-                            }}
-                            onKeyDown={(event) =>
-                              handleRowKeyDown(
-                                event,
-                                row.chainKey,
-                                row.resourceKey,
-                                row.selected
-                              )
-                            }
-                            className={cn(
-                              "grid grid-cols-[minmax(0,1.8fr)_120px] items-center gap-3 rounded-xl border bg-background px-3 py-3 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                              row.selected
-                                ? "border-primary/60 bg-primary/5"
-                                : "border-border hover:border-border/80 hover:bg-accent/20"
-                            )}
-                            aria-pressed={row.selected}
-                          >
-                            <div className="flex min-w-0 items-start gap-3">
-                              <Checkbox
-                                checked={row.selected}
-                                onCheckedChange={(value) =>
-                                  toggleSelection(
-                                    row.chainKey,
-                                    row.resourceKey,
-                                    value === true
-                                  )
-                                }
-                                onClick={(event) => event.stopPropagation()}
-                                aria-label={`Select ${row.label}`}
-                              />
-
-                              {row.iconUrl && (
-                                <ResourceIcon
-                                  url={row.iconUrl}
-                                  label={row.label}
-                                />
-                              )}
-
-                              <div className="min-w-0 space-y-1">
-                                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                  <span className="truncate text-sm font-semibold">
-                                    {row.label}
-                                  </span>
-                                  <Badge
-                                    variant={
-                                      row.kind === "token"
-                                        ? "secondary"
-                                        : "outline"
-                                    }
-                                    className="rounded-full px-2.5 py-1 text-xs capitalize"
-                                  >
-                                    {row.kindLabel}
-                                  </Badge>
-                                </div>
-                                {row.description && (
-                                  <p className="text-muted-foreground text-xs leading-relaxed">
-                                    {row.description}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="min-w-0">
-                              {row.explorer.href ? (
-                                <a
-                                  href={row.explorer.href}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-muted-foreground hover:text-foreground flex min-w-0 items-center gap-1.5 text-xs font-medium md:text-sm"
-                                  onClick={(event) => event.stopPropagation()}
-                                  title={row.explorer.title}
-                                  aria-label={row.explorer.ariaLabel}
-                                >
-                                  <span className="min-w-0 truncate">
-                                    {row.explorer.label}
-                                  </span>
-                                  <ExternalLink className="size-3.5 shrink-0" />
-                                </a>
-                              ) : (
-                                <span
-                                  className="text-muted-foreground block truncate text-xs md:text-sm"
-                                  title={row.explorer.title}
-                                >
-                                  Unavailable
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </section>
-                ))}
-              </div>
+              <Badge variant="secondary" className="shrink-0 rounded-full">
+                {selections.length} selected
+              </Badge>
             </div>
 
-            <FormMessage className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm" />
+            <div className="grid gap-3 md:grid-cols-2">
+              {panels.map((panel) => (
+                <fieldset
+                  key={panel.key}
+                  className="overflow-hidden rounded-lg border"
+                >
+                  <legend className="sr-only">{panel.label}</legend>
+                  <div
+                    className="flex items-baseline justify-between border-b bg-muted/40 px-3 py-2"
+                    aria-hidden="true"
+                  >
+                    <h3 className="text-sm font-semibold">{panel.label}</h3>
+                    <span className="text-muted-foreground text-xs">
+                      {panel.supportedCount} supported
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5 p-2">
+                    {panel.rows.map((row) => (
+                      <ResourceRow
+                        key={row.key}
+                        row={row}
+                        fieldId={fieldId}
+                        onToggle={(checked) =>
+                          toggleSelection(
+                            row.chainKey,
+                            row.resourceKey,
+                            checked
+                          )
+                        }
+                      />
+                    ))}
+                  </div>
+                </fieldset>
+              ))}
+            </div>
+
+            <FormMessage />
           </FormItem>
         )
       }}

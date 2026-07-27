@@ -3,14 +3,14 @@
     "name": "Contribution Score",
     "kind": "standalone",
     "category": "Activity",
-    "summary": "Scores each Deep Funding Portal user (by DID) from the comments they write.",
-    "description": "### What it does\nScores users based on the comments they write in DeepFunding.\n\n### How it works\n- Every Deep Funding Portal user is scored, keyed by their DID.\n- Each valid comment starts with a base score.\n- Upvotes add points and downvotes remove points.\n- Comments on your own proposal or self-replies can get a penalty.\n- A proposal owner upvote can add a bonus.\n- Older comments can lose weight over time.\n\n### Data source\nUses proposal, comment, user, and vote data from DeepFunding. Each comment's author is attributed to that user's DID.\n\n### Output\n- CSV file with `did` and `contribution_score`.\n- JSON file with score details for comments and scored users.",
+    "summary": "Scores Deep Funding Portal users based on the comments they write.",
+    "description": "### What it does\nScores the quality and impact of each user's comments in the Deep Funding Portal.\n\n### How it works\n- Each user is identified by their DID.\n- Every valid comment starts with a base score.\n- Upvotes add points, while downvotes remove points.\n- Comments on your own proposal and replies to yourself can receive a penalty.\n- An upvote from the proposal owner can add a bonus.\n- Older comments can lose value over time.\n\n### Data source\nUses proposal, comment, user, and vote data from the Deep Funding Portal.\n\n### Outputs\n- CSV file with `did` and `contribution_score`.\n- JSON file with score details for each user and comment.",
     "version": "1.0.0",
     "inputs": [
         {
             "key": "comment_base_score",
-            "label": "Base Score Per Comment",
-            "description": "Points each valid comment gets before votes, bonuses, penalties, and decay.",
+            "label": "Base score per comment",
+            "description": "Points a valid comment receives before votes, bonuses, penalties, and decay.",
             "type": "integer",
             "min": 0,
             "max": 100,
@@ -20,8 +20,8 @@
         },
         {
             "key": "comment_upvote_weight",
-            "label": "Upvote Weight",
-            "description": "How much one upvote increases a comment score.",
+            "label": "Upvote weight",
+            "description": "How much one upvote increases the comment score.",
             "type": "number",
             "min": 0,
             "max": 10,
@@ -32,8 +32,8 @@
         },
         {
             "key": "comment_downvote_weight",
-            "label": "Downvote Weight",
-            "description": "How much one downvote reduces a comment score.",
+            "label": "Downvote weight",
+            "description": "How much one downvote reduces the comment score.",
             "type": "number",
             "min": 0,
             "max": 10,
@@ -44,8 +44,8 @@
         },
         {
             "key": "self_interaction_penalty_factor",
-            "label": "Self-Interaction Penalty",
-            "description": "Multiplier for comments on your own proposal or for self-replies. Use `1` for no penalty.",
+            "label": "Self-interaction penalty",
+            "description": "Multiplier for comments on your own proposal and replies to yourself. Use `1` to turn off this penalty.",
             "type": "number",
             "min": 0,
             "max": 1,
@@ -56,8 +56,8 @@
         },
         {
             "key": "project_owner_upvote_bonus_multiplier",
-            "label": "Proposal Owner Upvote Bonus",
-            "description": "Multiplier when the proposal owner upvotes a comment. Use `1` for no bonus.",
+            "label": "Proposal owner upvote bonus",
+            "description": "Multiplier used when the proposal owner upvotes a comment. Use `1` to turn off this bonus.",
             "type": "number",
             "min": 1,
             "max": 10,
@@ -68,8 +68,8 @@
         },
         {
             "key": "engagement_window_months",
-            "label": "Lookback Window (Months)",
-            "description": "Only comments from this number of past months are scored.",
+            "label": "Lookback period (months)",
+            "description": "Only comments from this number of past months are included.",
             "type": "integer",
             "min": 1,
             "max": 72,
@@ -79,8 +79,8 @@
         },
         {
             "key": "monthly_decay_rate_percent",
-            "label": "Monthly Decay Rate (%)",
-            "description": "Percent removed from a comment score for each month of age. Use `0` for no decay.",
+            "label": "Monthly decay (%)",
+            "description": "Percentage removed from a comment's score for each month of age. Use `0` to turn off decay.",
             "type": "integer",
             "min": 0,
             "max": 100,
@@ -93,8 +93,8 @@
     "outputs": [
         {
             "key": "contribution_score",
-            "label": "Contribution Score (CSV)",
-            "description": "CSV file with one row per user and the final contribution score.",
+            "label": "Contribution score (CSV)",
+            "description": "One row per user with their final contribution score.",
             "type": "csv",
             "csv": {
                 "hasHeader": true,
@@ -103,20 +103,20 @@
                     {
                         "key": "did",
                         "type": "string",
-                        "description": "The user's DID (did:plc or did:sub)."
+                        "description": "User DID (`did:plc` or `did:sub`)."
                     },
                     {
                         "key": "contribution_score",
                         "type": "number",
-                        "description": "Raw contribution score for the user. It is not normalized, so its range depends on the scored comments."
+                        "description": "Raw user score. It is not normalized, so its range depends on the included comments."
                     }
                 ]
             }
         },
         {
             "key": "contribution_score_details",
-            "label": "Contribution Score Details (JSON)",
-            "description": "JSON file with score details for comments and scored users.",
+            "label": "Contribution score details (JSON)",
+            "description": "Score details for each user and comment.",
             "type": "json"
         }
     ],
