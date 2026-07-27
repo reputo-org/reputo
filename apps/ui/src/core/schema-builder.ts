@@ -51,6 +51,10 @@ export interface FormInput {
   widget?: string
   description?: string
   required?: boolean
+  /** Render a slider alongside the numeric input (needs min and max) */
+  sliderHint?: boolean
+  /** Render a textarea instead of a single-line input */
+  multiline?: boolean
   /** Keys that must stay unique together across repeater rows */
   uniqueBy?: string[]
   /** Suffix to display after the input (e.g. "days") */
@@ -133,24 +137,9 @@ export function buildSchemaFromAlgorithm(
     type: "text",
     description: "Description of this algorithm preset",
     required: true,
+    multiline: true,
     minLength: 10,
     maxLength: 500,
-  }
-
-  const keyInput: FormInput = {
-    key: "key",
-    label: "Algorithm Key",
-    type: "text",
-    description: "Algorithm identifier",
-    required: true,
-  }
-
-  const versionInput: FormInput = {
-    key: "version",
-    label: "Version",
-    type: "text",
-    description: "Algorithm version",
-    required: true,
   }
 
   const outputs = fullDefinition?.outputs || []
@@ -162,13 +151,7 @@ export function buildSchemaFromAlgorithm(
     description: algorithm.description,
     version,
     normalization: fullDefinition?.normalization,
-    inputs: [
-      keyInput,
-      versionInput,
-      nameInput,
-      descriptionInput,
-      ...formInputs,
-    ],
+    inputs: [...formInputs, nameInput, descriptionInput],
     outputs,
   }
 }
@@ -298,20 +281,6 @@ function transformInputToFormInput(
     case "integer": {
       const numericProps = getNumericProps()
 
-      if (numericProps.uiHint?.widget === "slider") {
-        return {
-          key: inputKey,
-          label: algoInput.label,
-          type: "slider",
-          description: numericProps.description,
-          min: numericProps.min,
-          max: numericProps.max,
-          step: numericProps.step,
-          default: numericProps.default,
-          required: numericProps.required,
-        }
-      }
-
       const numericType =
         (fullInput as { type?: string })?.type === "integer" ||
         algoInput.type === "integer"
@@ -327,6 +296,7 @@ function transformInputToFormInput(
         step: numericProps.step,
         default: numericProps.default,
         required: numericProps.required,
+        sliderHint: numericProps.uiHint?.widget === "slider",
         suffix: numericProps.uiHint?.suffix,
         presets: numericProps.uiHint?.presets,
       }
