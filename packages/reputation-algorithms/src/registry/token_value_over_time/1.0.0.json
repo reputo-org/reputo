@@ -68,8 +68,8 @@
                                 },
                                 {
                                     "key": "fet_staking_1",
-                                    "label": "FET Staking",
-                                    "description": "FET staking contract on Ethereum.",
+                                    "label": "FET Staking · 0xCB85…3475",
+                                    "description": "FET staking contract on Ethereum at 0xCB85b101C4822A4E3ABCa20e57f1DFf0E2673475.",
                                     "kind": "contract",
                                     "identifier": "0xCB85b101C4822A4E3ABCa20e57f1DFf0E2673475",
                                     "tokenIdentifier": "0xaea46A60368A7bD060eec7DF8CBa43b7EF41Ad85",
@@ -81,8 +81,8 @@
                                 },
                                 {
                                     "key": "fet_staking_2",
-                                    "label": "FET Staking",
-                                    "description": "FET staking contract on Ethereum.",
+                                    "label": "FET Staking · 0x351b…7DE2",
+                                    "description": "FET staking contract on Ethereum at 0x351baC612B50e87B46e4b10A282f632D41397DE2.",
                                     "kind": "contract",
                                     "identifier": "0x351baC612B50e87B46e4b10A282f632D41397DE2",
                                     "tokenIdentifier": "0xaea46A60368A7bD060eec7DF8CBa43b7EF41Ad85",
@@ -152,12 +152,12 @@
                                 },
                                 {
                                     "value": "fet_staking_1",
-                                    "label": "FET Staking",
+                                    "label": "FET Staking · 0xCB85…3475",
                                     "filterBy": "ethereum"
                                 },
                                 {
                                     "value": "fet_staking_2",
-                                    "label": "FET Staking",
+                                    "label": "FET Staking · 0x351b…7DE2",
                                     "filterBy": "ethereum"
                                 },
                                 {

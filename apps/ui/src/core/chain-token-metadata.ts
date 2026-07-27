@@ -44,7 +44,7 @@ const TARGET_META: Record<string, TargetDisplayMeta> = {
   "ethereum:0xCB85b101C4822A4E3ABCa20e57f1DFf0E2673475": {
     chainId: "ethereum",
     targetIdentifier: "0xCB85b101C4822A4E3ABCa20e57f1DFf0E2673475",
-    label: "FET Staking",
+    label: "FET Staking · 0xCB85…3475",
     iconUrl:
       "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xaea46A60368A7bD060eec7DF8CBa43b7EF41Ad85/logo.png",
     explorerUrl:
@@ -54,7 +54,7 @@ const TARGET_META: Record<string, TargetDisplayMeta> = {
   "ethereum:0x351baC612B50e87B46e4b10A282f632D41397DE2": {
     chainId: "ethereum",
     targetIdentifier: "0x351baC612B50e87B46e4b10A282f632D41397DE2",
-    label: "FET Staking",
+    label: "FET Staking · 0x351b…7DE2",
     iconUrl:
       "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xaea46A60368A7bD060eec7DF8CBa43b7EF41Ad85/logo.png",
     explorerUrl:
