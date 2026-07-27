@@ -1,0 +1,83 @@
+name: Pull Preview Lifecycle
+
+on:
+    workflow_call:
+        inputs:
+            ref:
+                description: Commit whose images the preview should run
+                type: string
+                required: true
+            deployment:
+                description: Whether this run deploys rather than destroys a preview
+                type: boolean
+                required: true
+        secrets:
+            AWS_ACCESS_KEY_ID:
+                required: true
+            AWS_SECRET_ACCESS_KEY:
+                required: true
+            DEEPFUNDING_API_KEY:
+                required: true
+            ALCHEMY_API_KEY:
+                required: true
+            BLOCKFROST_API_KEY:
+                required: true
+            DEEP_ID_CLIENT_ID:
+                required: true
+            DEEP_ID_CLIENT_SECRET:
+                required: true
+
+concurrency:
+    group: preview-deploy-${{ github.event.pull_request.number }}
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+jobs:
+    preview:
+        permissions:
+            contents: read
+            pull-requests: write
+            statuses: write
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        environment:
+            name: preview
+            url: ${{ steps.preview.outputs.url }}
+            # Closing a PR or removing its label destroys infrastructure; it
+            # must not replace the environment's last real deployment.
+            deployment: ${{ inputs.deployment }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            - name: Generate per-deploy auth token encryption key
+              if: ${{ inputs.deployment }}
+              id: gen_auth_key
+              run: |
+                  key="$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('hex'))")"
+                  echo "::add-mask::$key"
+                  echo "auth_token_encryption_key=$key" >> "$GITHUB_OUTPUT"
+
+            - id: preview
+              name: Deploy preview
+              uses: pullpreview/action@179f963326f568dc1665707c796aaac590667632 # v6.2.0
+              with:
+                  label: pullpreview
+                  provider: lightsail
+                  instance_type: large
+                  region: eu-central-1
+                  compose_files: infra/preview/compose.yml
+                  compose_options: ''
+                  proxy_tls: traefik:80
+              env:
+                  AWS_ACCESS_KEY_ID: '${{ secrets.AWS_ACCESS_KEY_ID }}'
+                  AWS_SECRET_ACCESS_KEY: '${{ secrets.AWS_SECRET_ACCESS_KEY }}'
+                  AWS_REGION: 'eu-central-1'
+                  IMAGE_TAG: 'sha-${{ inputs.ref }}'
+                  AUTH_TOKEN_ENCRYPTION_KEY: '${{ steps.gen_auth_key.outputs.auth_token_encryption_key }}'
+                  DEEPFUNDING_API_KEY: '${{ secrets.DEEPFUNDING_API_KEY }}'
+                  ALCHEMY_API_KEY: '${{ secrets.ALCHEMY_API_KEY }}'
+                  BLOCKFROST_API_KEY: '${{ secrets.BLOCKFROST_API_KEY }}'
+                  DEEP_ID_CLIENT_ID: '${{ secrets.DEEP_ID_CLIENT_ID }}'
+                  DEEP_ID_CLIENT_SECRET: '${{ secrets.DEEP_ID_CLIENT_SECRET }}'

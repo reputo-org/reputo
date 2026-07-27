@@ -3,14 +3,9 @@ name: Pull Preview
 on:
     pull_request:
         branches: [main]
-        types: [opened, reopened, synchronize, labeled, unlabeled, closed]
-    # Reaps dangling preview environments (PullPreview docs: the schedule is
-    # optional and only handles cleanup); normal teardown happens on
-    # closed/unlabeled events.
-    schedule:
-        - cron: '30 */4 * * *'
+        types: [labeled, unlabeled, closed]
 
-concurrency: preview-${{ github.event.pull_request.number || github.ref }}
+concurrency: preview-lifecycle-${{ github.event.pull_request.number }}
 
 permissions:
     contents: read
@@ -18,10 +13,8 @@ permissions:
 jobs:
     build:
         if: |
-            github.event_name == 'pull_request' &&
-            github.event.action != 'closed' &&
-            github.event.action != 'unlabeled' &&
-            contains(github.event.pull_request.labels.*.name, 'pullpreview')
+            github.event.action == 'labeled' &&
+            github.event.label.name == 'pullpreview'
         permissions:
             contents: read
             packages: write
@@ -37,59 +30,21 @@ jobs:
             contents: read
             pull-requests: write
             statuses: write
-
-        # Runs only for scheduled cleanup or PRs that carry (or just lost) the
-        # pullpreview label. A labeled PR that gets closed still matches via
-        # contains(); closing a never-labeled PR skips instead of running a
-        # pointless teardown.
         if: |
             !cancelled() &&
             (needs.build.result == 'success' || needs.build.result == 'skipped') &&
-            (github.event_name == 'schedule' ||
-             github.event.label.name == 'pullpreview' ||
-             contains(github.event.pull_request.labels.*.name, 'pullpreview'))
-        runs-on: ubuntu-24.04
-        timeout-minutes: 30
-        environment:
-            name: preview
-            url: ${{ steps.preview.outputs.url }}
-        steps:
-            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-            - name: Generate per-deploy auth token encryption key
-              # Matches "this run will (re)deploy": the PR is open and still
-              # labeled. Covers redeploys triggered by removing an unrelated
-              # label, which the old action != 'unlabeled' check missed.
-              if: |
-                  github.event_name == 'pull_request' &&
-                  github.event.action != 'closed' &&
-                  contains(github.event.pull_request.labels.*.name, 'pullpreview')
-              id: gen_auth_key
-              run: |
-                  key="$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('hex'))")"
-                  echo "::add-mask::$key"
-                  echo "auth_token_encryption_key=$key" >> "$GITHUB_OUTPUT"
-
-            - id: preview
-              name: Deploy preview
-              uses: pullpreview/action@179f963326f568dc1665707c796aaac590667632 # v6.2.0
-              with:
-                  label: pullpreview
-                  provider: lightsail
-                  instance_type: large
-                  region: eu-central-1
-                  compose_files: infra/preview/compose.yml
-                  compose_options: ''
-                  proxy_tls: traefik:80
-                  ttl: 24h
-              env:
-                  AWS_ACCESS_KEY_ID: '${{ secrets.AWS_ACCESS_KEY_ID }}'
-                  AWS_SECRET_ACCESS_KEY: '${{ secrets.AWS_SECRET_ACCESS_KEY }}'
-                  AWS_REGION: 'eu-central-1'
-                  IMAGE_TAG: 'sha-${{ github.event.pull_request.head.sha }}'
-                  AUTH_TOKEN_ENCRYPTION_KEY: '${{ steps.gen_auth_key.outputs.auth_token_encryption_key }}'
-                  DEEPFUNDING_API_KEY: '${{ secrets.DEEPFUNDING_API_KEY }}'
-                  ALCHEMY_API_KEY: '${{ secrets.ALCHEMY_API_KEY }}'
-                  BLOCKFROST_API_KEY: '${{ secrets.BLOCKFROST_API_KEY }}'
-                  DEEP_ID_CLIENT_ID: '${{ secrets.DEEP_ID_CLIENT_ID }}'
-                  DEEP_ID_CLIENT_SECRET: '${{ secrets.DEEP_ID_CLIENT_SECRET }}'
+            (github.event.label.name == 'pullpreview' ||
+             (github.event.action == 'closed' &&
+              contains(github.event.pull_request.labels.*.name, 'pullpreview')))
+        uses: ./.github/workflows/_pull-preview.yml
+        with:
+            ref: ${{ github.event.pull_request.head.sha }}
+            deployment: ${{ github.event.action == 'labeled' }}
+        secrets:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            DEEPFUNDING_API_KEY: ${{ secrets.DEEPFUNDING_API_KEY }}
+            ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
+            BLOCKFROST_API_KEY: ${{ secrets.BLOCKFROST_API_KEY }}
+            DEEP_ID_CLIENT_ID: ${{ secrets.DEEP_ID_CLIENT_ID }}
+            DEEP_ID_CLIENT_SECRET: ${{ secrets.DEEP_ID_CLIENT_SECRET }}
