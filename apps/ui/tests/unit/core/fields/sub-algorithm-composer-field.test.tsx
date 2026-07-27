@@ -17,11 +17,11 @@ const definition = JSON.parse(
 
 const subAlgorithmsInput: FormInput = {
   key: "sub_algorithms",
-  label: "Sub-Algorithms",
+  label: "Child algorithms",
   type: "sub_algorithm",
   required: true,
   minItems: 1,
-  addButtonLabel: "Add sub-algorithm",
+  addButtonLabel: "Add algorithm",
 }
 
 interface ComposerRow {
@@ -74,11 +74,13 @@ describe("SubAlgorithmComposerField", () => {
     const user = userEvent.setup()
     renderComposerForm([])
 
-    const methodLine = screen.getByText(/current normalization method/i)
+    const methodLine = screen.getByText(/normalization:/i)
     expect(methodLine).toHaveTextContent("Observed min–max")
-    expect(methodLine).toHaveTextContent(/target range 0–100/)
+    expect(methodLine).toHaveTextContent(/range 0–100/i)
 
-    const trigger = screen.getByRole("button", { name: /how scoring works/i })
+    const trigger = screen.getByRole("button", {
+      name: /how scores are combined/i,
+    })
     expect(trigger).toHaveAttribute("aria-expanded", "false")
     await user.click(trigger)
     expect(trigger).toHaveAttribute("aria-expanded", "true")
@@ -87,69 +89,55 @@ describe("SubAlgorithmComposerField", () => {
       screen.getByRole("heading", { name: "How it works" })
     ).toBeInTheDocument()
 
-    // Native child submission: zeros exist only inside a child's own cohort,
-    // and Reputo never fills in rows DeepID did not unify.
-    const nativeSubmission = screen.getByText(
-      /only for a no-result user inside that child's own native cohort/
+    const completeResults = screen.getByText(
+      /receives a final score only when every selected algorithm has a result/
     )
-    expect(nativeSubmission).toHaveTextContent(
-      /does not synthesize missing child rows after DeepID unifies users/
+    expect(completeResults).toHaveTextContent(
+      /a score of 0 still counts as a result/i
     )
 
-    // Complete-user intersection: absent unified fields exclude the user.
-    const intersection = screen.getByText(
-      /an encrypted value for every selected child/
-    )
-    expect(intersection).toHaveTextContent(/receives no final score/)
-    expect(intersection).toHaveTextContent(/not an absent field/)
-
-    // Normalization phase: active method, observed bounds, equal-bounds rule.
     const normalizationCopy = screen.getByText(
-      /Normalization is a configurable phase/
+      /scaled to 0–100 using its observed minimum and maximum/
     )
     expect(normalizationCopy).toHaveTextContent(
-      /current default method, observed min–max/
-    )
-    expect(normalizationCopy).toHaveTextContent(
-      /using that child's own observed minimum and maximum/
-    )
-    expect(normalizationCopy).toHaveTextContent(
-      /observed bounds are equal, every accepted score for that child normalizes to 0/
+      /if its minimum and maximum are equal, all its scaled scores are 0/i
     )
 
-    // Weighting and aggregation phases.
     expect(
-      screen.getByText(
-        /Every child weight must be a finite number greater than 0/
-      )
+      screen.getByText(/controls how much each algorithm affects/)
     ).toBeInTheDocument()
-    expect(screen.getByText(/weighted sum ÷ total weight/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/calculates a weighted average without decrypting/)
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/does not contain plaintext user scores/)
+    ).toBeInTheDocument()
   })
 
   it("shows an empty state and adds pre-assigned cards through the picker", async () => {
     const user = userEvent.setup()
     renderComposerForm([])
 
-    expect(screen.getByText(/no sub-algorithms yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/no algorithms added/i)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Save preset" })).toBeDisabled()
 
-    await user.click(screen.getByRole("button", { name: "Add sub-algorithm" }))
+    await user.click(screen.getByRole("button", { name: "Add algorithm" }))
     const votingItem = await screen.findByRole("menuitem", {
       name: /voting engagement/i,
     })
     // The picker shows a summary under the algorithm name.
-    expect(votingItem).toHaveTextContent(/voting history/i)
+    expect(votingItem).toHaveTextContent(/wallet-linked votes/i)
     await user.click(votingItem)
 
-    expect(screen.queryByText(/no sub-algorithms yet/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/no algorithms added/i)).not.toBeInTheDocument()
     expect(screen.getByText("Voting Engagement")).toBeInTheDocument()
     expect(screen.getByText("v1.0.0")).toBeInTheDocument()
-    expect(screen.getByLabelText("Weight of sub-algorithm 1")).toHaveValue(1)
+    expect(screen.getByLabelText("Weight for child algorithm 1")).toHaveValue(1)
     // A single child owns 100% of the score.
     expect(screen.getByText("100%")).toBeInTheDocument()
 
     // Already-added algorithms disappear from the picker.
-    await user.click(screen.getByRole("button", { name: "Add sub-algorithm" }))
+    await user.click(screen.getByRole("button", { name: "Add algorithm" }))
     const menu = await screen.findByRole("menu")
     expect(
       screen.queryByRole("menuitem", { name: /voting engagement/i })
@@ -174,21 +162,19 @@ describe("SubAlgorithmComposerField", () => {
     expect(screen.getByText("75%")).toBeInTheDocument()
 
     await user.click(
-      screen.getByRole("button", { name: "Remove sub-algorithm 2" })
+      screen.getByRole("button", { name: "Remove child algorithm 2" })
     )
     await waitFor(() =>
       expect(
-        screen.queryByRole("button", { name: "Remove sub-algorithm 2" })
+        screen.queryByRole("button", { name: "Remove child algorithm 2" })
       ).not.toBeInTheDocument()
     )
 
     // The last card can be removed too; the empty state returns.
     await user.click(
-      screen.getByRole("button", { name: "Remove sub-algorithm 1" })
+      screen.getByRole("button", { name: "Remove child algorithm 1" })
     )
-    expect(
-      await screen.findByText(/no sub-algorithms yet/i)
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/no algorithms added/i)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Save preset" })).toBeDisabled()
   })
 
@@ -196,7 +182,7 @@ describe("SubAlgorithmComposerField", () => {
     const user = userEvent.setup()
     renderComposerForm()
 
-    const weight = screen.getByLabelText("Weight of sub-algorithm 1")
+    const weight = screen.getByLabelText("Weight for child algorithm 1")
 
     await user.clear(weight)
     expect(

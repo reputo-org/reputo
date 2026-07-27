@@ -52,7 +52,7 @@ export default function LoginPage() {
     <PreAuthShell>
       <Hero
         title="Sign in to Reputo"
-        subtitle="Choose how you'd like to continue."
+        subtitle="Choose a sign-in method."
         footer={
           <>
             By continuing, you agree to our <a href="/terms">Terms</a> and{" "}
@@ -118,7 +118,7 @@ function ProviderStack() {
                 color: "var(--rp-muted-soft)",
               }}
             >
-              soon
+              coming soon
             </span>
           </button>
         )

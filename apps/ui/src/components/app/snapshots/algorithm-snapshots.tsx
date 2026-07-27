@@ -177,7 +177,7 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
       setSnapshotToDelete(null)
       toast.success("Snapshot deleted")
     } catch {
-      toast.error("Failed to delete the snapshot. Please try again.")
+      toast.error("Could not delete the snapshot. Try again.")
     } finally {
       setDeletingSnapshotId(null)
     }
@@ -281,8 +281,8 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
         <div>
           <h2 className="text-lg font-semibold">Snapshots</h2>
           <p className="text-sm text-muted-foreground">
-            Runs of this algorithm's presets. Results appear here when a run
-            completes.
+            Runs created from this algorithm's presets. Results appear after a
+            run finishes.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -329,10 +329,8 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
             <EmptyMedia variant="icon">
               <Loader2 className="size-6 animate-spin" />
             </EmptyMedia>
-            <EmptyTitle>Loading Snapshots</EmptyTitle>
-            <EmptyDescription>
-              Please wait while we fetch your snapshot executions...
-            </EmptyDescription>
+            <EmptyTitle>Loading snapshots</EmptyTitle>
+            <EmptyDescription>Getting your snapshots…</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : error ? (
@@ -341,14 +339,14 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
             <EmptyMedia variant="icon">
               <AlertCircle className="size-6 text-red-500" />
             </EmptyMedia>
-            <EmptyTitle>Failed to Load Snapshots</EmptyTitle>
+            <EmptyTitle>Could not load snapshots</EmptyTitle>
             <EmptyDescription>
-              There was an error loading your snapshots. Please try again.
+              Check your connection and try again.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
             <Button variant="outline" onClick={() => window.location.reload()}>
-              Try Again
+              Try again
             </Button>
           </EmptyContent>
         </Empty>
@@ -358,7 +356,7 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
             <EmptyMedia variant="icon">
               <Play className="size-6" />
             </EmptyMedia>
-            <EmptyTitle>No Snapshots Yet</EmptyTitle>
+            <EmptyTitle>No snapshots yet</EmptyTitle>
             <EmptyDescription>
               {presetFilter || selectedStatus !== "all"
                 ? "No snapshots match the current filters."

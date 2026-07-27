@@ -58,7 +58,7 @@ export default async function AlgorithmPage({ params }: PageProps) {
           </div>
           <div className="flex flex-col gap-3 pt-2">
             <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium">Configurable Inputs</span>
+              <span className="text-sm font-medium">Inputs</span>
               <div className="flex flex-wrap gap-1.5">
                 {algo.inputs.map((input) => (
                   <InputTypeBadge
@@ -71,13 +71,13 @@ export default async function AlgorithmPage({ params }: PageProps) {
             </div>
             {algo.dependencyLabels.length > 0 && (
               <div className="flex flex-col gap-2">
-                <span className="text-sm font-medium">Dependencies</span>
+                <span className="text-sm font-medium">Data sources</span>
                 <div className="flex flex-wrap gap-1.5">
                   {algo.dependencyLabels.map((label) => (
                     <span
                       key={label}
                       className="inline-flex items-center gap-1.5 rounded-md bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                      title="Data is fetched from this dependency"
+                      title="Source of data used by this algorithm"
                     >
                       <Database className="size-3" />
                       {label}

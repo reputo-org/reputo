@@ -44,11 +44,11 @@ export function PresetComposerCreate({ algo }: PresetComposerCreateProps) {
     }
     if (error) {
       warnedRef.current = true
-      toast.error("Could not load the preset to duplicate. Starting blank.")
+      toast.error("Could not load the preset. Starting with a blank form.")
     } else if (sourcePreset && !sourceMatches) {
       warnedRef.current = true
       toast.error(
-        "That preset belongs to a different algorithm. Starting blank."
+        "That preset uses another algorithm. Starting with a blank form."
       )
     }
   }, [error, fromId, sourceMatches, sourcePreset])
@@ -71,7 +71,7 @@ export function PresetComposerCreate({ algo }: PresetComposerCreateProps) {
             <Loader2 className="size-6 animate-spin" />
           </EmptyMedia>
           <EmptyTitle>Loading preset</EmptyTitle>
-          <EmptyDescription>Fetching the preset to duplicate…</EmptyDescription>
+          <EmptyDescription>Getting the preset to copy…</EmptyDescription>
         </EmptyHeader>
       </Empty>
     )

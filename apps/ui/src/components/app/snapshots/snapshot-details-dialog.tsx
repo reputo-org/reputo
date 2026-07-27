@@ -63,10 +63,8 @@ export function SnapshotDetailsDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader className="shrink-0">
-          <DialogTitle>Snapshot Details</DialogTitle>
-          <DialogDescription>
-            View detailed information about this snapshot execution
-          </DialogDescription>
+          <DialogTitle>Snapshot details</DialogTitle>
+          <DialogDescription>View run details and results.</DialogDescription>
         </DialogHeader>
         {snapshot && (
           <div className="space-y-6 overflow-y-auto flex-1 min-h-0 pr-1">
@@ -91,7 +89,7 @@ export function SnapshotDetailsDialog({
                   {snapshot.algorithmPresetFrozen?.name ||
                     (typeof snapshot.algorithmPreset === "string"
                       ? `Preset ${snapshot.algorithmPreset.slice(-8)}`
-                      : "Unknown Preset")}
+                      : "Unknown preset")}
                 </p>
               </div>
               <div>
@@ -104,7 +102,7 @@ export function SnapshotDetailsDialog({
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">
-                  Last Updated
+                  Last updated
                 </h3>
                 <p className="text-sm">
                   {new Date(snapshot.updatedAt).toLocaleString()}
@@ -115,7 +113,7 @@ export function SnapshotDetailsDialog({
             {snapshot.temporal && (
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-3">
-                  Temporal Workflow
+                  Temporal workflow
                 </h3>
                 <div className="space-y-2">
                   <div className="p-3 border rounded-lg">
@@ -134,7 +132,7 @@ export function SnapshotDetailsDialog({
                   )}
                   {snapshot.temporal.taskQueue && (
                     <div className="p-3 border rounded-lg">
-                      <div className="font-medium">Task Queue</div>
+                      <div className="font-medium">Task queue</div>
                       <div className="text-sm text-muted-foreground">
                         {snapshot.temporal.taskQueue}
                       </div>

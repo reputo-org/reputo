@@ -103,7 +103,7 @@ export function FileDisplay({
       await downloadStorageFile(storageKey, metadata?.filename)
     } catch (err) {
       console.error("Failed to create download link:", err)
-      alert("Failed to create download link")
+      alert("Could not prepare the download. Try again.")
     } finally {
       setIsDownloading(false)
     }
@@ -116,7 +116,7 @@ export function FileDisplay({
       setCsvViewerOpen(true)
     } catch (err) {
       console.error("Failed to open viewer:", err)
-      alert("Unable to open CSV viewer")
+      alert("Could not open the CSV preview.")
     }
   }
 
@@ -139,7 +139,7 @@ export function FileDisplay({
             {isLoading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="size-3 animate-spin" />
-                <span>Loading file info...</span>
+                <span>Loading file details…</span>
               </div>
             ) : metadata ? (
               <div
@@ -195,7 +195,7 @@ export function FileDisplay({
         isOpen={csvViewerOpen}
         onClose={() => setCsvViewerOpen(false)}
         href={csvHref}
-        title={`Preview: ${metadata?.filename || "File"}`}
+        title={`Preview: ${metadata?.filename || "file"}`}
       />
     </>
   )

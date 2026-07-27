@@ -270,7 +270,7 @@ export function CSVField({ input, control }: CSVFieldProps) {
                   <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground bg-muted rounded-md border">
                     <div className="flex-1">{filenameValue}</div>
                     <span className="text-xs text-muted-foreground">
-                      (Upload new file to replace)
+                      Upload a new file to replace it
                     </span>
                   </div>
                 )}
@@ -291,7 +291,7 @@ export function CSVField({ input, control }: CSVFieldProps) {
                 {isUploading && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Spinner />
-                    <span>Uploading file...</span>
+                    <span>Uploading file…</span>
                   </div>
                 )}
 
@@ -309,12 +309,12 @@ export function CSVField({ input, control }: CSVFieldProps) {
                         <AlertDescription>
                           {validationResult.valid ? (
                             <span className="text-green-600 dark:text-green-400 whitespace-nowrap">
-                              CSV structure is valid
+                              CSV file is valid
                             </span>
                           ) : (
                             <div className="space-y-1">
                               <div className="font-semibold">
-                                Validation Errors:
+                                Fix these issues:
                               </div>
                               <ul className="list-disc list-inside space-y-1">
                                 {validationResult.errors.map((error) => (

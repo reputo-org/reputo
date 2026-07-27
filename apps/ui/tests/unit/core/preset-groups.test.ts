@@ -57,7 +57,7 @@ describe("getInputGroups", () => {
     ]
 
     expect(getInputGroups("unknown_algorithm", inputs)).toEqual([
-      { id: "configuration", title: "Configuration", inputs },
+      { id: "configuration", title: "Settings", inputs },
     ])
   })
 

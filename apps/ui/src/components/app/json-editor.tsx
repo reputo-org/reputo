@@ -17,7 +17,7 @@ export function JsonEditor({
   value,
   onChange,
   onValidChange,
-  title = "JSON Editor",
+  title = "JSON editor",
   height = "600px",
 }: JsonEditorProps) {
   const [error, setError] = useState<string | null>(null)

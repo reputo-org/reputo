@@ -37,7 +37,7 @@ export function PresetComposerEdit({
             <Loader2 className="size-6 animate-spin" />
           </EmptyMedia>
           <EmptyTitle>Loading preset</EmptyTitle>
-          <EmptyDescription>Fetching the preset to edit…</EmptyDescription>
+          <EmptyDescription>Getting the preset…</EmptyDescription>
         </EmptyHeader>
       </Empty>
     )
@@ -52,7 +52,7 @@ export function PresetComposerEdit({
           </EmptyMedia>
           <EmptyTitle>Preset not found</EmptyTitle>
           <EmptyDescription>
-            This preset may have been deleted, or the link is wrong.
+            The preset may have been deleted, or the link may be wrong.
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
@@ -73,7 +73,7 @@ export function PresetComposerEdit({
           </EmptyMedia>
           <EmptyTitle>Wrong algorithm</EmptyTitle>
           <EmptyDescription>
-            This preset belongs to {preset.key}, not {algo.id}.
+            This preset uses {preset.key}, not {algo.id}.
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
@@ -81,7 +81,7 @@ export function PresetComposerEdit({
             <Link
               href={`/dashboard/algorithms/${preset.key}/presets/${preset._id}/edit`}
             >
-              Open in {preset.key}
+              Open {preset.key}
             </Link>
           </Button>
         </EmptyContent>

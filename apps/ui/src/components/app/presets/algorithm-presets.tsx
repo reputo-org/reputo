@@ -148,7 +148,7 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
       setPresetToDelete(null)
       toast.success("Preset deleted")
     } catch {
-      toast.error("Failed to delete the preset. Please try again.")
+      toast.error("Could not delete the preset. Try again.")
     } finally {
       setDeletingPresetId(null)
     }
@@ -174,7 +174,7 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
       params.set("preset", presetId)
       router.push(`${pathname}?${params.toString()}`)
     } catch {
-      toast.error("Failed to start the snapshot. Please try again.")
+      toast.error("Could not start the snapshot. Try again.")
     } finally {
       setRunningPresetId(null)
     }
@@ -193,15 +193,14 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
         <div>
           <h2 className="text-lg font-semibold">Presets</h2>
           <p className="text-sm text-muted-foreground">
-            Saved input configurations
-            {algo ? ` for ${algo.title}` : ""}. Run a preset to create a
-            snapshot.
+            Saved inputs{algo ? ` for ${algo.title}` : ""}. Run a preset to
+            create a snapshot.
           </p>
         </div>
         {newPresetUrl && (
           <Button asChild size="sm">
             <Link href={newPresetUrl}>
-              <Plus className="mr-2 size-4" /> New Preset
+              <Plus className="mr-2 size-4" /> New preset
             </Link>
           </Button>
         )}
@@ -213,10 +212,8 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
             <EmptyMedia variant="icon">
               <Loader2 className="size-6 animate-spin" />
             </EmptyMedia>
-            <EmptyTitle>Loading Presets</EmptyTitle>
-            <EmptyDescription>
-              Please wait while we fetch your algorithm presets...
-            </EmptyDescription>
+            <EmptyTitle>Loading presets</EmptyTitle>
+            <EmptyDescription>Getting your saved presets…</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : error ? (
@@ -225,14 +222,14 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
             <EmptyMedia variant="icon">
               <AlertCircle className="size-6 text-red-500" />
             </EmptyMedia>
-            <EmptyTitle>Failed to Load Presets</EmptyTitle>
+            <EmptyTitle>Could not load presets</EmptyTitle>
             <EmptyDescription>
-              There was an error loading your presets. Please try again.
+              Check your connection and try again.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
             <Button variant="outline" onClick={() => window.location.reload()}>
-              Try Again
+              Try again
             </Button>
           </EmptyContent>
         </Empty>
@@ -242,10 +239,10 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
             <EmptyMedia variant="icon">
               <FolderOpen className="size-6" />
             </EmptyMedia>
-            <EmptyTitle>No Presets Yet</EmptyTitle>
+            <EmptyTitle>No presets yet</EmptyTitle>
             <EmptyDescription>
-              Create your first preset to save a reusable input configuration
-              {algo ? ` for ${algo.title}` : ""}.
+              Save a set of inputs{algo ? ` for ${algo.title}` : ""} to use
+              again.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>

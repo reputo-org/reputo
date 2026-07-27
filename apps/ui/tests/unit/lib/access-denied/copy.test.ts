@@ -31,7 +31,7 @@ describe("resolveAccessDeniedCopy", () => {
     [
       "not_allowlisted",
       "Access restricted",
-      "Your account isn't on the Reputo allowlist. Contact an administrator if you believe this is an error.",
+      "Your account does not have access to Reputo. Contact an admin if this seems wrong.",
     ],
     [
       "email_unverified",
@@ -41,12 +41,12 @@ describe("resolveAccessDeniedCopy", () => {
     [
       "revoked",
       "Access revoked",
-      "Your access to Reputo has been revoked. Contact an administrator if you need it restored.",
+      "Your access to Reputo was removed. Contact an admin if you need it restored.",
     ],
     [
       "consent_denied",
       "Sign-in cancelled",
-      "You declined the permissions Reputo needs to sign you in. Try again to continue.",
+      "You did not give Reputo permission to sign you in. Try again to continue.",
     ],
   ] as const)("maps %s to its title, subtitle, and retry CTA", (reason, expectedTitle, expectedSubtitle) => {
     const copy = resolveAccessDeniedCopy(reason)
@@ -65,7 +65,7 @@ describe("resolveAccessDeniedCopy", () => {
       expect(copy.reason).toBe("unknown")
       expect(copy.title).toBe("Access denied")
       expect(copy.subtitle).toBe(
-        "We couldn't sign you in. Please try again, or contact an administrator."
+        "We could not sign you in. Try again or contact an admin."
       )
       expect(copy.cta).toEqual(RETRY)
     }

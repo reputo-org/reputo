@@ -51,14 +51,14 @@ describe("suggestPresetDescription", () => {
 
   it("falls back when the summary is missing or too short for the API", () => {
     expect(suggestPresetDescription({ algorithmTitle: "Custom Score" })).toBe(
-      "Default Custom Score configuration."
+      "Default preset for Custom Score."
     )
     expect(
       suggestPresetDescription({
         algorithmTitle: "Custom Score",
         algorithmSummary: "Short.",
       })
-    ).toBe("Default Custom Score configuration.")
+    ).toBe("Default preset for Custom Score.")
   })
 
   it("clamps an over-long summary to the API maximum", () => {

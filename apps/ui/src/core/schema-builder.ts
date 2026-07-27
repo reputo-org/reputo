@@ -123,9 +123,9 @@ export function buildSchemaFromAlgorithm(
 
   const nameInput: FormInput = {
     key: "name",
-    label: "Preset Name",
+    label: "Preset name",
     type: "text",
-    description: "Name for this algorithm preset",
+    description: "Name shown in the presets list.",
     required: true,
     minLength: 3,
     maxLength: 100,
@@ -135,7 +135,7 @@ export function buildSchemaFromAlgorithm(
     key: "description",
     label: "Description",
     type: "text",
-    description: "Description of this algorithm preset",
+    description: "Short note about this preset.",
     required: true,
     multiline: true,
     minLength: 10,
@@ -146,7 +146,7 @@ export function buildSchemaFromAlgorithm(
 
   return {
     key: `preset_${algorithm.id}`,
-    name: `Create Preset: ${algorithm.title}`,
+    name: `Create preset: ${algorithm.title}`,
     category: algorithm.category,
     description: algorithm.description,
     version,
@@ -365,7 +365,7 @@ function transformInputToFormInput(
         minItems: subInput?.minItems,
         maxItems: subInput?.maxItems,
         sharedInputKeys: subInput?.sharedInputKeys,
-        addButtonLabel: subInput?.uiHint?.addButtonLabel ?? "Add sub-algorithm",
+        addButtonLabel: subInput?.uiHint?.addButtonLabel ?? "Add algorithm",
       }
     }
 

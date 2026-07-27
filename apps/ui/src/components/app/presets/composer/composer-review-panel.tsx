@@ -128,13 +128,13 @@ function WeightSharesBlock({ subAlgorithmKey }: { subAlgorithmKey: string }) {
 
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-medium">Score composition</h3>
+      <h3 className="text-sm font-medium">Score shares</h3>
       <ul className="space-y-1.5">
         {rows.map((row, index) => {
           const label = row.algorithm_key
             ? (childOptions.find((option) => option.key === row.algorithm_key)
                 ?.label ?? row.algorithm_key)
-            : `Sub-algorithm ${index + 1}`
+            : `Child algorithm ${index + 1}`
           const share = shares[index]?.sharePercent ?? null
           return (
             <li key={`${row.algorithm_key ?? "row"}-${index}`}>
@@ -215,7 +215,7 @@ export function ComposerReviewPanel({
                 <span
                   key={label}
                   className="inline-flex items-center gap-1.5 rounded-md bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                  title="Data is fetched from this dependency"
+                  title="Source of data used by this algorithm"
                 >
                   <Database className="size-3" />
                   {label}

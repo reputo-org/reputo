@@ -32,9 +32,8 @@ export function RunPresetDialog({
         <DialogHeader>
           <DialogTitle>Run preset</DialogTitle>
           <DialogDescription>
-            Start a new snapshot{presetName ? ` for "${presetName}"` : ""}? The
-            algorithm will run with this preset's inputs, and you'll be taken to
-            the Snapshots tab to follow progress.
+            Start a snapshot{presetName ? ` for “${presetName}”` : ""}? You can
+            track its progress on the Snapshots tab.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

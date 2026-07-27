@@ -191,7 +191,7 @@ function PresetComposerInner({
       setGeneralErrors(
         remaining.length > 0
           ? remaining
-          : ["Failed to save the preset. Please try again."]
+          : ["Could not save the preset. Try again."]
       )
     }
   }
@@ -223,8 +223,8 @@ function PresetComposerInner({
           </h1>
           <p className="text-muted-foreground">
             {mode === "edit"
-              ? `Update the inputs for this ${algo.title} preset.`
-              : `Configure the inputs for ${algo.title}.`}
+              ? `Update this ${algo.title} preset.`
+              : `Choose inputs for ${algo.title}.`}
           </p>
         </div>
 

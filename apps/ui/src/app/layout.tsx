@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Reputo",
-  description: "Run your own reputation algorithms",
+  description: "Create and run privacy-preserving reputation scores.",
 }
 
 export default function RootLayout({

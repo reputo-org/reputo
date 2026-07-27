@@ -108,7 +108,7 @@ describe("AlgorithmPresets", () => {
 
     render(<AlgorithmPresets />)
 
-    expect(screen.getByText("Loading Presets")).toBeInTheDocument()
+    expect(screen.getByText("Loading presets")).toBeInTheDocument()
   })
 
   it("renders an error state when the query fails", () => {
@@ -120,9 +120,9 @@ describe("AlgorithmPresets", () => {
 
     render(<AlgorithmPresets />)
 
-    expect(screen.getByText("Failed to Load Presets")).toBeInTheDocument()
+    expect(screen.getByText("Could not load presets")).toBeInTheDocument()
     expect(
-      screen.getByRole("button", { name: "Try Again" })
+      screen.getByRole("button", { name: "Try again" })
     ).toBeInTheDocument()
   })
 
@@ -135,7 +135,7 @@ describe("AlgorithmPresets", () => {
 
     render(<AlgorithmPresets algo={algo} />)
 
-    expect(screen.getByText("No Presets Yet")).toBeInTheDocument()
+    expect(screen.getByText("No presets yet")).toBeInTheDocument()
     expect(
       screen.getByRole("link", { name: /create a preset/i })
     ).toHaveAttribute(

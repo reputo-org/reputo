@@ -40,33 +40,33 @@ const algo: Algorithm = {
   category: "Engagement",
   summary: "Scores proposal owners.",
   description: "### What it does\nScores proposal owners.",
-  duration: "~2-4 min",
-  inputSummary: "4 configurable inputs",
+  duration: "2–4 min",
+  inputSummary: "4 inputs",
   level: "Beginner",
   kind: "standalone",
   inputs: [
     {
       key: "funded_concluded_reward_weight",
       type: "number",
-      label: "Funded Proposal Reward",
+      label: "Funded proposal reward",
     },
     {
       key: "unfunded_penalty_weight",
       type: "number",
-      label: "Unfunded Proposal Penalty",
+      label: "Unfunded proposal penalty",
     },
     {
       key: "engagement_window_months",
       type: "integer",
-      label: "Lookback Window (Months)",
+      label: "Lookback period (months)",
     },
     {
       key: "monthly_decay_rate_percent",
       type: "integer",
-      label: "Monthly Decay Rate (%)",
+      label: "Monthly decay (%)",
     },
   ],
-  dependencyLabels: ["DeepFunding Portal API"],
+  dependencyLabels: ["Deep Funding Portal"],
 }
 
 function submitButton() {
@@ -86,12 +86,12 @@ describe("PresetComposer (create mode)", () => {
     const headings = screen
       .getAllByRole("heading", { level: 2 })
       .map((heading) => heading.textContent ?? "")
-    expect(headings).toContain("Rewards & penalties")
-    expect(headings).toContain("Time window & decay")
+    expect(headings).toContain("Rewards and penalties")
+    expect(headings).toContain("Time period and decay")
     // Details is the last section of the fields column (the review panel
     // headings follow it in DOM order).
     expect(headings.indexOf("Details")).toBeGreaterThan(
-      headings.indexOf("Time window & decay")
+      headings.indexOf("Time period and decay")
     )
 
     expect(screen.getByRole("textbox", { name: /preset name/i })).toHaveValue(
@@ -99,7 +99,7 @@ describe("PresetComposer (create mode)", () => {
     )
     // Registry default for the lookback window (48 after the data fix).
     expect(
-      screen.getByRole("textbox", { name: /lookback window/i })
+      screen.getByRole("textbox", { name: /lookback period/i })
     ).toHaveValue("48")
   })
 
@@ -282,7 +282,7 @@ describe("PresetComposer (edit mode)", () => {
       "Stored name"
     )
     expect(
-      screen.getByRole("textbox", { name: /lookback window/i })
+      screen.getByRole("textbox", { name: /lookback period/i })
     ).toHaveValue("24")
 
     const saveButton = screen.getAllByRole("button", {

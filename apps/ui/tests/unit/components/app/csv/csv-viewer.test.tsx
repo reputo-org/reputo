@@ -69,7 +69,9 @@ describe("CSVViewer", () => {
 
     render(<CSVViewer href="/preview.csv" />)
 
-    expect(await screen.findByText(/Failed to load CSV/)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/Could not load the CSV/)
+    ).toBeInTheDocument()
     expect(screen.getByText(/500/)).toBeInTheDocument()
   })
 
@@ -78,7 +80,9 @@ describe("CSVViewer", () => {
 
     render(<CSVViewer href="/preview.csv" />)
 
-    expect(await screen.findByText("No rows found")).toBeInTheDocument()
+    expect(
+      await screen.findByText("This CSV file has no rows.")
+    ).toBeInTheDocument()
   })
 
   it("paginates large files", async () => {
@@ -87,10 +91,10 @@ describe("CSVViewer", () => {
     const user = userEvent.setup()
 
     render(<CSVViewer href="/preview.csv" pageSize={10} />)
-    expect(await screen.findByText(/Page 1 \/ 3/)).toBeInTheDocument()
+    expect(await screen.findByText(/Page 1 of 3/)).toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "Next" }))
 
-    expect(screen.getByText(/Page 2 \/ 3/)).toBeInTheDocument()
+    expect(screen.getByText(/Page 2 of 3/)).toBeInTheDocument()
   })
 })

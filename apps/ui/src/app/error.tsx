@@ -19,7 +19,7 @@ export default function ErrorPage({ error, reset }: ErrorPageProps) {
     <PreAuthShell>
       <Hero
         title="Something went wrong"
-        subtitle="An unexpected error occurred. Try again, or contact support if it persists."
+        subtitle="Try again. If the problem continues, contact support."
       >
         <button
           type="button"

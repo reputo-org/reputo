@@ -29,7 +29,7 @@ export const GUIDES: readonly Guide[] = [
   {
     id: "create-preset",
     label: "Create a preset",
-    title: "How to create an algorithm preset",
+    title: "How to create a preset",
     slug: "How_to_create_a_algorithm_preset__p8JUc3kySOeKaiKFeFG3EQ",
   },
   {
@@ -41,7 +41,7 @@ export const GUIDES: readonly Guide[] = [
   {
     id: "manage-access",
     label: "Manage access",
-    title: "How to manage access (admins)",
+    title: "How to manage admin access",
     slug: "How_to_manage_access_admins__0AY7IhPfTpOPvK8x91lwag",
   },
 ]

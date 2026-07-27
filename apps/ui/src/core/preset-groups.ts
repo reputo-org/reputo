@@ -24,7 +24,7 @@ const GROUPS_BY_ALGORITHM: Record<string, GroupSpec[]> = {
     {
       id: "comment-scoring",
       title: "Comment scoring",
-      description: "Base value of a comment and how votes move it.",
+      description: "Set the base score and the effect of votes.",
       keys: [
         "comment_base_score",
         "comment_upvote_weight",
@@ -33,8 +33,8 @@ const GROUPS_BY_ALGORITHM: Record<string, GroupSpec[]> = {
     },
     {
       id: "bonuses-penalties",
-      title: "Bonuses & penalties",
-      description: "Multipliers for self-interaction and owner upvotes.",
+      title: "Bonuses and penalties",
+      description: "Set the effect of self-interactions and owner upvotes.",
       keys: [
         "self_interaction_penalty_factor",
         "project_owner_upvote_bonus_multiplier",
@@ -42,22 +42,22 @@ const GROUPS_BY_ALGORITHM: Record<string, GroupSpec[]> = {
     },
     {
       id: "time-window",
-      title: "Time window & decay",
-      description: "Which comments count and how they age.",
+      title: "Time period and decay",
+      description: "Choose which comments count and how they lose value.",
       keys: ["engagement_window_months", "monthly_decay_rate_percent"],
     },
   ],
   proposal_engagement: [
     {
       id: "rewards-penalties",
-      title: "Rewards & penalties",
-      description: "How funded and unfunded proposals move the score.",
+      title: "Rewards and penalties",
+      description: "Set how proposal outcomes affect the score.",
       keys: ["funded_concluded_reward_weight", "unfunded_penalty_weight"],
     },
     {
       id: "time-window",
-      title: "Time window & decay",
-      description: "Which proposals count and how they age.",
+      title: "Time period and decay",
+      description: "Choose which proposals count and how they lose value.",
       keys: ["engagement_window_months", "monthly_decay_rate_percent"],
     },
   ],
@@ -65,7 +65,7 @@ const GROUPS_BY_ALGORITHM: Record<string, GroupSpec[]> = {
     {
       id: "data-files",
       title: "Data files",
-      description: "Vote history and the wallet mapping it joins against.",
+      description: "Upload votes and the file that links them to wallets.",
       keys: ["votes", "wallet_collections"],
     },
   ],
@@ -73,13 +73,13 @@ const GROUPS_BY_ALGORITHM: Record<string, GroupSpec[]> = {
     {
       id: "maturation",
       title: "Maturation",
-      description: "How long tokens must be held to reach full value.",
+      description: "Set how long tokens must be held to reach full value.",
       keys: ["maturation_threshold_days"],
     },
     {
       id: "token-resources",
       title: "Token resources",
-      description: "Tokens and staking contracts included in scoring.",
+      description: "Choose the tokens and staking contracts to include.",
       keys: ["selected_resources"],
     },
   ],
@@ -87,7 +87,7 @@ const GROUPS_BY_ALGORITHM: Record<string, GroupSpec[]> = {
     {
       id: "composition",
       title: "Composition",
-      description: "Child algorithms and their share of the final score.",
+      description: "Choose the algorithms and their share of the final score.",
       keys: ["sub_algorithms"],
     },
   ],
@@ -109,7 +109,7 @@ export function getInputGroups(
 
   if (!specs || specs.length === 0) {
     return configInputs.length > 0
-      ? [{ id: "configuration", title: "Configuration", inputs: configInputs }]
+      ? [{ id: "configuration", title: "Settings", inputs: configInputs }]
       : []
   }
 
@@ -141,7 +141,7 @@ export function getInputGroups(
     } else {
       groups.push({
         id: "configuration",
-        title: "Configuration",
+        title: "Settings",
         inputs: uncovered,
       })
     }

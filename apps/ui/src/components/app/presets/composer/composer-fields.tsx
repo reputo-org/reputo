@@ -82,7 +82,7 @@ export function ComposerFields({ schema, groups }: ComposerFieldsProps) {
         <div className="mb-4">
           <h2 className="text-base font-semibold">Details</h2>
           <p className="text-muted-foreground text-sm">
-            How this preset appears in the presets list.
+            Name and describe this preset.
           </p>
         </div>
         <div className="flex flex-col gap-5">

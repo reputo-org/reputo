@@ -8,21 +8,21 @@ import {
 
 /** Display labels for known algorithm dependency keys (e.g. external data sources) */
 const DEPENDENCY_KEY_TO_LABEL: Record<string, string> = {
-  "deepfunding-portal-api": "DeepFunding Portal API",
-  "onchain-data": "Onchain Data",
-  "onchain-data-service": "Onchain Data",
+  "deepfunding-portal-api": "Deep Funding Portal",
+  "onchain-data": "On-chain data",
+  "onchain-data-service": "On-chain data",
   "deep-id": "DeepID",
 }
 
 /** Per-algorithm display metadata not derived from the definition itself */
 const ALGORITHM_META: Record<string, { duration: string; level: string }> = {
-  contribution_score: { duration: "~3-6 min", level: "Intermediate" },
-  proposal_engagement: { duration: "~2-4 min", level: "Beginner" },
-  voting_engagement: { duration: "~1-3 min", level: "Beginner" },
-  token_value_over_time: { duration: "~4-8 min", level: "Intermediate" },
+  contribution_score: { duration: "3–6 min", level: "Intermediate" },
+  proposal_engagement: { duration: "2–4 min", level: "Beginner" },
+  voting_engagement: { duration: "1–3 min", level: "Beginner" },
+  token_value_over_time: { duration: "4–8 min", level: "Intermediate" },
 }
 
-const DEFAULT_META = { duration: "~2-5 min", level: "Intermediate" }
+const DEFAULT_META = { duration: "2–5 min", level: "Intermediate" }
 
 export interface Algorithm {
   id: string
@@ -44,7 +44,7 @@ export interface Algorithm {
 }
 
 function formatInputSummary(inputCount: number): string {
-  return `${inputCount} configurable input${inputCount !== 1 ? "s" : ""}`
+  return `${inputCount} input${inputCount !== 1 ? "s" : ""}`
 }
 
 function transformAlgorithm(definition: AlgorithmDefinition): Algorithm {

@@ -62,10 +62,10 @@ interface ConfirmCopy {
 const CONFIRM_COPY: Record<ConfirmKind, ConfirmCopy> = {
   remove: {
     title: (email) => `Remove ${email}?`,
-    description: (row) => (
+    description: (
       <>
-        This soft-revokes their allowlist row and immediately invalidates{" "}
-        {sessionCountText(row.activeSessionCount)}. They can be restored later.
+        This removes their access and signs them out of Reputo. You can restore
+        their access later.
       </>
     ),
     actionLabel: "Remove",
@@ -73,16 +73,12 @@ const CONFIRM_COPY: Record<ConfirmKind, ConfirmCopy> = {
   },
   demote: {
     title: (email) => `Demote ${email} to admin?`,
-    description: <>Revokes owner-only permissions. They keep admin access.</>,
+    description: <>They will lose owner permissions but keep admin access.</>,
     actionLabel: "Demote",
   },
   promote: {
     title: (email) => `Promote ${email} to owner?`,
-    description: (
-      <>
-        Grants owner permissions, including the ability to manage other admins.
-      </>
-    ),
+    description: <>They will be able to manage other admins.</>,
     actionLabel: "Promote",
   },
 }
@@ -309,13 +305,6 @@ function RowMetadataLabel({
   )
 }
 
-function sessionCountText(count: number | undefined): string {
-  if (count === undefined) return "any active sessions"
-  if (count === 0) return "no active sessions"
-  if (count === 1) return "1 active session"
-  return `${count} active sessions`
-}
-
 function handleMutationError(
   error: unknown,
   action: "remove" | "promote" | "demote" | "restore"
@@ -326,12 +315,12 @@ function handleMutationError(
     return
   }
   if (status === 404) {
-    toast.error("That row no longer exists. Refresh and try again.")
+    toast.error("That admin no longer exists. Refresh and try again.")
     return
   }
   if (status === 409) {
-    toast.error("Conflict — another change happened. Refresh and try again.")
+    toast.error("Another change was made. Refresh and try again.")
     return
   }
-  toast.error(`Failed to ${action} admin. Please try again.`)
+  toast.error(`Could not ${action} the admin. Try again.`)
 }

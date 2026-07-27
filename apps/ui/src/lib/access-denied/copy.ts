@@ -54,7 +54,7 @@ export function resolveAccessDeniedCopy(rawReason: unknown): AccessDeniedCopy {
         reason,
         title: "Access restricted",
         subtitle:
-          "Your account isn't on the Reputo allowlist. Contact an administrator if you believe this is an error.",
+          "Your account does not have access to Reputo. Contact an admin if this seems wrong.",
         cta: RETRY_CTA,
       }
     case "email_unverified":
@@ -70,7 +70,7 @@ export function resolveAccessDeniedCopy(rawReason: unknown): AccessDeniedCopy {
         reason,
         title: "Access revoked",
         subtitle:
-          "Your access to Reputo has been revoked. Contact an administrator if you need it restored.",
+          "Your access to Reputo was removed. Contact an admin if you need it restored.",
         cta: RETRY_CTA,
       }
     case "consent_denied":
@@ -78,15 +78,14 @@ export function resolveAccessDeniedCopy(rawReason: unknown): AccessDeniedCopy {
         reason,
         title: "Sign-in cancelled",
         subtitle:
-          "You declined the permissions Reputo needs to sign you in. Try again to continue.",
+          "You did not give Reputo permission to sign you in. Try again to continue.",
         cta: RETRY_CTA,
       }
     default:
       return {
         reason: "unknown",
         title: "Access denied",
-        subtitle:
-          "We couldn't sign you in. Please try again, or contact an administrator.",
+        subtitle: "We could not sign you in. Try again or contact an admin.",
         cta: RETRY_CTA,
       }
   }

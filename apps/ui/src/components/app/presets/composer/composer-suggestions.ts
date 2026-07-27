@@ -37,7 +37,7 @@ export function suggestPresetDescription(args: {
       : summary
   }
 
-  return `Default ${args.algorithmTitle} configuration.`.slice(
+  return `Default preset for ${args.algorithmTitle}.`.slice(
     0,
     MAX_DESCRIPTION_LENGTH
   )
