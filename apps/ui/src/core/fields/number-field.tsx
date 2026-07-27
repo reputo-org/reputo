@@ -71,7 +71,10 @@ function NumberFieldInner({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value
     setLocalValue(raw)
-    if (raw === "") field.onChange("")
+    // Keep the form value in step with the text: pressing Enter submits the
+    // form without firing blur, so a deferred update would save a stale
+    // number while the field shows the new one.
+    field.onChange(fromDisplayValue(raw))
   }
 
   const handleBlur = () => {
