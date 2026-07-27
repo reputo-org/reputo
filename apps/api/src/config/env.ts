@@ -12,13 +12,6 @@ const truthyStringBoolean = z
   .union([z.boolean(), z.enum(['true', '1', 'false', '0'])])
   .transform((value) => value === true || value === 'true' || value === '1');
 
-const ENCRYPTED_CONSENT_SCOPES = [
-  'voting_engagement_encr',
-  'contribution_score_encr',
-  'proposal_engagement_encr',
-  'token_value_over_time_encr',
-] as const;
-
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(NODE_ENVS).describe('Node runtime environment'),
@@ -110,11 +103,9 @@ export const envSchema = z
     VOTING_PORTAL_RETURN_URL: z.string().url().describe('Voting Portal return URL after consent'),
     DEEP_ID_CONSENT_SCOPES: z
       .string()
+      .trim()
       .min(1)
-      .refine((value) => ENCRYPTED_CONSENT_SCOPES.every((scope) => value.split(/\s+/).includes(scope)), {
-        error: `DEEP_ID_CONSENT_SCOPES must include the encrypted score scopes: ${ENCRYPTED_CONSENT_SCOPES.join(' ')}`,
-      })
-      .describe('Deep ID scopes requested during the interactive consent flow'),
+      .describe('Space separated Deep ID scopes requested during the interactive consent flow'),
 
     DATABASE_URL: z
       .string()

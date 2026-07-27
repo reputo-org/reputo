@@ -159,8 +159,8 @@ encrypted read scopes: `voting_engagement_encr`, `contribution_score_encr`,
 `proposal_engagement_encr`, and `token_value_over_time_encr`. Without the first three,
 DeepID will not accept posted scores for those users; without the `_encr` scopes, users
 expose no child ciphertexts and silently drop out of every encrypted `custom_score` run.
-The API validates at boot that the consent configuration includes all four encrypted
-scopes.
+The API accepts any scope string, so this list is an operational requirement, not a
+boot-time check.
 
 The M2M token scopes (`DEEP_ID_SCOPES`) stay `api wallets post_scores` for the standard
 reads and posts. The encrypted readiness and submission activities request their own
