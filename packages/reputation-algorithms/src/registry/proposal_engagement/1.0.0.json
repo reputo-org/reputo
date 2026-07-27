@@ -34,11 +34,11 @@
         {
             "key": "engagement_window_months",
             "label": "Lookback Window (Months)",
-            "description": "Only proposals from this number of past months are scored.",
+            "description": "Only proposals from this number of past months are scored. A short window can exclude every scored round and leave all scores at `0`.",
             "type": "integer",
             "min": 1,
             "max": 72,
-            "default": 24,
+            "default": 48,
             "step": 1,
             "required": true
         },
