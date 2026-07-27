@@ -66,11 +66,12 @@ describe('custom_score registry loading', () => {
       }),
     ) as AlgorithmDefinition;
 
-    // Copy anchors for the encrypted flow: DeepID owns identity mapping, only
-    // complete unified users are evaluated, and the final score is custom_score_encr.
+    // Copy anchors for the encrypted flow: only users with complete results are
+    // evaluated, scores are normalized before weighting, and DeepID receives the result.
     expect(definition.description).toContain('DeepID');
-    expect(definition.description).toContain('custom_score_encr');
-    expect(definition.description).toContain('native cohort');
+    expect(definition.description).toContain('every selected algorithm has a result');
+    expect(definition.description).toContain('scaled to 0–100');
+    expect(definition.description).toContain('weighted average without decrypting');
     expect(definition.summary).toContain('encrypted');
 
     // Normalization stays definition metadata: no preset input and no source min/max inputs.
