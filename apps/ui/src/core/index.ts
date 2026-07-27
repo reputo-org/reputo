@@ -11,10 +11,10 @@ export {
   DateField,
   EnumField,
   NumberField,
-  SliderField,
   TextField,
 } from "./fields"
-export { ReputoForm } from "./reputo-form"
+export { getDefaultValues } from "./form-defaults"
+export { getInputGroups, type InputGroup } from "./preset-groups"
 export {
   buildSchemaFromAlgorithm,
   buildZodSchema,

@@ -40,6 +40,7 @@ export function SubAlgorithmScoringExplanation({
     <Collapsible
       open={open}
       onOpenChange={setOpen}
+      data-composer-skip-focus
       className="rounded-lg border bg-muted/40"
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">

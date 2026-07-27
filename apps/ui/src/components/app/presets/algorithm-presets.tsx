@@ -3,16 +3,28 @@
 import {
   AlertCircle,
   BarChart3,
-  Edit,
+  Copy,
   Eye,
   FolderOpen,
   Loader2,
+  MoreHorizontal,
+  Pencil,
   Play,
+  Plus,
   Trash2,
 } from "lucide-react"
+import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Empty,
   EmptyContent,
@@ -32,21 +44,17 @@ import {
 import type { Algorithm } from "@/core/algorithms"
 import {
   useAlgorithmPresets,
-  useCreateAlgorithmPreset,
   useCreateSnapshot,
   useDeleteAlgorithmPreset,
-  useUpdateAlgorithmPreset,
 } from "@/lib/api/hooks"
 import type {
   AlgorithmPresetResponseDto,
-  CreateAlgorithmPresetDto,
   CreateSnapshotDto,
-  UpdateAlgorithmPresetDto,
 } from "@/lib/api/types"
-import { CreatePresetDialog } from "./create-preset-dialog"
-import { EditPresetDialog } from "./edit-preset-dialog"
+import { cn } from "@/lib/utils"
 import { PresetDeleteDialog } from "./preset-delete-dialog"
 import { PresetDetailsDialog } from "./preset-details-dialog"
+import { RunPresetDialog } from "./run-preset-dialog"
 
 function toTitleCase(str: string): string {
   return str
@@ -55,21 +63,55 @@ function toTitleCase(str: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
+const HIGHLIGHT_PARAMS = ["created", "updated"] as const
+const HIGHLIGHT_TTL_MS = 4000
+
 export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [presetToDelete, setPresetToDelete] = useState<string | null>(null)
   const [presetToView, setPresetToView] =
     useState<AlgorithmPresetResponseDto | null>(null)
-  const [presetToEdit, setPresetToEdit] =
+  const [presetToRun, setPresetToRun] =
     useState<AlgorithmPresetResponseDto | null>(null)
   const [runningPresetId, setRunningPresetId] = useState<string | null>(null)
-  const [updatingPresetId, setUpdatingPresetId] = useState<string | null>(null)
   const [deletingPresetId, setDeletingPresetId] = useState<string | null>(null)
+
+  const highlightedId =
+    searchParams.get("created") ?? searchParams.get("updated")
+  const searchParamsString = searchParams.toString()
+
+  // Callback ref: the highlighted row only exists once the list has loaded.
+  const didScrollRef = useRef(false)
+  const highlightRowRef = useCallback((node: HTMLTableRowElement | null) => {
+    if (!node || didScrollRef.current) {
+      return
+    }
+    didScrollRef.current = true
+    node.scrollIntoView({ behavior: "smooth", block: "center" })
+  }, [])
+
+  useEffect(() => {
+    if (!highlightedId) {
+      return
+    }
+
+    const timeout = window.setTimeout(() => {
+      const params = new URLSearchParams(searchParamsString)
+      for (const key of HIGHLIGHT_PARAMS) {
+        params.delete(key)
+      }
+      const query = params.toString()
+      router.replace(query ? `${pathname}?${query}` : pathname, {
+        scroll: false,
+      })
+    }, HIGHLIGHT_TTL_MS)
+
+    return () => window.clearTimeout(timeout)
+  }, [highlightedId, pathname, router, searchParamsString])
 
   const {
     data: presetsData,
@@ -79,14 +121,12 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
     key: algo?.id,
     limit: 50,
   })
-  const createPresetMutation = useCreateAlgorithmPreset()
-  const updatePresetMutation = useUpdateAlgorithmPreset()
   const deletePresetMutation = useDeleteAlgorithmPreset()
   const createSnapshotMutation = useCreateSnapshot()
 
-  const handleCreatePreset = async (data: CreateAlgorithmPresetDto) => {
-    await createPresetMutation.mutateAsync(data)
-  }
+  const newPresetUrl = algo
+    ? `/dashboard/algorithms/${algo.id}/presets/new`
+    : null
 
   const handleDeletePreset = async (presetId: string) => {
     setPresetToDelete(presetId)
@@ -98,24 +138,6 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
     setIsDetailsDialogOpen(true)
   }
 
-  const handleEditPreset = (preset: AlgorithmPresetResponseDto) => {
-    setPresetToEdit(preset)
-    setIsEditDialogOpen(true)
-  }
-
-  const handleUpdatePreset = async (data: UpdateAlgorithmPresetDto) => {
-    if (!presetToEdit) return
-    setUpdatingPresetId(presetToEdit._id)
-    try {
-      await updatePresetMutation.mutateAsync({
-        id: presetToEdit._id,
-        data,
-      })
-    } finally {
-      setUpdatingPresetId(null)
-    }
-  }
-
   const confirmDeletePreset = async () => {
     if (!presetToDelete) return
 
@@ -124,14 +146,18 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
       await deletePresetMutation.mutateAsync(presetToDelete)
       setIsDeleteDialogOpen(false)
       setPresetToDelete(null)
-    } catch (error) {
-      console.error("Failed to delete preset:", error)
+      toast.success("Preset deleted")
+    } catch {
+      toast.error("Failed to delete the preset. Please try again.")
     } finally {
       setDeletingPresetId(null)
     }
   }
 
-  const handleRunPreset = async (presetId: string) => {
+  const confirmRunPreset = async () => {
+    if (!presetToRun) return
+    const presetId = presetToRun._id
+
     try {
       setRunningPresetId(presetId)
       const snapshotData: CreateSnapshotDto = {
@@ -140,13 +166,15 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
       }
 
       await createSnapshotMutation.mutateAsync(snapshotData)
+      setPresetToRun(null)
+      toast.success("Snapshot started")
 
       const params = new URLSearchParams(searchParams.toString())
       params.set("tab", "snapshots")
       params.set("preset", presetId)
       router.push(`${pathname}?${params.toString()}`)
-    } catch (error) {
-      console.error("Failed to create snapshot:", error)
+    } catch {
+      toast.error("Failed to start the snapshot. Please try again.")
     } finally {
       setRunningPresetId(null)
     }
@@ -161,18 +189,22 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Presets</h2>
           <p className="text-sm text-muted-foreground">
-            Manage algorithm workflows and condition dependencies
+            Saved input configurations
+            {algo ? ` for ${algo.title}` : ""}. Run a preset to create a
+            snapshot.
           </p>
         </div>
-        <CreatePresetDialog
-          algo={algo}
-          onCreatePreset={handleCreatePreset}
-          isLoading={createPresetMutation.isPending}
-        />
+        {newPresetUrl && (
+          <Button asChild size="sm">
+            <Link href={newPresetUrl}>
+              <Plus className="mr-2 size-4" /> New Preset
+            </Link>
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
@@ -210,36 +242,54 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
             <EmptyMedia variant="icon">
               <FolderOpen className="size-6" />
             </EmptyMedia>
-            <EmptyTitle>No Presets Found</EmptyTitle>
+            <EmptyTitle>No Presets Yet</EmptyTitle>
             <EmptyDescription>
-              You haven't created any presets yet. Get started by creating your
-              first preset.
+              Create your first preset to save a reusable input configuration
+              {algo ? ` for ${algo.title}` : ""}.
             </EmptyDescription>
           </EmptyHeader>
-          <EmptyContent></EmptyContent>
+          <EmptyContent>
+            {newPresetUrl && (
+              <Button asChild>
+                <Link href={newPresetUrl}>
+                  <Plus className="mr-2 size-4" /> Create a preset
+                </Link>
+              </Button>
+            )}
+          </EmptyContent>
         </Empty>
       ) : (
-        <div className="space-y-4">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="max-w-[200px]">Preset</TableHead>
-                <TableHead className="max-w-[250px]">Algorithm</TableHead>
-                <TableHead>Version</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {presetsData?.results.map((preset) => (
-                <TableRow key={preset._id}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="max-w-[200px]">Preset</TableHead>
+              <TableHead className="max-w-[250px]">Algorithm</TableHead>
+              <TableHead>Version</TableHead>
+              <TableHead>Created</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {presetsData?.results.map((preset) => {
+              const isHighlighted = preset._id === highlightedId
+              return (
+                <TableRow
+                  key={preset._id}
+                  ref={isHighlighted ? highlightRowRef : undefined}
+                  className={cn(
+                    "transition-colors",
+                    isHighlighted &&
+                      "bg-primary/5 ring-1 ring-inset ring-primary/30"
+                  )}
+                >
                   <TableCell className="max-w-[200px]">
                     <div className="flex flex-col">
                       <div className="font-medium truncate">
                         {preset.name || `${preset.key} preset`}
                       </div>
                       <div className="text-muted-foreground text-xs">
-                        {preset.inputs.length} inputs
+                        {preset.inputs.length} input
+                        {preset.inputs.length !== 1 ? "s" : ""}
                       </div>
                     </div>
                   </TableCell>
@@ -249,7 +299,7 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
                         {toTitleCase(preset.key)}
                       </div>
                       <div className="text-muted-foreground text-xs truncate">
-                        {preset.description || `Algorithm preset`}
+                        {preset.description || "Algorithm preset"}
                       </div>
                     </div>
                   </TableCell>
@@ -264,72 +314,80 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
                     })}
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex items-center justify-end gap-2">
                       <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Run"
-                        onClick={() => handleRunPreset(preset._id)}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPresetToRun(preset)}
                         disabled={runningPresetId === preset._id}
                       >
                         {runningPresetId === preset._id ? (
-                          <Loader2 className="size-4 animate-spin" />
+                          <Loader2 className="mr-2 size-4 animate-spin" />
                         ) : (
-                          <Play className="size-4" />
+                          <Play className="mr-2 size-4" />
                         )}
+                        Run
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="View"
-                        onClick={() => handleViewPreset(preset)}
-                      >
-                        <Eye className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="View Snapshots"
-                        onClick={() => handleViewSnapshots(preset._id)}
-                      >
-                        <BarChart3 className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Edit"
-                        onClick={() => handleEditPreset(preset)}
-                        disabled={updatingPresetId === preset._id}
-                      >
-                        {updatingPresetId === preset._id ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <Edit className="size-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Delete"
-                        onClick={() => handleDeletePreset(preset._id)}
-                        disabled={deletingPresetId === preset._id}
-                      >
-                        {deletingPresetId === preset._id ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="size-4" />
-                        )}
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Preset actions"
+                            disabled={deletingPresetId === preset._id}
+                          >
+                            {deletingPresetId === preset._id ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <MoreHorizontal className="size-4" />
+                            )}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onSelect={() => handleViewPreset(preset)}
+                          >
+                            <Eye className="mr-2 size-4" /> View details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => handleViewSnapshots(preset._id)}
+                          >
+                            <BarChart3 className="mr-2 size-4" /> View snapshots
+                          </DropdownMenuItem>
+                          {algo && (
+                            <>
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  href={`/dashboard/algorithms/${algo.id}/presets/${preset._id}/edit`}
+                                >
+                                  <Pencil className="mr-2 size-4" /> Edit
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  href={`/dashboard/algorithms/${algo.id}/presets/new?from=${preset._id}`}
+                                >
+                                  <Copy className="mr-2 size-4" /> Duplicate
+                                </Link>
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onSelect={() => handleDeletePreset(preset._id)}
+                          >
+                            <Trash2 className="mr-2 size-4" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <div className="text-center text-sm text-muted-foreground">
-            Manage algorithm workflows and condition dependencies
-          </div>
-        </div>
+              )
+            })}
+          </TableBody>
+        </Table>
       )}
 
       <PresetDetailsDialog
@@ -338,16 +396,16 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
         preset={presetToView}
       />
 
-      <EditPresetDialog
-        isOpen={isEditDialogOpen}
+      <RunPresetDialog
+        isOpen={presetToRun !== null}
+        presetName={presetToRun?.name ?? null}
         onClose={() => {
-          setIsEditDialogOpen(false)
-          setPresetToEdit(null)
+          if (runningPresetId === null) {
+            setPresetToRun(null)
+          }
         }}
-        preset={presetToEdit}
-        onUpdatePreset={handleUpdatePreset}
-        isLoading={updatePresetMutation.isPending}
-        error={updatePresetMutation.error}
+        onConfirm={confirmRunPreset}
+        isLoading={runningPresetId !== null}
       />
 
       <PresetDeleteDialog

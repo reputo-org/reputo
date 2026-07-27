@@ -2,7 +2,7 @@
 
 import { validateJSONContent } from "@reputo/algorithm-validator"
 import { AlertCircle, CheckCircle2 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { Control, FieldValues } from "react-hook-form"
 import { useFormContext } from "react-hook-form"
 import {
@@ -38,10 +38,24 @@ export function JSONField({ input, control }: JSONFieldProps) {
   const [isUploading, setIsUploading] = useState(false)
 
   const isBusy = isUploading || isValidating
+  const isMountedRef = useRef(true)
 
   useEffect(() => {
-    if (formUpload) {
-      formUpload.setFieldUploading(input.key, isBusy)
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  // The cleanup matters: a composer row can be removed mid-upload, and a
+  // field left registered as uploading would disable submit forever.
+  useEffect(() => {
+    if (!formUpload) {
+      return
+    }
+    formUpload.setFieldUploading(input.key, isBusy)
+    return () => {
+      formUpload.setFieldUploading(input.key, false)
     }
   }, [formUpload, input.key, isBusy])
 
@@ -63,6 +77,11 @@ export function JSONField({ input, control }: JSONFieldProps) {
     setIsValidating(true)
     try {
       const result = await validateJSONContent(file, input.json)
+      // Field names are positional inside a composer row, so a late write
+      // from an unmounted field would land on whichever row took its place.
+      if (!isMountedRef.current) {
+        return
+      }
       setValidationResult(result)
 
       if (result.valid) {
@@ -85,8 +104,14 @@ export function JSONField({ input, control }: JSONFieldProps) {
             throw new Error(`Upload failed with status ${putResponse.status}`)
           }
 
+          if (!isMountedRef.current) {
+            return
+          }
           onChange(key)
         } catch (uploadError) {
+          if (!isMountedRef.current) {
+            return
+          }
           const errorMessage = `Upload failed: ${
             uploadError instanceof Error ? uploadError.message : "Unknown error"
           }`
@@ -111,6 +136,9 @@ export function JSONField({ input, control }: JSONFieldProps) {
         onChange(null)
       }
     } catch (error) {
+      if (!isMountedRef.current) {
+        return
+      }
       const errorMessage = `Validation failed: ${
         error instanceof Error ? error.message : "Unknown error"
       }`
