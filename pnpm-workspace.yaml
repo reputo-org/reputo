@@ -60,7 +60,7 @@ catalog:
   jsdom: ^29.1.1
   node-seal: 7.0.0
   nodemon: ^3.1.14
-  p-limit: ^6.2.0
+  p-limit: ^7.3.1
   pg: ^8.22.0
   pino: ^9.14.0
   pino-pretty: ^13.1.3
