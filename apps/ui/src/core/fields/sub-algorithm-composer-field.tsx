@@ -46,6 +46,7 @@ import {
   buildAlgorithmInputFormFields,
   type FormInput,
 } from "../schema-builder"
+import { InlineMarkdown } from "./inline-markdown"
 import {
   buildChildInputsArray,
   type ChildAlgorithmOption,
@@ -140,7 +141,9 @@ export function SubAlgorithmComposerField({
       </FormLabel>
 
       {input.description && (
-        <p className="text-muted-foreground text-sm">{input.description}</p>
+        <p className="text-muted-foreground text-sm">
+          <InlineMarkdown>{input.description}</InlineMarkdown>
+        </p>
       )}
 
       <SubAlgorithmScoringExplanation

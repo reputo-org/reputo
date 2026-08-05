@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { FormInput } from "../schema-builder"
+import { InlineMarkdown } from "./inline-markdown"
 
 interface EnumFieldProps {
   input: FormInput
@@ -53,7 +54,9 @@ export function EnumField({ input, control }: EnumFieldProps) {
             </SelectContent>
           </Select>
           {input.description && (
-            <FormDescription>{input.description}</FormDescription>
+            <FormDescription>
+              <InlineMarkdown>{input.description}</InlineMarkdown>
+            </FormDescription>
           )}
           <FormMessage />
         </FormItem>

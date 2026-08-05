@@ -29,6 +29,7 @@ import { storageApi } from "@/lib/api/services"
 import { cn } from "@/lib/utils"
 import { useFormUploadOptional } from "../form-context"
 import type { FormInput } from "../schema-builder"
+import { InlineMarkdown } from "./inline-markdown"
 
 interface CSVFieldProps {
   input: FormInput
@@ -110,7 +111,7 @@ function ExpectedColumns({
                 </Badge>
                 {column.description && (
                   <span className="text-muted-foreground min-w-0">
-                    {column.description}
+                    <InlineMarkdown>{column.description}</InlineMarkdown>
                   </span>
                 )}
               </li>
@@ -337,7 +338,9 @@ export function CSVField({ input, control }: CSVFieldProps) {
             </FormControl>
 
             {input.description && (
-              <FormDescription>{input.description}</FormDescription>
+              <FormDescription>
+                <InlineMarkdown>{input.description}</InlineMarkdown>
+              </FormDescription>
             )}
 
             {input.csv?.columns && input.csv.columns.length > 0 && (
