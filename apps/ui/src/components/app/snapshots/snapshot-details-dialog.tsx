@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -10,8 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { safeGetDefinition } from "@/core/fields/sub-algorithm-composer-field.utils"
 import type { SnapshotResponseDto } from "@/lib/api/types"
 import { FileDisplay } from "../file-display"
+import { PresetInputRows, toTitleCase } from "../presets/preset-input-rows"
 
 interface SnapshotDetailsDialogProps {
   isOpen: boolean
@@ -32,6 +35,28 @@ export function SnapshotDetailsDialog({
   onClose,
   snapshot,
 }: SnapshotDetailsDialogProps) {
+  const frozenPreset = snapshot?.algorithmPresetFrozen
+
+  /**
+   * The run is described by the definition it was frozen against, so a later
+   * registry change never relabels an existing snapshot.
+   */
+  const frozenDefinition = useMemo(
+    () =>
+      frozenPreset?.key
+        ? safeGetDefinition(frozenPreset.key, frozenPreset.version)
+        : null,
+    [frozenPreset]
+  )
+
+  const outputLabels = useMemo(() => {
+    const labels = new Map<string, string>()
+    for (const output of frozenDefinition?.outputs ?? []) {
+      labels.set(output.key, output.label || toTitleCase(output.key))
+    }
+    return labels
+  }, [frozenDefinition])
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "running":
@@ -86,11 +111,17 @@ export function SnapshotDetailsDialog({
                   Preset
                 </h3>
                 <p className="text-sm">
-                  {snapshot.algorithmPresetFrozen?.name ||
+                  {frozenPreset?.name ||
                     (typeof snapshot.algorithmPreset === "string"
                       ? `Preset ${snapshot.algorithmPreset.slice(-8)}`
                       : "Unknown preset")}
                 </p>
+                {frozenPreset?.key && (
+                  <p className="text-sm text-muted-foreground">
+                    {frozenDefinition?.name ?? toTitleCase(frozenPreset.key)} v
+                    {frozenPreset.version}
+                  </p>
+                )}
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">
@@ -109,6 +140,24 @@ export function SnapshotDetailsDialog({
                 </p>
               </div>
             </div>
+
+            {frozenPreset && frozenPreset.inputs.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-3">
+                  Inputs
+                </h3>
+                <div className="rounded-lg border">
+                  <PresetInputRows
+                    inputs={frozenPreset.inputs}
+                    definition={frozenDefinition}
+                  />
+                </div>
+                <p className="text-muted-foreground mt-2 text-xs">
+                  Frozen when the run started. Later edits to the preset do not
+                  change them.
+                </p>
+              </div>
+            )}
 
             {snapshot.temporal && (
               <div>
@@ -149,15 +198,21 @@ export function SnapshotDetailsDialog({
                 </h3>
                 <div className="space-y-2 pb-4">
                   {Object.entries(snapshot.outputs).map(([key, value]) => {
+                    const label = outputLabels.get(key) ?? toTitleCase(key)
+
                     if (isStorageKey(value)) {
                       return (
-                        <FileDisplay key={key} label={key} storageKey={value} />
+                        <FileDisplay
+                          key={key}
+                          label={label}
+                          storageKey={value}
+                        />
                       )
                     }
 
                     return (
                       <div key={key} className="p-3 border rounded-lg">
-                        <div className="font-medium mb-2">{key}</div>
+                        <div className="font-medium mb-2">{label}</div>
                         <div className="text-sm text-muted-foreground break-all">
                           {typeof value === "object"
                             ? JSON.stringify(value, null, 2)

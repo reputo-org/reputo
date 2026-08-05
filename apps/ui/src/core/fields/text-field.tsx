@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import type { FormInput } from "../schema-builder"
+import { InlineMarkdown } from "./inline-markdown"
 
 interface TextFieldProps {
   input: FormInput
@@ -46,7 +47,9 @@ export function TextField({ input, control }: TextFieldProps) {
             )}
           </FormControl>
           {input.description && (
-            <FormDescription>{input.description}</FormDescription>
+            <FormDescription>
+              <InlineMarkdown>{input.description}</InlineMarkdown>
+            </FormDescription>
           )}
           <FormMessage />
         </FormItem>

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import type { FormInput } from "../schema-builder"
+import { InlineMarkdown } from "./inline-markdown"
 
 interface DateFieldProps {
   input: FormInput
@@ -39,7 +40,9 @@ export function DateField({ input, control }: DateFieldProps) {
             />
           </FormControl>
           {input.description && (
-            <FormDescription>{input.description}</FormDescription>
+            <FormDescription>
+              <InlineMarkdown>{input.description}</InlineMarkdown>
+            </FormDescription>
           )}
           <FormMessage />
         </FormItem>

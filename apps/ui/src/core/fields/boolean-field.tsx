@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/form"
 import { Switch } from "@/components/ui/switch"
 import type { FormInput } from "../schema-builder"
+import { InlineMarkdown } from "./inline-markdown"
 
 interface BooleanFieldProps {
   input: FormInput
@@ -32,7 +33,9 @@ export function BooleanField({ input, control }: BooleanFieldProps) {
               )}
             </FormLabel>
             {input.description && (
-              <FormDescription>{input.description}</FormDescription>
+              <FormDescription>
+                <InlineMarkdown>{input.description}</InlineMarkdown>
+              </FormDescription>
             )}
           </div>
           <FormControl>

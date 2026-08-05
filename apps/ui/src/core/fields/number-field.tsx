@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Slider } from "@/components/ui/slider"
 import type { FormInput } from "../schema-builder"
+import { InlineMarkdown } from "./inline-markdown"
 
 interface NumberFieldProps {
   input: FormInput
@@ -186,7 +187,9 @@ function NumberFieldInner({
         </div>
       )}
       {input.description && (
-        <FormDescription>{input.description}</FormDescription>
+        <FormDescription>
+          <InlineMarkdown>{input.description}</InlineMarkdown>
+        </FormDescription>
       )}
       <FormMessage />
     </FormItem>

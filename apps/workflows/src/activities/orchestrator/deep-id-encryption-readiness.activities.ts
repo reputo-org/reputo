@@ -17,7 +17,8 @@ import {
   type SelectedEncryptedChild,
 } from './deep-id-encrypted-cohort.js';
 
-const READINESS_PAGE_SIZE = 1000;
+/** DeepID rejects `pageSize` above 100 on `GET /v1/users`. */
+const READINESS_PAGE_SIZE = 100;
 
 /** Full-pass restarts allowed after cursor-expiry `400`s within one poll. */
 const CURSOR_RESTART_LIMIT = 3;

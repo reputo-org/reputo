@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { FormInput, SelectOption } from "../schema-builder"
+import { InlineMarkdown } from "./inline-markdown"
 
 interface SelectFieldProps {
   input: FormInput
@@ -94,7 +95,9 @@ export function SelectField({ input, control, getIconUrl }: SelectFieldProps) {
             </SelectContent>
           </Select>
           {input.description && (
-            <FormDescription>{input.description}</FormDescription>
+            <FormDescription>
+              <InlineMarkdown>{input.description}</InlineMarkdown>
+            </FormDescription>
           )}
           <FormMessage />
         </FormItem>

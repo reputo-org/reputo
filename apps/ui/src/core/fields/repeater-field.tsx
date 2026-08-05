@@ -38,6 +38,7 @@ import type {
   FormInputProperty,
   SelectOption,
 } from "../schema-builder"
+import { InlineMarkdown } from "./inline-markdown"
 
 interface RepeaterFieldProps {
   input: FormInput
@@ -563,7 +564,9 @@ function RepeaterFieldBase({
       </FormLabel>
 
       {input.description && (
-        <FormDescription>{input.description}</FormDescription>
+        <FormDescription>
+          <InlineMarkdown>{input.description}</InlineMarkdown>
+        </FormDescription>
       )}
 
       {input.arrayPresets && input.arrayPresets.length > 0 && (

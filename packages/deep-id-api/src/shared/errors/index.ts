@@ -1,10 +1,14 @@
+/** Error bodies are short DeepID error JSON; the cap guards against HTML error pages. */
+const BODY_SNIPPET_LENGTH = 200;
+
 export class HttpError extends Error {
   constructor(
     public readonly statusCode: number,
     public readonly statusText: string,
     public readonly body?: string,
   ) {
-    super(`HTTP ${statusCode}: ${statusText}`);
+    const snippet = body && body.trim().length > 0 ? ` — ${body.trim().slice(0, BODY_SNIPPET_LENGTH)}` : '';
+    super(`HTTP ${statusCode}: ${statusText}${snippet}`);
     this.name = 'HttpError';
   }
 }

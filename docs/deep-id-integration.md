@@ -27,7 +27,8 @@ are posted under whichever DID the algorithm worked with, and DeepID unifies a u
 snapshot starts, the orchestrator resolves it with the `deep_id_sync` activity:
 
 1. Fetch every consented user from `GET /v1/users` (cursor-paginated), requesting the
-   configured scopes (`api wallets post_scores`).
+   configured scopes (`api wallets post_scores`). DeepID rejects a `pageSize` above 100
+   with `400 Invalid pageSize`, so `DEEP_ID_USERS_PAGE_SIZE` must stay at 100 or below.
 2. Assemble a `did:sub → { userWallets }` map (Ethereum and Cardano wallets; a user can
    have several) and write it to object storage under the snapshot prefix.
 3. Inject the file's key as the algorithm's `dids` input (in memory only — the frozen
@@ -159,8 +160,11 @@ encrypted read scopes: `voting_engagement_encr`, `contribution_score_encr`,
 `proposal_engagement_encr`, and `token_value_over_time_encr`. Without the first three,
 DeepID will not accept posted scores for those users; without the `_encr` scopes, users
 expose no child ciphertexts and silently drop out of every encrypted `custom_score` run.
-The API accepts any scope string, so this list is an operational requirement, not a
-boot-time check.
+DeepID validates the `filteredTokenScopes` values on `GET /v1/users` against its own
+scope registry and rejects unknown ones with `400 Invalid filters` — the `_encr` scopes
+only work as filters once DeepID has registered them on the target environment (checked
+on staging 2026-08-05: all four `_encr` scopes were still rejected as filters, while the
+identity server already granted them as token scopes).
 
 The M2M token scopes (`DEEP_ID_SCOPES`) stay `api wallets post_scores` for the standard
 reads and posts. The encrypted readiness and submission activities request their own

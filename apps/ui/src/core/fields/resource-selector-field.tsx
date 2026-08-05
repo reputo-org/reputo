@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils"
 import { getChainMeta } from "../chain-token-metadata"
 import type { FormInput } from "../schema-builder"
+import { InlineMarkdown } from "./inline-markdown"
 import {
   buildResourceSelectorPanels,
   normalizeResourceSelections,
@@ -171,7 +172,9 @@ export function ResourceSelectorField({
                   )}
                 </FormLabel>
                 {input.description && (
-                  <FormDescription>{input.description}</FormDescription>
+                  <FormDescription>
+                    <InlineMarkdown>{input.description}</InlineMarkdown>
+                  </FormDescription>
                 )}
               </div>
 

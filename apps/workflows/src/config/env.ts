@@ -124,9 +124,9 @@ export const envSchema = z.object({
     .number()
     .int()
     .min(1)
-    .max(1000)
-    .default(500)
-    .describe('Page size for GET /v1/users (1–1000)'),
+    .max(100)
+    .default(100)
+    .describe('Page size for GET /v1/users (DeepID rejects values above 100)'),
   DEEP_ID_RETRY_MAX_ATTEMPTS: z.coerce
     .number()
     .int()
