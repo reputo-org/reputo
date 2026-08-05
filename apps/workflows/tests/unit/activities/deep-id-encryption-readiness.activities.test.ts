@@ -130,13 +130,13 @@ describe('checkEncryptionReadiness activity', () => {
     vi.clearAllMocks();
   });
 
-  it('requests api plus exactly the selected children encrypted scopes with pageSize 1000', async () => {
+  it('requests api plus exactly the selected children encrypted scopes with pageSize 100', async () => {
     enqueuePass([pageOf({ [didFor(1)]: completeUser() })]);
 
     await createCheckEncryptionReadinessActivity()(makeInput());
 
     expect(mockCreateDeepIdClient).toHaveBeenCalledWith(expect.objectContaining({ scopes: READINESS_SCOPES }));
-    expect(mockIterateUsers).toHaveBeenCalledWith({ pageSize: 1000, filteredTokenScopes: READINESS_SCOPES });
+    expect(mockIterateUsers).toHaveBeenCalledWith({ pageSize: 100, filteredTokenScopes: READINESS_SCOPES });
   });
 
   it('classifies complete, potentially complete, and incomplete users and is not ready while one is pending', async () => {
