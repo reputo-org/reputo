@@ -3,6 +3,7 @@ import {
   type ApiSnapshotActivities,
   SNAPSHOT_NOT_FOUND_ERROR_TYPE,
 } from '@reputo/contracts';
+import type { ScoreType } from '@reputo/deep-id-api';
 import * as workflow from '@temporalio/workflow';
 import {
   ACTIVITY_MAX_ATTEMPTS,
@@ -29,6 +30,7 @@ import type {
   DeepIdSubmitEncryptedScoresActivities,
   DependencyKey,
   DependencyResolverActivities,
+  EncryptedChildObservation,
   OrchestratorWorkflowInput,
   ResolveDependencyResult,
   Snapshot,
@@ -527,13 +529,31 @@ async function runSnapshotPhases(args: {
       })),
     });
 
+    const observations: EncryptedChildObservation[] = [];
+    const skippedScoreTypes: ScoreType[] = [];
+    for (const child of submission.children) {
+      if (child.observation === null) {
+        skippedScoreTypes.push(child.scoreType);
+      } else {
+        observations.push({ scoreType: child.scoreType, observation: child.observation });
+      }
+    }
+    if (skippedScoreTypes.length > 0) {
+      workflow.log.warn('Skipping child algorithms with no accepted raw scores', {
+        snapshotId,
+        skippedScoreTypes,
+        aggregatedScoreTypes: observations.map(({ scoreType }) => scoreType),
+      });
+    }
+
     // Nothing encrypted may be evaluated or submitted while a selected
     // child score is still pending_encryption; the snapshot completes only
     // after DeepID accepts every complete user's final encrypted entry.
     const lifecycle = await runEncryptedCustomScoreLifecycle({
       snapshotId,
       algorithmPresetFrozen: snapshot.algorithmPresetFrozen,
-      observations: submission.children.map(({ scoreType, observation }) => ({ scoreType, observation })),
+      observations,
+      skippedScoreTypes,
       timestamp: runTimestamp,
       checkEncryptionReadiness,
       submitCustomEncryptedScores,

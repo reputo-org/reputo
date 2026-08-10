@@ -139,6 +139,39 @@ describe('checkEncryptionReadiness activity', () => {
     expect(mockIterateUsers).toHaveBeenCalledWith({ pageSize: 100, filteredTokenScopes: READINESS_SCOPES });
   });
 
+  it('excludes skipped children from the scopes and the cohort classification', async () => {
+    // With the token child skipped, a voting-only user counts as complete.
+    enqueuePass([
+      pageOf({
+        [didFor(1)]: user({ voting_engagement_encr: encrypted() }),
+        [didFor(2)]: user({ voting_engagement_encr: pendingEncryption() }),
+      }),
+    ]);
+
+    const result = await createCheckEncryptionReadinessActivity()({
+      ...makeInput(),
+      skippedScoreTypes: ['token_value_over_time'],
+    } as never);
+
+    const votingScopes = 'api voting_engagement_encr';
+    expect(mockCreateDeepIdClient).toHaveBeenCalledWith(expect.objectContaining({ scopes: votingScopes }));
+    expect(mockIterateUsers).toHaveBeenCalledWith({ pageSize: 100, filteredTokenScopes: votingScopes });
+    expect(result.ready).toBe(false);
+    expect(result.counts).toEqual({ complete: 1, potentiallyComplete: 1, incomplete: 0 });
+  });
+
+  it('fails non-retryably when every selected child was skipped', async () => {
+    const error = await expectFatal(
+      createCheckEncryptionReadinessActivity()({
+        ...makeInput([child('voting_engagement')]),
+        skippedScoreTypes: ['voting_engagement'],
+      } as never),
+    );
+
+    expect(error.message).toContain('Every selected child was skipped by the raw submission');
+    expect(mockIterateUsers).not.toHaveBeenCalled();
+  });
+
   it('classifies complete, potentially complete, and incomplete users and is not ready while one is pending', async () => {
     enqueuePass([
       pageOf({

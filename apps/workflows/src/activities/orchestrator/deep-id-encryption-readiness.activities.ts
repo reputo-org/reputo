@@ -118,7 +118,24 @@ export function createCheckEncryptionReadinessActivity() {
     const { snapshotId, algorithmPresetFrozen } = input;
     const logger = Context.current().log;
 
-    const children = parseCustomScoreChildren(algorithmPresetFrozen.inputs);
+    // A skipped child has no accepted rows, so its encrypted field can never turn ready.
+    const skippedScoreTypes = new Set<string>(input.skippedScoreTypes ?? []);
+    const children = parseCustomScoreChildren(algorithmPresetFrozen.inputs).filter(
+      (child) => !skippedScoreTypes.has(child.algorithm_key),
+    );
+    if (children.length === 0) {
+      throw fatal('Every selected child was skipped by the raw submission; nothing can become ready', {
+        snapshotId,
+        skippedScoreTypes: [...skippedScoreTypes],
+      });
+    }
+    if (skippedScoreTypes.size > 0) {
+      logger.info('Excluding skipped children from the readiness cohort', {
+        snapshotId,
+        skippedScoreTypes: [...skippedScoreTypes],
+        selectedChildren: children.map((child) => child.algorithm_key),
+      });
+    }
     let selectedChildren: SelectedEncryptedChild[];
     try {
       selectedChildren = resolveSelectedEncryptedChildren(children);

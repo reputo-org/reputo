@@ -383,6 +383,58 @@ describe('submitCustomEncryptedScores activity', () => {
     });
   });
 
+  it('excludes skipped children from scopes, cohort, and the evaluator so weights renormalize', async () => {
+    // With the token child skipped, a voting-only user counts as complete.
+    enqueuePass([pageOf({ [didFor(1)]: user({ voting_engagement_encr: encrypted('CT-VOTING') }) })]);
+
+    const result = (await createSubmitCustomEncryptedScoresActivity()(
+      makeInput({
+        observations: [OBSERVATIONS[0]],
+        skippedScoreTypes: ['token_value_over_time'],
+      }),
+    )) as EncryptedScoresSubmittedResult;
+
+    expect(result).toMatchObject({ outcome: 'submitted', complete: 1, submitted: 1 });
+    const votingScopes = 'api voting_engagement_encr';
+    expect(mockCreateDeepIdClient).toHaveBeenCalledWith(
+      expect.objectContaining({ scopes: `${votingScopes} post_scores` }),
+    );
+    expect(mockIterateUsers).toHaveBeenCalledWith({ pageSize: 100, filteredTokenScopes: votingScopes });
+    expect(evaluatorState.createInputs[0]).toEqual({
+      method: 'observed_min_max',
+      children: [
+        {
+          key: 'voting_engagement',
+          weight: 1,
+          observation: { method: 'observed_min_max', min: 0, max: 10 },
+        },
+      ],
+    });
+  });
+
+  it('fails non-retryably when a child is both skipped and observed', async () => {
+    const failure = await expectFatal(
+      createSubmitCustomEncryptedScoresActivity()(makeInput({ skippedScoreTypes: ['token_value_over_time'] })),
+    );
+
+    expect(failure.message).toContain('"token_value_over_time" is both skipped and observed');
+    expect(mockIterateUsers).not.toHaveBeenCalled();
+  });
+
+  it('fails non-retryably when every selected child was skipped', async () => {
+    const failure = await expectFatal(
+      createSubmitCustomEncryptedScoresActivity()(
+        makeInput({
+          observations: [],
+          skippedScoreTypes: ['voting_engagement', 'token_value_over_time'],
+        }),
+      ),
+    );
+
+    expect(failure.message).toContain('Every selected child was skipped by the raw submission');
+    expect(mockIterateUsers).not.toHaveBeenCalled();
+  });
+
   it('preserves unified DIDs verbatim and echoes each user metadata key id', async () => {
     const didA = 'did:sub:aAbBcCdDeEfFgGhHiIjJkKlL';
     const didB = didFor(2);

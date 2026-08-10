@@ -310,7 +310,35 @@ export function createSubmitCustomEncryptedScoresActivity() {
     // An unknown method fails inside the evaluator's strategy registry, not here.
     const method = definition.normalization?.method ?? 'observed_min_max';
 
-    const children = parseCustomScoreChildren(algorithmPresetFrozen.inputs);
+    // The evaluator's total weight renormalizes over the children that submitted.
+    const skippedScoreTypes = new Set<string>(input.skippedScoreTypes ?? []);
+    const allChildren = parseCustomScoreChildren(algorithmPresetFrozen.inputs);
+    const children = allChildren.filter((child) => !skippedScoreTypes.has(child.algorithm_key));
+    if (children.length === 0) {
+      throw fatal('Every selected child was skipped by the raw submission; there is nothing to aggregate', {
+        snapshotId,
+        skippedScoreTypes: [...skippedScoreTypes],
+      });
+    }
+    for (const entry of observations) {
+      if (skippedScoreTypes.has(entry.scoreType)) {
+        throw fatal(
+          `Child algorithm "${entry.scoreType}" is both skipped and observed — the caller state is inconsistent`,
+          {
+            snapshotId,
+            childKey: entry.scoreType,
+          },
+        );
+      }
+    }
+    if (skippedScoreTypes.size > 0) {
+      logger.info('Excluding skipped children from the encrypted aggregation', {
+        snapshotId,
+        skippedScoreTypes: [...skippedScoreTypes],
+        selectedChildren: children.map((child) => child.algorithm_key),
+        effectiveTotalWeight: children.reduce((sum, child) => sum + child.weight, 0),
+      });
+    }
     let selectedChildren: SelectedEncryptedChild[];
     try {
       selectedChildren = resolveSelectedEncryptedChildren(children);

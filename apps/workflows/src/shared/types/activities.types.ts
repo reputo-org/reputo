@@ -143,7 +143,8 @@ export interface CustomRawScoresChildResult {
   scoreType: ScoreType;
   /** S3 key of the child's native CSV artifact — its output identifier for later stages. */
   csvKey: string;
-  observation: NormalizationObservation;
+  /** `null` when DeepID accepted none of the child's rows — the child is skipped in the encrypted aggregation. */
+  observation: NormalizationObservation | null;
   posted: number;
   ok: number;
   /** Expected "User not found" rejections — users who have not consented to Reputo. */
@@ -178,6 +179,8 @@ export interface SubmitCustomEncryptedScoresInput {
   algorithmPresetFrozen: AlgorithmPresetFrozen;
   /** Per-child observations collected from the raw submission's accepted (`OK`) rows. */
   observations: EncryptedChildObservation[];
+  /** Children the raw submission skipped; excluded from the cohort and the aggregation. */
+  skippedScoreTypes?: ScoreType[];
   /** Run-consistent ISO timestamp generated once by the workflow and reused verbatim on every retry. */
   timestamp: string;
 }
@@ -227,6 +230,8 @@ export interface CheckEncryptionReadinessInput {
   snapshotId: string;
   /** The snapshot's frozen combined preset — the selected children define the encrypted scopes. */
   algorithmPresetFrozen: AlgorithmPresetFrozen;
+  /** Children the raw submission skipped for having no accepted rows; excluded from the readiness cohort. */
+  skippedScoreTypes?: ScoreType[];
 }
 
 /** Aggregate classification of one full readiness pass; never carries DIDs or ciphertexts. */

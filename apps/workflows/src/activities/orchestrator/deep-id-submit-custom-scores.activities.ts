@@ -32,6 +32,9 @@ const CHILD_SCORE_TYPES = new Set<ScoreType>([
 /** Users posted per `POST /v1/clients/scores` call (sized defensively against request timeouts). */
 const POST_CHUNK_SIZE = 500;
 
+/** Output key of the compute stage's details artifact this activity extends. */
+const DETAILS_OUTPUT_KEY = 'custom_score_details';
+
 /** DeepID's rejection for a user who has not consented to Reputo — expected, counted as `dropped`. */
 const EXPECTED_DROP_MESSAGE = 'User not found';
 
@@ -156,10 +159,12 @@ function parseNativeScoreRows(csvText: string, childKey: string, scoreColumnKey:
  * so Temporal retries repost identical logical entries and DeepID dedups them.
  *
  * Unlike the best-effort `postSnapshotScores` path, failures here are fatal:
- * transport/authentication errors, malformed responses, non-finite raw scores,
- * and a child whose accepted cohort ends empty all fail the run. Expected
- * per-user consent rejections are excluded from the observation and counted as
- * `dropped`; only aggregate counts and request IDs are logged.
+ * transport/authentication errors, malformed responses, and non-finite raw
+ * scores all fail the run. A child whose accepted cohort ends empty does not:
+ * it returns a `null` observation and later stages exclude it from the
+ * encrypted aggregation — only every child ending empty fails the run.
+ * Expected per-user consent rejections are excluded from the observation and
+ * counted as `dropped`; only aggregate counts and request IDs are logged.
  */
 export function createSubmitCustomRawScoresActivity(ctx: DeepIdSyncContext) {
   const { storage, storageConfig } = ctx;
@@ -234,27 +239,98 @@ export function createSubmitCustomRawScoresActivity(ctx: DeepIdSyncContext) {
 
       const observation = observer.finish();
       if (observation === null) {
-        throw new Error(
-          `Child algorithm "${child.algorithm_key}" has no accepted raw scores: ${method} needs at least one OK entry`,
-        );
+        logger.warn('Child algorithm has no accepted raw scores; skipping it in the encrypted aggregation', {
+          snapshotId,
+          scoreType,
+          posted: rows.length,
+          dropped,
+          rejected,
+          batches: batches.length,
+          lastRequestId,
+        });
+      } else {
+        logger.info('Submitted native child scores to DeepID', {
+          snapshotId,
+          scoreType,
+          posted: rows.length,
+          ok,
+          dropped,
+          rejected,
+          batches: batches.length,
+          lastRequestId,
+        });
       }
-
-      logger.info('Submitted native child scores to DeepID', {
-        snapshotId,
-        scoreType,
-        posted: rows.length,
-        ok,
-        dropped,
-        rejected,
-        batches: batches.length,
-        lastRequestId,
-      });
 
       results.push({ scoreType, csvKey, observation, posted: rows.length, ok, dropped, rejected, lastRequestId });
     }
 
+    if (results.every((result) => result.observation === null)) {
+      const counts = results
+        .map(
+          (result) =>
+            `${result.scoreType}: posted=${result.posted}, dropped=${result.dropped}, rejected=${result.rejected}`,
+        )
+        .join('; ');
+      throw new Error(`No child algorithm produced an accepted raw score; nothing to aggregate (${counts})`);
+    }
+
+    await appendSubmissionDetails({ storage, storageConfig, outputs, children, results, logger });
+
     return { children: results };
   };
+}
+
+/** Deterministic per attempt, so a Temporal retry simply rewrites the same artifact. */
+async function appendSubmissionDetails(args: {
+  storage: DeepIdSyncContext['storage'];
+  storageConfig: DeepIdSyncContext['storageConfig'];
+  outputs: SubmitCustomRawScoresInput['outputs'];
+  children: CustomScoreChild[];
+  results: CustomRawScoresChildResult[];
+  logger: ReturnType<typeof Context.current>['log'];
+}): Promise<void> {
+  const { storage, storageConfig, outputs, children, results, logger } = args;
+
+  const detailsKey = outputs[DETAILS_OUTPUT_KEY];
+  if (typeof detailsKey !== 'string' || detailsKey.trim() === '') {
+    return;
+  }
+
+  const resultsByType = new Map(results.map((result) => [result.scoreType as string, result]));
+  const effectiveTotalWeight = children.reduce(
+    (sum, child) => (resultsByType.get(child.algorithm_key)?.observation ? sum + child.weight : sum),
+    0,
+  );
+
+  const buffer = await storage.getObject({ bucket: storageConfig.bucket, key: detailsKey });
+  const details = JSON.parse(buffer.toString('utf-8')) as {
+    children?: Array<Record<string, unknown>>;
+    [key: string]: unknown;
+  };
+
+  details.children = (details.children ?? []).map((entry) => {
+    const result = resultsByType.get(String(entry.algorithm_key));
+    if (!result) {
+      return entry;
+    }
+    const { posted, ok, dropped, rejected, observation } = result;
+    return { ...entry, submission: { posted, ok, dropped, rejected, observation } };
+  });
+  details.skipped_children = results.filter((result) => result.observation === null).map((result) => result.scoreType);
+  details.effective_total_weight = Math.round(effectiveTotalWeight * 10 ** 6) / 10 ** 6;
+
+  await storage.putObject({
+    bucket: storageConfig.bucket,
+    key: detailsKey,
+    body: JSON.stringify(details, null, 2),
+    contentType: 'application/json',
+  });
+
+  logger.info('Extended custom score details with submission outcomes', {
+    detailsKey,
+    skippedChildren: details.skipped_children,
+    effectiveTotalWeight: details.effective_total_weight,
+  });
 }
 
 /** Worker-registerable activities object for the custom raw-score submission path. */
