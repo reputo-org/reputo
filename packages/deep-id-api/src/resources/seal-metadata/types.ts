@@ -10,7 +10,7 @@ export interface SealMetadata {
   securityLevel: number;
   polyModulusDegree: number;
   coeffModulusBitSizes: number[];
-  /** CKKS scale, e.g. `2 ** 40`. Must arrive as a JSON number — never coerced. */
+  /** CKKS scale, e.g. `2 ** 40`. */
   scale: number;
   /** Serialized SEAL `EncryptionParameters`, sufficient to build an evaluation context. */
   encryptionParameters: string;

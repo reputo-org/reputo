@@ -16,6 +16,17 @@ const VALID_METADATA = {
   encryptionParameters: 'c2VyaWFsaXplZC1wYXJhbXM=',
 };
 
+/** The first three are what `z.coerce.number()` would have silently accepted. */
+const NON_NUMERIC_VALUES: [string, unknown][] = [
+  ['a boolean', true],
+  ['a wrapped array', [128]],
+  ['a padded string', ' 128 '],
+  ['an empty string', ''],
+  ['null', null],
+  ['a non-numeric string', 'abc'],
+  ['a string that overflows to Infinity', '1e999'],
+];
+
 function metadataResponse(data: unknown, statusCode = 200) {
   return { statusCode, headers: {}, data };
 }
@@ -118,12 +129,36 @@ describe('getSealMetadata', () => {
     expect(error.issues.some((issue) => issue.path === 'schemeType')).toBe(true);
   });
 
-  it('does not coerce a string scale into a number', async () => {
+  it('accepts numeric fields serialized as decimal strings', async () => {
     const requester = createMockRequester();
-    requester.mockRequest.mockResolvedValue(metadataResponse({ ...VALID_METADATA, scale: '1099511627776' }));
+    requester.mockRequest.mockResolvedValue(
+      metadataResponse({
+        ...VALID_METADATA,
+        securityLevel: '128',
+        polyModulusDegree: '8192',
+        coeffModulusBitSizes: ['60', '40', '60'],
+        scale: '1099511627776',
+      }),
+    );
+
+    await expect(getSealMetadata(requester, METADATA_PATH)).resolves.toEqual(VALID_METADATA);
+  });
+
+  it('accepts an exponent-notation scale', async () => {
+    const requester = createMockRequester();
+    requester.mockRequest.mockResolvedValue(metadataResponse({ ...VALID_METADATA, scale: '1.099511627776e12' }));
+
+    const metadata = await getSealMetadata(requester, METADATA_PATH);
+
+    expect(metadata.scale).toBe(2 ** 40);
+  });
+
+  it.each(NON_NUMERIC_VALUES)('rejects %s where a number is expected', async (_label, securityLevel) => {
+    const requester = createMockRequester();
+    requester.mockRequest.mockResolvedValue(metadataResponse({ ...VALID_METADATA, securityLevel }));
 
     const error = await captureError(() => getSealMetadata(requester, METADATA_PATH));
-    expect(error.issues.some((issue) => issue.path === 'scale')).toBe(true);
+    expect(error.issues.some((issue) => issue.path === 'securityLevel')).toBe(true);
   });
 
   it('rejects a document with a missing field', async () => {
