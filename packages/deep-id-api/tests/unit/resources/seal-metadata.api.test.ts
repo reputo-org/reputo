@@ -144,6 +144,27 @@ describe('getSealMetadata', () => {
     await expect(getSealMetadata(requester, METADATA_PATH)).resolves.toEqual(VALID_METADATA);
   });
 
+  it.each([
+    ['tc128', 128],
+    ['tc192', 192],
+    ['tc256', 256],
+  ])('maps the SEAL security level name %s to %i', async (name, bits) => {
+    const requester = createMockRequester();
+    requester.mockRequest.mockResolvedValue(metadataResponse({ ...VALID_METADATA, securityLevel: name }));
+
+    const metadata = await getSealMetadata(requester, METADATA_PATH);
+
+    expect(metadata.securityLevel).toBe(bits);
+  });
+
+  it('rejects an unknown security level name', async () => {
+    const requester = createMockRequester();
+    requester.mockRequest.mockResolvedValue(metadataResponse({ ...VALID_METADATA, securityLevel: 'tc512' }));
+
+    const error = await captureError(() => getSealMetadata(requester, METADATA_PATH));
+    expect(error.issues.some((issue) => issue.path === 'securityLevel')).toBe(true);
+  });
+
   it('accepts an exponent-notation scale', async () => {
     const requester = createMockRequester();
     requester.mockRequest.mockResolvedValue(metadataResponse({ ...VALID_METADATA, scale: '1.099511627776e12' }));

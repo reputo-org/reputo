@@ -16,6 +16,14 @@ function jsonNumber<T extends z.ZodType<number>>(schema: T) {
   );
 }
 
+/** DeepID reports the security level as a SEAL `sec_level_type` name. */
+const SEC_LEVEL_BITS: Record<string, number> = { tc128: 128, tc192: 192, tc256: 256 };
+
+const securityLevelSchema = z.preprocess(
+  (value) => (typeof value === 'string' ? (SEC_LEVEL_BITS[value.toLowerCase()] ?? value) : value),
+  jsonNumber(z.number().int().positive()),
+);
+
 /**
  * The SEAL metadata document. An unknown `schemeType` or a missing field is a
  * contract violation. Unknown extra fields are tolerated and dropped.
@@ -23,7 +31,7 @@ function jsonNumber<T extends z.ZodType<number>>(schema: T) {
 export const sealMetadataSchema: z.ZodType<SealMetadata> = z.object({
   id: z.string().min(1),
   schemeType: z.literal('ckks'),
-  securityLevel: jsonNumber(z.number().int().positive()),
+  securityLevel: securityLevelSchema,
   polyModulusDegree: jsonNumber(z.number().int().positive()),
   coeffModulusBitSizes: z.array(jsonNumber(z.number().int().positive())).min(1),
   scale: jsonNumber(z.number().positive()),
