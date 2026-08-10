@@ -693,7 +693,7 @@ describe('OrchestratorWorkflow branches', () => {
     // the poll schedule from its first delay, then the pass submits.
     expect(activities.checkEncryptionReadiness).toHaveBeenCalledTimes(2);
     expect(activities.submitCustomEncryptedScores).toHaveBeenCalledTimes(2);
-    expect(sleep.mock.calls.map(([duration]) => duration)).toEqual([300_000, 300_000]);
+    expect(sleep.mock.calls.map(([duration]) => duration)).toEqual([60_000, 60_000]);
     expect(activities.updateSnapshot).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({ snapshotId: 'snapshot-1', status: SnapshotStatus.completed }),
@@ -758,7 +758,7 @@ describe('OrchestratorWorkflow branches', () => {
     await OrchestratorWorkflow({ snapshotId: 'snapshot-1' });
 
     expect(activities.checkEncryptionReadiness).toHaveBeenCalledTimes(3);
-    expect(sleep.mock.calls.map(([duration]) => duration)).toEqual([300_000, 900_000, 3_600_000]);
+    expect(sleep.mock.calls.map(([duration]) => duration)).toEqual([60_000, 900_000, 3_600_000]);
     expect(activities.updateSnapshot).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({ snapshotId: 'snapshot-1', status: SnapshotStatus.completed }),

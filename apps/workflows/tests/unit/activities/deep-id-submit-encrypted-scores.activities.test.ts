@@ -127,7 +127,8 @@ vi.mock('../../../src/config/index.js', () => ({
 import { createSubmitCustomEncryptedScoresActivity } from '../../../src/activities/orchestrator/deep-id-submit-encrypted-scores.activities.js';
 
 const TIMESTAMP = '2026-07-22T10:00:00.000Z';
-const SELECTED_SCOPES = 'api voting_engagement_encr token_value_over_time_encr';
+const READ_SCOPES = 'api voting_engagement_encr token_value_over_time_encr';
+const TOKEN_SCOPES = `${READ_SCOPES} post_scores`;
 const METADATA_URL = '/v1/seal-metadata/key-1';
 
 const didFor = (i: number) => `did:sub:${String(i).padStart(24, '0')}`;
@@ -289,10 +290,10 @@ describe('submitCustomEncryptedScores activity', () => {
 
     const result = (await createSubmitCustomEncryptedScoresActivity()(makeInput())) as EncryptedScoresSubmittedResult;
 
-    expect(mockCreateDeepIdClient).toHaveBeenCalledWith(expect.objectContaining({ scopes: SELECTED_SCOPES }));
+    expect(mockCreateDeepIdClient).toHaveBeenCalledWith(expect.objectContaining({ scopes: TOKEN_SCOPES }));
     expect(mockIterateUsers).toHaveBeenCalledWith({
       pageSize: 100,
-      filteredTokenScopes: SELECTED_SCOPES,
+      filteredTokenScopes: READ_SCOPES,
     });
 
     // One evaluation batch per page, complete users only, ciphertexts keyed by child.

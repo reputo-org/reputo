@@ -105,7 +105,7 @@ describe('pollForEncryptionReadiness (Temporal time-skipping environment)', () =
     return worker.runUntil(run());
   }
 
-  it('polls 5 minutes after submission, then 15 minutes, then 60, then hourly, and resolves on the ready pass', async () => {
+  it('polls 1 minute after submission, then 15 minutes, then 60, then hourly, and resolves on the ready pass', async () => {
     const { polls, activities } = readinessStub(5);
 
     const outcome = await withWorker('tq-readiness-schedule', activities, async () => {
@@ -124,12 +124,12 @@ describe('pollForEncryptionReadiness (Temporal time-skipping environment)', () =
     expect(outcome.polledAtOffsetsMs).toHaveLength(5);
 
     const [first, second, third, fourth, fifth] = outcome.polledAtOffsetsMs;
-    expectNear(first, 5 * MINUTE_MS);
-    expectNear(second, 20 * MINUTE_MS);
-    expectNear(third, 80 * MINUTE_MS);
-    expectNear(fourth, 140 * MINUTE_MS);
-    expectNear(fifth, 200 * MINUTE_MS);
-    expectNear(outcome.elapsedMs, 200 * MINUTE_MS);
+    expectNear(first, MINUTE_MS);
+    expectNear(second, 16 * MINUTE_MS);
+    expectNear(third, 76 * MINUTE_MS);
+    expectNear(fourth, 136 * MINUTE_MS);
+    expectNear(fifth, 196 * MINUTE_MS);
+    expectNear(outcome.elapsedMs, 196 * MINUTE_MS);
 
     expect(outcome.counts).toEqual({ complete: 6, potentiallyComplete: 0, incomplete: 1 });
     expect(outcome.lastRequestId).toBe('req-5');

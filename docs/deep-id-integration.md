@@ -92,8 +92,8 @@ The stages, in workflow order:
    timestamp (its start time) and reuses it for every raw and final entry, which makes
    every retry idempotent on DeepID's side. The observed min–max of each child's `OK`
    rows becomes that child's normalization bounds; response counts are diagnostics only.
-3. **Poll encryption readiness** (`check_encryption_readiness` on durable timers: 5 min,
-   15 min, 60 min, then hourly). A pass scans all `GET /v1/users` pages (page size 1000)
+3. **Poll encryption readiness** (`check_encryption_readiness` on durable timers: 1 min,
+   15 min, 60 min, then hourly). A pass scans all `GET /v1/users` pages (page size 100)
    and classifies each unified user: `complete` (every selected field `encrypted`),
    `potentiallyComplete` (at least one `pending_encryption`), or `incomplete` (a selected
    field `null`/absent). The run waits while any potentially complete user remains. The
@@ -169,7 +169,9 @@ identity server already granted them as token scopes).
 The M2M token scopes (`DEEP_ID_SCOPES`) stay `api wallets post_scores` for the standard
 reads and posts. The encrypted readiness and submission activities request their own
 tokens with `api` plus exactly the selected children's `_encr` scopes, so the DeepID
-client registration must allow those scopes for client-credentials tokens.
+client registration must allow those scopes for client-credentials tokens. The submission
+activity adds `post_scores`, which `POST /v1/clients/scores` requires, and keeps it out of
+the `filteredTokenScopes` it reads with — that filter must stay a subset of the token.
 
 ## Configuration
 

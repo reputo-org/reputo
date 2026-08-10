@@ -162,7 +162,7 @@ describe('runEncryptedCustomScoreLifecycle (Temporal time-skipping environment)'
     expect(outcome.rounds).toBe(2);
     expect(outcome.readiness.pollCount).toBe(1);
     expect(outcome.readiness.polledAtOffsetsMs).toHaveLength(1);
-    expectNear(outcome.readiness.polledAtOffsetsMs[0], 5 * MINUTE_MS);
+    expectNear(outcome.readiness.polledAtOffsetsMs[0], MINUTE_MS);
 
     // Both passes carry the identical logical identity: same snapshot,
     // observations, and run timestamp — the DeepID idempotency key.
@@ -211,11 +211,11 @@ describe('runEncryptedCustomScoreLifecycle (Temporal time-skipping environment)'
     expect(applicationFailure.type).toBe(DEEP_ID_ENCRYPTION_TIMEOUT_ERROR_TYPE);
     expect(applicationFailure.nonRetryable).toBe(true);
 
-    // Round 1 consumed one 5-minute poll before its pass regressed, so round
-    // 2's polling window is 24h minus those 5 minutes. A deadline that
-    // restarted per round would report a full 24h instead.
+    // Round 1 consumed one 1-minute poll before its pass regressed, so round
+    // 2's polling window is 24h minus that minute. A deadline that restarted
+    // per round would report a full 24h instead.
     const details = applicationFailure.details?.[0] as { elapsedMs: number };
-    expectNear(details.elapsedMs, DEADLINE_MS - 5 * MINUTE_MS);
+    expectNear(details.elapsedMs, DEADLINE_MS - MINUTE_MS);
     expect(passes).toBe(1);
   }, 120_000);
 
