@@ -13,8 +13,10 @@ import {
   Sse,
 } from '@nestjs/common';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBody,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiExtraModels,
   ApiNoContentResponse,
@@ -126,6 +128,39 @@ export class SnapshotController {
   })
   getById(@Param('id', new ParseUUIDPipe({ version: '7' })) id: string) {
     return this.snapshotService.getById(id);
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Cancel a snapshot run',
+    description:
+      'Requests graceful cancellation of the snapshot Temporal workflow. ' +
+      'Settling is asynchronous: the status becomes "cancelled" once the workflow handles the cancellation.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Snapshot unique identifier (UUID v7)',
+    example: '01940000-0000-7000-8000-000000000000',
+  })
+  @ApiAcceptedResponse({
+    description: 'Cancellation requested; the snapshot settles asynchronously',
+    type: SnapshotDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid ID format',
+  })
+  @ApiNotFoundResponse({
+    description: 'Snapshot not found',
+  })
+  @ApiConflictResponse({
+    description: 'Snapshot is not queued or running',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'Temporal could not be reached to cancel the workflow',
+  })
+  cancelById(@Param('id', new ParseUUIDPipe({ version: '7' })) id: string) {
+    return this.snapshotService.cancelById(id);
   }
 
   @Delete(':id')

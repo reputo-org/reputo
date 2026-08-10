@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { UpdateSnapshotInput } from '@reputo/contracts';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
@@ -238,6 +238,40 @@ export class SnapshotService {
     );
 
     return result.row;
+  }
+
+  /**
+   * Requests graceful cancellation of an active snapshot run. Settling is
+   * asynchronous: the workflow's failure handler records `cancelled` (and the
+   * reconciler covers a workflow Temporal no longer knows), so the returned
+   * row usually still reads `queued` or `running`.
+   */
+  async cancelById(id: string): Promise<SnapshotRow> {
+    const snapshot = await this.repository.findById(id);
+    if (!snapshot) {
+      throwNotFoundError(id, SNAPSHOT_ENTITY);
+    }
+
+    if (snapshot.status !== 'queued' && snapshot.status !== 'running') {
+      throw new ConflictException(
+        `Snapshot ${id} is ${snapshot.status}; only queued or running snapshots can be cancelled`,
+      );
+    }
+
+    // The derived id also covers rows created before the workflow id was persisted.
+    const workflowId = snapshot.temporal?.workflowId ?? this.temporalService.snapshotWorkflowId(id);
+    this.logger.info({ snapshotId: id, workflowId }, 'Requesting snapshot workflow cancellation');
+    try {
+      await this.temporalService.cancelWorkflow(workflowId);
+    } catch (error) {
+      this.logger.error(
+        { snapshotId: id, workflowId },
+        `Failed to request workflow cancellation: ${(error as Error).message}`,
+      );
+      throw new ServiceUnavailableException('The snapshot workflow could not be cancelled. Try again.');
+    }
+
+    return (await this.repository.findById(id)) ?? snapshot;
   }
 
   async deleteById(id: string) {
