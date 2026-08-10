@@ -102,4 +102,64 @@ describe("SnapshotDetailsDialog", () => {
 
     expect(screen.queryByText("Inputs")).not.toBeInTheDocument()
   })
+
+  it("shows the failure reason for a failed snapshot", () => {
+    render(
+      <SnapshotDetailsDialog
+        isOpen
+        onClose={() => {}}
+        snapshot={{
+          ...snapshot,
+          status: "failed",
+          error: {
+            message:
+              'Child algorithm "voting_engagement" result is missing a did value',
+            timestamp: "2026-07-08T12:02:00.000Z",
+          },
+        }}
+      />
+    )
+
+    expect(screen.getByText("Failure reason")).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Child algorithm "voting_engagement" result is missing a did value'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it("shows the cancellation reason for a cancelled snapshot", () => {
+    render(
+      <SnapshotDetailsDialog
+        isOpen
+        onClose={() => {}}
+        snapshot={{
+          ...snapshot,
+          status: "cancelled",
+          error: { message: "Workflow was cancelled" },
+        }}
+      />
+    )
+
+    expect(screen.getByText("Cancellation reason")).toBeInTheDocument()
+    expect(screen.getByText("Workflow was cancelled")).toBeInTheDocument()
+  })
+
+  it("hides the error section for a completed snapshot even when an old error is present", () => {
+    render(
+      <SnapshotDetailsDialog
+        isOpen
+        onClose={() => {}}
+        snapshot={{
+          ...snapshot,
+          error: { message: "stale error from an earlier attempt" },
+        }}
+      />
+    )
+
+    expect(screen.queryByText("Failure reason")).not.toBeInTheDocument()
+    expect(
+      screen.queryByText("stale error from an earlier attempt")
+    ).not.toBeInTheDocument()
+  })
 })
