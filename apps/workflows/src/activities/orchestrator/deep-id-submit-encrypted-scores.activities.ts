@@ -136,7 +136,7 @@ interface ProcessingContext {
   client: DeepIdClient;
   evaluator: EncryptedCustomScoreEvaluator;
   selectedChildren: SelectedEncryptedChild[];
-  tokenScopes: string;
+  readScopes: string;
   timestamp: string;
   /** Public SEAL metadata cached by its `scores_encr['seal-metadata']` URL for the activity lifetime. */
   metadataByUrl: Map<string, SealMetadata>;
@@ -223,7 +223,7 @@ async function runProcessingPass(ctx: ProcessingContext): Promise<ProcessingPass
   };
 
   const pages = ctx.client
-    .iterateUsers({ pageSize: PROCESSING_PAGE_SIZE, filteredTokenScopes: ctx.tokenScopes })
+    .iterateUsers({ pageSize: PROCESSING_PAGE_SIZE, filteredTokenScopes: ctx.readScopes })
     [Symbol.asyncIterator]();
 
   for (;;) {
@@ -321,7 +321,9 @@ export function createSubmitCustomEncryptedScoresActivity() {
       throw error;
     }
     const observationsByChild = resolveObservations(selectedChildren, observations);
-    const tokenScopes = ['api', ...selectedChildren.map((child) => child.scope)].join(' ');
+    // `filteredTokenScopes` must stay a subset of the token's scopes.
+    const readScopes = ['api', ...selectedChildren.map((child) => child.scope)].join(' ');
+    const tokenScopes = `${readScopes} post_scores`;
 
     const client = createDeepIdClient({
       identityBaseUrl: config.deepId.identityBaseUrl,
@@ -360,7 +362,7 @@ export function createSubmitCustomEncryptedScoresActivity() {
       client,
       evaluator,
       selectedChildren,
-      tokenScopes,
+      readScopes,
       timestamp,
       metadataByUrl: new Map(),
       lastRequestId: undefined,

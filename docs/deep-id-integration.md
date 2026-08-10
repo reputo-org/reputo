@@ -169,7 +169,9 @@ identity server already granted them as token scopes).
 The M2M token scopes (`DEEP_ID_SCOPES`) stay `api wallets post_scores` for the standard
 reads and posts. The encrypted readiness and submission activities request their own
 tokens with `api` plus exactly the selected children's `_encr` scopes, so the DeepID
-client registration must allow those scopes for client-credentials tokens.
+client registration must allow those scopes for client-credentials tokens. The submission
+activity adds `post_scores`, which `POST /v1/clients/scores` requires, and keeps it out of
+the `filteredTokenScopes` it reads with — that filter must stay a subset of the token.
 
 ## Configuration
 
