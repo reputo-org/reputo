@@ -60,6 +60,32 @@ export type DeepIdEncryptedScores = {
 };
 
 /**
+ * Community identity scopes for `GET /v1/users` — one per platform. They are
+ * also the top-level field names holding the linked account, so requesting
+ * `discord` adds a `discord` field to every user in the response.
+ */
+export const SOCIAL_IDENTITY_SCOPES = ['github', 'discord', 'mattermost'] as const;
+
+/** One community identity scope / user field name, e.g. `discord`. */
+export type SocialIdentityScope = (typeof SOCIAL_IDENTITY_SCOPES)[number];
+
+/**
+ * A platform account a user linked in DeepID, returned under its scope name.
+ * `username` is the only join key DeepID exposes today, so a rename on the
+ * platform breaks the link until the user re-verifies. Validate with
+ * `parseSocialIdentity` before trusting the shape.
+ */
+export interface DeepIdSocialIdentity {
+  username: string;
+  /** ISO 8601 instant DeepID verified the link. */
+  verifiedAt: string;
+  /** ISO 8601 instant the verification lapses; DeepID re-verifies before then. */
+  expiresAt: string;
+  /** Signed verifiable credential for the link, or `null`. Never log it. */
+  vc: string | null;
+}
+
+/**
  * One user entry from `GET /v1/users` (or `GET /v1/user`). `scopes` is the
  * intersection of token scopes and what the user consented to; a field is only
  * present when its scope is in `scopes`.
@@ -70,6 +96,12 @@ export interface DeepIdUser {
   scores?: Record<string, DeepIdScore | null>;
   /** Present when encrypted score scopes are granted; see {@link DeepIdEncryptedScores}. */
   scores_encr?: DeepIdEncryptedScores;
+  /** Present when the `github` scope is granted; `null` when no account is linked. */
+  github?: DeepIdSocialIdentity | null;
+  /** Present when the `discord` scope is granted; `null` when no account is linked. */
+  discord?: DeepIdSocialIdentity | null;
+  /** Present when the `mattermost` scope is granted; `null` when no account is linked. */
+  mattermost?: DeepIdSocialIdentity | null;
   [key: string]: unknown;
 }
 

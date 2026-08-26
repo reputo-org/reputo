@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { parseWithContract } from '../../shared/validation/index.js';
-import type { DeepIdEncryptedScores, EncryptedScoreField } from './types.js';
+import type { DeepIdEncryptedScores, DeepIdSocialIdentity, EncryptedScoreField } from './types.js';
 
 /**
  * One `scores_encr` child field. `encrypted` requires a non-empty ciphertext —
@@ -37,4 +37,28 @@ export function parseEncryptedScores(value: unknown): DeepIdEncryptedScores | un
     return undefined;
   }
   return parseWithContract(encryptedScoresSchema, value, 'invalid scores_encr in DeepID user');
+}
+
+/**
+ * One linked platform account, as returned under `github`, `discord`, or
+ * `mattermost`. Unknown extra fields are tolerated and dropped.
+ */
+export const socialIdentitySchema: z.ZodType<DeepIdSocialIdentity> = z.object({
+  username: z.string().min(1),
+  verifiedAt: z.iso.datetime({ offset: true }),
+  expiresAt: z.iso.datetime({ offset: true }),
+  vc: z.string().nullable(),
+});
+
+/**
+ * Validates one social identity field of a user. Returns `null` when the field
+ * is absent or `null` — the scope was not requested, not consented, or the user
+ * linked no account on that platform, all valid states. Throws
+ * `DeepIdContractError` for a malformed object.
+ */
+export function parseSocialIdentity(value: unknown): DeepIdSocialIdentity | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  return parseWithContract(socialIdentitySchema, value, 'invalid social identity in DeepID user');
 }

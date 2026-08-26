@@ -20,10 +20,17 @@ export { getSealMetadata, resolveSealMetadataUrl } from './seal-metadata/api.js'
 export { sealMetadataSchema } from './seal-metadata/schemas.js';
 export type { SealMetadata } from './seal-metadata/types.js';
 export { getUsers, iterateUsers } from './users/api.js';
-export { encryptedScoreFieldSchema, encryptedScoresSchema, parseEncryptedScores } from './users/schemas.js';
+export {
+  encryptedScoreFieldSchema,
+  encryptedScoresSchema,
+  parseEncryptedScores,
+  parseSocialIdentity,
+  socialIdentitySchema,
+} from './users/schemas.js';
 export type {
   DeepIdEncryptedScores,
   DeepIdScore,
+  DeepIdSocialIdentity,
   DeepIdUser,
   DeepIdWallet,
   EncryptedScoreField,
@@ -32,7 +39,8 @@ export type {
   EncryptedScoreScope,
   EncryptedScoreStatus,
   GetUsersOptions,
+  SocialIdentityScope,
   UsersPage,
   UsersResponse,
 } from './users/types.js';
-export { ENCRYPTED_SCORE_SCOPES } from './users/types.js';
+export { ENCRYPTED_SCORE_SCOPES, SOCIAL_IDENTITY_SCOPES } from './users/types.js';
