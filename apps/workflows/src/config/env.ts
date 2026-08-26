@@ -111,7 +111,7 @@ export const envSchema = z.object({
   DEEP_ID_SCOPES: z
     .string()
     .min(1)
-    .default('api wallets post_scores')
+    .default('api wallets post_scores github discord mattermost')
     .describe('Space-separated scopes requested for the DeepID token'),
   DEEP_ID_REQUEST_TIMEOUT_MS: z.coerce
     .number()

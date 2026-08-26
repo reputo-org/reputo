@@ -34,6 +34,12 @@ function isTokenUrl(url: unknown): boolean {
 describe('createDeepIdClient', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  describe('resolved config', () => {
+    it('defaults the users page size to DeepID’s 100 maximum', () => {
+      expect(createClient().config.defaultPageSize).toBe(100);
+    });
+  });
+
   describe('getUsers', () => {
     it('walks pages via the x-next header and merges them', async () => {
       const page1 = mockUndiciResponse(

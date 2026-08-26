@@ -27,8 +27,9 @@ are posted under whichever DID the algorithm worked with, and DeepID unifies a u
 snapshot starts, the orchestrator resolves it with the `deep_id_sync` activity:
 
 1. Fetch every consented user from `GET /v1/users` (cursor-paginated), requesting the
-   configured scopes (`api wallets post_scores`). DeepID rejects a `pageSize` above 100
-   with `400 Invalid pageSize`, so `DEEP_ID_USERS_PAGE_SIZE` must stay at 100 or below.
+   configured `DEEP_ID_SCOPES`. DeepID rejects a `pageSize` above 100 with
+   `400 Invalid pageSize`, so `DEEP_ID_USERS_PAGE_SIZE` must stay at 100 or below — the
+   client's own default is 100.
 2. Assemble a `did:sub → { userWallets }` map (Ethereum and Cardano wallets; a user can
    have several) and write it to object storage under the snapshot prefix.
 3. Inject the file's key as the algorithm's `dids` input (in memory only — the frozen
@@ -47,6 +48,41 @@ every score. DeepID accepts only the users who consented to Reputo and rejects t
 with `User not found` — an expected outcome, reported as `dropped` (not `failed`) in the
 posting result. Portal users without a DID are skipped; there is nowhere to post their
 score.
+
+## Community identities (GitHub, Discord, Mattermost)
+
+The community algorithms — `github_engagement`, `discord_engagement`, and
+`mattermost_engagement` — score what a user did on a connected platform, so they need the
+platform account behind a DID. DeepID holds that link: a user grants the `github`,
+`discord`, or `mattermost` consent scope, verifies the account, and DeepID stores it as a
+verifiable credential. `GET /v1/users` then returns one field per granted scope, next to
+`wallets` and `scores_encr`:
+
+```json
+"discord": {
+  "username": "octocat",
+  "verifiedAt": "2026-08-25T10:44:56.502Z",
+  "expiresAt": "2026-11-23T10:44:56.502Z",
+  "vc": "eyJhbGciOiJFUzI1NiIs…"
+}
+```
+
+- The field is `null` when the user granted the scope but linked no account on that
+  platform, and absent when the scope is outside the token/consent intersection. Both are
+  normal. Validate the value with `parseSocialIdentity` before using it;
+  `@reputo/deep-id-api` also exports the field type and the `SOCIAL_IDENTITY_SCOPES` list.
+- **`username` is the only join key DeepID exposes.** A rename on the platform breaks the
+  link until the user re-verifies, and Reputo cannot detect it. A request for stable
+  platform ids is open with DeepID. Until it lands, a consented user who cannot be matched
+  is scored as an explicit zero with a status flag — never a guess.
+- Only consented users are matched, scored, and published. Everyone else appears in a
+  snapshot dataset as pseudonymous counterparty context only.
+- Never log the `vc` value.
+
+Community scores post through the same contract as every other algorithm: the score
+`type` is the algorithm key, and a community algorithm running as a `custom_score` child
+posts its native raw CSV under that same type. DeepID's score-type list is closed, so it
+must register all three types before any of this can be posted.
 
 ## Posting scores back (standalone snapshots)
 
@@ -155,19 +191,22 @@ Reputo uses two DeepID OAuth clients:
   (`/oauth/consent/deep-id`) that lets a voting-portal user authorize Reputo, and the M2M
   client-credentials token for `/v1` reads and writes.
 
-Consent scopes (`DEEP_ID_CONSENT_SCOPES`) are `api wallets post_scores` plus the four
-encrypted read scopes: `voting_engagement_encr`, `contribution_score_encr`,
-`proposal_engagement_encr`, and `token_value_over_time_encr`. Without the first three,
-DeepID will not accept posted scores for those users; without the `_encr` scopes, users
-expose no child ciphertexts and silently drop out of every encrypted `custom_score` run.
+Consent scopes (`DEEP_ID_CONSENT_SCOPES`) are `api wallets post_scores`, the four
+encrypted read scopes (`voting_engagement_encr`, `contribution_score_encr`,
+`proposal_engagement_encr`, `token_value_over_time_encr`), and the three community
+identity scopes (`github`, `discord`, `mattermost`). Without the first three, DeepID will
+not accept posted scores for those users; without the `_encr` scopes, users expose no
+child ciphertexts and silently drop out of every encrypted `custom_score` run; without the
+identity scopes, a user is never matched on that platform and never scored there.
 DeepID validates the `filteredTokenScopes` values on `GET /v1/users` against its own
 scope registry and rejects unknown ones with `400 Invalid filters` — the `_encr` scopes
 only work as filters once DeepID has registered them on the target environment (checked
 on staging 2026-08-05: all four `_encr` scopes were still rejected as filters, while the
 identity server already granted them as token scopes).
 
-The M2M token scopes (`DEEP_ID_SCOPES`) stay `api wallets post_scores` for the standard
-reads and posts. The encrypted readiness and submission activities request their own
+The M2M token scopes (`DEEP_ID_SCOPES`) are `api wallets post_scores github discord
+mattermost` — the standard reads and posts plus the identity fields the community cohort
+match reads. The encrypted readiness and submission activities request their own
 tokens with `api` plus exactly the selected children's `_encr` scopes, so the DeepID
 client registration must allow those scopes for client-credentials tokens. The submission
 activity adds `post_scores`, which `POST /v1/clients/scores` requires, and keeps it out of
@@ -177,14 +216,27 @@ the `filteredTokenScopes` it reads with — that filter must stay a subset of th
 
 All variables live in `.env.example` (workflows read `DEEP_ID_*`; the API reads the
 consent and admin variables). Staging and production values are Komodo variables — see
-[Deployment](deployment.md). Two operational notes:
+[Deployment](deployment.md). Three operational notes:
 
 - Point `DEEPFUNDING_API_BASE_URL` and the DeepID hosts at the **same environment**. With
   mixed environments (for example staging DeepID and production portal) every did:plc
   score is dropped because the users do not exist on that DeepID instance.
-- `DEEP_ID_SCOPES` stays `api wallets post_scores`. `DEEP_ID_CONSENT_SCOPES` must be
-  `api wallets post_scores` plus the four `_encr` scopes (see above); local `.env`,
-  Docker Compose, and the Komodo staging/production variables all need the full list.
+- Scope values, exactly as they must be set:
+
+  | Variable | App | Value |
+  | --- | --- | --- |
+  | `DEEP_ID_SCOPES` | workflows | `api wallets post_scores github discord mattermost` |
+  | `DEEP_ID_CONSENT_SCOPES` | API | `api wallets post_scores voting_engagement_encr contribution_score_encr proposal_engagement_encr token_value_over_time_encr github discord mattermost` |
+
+  `DEEP_ID_SCOPES` is optional and carries that value as its schema default, so a deploy
+  is enough; set a Komodo variable only to override one environment.
+  `DEEP_ID_CONSENT_SCOPES` is required and has no default — update
+  `STAGING_DEEP_ID_CONSENT_SCOPES` and `PRODUCTION_DEEP_ID_CONSENT_SCOPES` in Komodo, and
+  keep local `.env` and `infra/preview/compose.yml` on the same string.
+- **Roll out in order.** DeepID must register the three community score types and allow
+  the three identity scopes for Reputo's client before these values ship. A token request
+  for a scope the client does not hold fails, which would break every DeepID activity, so
+  verify on staging first.
 
 ## Where the code lives
 
