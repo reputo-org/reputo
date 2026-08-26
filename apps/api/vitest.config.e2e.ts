@@ -27,6 +27,7 @@ export default createVitestConfig({
       '@reputo/reputation-algorithms': resolve(__dirname, '../../packages/reputation-algorithms/src/index.ts'),
       '@reputo/storage': resolve(__dirname, '../../packages/storage/src/index.ts'),
       '@reputo/algorithm-validator': resolve(__dirname, '../../packages/algorithm-validator/src/index.ts'),
+      '@reputo/community-api': resolve(__dirname, '../../packages/community-api/src/index.ts'),
     },
   },
 });

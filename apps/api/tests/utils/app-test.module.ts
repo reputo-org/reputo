@@ -1,10 +1,12 @@
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import type { DiscordClient } from '@reputo/community-api';
 import { LoggerModule } from 'nestjs-pino';
 import { AlgorithmPresetModule } from '../../src/algorithm-preset/algorithm-preset.module';
 import { AuthModule, AuthService } from '../../src/auth';
 import { OAuthAuthProviderService } from '../../src/auth/oauth-auth-provider.service';
+import { CommunityModule, DISCORD_CLIENT } from '../../src/community';
 import { configModules } from '../../src/config';
 import { setupSwagger } from '../../src/docs';
 import { HealthModule } from '../../src/health';
@@ -18,6 +20,7 @@ import { AUTH_TEST_ENV, applyAuthTestEnv } from './auth-session';
 
 export interface TestAppOptions {
   authEnv?: Partial<Record<keyof typeof AUTH_TEST_ENV, string>>;
+  discordClient?: DiscordClient;
   includeSwagger?: boolean;
   oauthProviderService?: Pick<
     OAuthAuthProviderService,
@@ -126,6 +129,25 @@ export async function createTestApp(options: TestAppOptions) {
       }),
     } satisfies TestAppOptions['oauthProviderService']);
 
+  // Suites that exercise Discord pass their own double; nothing else may reach the network.
+  const unreachableDiscordClient: DiscordClient = {
+    buildInstallUrl: () => {
+      throw new Error('Discord client not stubbed in this test app');
+    },
+    exchangeCode: async () => {
+      throw new Error('Discord client not stubbed in this test app');
+    },
+    listResources: async () => {
+      throw new Error('Discord client not stubbed in this test app');
+    },
+    probe: async () => {
+      throw new Error('Discord client not stubbed in this test app');
+    },
+    leaveGuild: async () => {
+      throw new Error('Discord client not stubbed in this test app');
+    },
+  };
+
   const noopListener = {
     notifications$: { subscribe: () => ({ unsubscribe: () => undefined }) },
     onModuleInit: async () => undefined,
@@ -149,8 +171,11 @@ export async function createTestApp(options: TestAppOptions) {
       AuthModule,
       AlgorithmPresetModule,
       SnapshotModule,
+      CommunityModule,
     ],
   })
+    .overrideProvider(DISCORD_CLIENT)
+    .useValue(options.discordClient ?? unreachableDiscordClient)
     .overrideProvider(SnapshotListenerService)
     .useValue(noopListener)
     .overrideProvider(OAuthAuthProviderService)

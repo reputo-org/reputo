@@ -1,6 +1,7 @@
 import appConfig from './app.config';
 import authConfig from './auth.config';
 import awsConfig from './aws.config';
+import communityConfig from './community.config';
 import consentConfig from './consent.config';
 import databaseConfig from './database.config';
 import { env, envSchema } from './env';
@@ -13,6 +14,7 @@ export const configModules = [
   appConfig,
   authConfig,
   awsConfig,
+  communityConfig,
   consentConfig,
   databaseConfig,
   loggerConfig,

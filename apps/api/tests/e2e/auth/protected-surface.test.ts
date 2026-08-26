@@ -39,6 +39,12 @@ describe('Protected API and docs surface', () => {
       { body: {}, method: 'post', path: base('/storage/uploads/verify') },
       { body: {}, method: 'post', path: base('/storage/downloads') },
       { method: 'get', path: base('/storage/stream?key=exports/test.csv') },
+      { method: 'get', path: base('/community/connections') },
+      { method: 'get', path: base('/community/connections/discord/install-url') },
+      { method: 'get', path: base('/community/connections/discord/callback?code=x&state=y') },
+      { method: 'get', path: base('/community/connections/01940000-0000-7000-8000-000000000000/resources') },
+      { method: 'get', path: base('/community/connections/01940000-0000-7000-8000-000000000000/health') },
+      { method: 'delete', path: base('/community/connections/01940000-0000-7000-8000-000000000000') },
       { method: 'get', path: '/docs' },
       { method: 'get', path: '/reference' },
     ] as const;

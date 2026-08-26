@@ -32,6 +32,11 @@ export const AUTH_TEST_ENV = {
   AUTH_SESSION_CLEANUP_INTERVAL_MS: '0',
   AUTH_TOKEN_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef',
   APP_PUBLIC_URL: 'http://localhost:5173',
+  DISCORD_CLIENT_ID: 'discord-client-id',
+  DISCORD_CLIENT_SECRET: 'discord-client-secret',
+  DISCORD_BOT_TOKEN: 'discord-bot-token',
+  DISCORD_BOT_CALLBACK_URL: 'http://localhost:3000/api/v1/community/connections/discord/callback',
+  COMMUNITY_INSTALL_STATE_TTL_SECONDS: '600',
 } as const;
 
 export interface CreateAuthenticatedSessionOptions {
