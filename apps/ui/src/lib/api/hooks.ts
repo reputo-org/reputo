@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { adminsApi, algorithmPresetsApi, snapshotsApi } from "./services"
+import {
+  adminsApi,
+  algorithmPresetsApi,
+  communityApi,
+  snapshotsApi,
+} from "./services"
 import type {
   AdminRole,
   AlgorithmPresetQueryParams,
@@ -35,6 +40,12 @@ export const queryKeys = {
     lists: () => [...queryKeys.admins.all, "list"] as const,
     list: (params?: ListAdminsQueryParams) =>
       [...queryKeys.admins.lists(), params ?? {}] as const,
+  },
+  communityConnections: {
+    all: ["communityConnections"] as const,
+    lists: () => [...queryKeys.communityConnections.all, "list"] as const,
+    resources: (id: string) =>
+      [...queryKeys.communityConnections.all, "resources", id] as const,
   },
 }
 
@@ -191,6 +202,46 @@ export const useRestoreAdmin = () => {
       email: string
     }) => adminsApi.restore(provider, email),
     onSuccess: () => invalidateAdminLists(queryClient),
+  })
+}
+
+export const useCommunityConnections = () => {
+  return useQuery({
+    queryKey: queryKeys.communityConnections.lists(),
+    queryFn: () => communityApi.list(),
+  })
+}
+
+export const useCommunityResources = (id: string, enabled = true) => {
+  return useQuery({
+    queryKey: queryKeys.communityConnections.resources(id),
+    queryFn: () => communityApi.listResources(id),
+    enabled: Boolean(id) && enabled,
+  })
+}
+
+const invalidateCommunityConnections = (
+  queryClient: ReturnType<typeof useQueryClient>
+) =>
+  queryClient.invalidateQueries({
+    queryKey: queryKeys.communityConnections.all,
+  })
+
+export const useRecheckCommunityConnection = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) => communityApi.recheck(id),
+    onSuccess: () => invalidateCommunityConnections(queryClient),
+  })
+}
+
+export const useDisconnectCommunityConnection = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) => communityApi.disconnect(id),
+    onSuccess: () => invalidateCommunityConnections(queryClient),
   })
 }
 
