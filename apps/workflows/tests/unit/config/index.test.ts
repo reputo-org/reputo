@@ -49,7 +49,7 @@ describe('workflows config', () => {
       appBaseUrl: 'https://app.staging.deep-id.ai',
       clientId: 'test-deepid-client',
       clientSecret: 'test-deepid-secret',
-      scopes: 'api wallets post_scores',
+      scopes: 'api wallets post_scores github discord mattermost',
     });
   });
 

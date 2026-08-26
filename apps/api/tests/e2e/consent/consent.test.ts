@@ -211,7 +211,7 @@ describe('OAuth consent e2e', () => {
       'http://localhost:3000/api/v1/oauth/consent/deep-id/callback',
     );
     expect(redirectUrl.searchParams.get('scope')).toBe(
-      'api wallets post_scores voting_engagement_encr contribution_score_encr proposal_engagement_encr token_value_over_time_encr',
+      'api wallets post_scores voting_engagement_encr contribution_score_encr proposal_engagement_encr token_value_over_time_encr github discord mattermost',
     );
     expect(redirectUrl.searchParams.get('state')).toBe(state);
     expect(redirectUrl.searchParams.get('code_challenge_method')).toBe('S256');
