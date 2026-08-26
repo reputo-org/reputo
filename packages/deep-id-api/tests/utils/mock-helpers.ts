@@ -12,7 +12,7 @@ export const TEST_CONFIG: DeepIdApiConfig = {
   requestTimeoutMs: 1000,
   concurrency: 4,
   retry: { maxAttempts: 3, baseDelayMs: 1, maxDelayMs: 2 },
-  defaultPageSize: 500,
+  defaultPageSize: 100,
   tokenRefreshSkewMs: 60_000,
 };
 

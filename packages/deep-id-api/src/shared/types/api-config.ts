@@ -16,7 +16,7 @@ export type DeepIdApiConfig = {
   requestTimeoutMs: number;
   concurrency: number;
   retry: RetryConfig;
-  /** Default `pageSize` for `GET /v1/users` (1–1000). */
+  /** Default `pageSize` for `GET /v1/users`; DeepID rejects anything above 100. */
   defaultPageSize: number;
   /** Refresh the cached token this many ms before it actually expires. */
   tokenRefreshSkewMs: number;
@@ -46,6 +46,6 @@ export const DEFAULT_CONFIG: Omit<DeepIdApiConfig, 'identityBaseUrl' | 'appBaseU
     baseDelayMs: 500,
     maxDelayMs: 20_000,
   },
-  defaultPageSize: 500,
+  defaultPageSize: 100,
   tokenRefreshSkewMs: 60_000,
 };

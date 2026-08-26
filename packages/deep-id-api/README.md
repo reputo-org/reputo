@@ -6,7 +6,8 @@ by Reputo as a machine-to-machine (M2M) integration. It handles the OAuth 2.0
 endpoints Reputo needs:
 
 - `getUsers` / `iterateUsers` — list consented users from `GET /v1/users`,
-  paginated via the `x-next` response header.
+  paginated via the `x-next` response header (page size 100 by default, which is
+  DeepID's maximum).
 - `getSealMetadata` — fetch the public SEAL/CKKS parameters referenced by a
   user's `scores_encr['seal-metadata']` URL.
 - `postScores` — submit plaintext child scores or the final encrypted

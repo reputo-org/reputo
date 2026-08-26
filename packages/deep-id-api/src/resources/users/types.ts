@@ -77,7 +77,7 @@ export interface DeepIdUser {
 export type UsersResponse = Record<string, DeepIdUser>;
 
 export interface GetUsersOptions {
-  /** 1–1000; defaults to the client's `defaultPageSize`. */
+  /** 1–100; defaults to the client's `defaultPageSize`. DeepID rejects anything above 100. */
   pageSize?: number;
   /** Space-separated subset of token scopes to include; must be a subset of the token's scopes. */
   filteredTokenScopes?: string;
