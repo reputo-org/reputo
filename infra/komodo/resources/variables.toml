@@ -262,6 +262,26 @@ description = "Staging DeepID client secret (consent + score posting)."
 is_secret = true
 
 [[variable]]
+name = "STAGING_DISCORD_CLIENT_ID"
+description = "Staging Discord application (bot) client id."
+is_secret = false
+
+[[variable]]
+name = "STAGING_DISCORD_CLIENT_SECRET"
+description = "Staging Discord application client secret."
+is_secret = true
+
+[[variable]]
+name = "STAGING_DISCORD_BOT_TOKEN"
+description = "Staging Discord bot token for read-only guild calls. Deployment config only; never written to the database."
+is_secret = true
+
+[[variable]]
+name = "STAGING_DISCORD_BOT_CALLBACK_URL"
+description = "Staging Discord bot install callback URL. Must match a redirect URI registered on the Discord application, e.g. https://<STAGING_API_DOMAIN>/api/v1/community/connections/discord/callback."
+is_secret = false
+
+[[variable]]
 name = "PRODUCTION_TRAEFIK_DOMAIN"
 description = "Production Traefik dashboard host."
 is_secret = false
@@ -475,3 +495,23 @@ is_secret = true
 name = "PRODUCTION_DEEP_ID_CLIENT_SECRET"
 description = "Production DeepID client secret (consent + score posting)."
 is_secret = true
+
+[[variable]]
+name = "PRODUCTION_DISCORD_CLIENT_ID"
+description = "Production Discord application (bot) client id."
+is_secret = false
+
+[[variable]]
+name = "PRODUCTION_DISCORD_CLIENT_SECRET"
+description = "Production Discord application client secret."
+is_secret = true
+
+[[variable]]
+name = "PRODUCTION_DISCORD_BOT_TOKEN"
+description = "Production Discord bot token for read-only guild calls. Deployment config only; never written to the database."
+is_secret = true
+
+[[variable]]
+name = "PRODUCTION_DISCORD_BOT_CALLBACK_URL"
+description = "Production Discord bot install callback URL. Must match a redirect URI registered on the Discord application, e.g. https://<PRODUCTION_API_DOMAIN>/api/v1/community/connections/discord/callback."
+is_secret = false

@@ -43,6 +43,7 @@ x-dev-volumes: &dev-volumes
     - apps_ui_node_modules:/workspace/apps/ui/node_modules
     - apps_workflows_node_modules:/workspace/apps/workflows/node_modules
     - packages_algorithm_validator_node_modules:/workspace/packages/algorithm-validator/node_modules
+    - packages_community_api_node_modules:/workspace/packages/community-api/node_modules
     - packages_deepfunding_portal_api_node_modules:/workspace/packages/deepfunding-portal-api/node_modules
     - packages_onchain_data_node_modules:/workspace/packages/onchain-data/node_modules
     - packages_reputation_algorithms_node_modules:/workspace/packages/reputation-algorithms/node_modules
@@ -89,6 +90,15 @@ x-api-env: &api-env
     AUTH_TOKEN_ENCRYPTION_KEY: '${AUTH_TOKEN_ENCRYPTION_KEY:?missing AUTH_TOKEN_ENCRYPTION_KEY}'
     AUTH_SESSION_CLEANUP_INTERVAL_MS:
     DEEP_ID_CONSENT_CLEANUP_INTERVAL_MS:
+    DISCORD_CLIENT_ID: '${DISCORD_CLIENT_ID:?missing DISCORD_CLIENT_ID}'
+    DISCORD_CLIENT_SECRET: '${DISCORD_CLIENT_SECRET:?missing DISCORD_CLIENT_SECRET}'
+    DISCORD_BOT_TOKEN: '${DISCORD_BOT_TOKEN:?missing DISCORD_BOT_TOKEN}'
+    DISCORD_BOT_CALLBACK_URL: '${DISCORD_BOT_CALLBACK_URL:?missing DISCORD_BOT_CALLBACK_URL}'
+    COMMUNITY_INSTALL_STATE_TTL_SECONDS:
+    COMMUNITY_API_REQUEST_TIMEOUT_MS:
+    COMMUNITY_API_RETRY_MAX_ATTEMPTS:
+    COMMUNITY_API_RETRY_BASE_DELAY_MS:
+    COMMUNITY_API_RETRY_MAX_DELAY_MS:
     DATABASE_URL: postgresql://reputo_app:reputo_app@postgres:5432/reputo_app
     AWS_REGION: '${AWS_REGION:?missing AWS_REGION}'
     # Dev stack uses in-stack MinIO; credentials match `minio` service below.
@@ -182,6 +192,8 @@ volumes:
     apps_workflows_node_modules:
         driver: local
     packages_algorithm_validator_node_modules:
+        driver: local
+    packages_community_api_node_modules:
         driver: local
     packages_deepfunding_portal_api_node_modules:
         driver: local
