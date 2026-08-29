@@ -4,7 +4,7 @@ Read-only TypeScript clients for the community platforms Reputo scores. The
 package owns the platform HTTP details — retries, rate limits, payload shapes —
 and hands back small, platform-neutral values.
 
-Today it ships the **Discord** client:
+Today it ships the **Discord** client and adapter:
 
 - `buildInstallUrl` — bot-install authorization URL (`scope=bot`, permissions
   limited to View Channels and Read Message History).
@@ -12,6 +12,11 @@ Today it ships the **Discord** client:
 - `listResources` — text, announcement, and forum channels of a guild.
 - `probe` — lists channels and reads one page of history to verify the granted
   permissions, keeping counts only.
+- `createDiscordAdapter` — the read side alone (bot token only). Besides
+  `listResources` and `probe` it adds `iterateRecords`, which streams one
+  channel's window — messages, active and public archived threads, forum
+  posts — as canonical, content-free activity records with a resume cursor
+  per page batch.
 
 The package reads no environment variables and touches no database; the
 consuming app validates its env and passes the values in.

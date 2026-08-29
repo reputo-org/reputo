@@ -142,6 +142,19 @@ describe('executeRequest', () => {
     expect(logged).not.toContain('super-secret-token');
     expect(logged).not.toContain('super-secret-value');
   });
+
+  it('reports every attempt and rate-limit wait to the observer', async () => {
+    mockRequest
+      .mockResolvedValueOnce(mockUndiciResponse(429, {}, { 'retry-after': '0' }) as never)
+      .mockResolvedValueOnce(mockUndiciResponse(200, []) as never);
+
+    const observer = { onRequest: vi.fn(), onRateLimitWait: vi.fn() };
+    await executeRequest(logger, TEST_HTTP_CONFIG, baseOptions, observer);
+
+    expect(observer.onRequest).toHaveBeenCalledTimes(2);
+    expect(observer.onRateLimitWait).toHaveBeenCalledTimes(1);
+    expect(observer.onRateLimitWait).toHaveBeenCalledWith(0);
+  });
 });
 
 describe('parseRetryAfterMs', () => {

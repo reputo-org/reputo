@@ -19,6 +19,16 @@ export interface CommunityLogger {
 
 export type HttpMethod = 'GET' | 'POST' | 'DELETE';
 
+/**
+ * Optional transport hooks for fetch-stats collection: one `onRequest` per
+ * attempted platform call, one `onRateLimitWait` per 429-induced sleep. The
+ * community dataset manifest records what they count.
+ */
+export interface CommunityHttpObserver {
+  onRequest?(): void;
+  onRateLimitWait?(delayMs: number): void;
+}
+
 export interface HttpRequestOptions {
   method: HttpMethod;
   url: string;
@@ -116,6 +126,7 @@ export async function executeRequest<T>(
   logger: CommunityLogger,
   config: CommunityHttpConfig,
   options: HttpRequestOptions,
+  observer?: CommunityHttpObserver,
 ): Promise<HttpResponse<T>> {
   const { method, url, headers = {}, body } = options;
   const { maxAttempts, baseDelayMs, maxDelayMs } = config.retry;
@@ -124,6 +135,7 @@ export async function executeRequest<T>(
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const startedAt = Date.now();
+    observer?.onRequest?.();
 
     try {
       const response = await request(url, {
@@ -157,6 +169,7 @@ export async function executeRequest<T>(
         }
         const delay = retryAfterMs ?? calculateBackoffMs(attempt, baseDelayMs, maxDelayMs);
         logger.warn({ msg: 'Community platform rate limited', method, url: safeUrl, delay, attempt: attempt + 1 });
+        observer?.onRateLimitWait?.(delay);
         await sleep(delay);
         continue;
       }
