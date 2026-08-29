@@ -5,7 +5,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { formatDateTime, formatRelativeFromNow } from "@/lib/admins/format"
+import { formatDateTime, formatRelativeFromNow } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 interface TimeCellProps {

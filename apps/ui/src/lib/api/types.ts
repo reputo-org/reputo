@@ -190,3 +190,41 @@ export interface CreateAdminDto {
 export interface UpdateAdminRoleDto {
   role: AdminRole
 }
+
+export type CommunityPlatform = "github" | "discord" | "mattermost"
+
+export type CommunityConnectionStatus =
+  | "pending"
+  | "active"
+  | "degraded"
+  | "broken"
+  | "disconnected"
+
+export interface CommunityConnectionDto {
+  id: string
+  platform: CommunityPlatform
+  externalId: string
+  name: string
+  status: CommunityConnectionStatus
+  statusReason?: string
+  /** When the platform last confirmed this state; health is never checked on a timer. */
+  lastCheckedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CommunityResourceDto {
+  id: string
+  name: string
+  kind: "text" | "announcement" | "forum"
+}
+
+export interface CommunityHealthDto {
+  status: CommunityConnectionStatus
+  checkedAt: string
+  reason?: string
+}
+
+export interface CommunityInstallUrlDto {
+  url: string
+}

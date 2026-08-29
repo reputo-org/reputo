@@ -83,6 +83,13 @@ x-api-environment: &api-environment
     AUTH_COOKIE_SECURE: 'true'
     AUTH_COOKIE_SAME_SITE: lax
     AUTH_TOKEN_ENCRYPTION_KEY: '${AUTH_TOKEN_ENCRYPTION_KEY:?missing AUTH_TOKEN_ENCRYPTION_KEY}'
+    # Placeholders so the API boots. Connecting a Discord community needs a real
+    # app whose redirect URI matches this host, which an ephemeral preview has not
+    # got — the connections page renders, the connect flow does not complete.
+    DISCORD_CLIENT_ID: mock-discord-client-id
+    DISCORD_CLIENT_SECRET: mock-discord-client-secret
+    DISCORD_BOT_TOKEN: mock-discord-bot-token
+    DISCORD_BOT_CALLBACK_URL: '${PULLPREVIEW_URL:?missing PULLPREVIEW_URL}/api/v1/community/connections/discord/callback'
     DATABASE_URL: postgresql://reputo_app:reputo_app@postgres:5432/reputo_preview
     AWS_REGION: us-east-1
     AWS_ACCESS_KEY_ID: minio

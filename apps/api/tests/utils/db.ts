@@ -41,6 +41,8 @@ export async function truncateAllTables(dataSource: DataSource): Promise<void> {
     'auth_sessions',
     'oauth_users',
     'oauth_consent_grants',
+    'community_connection_audit',
+    'community_connections',
     'snapshot_outputs',
     'snapshots',
     'algorithm_preset_inputs',

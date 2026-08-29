@@ -3,6 +3,8 @@ export {
   AlgorithmPresetEntity,
   AlgorithmPresetInputEntity,
   AuthSessionEntity,
+  CommunityConnectionAuditEntity,
+  CommunityConnectionEntity,
   ENTITIES,
   OAuthConsentGrantEntity,
   OAuthUserEntity,

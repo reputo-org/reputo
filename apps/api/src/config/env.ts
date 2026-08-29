@@ -107,6 +107,45 @@ export const envSchema = z
       .min(1)
       .describe('Space separated Deep ID scopes requested during the interactive consent flow'),
 
+    DISCORD_CLIENT_ID: z.string().trim().min(1).describe('Discord application (bot) client identifier'),
+    DISCORD_CLIENT_SECRET: z.string().trim().min(1).describe('Discord application client secret'),
+    DISCORD_BOT_TOKEN: z
+      .string()
+      .trim()
+      .min(1)
+      .describe('Discord bot token used for read-only guild calls; never persisted to the database'),
+    DISCORD_BOT_CALLBACK_URL: z.string().url().describe('Discord bot install callback URL handled by this API'),
+    COMMUNITY_INSTALL_STATE_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(600)
+      .describe('Lifetime of a signed community install-state value in seconds'),
+    COMMUNITY_API_REQUEST_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(15_000)
+      .describe('Per-request timeout for community platform calls'),
+    COMMUNITY_API_RETRY_MAX_ATTEMPTS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(4)
+      .describe('Maximum attempts per community platform call, including the first'),
+    COMMUNITY_API_RETRY_BASE_DELAY_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(500)
+      .describe('Base delay for community platform retry backoff'),
+    COMMUNITY_API_RETRY_MAX_DELAY_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(10_000)
+      .describe('Maximum delay for community platform retry backoff'),
+
     DATABASE_URL: z
       .string()
       .url()

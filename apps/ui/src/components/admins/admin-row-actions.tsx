@@ -35,7 +35,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { formatDateTime, formatRelativeFromNow } from "@/lib/admins/format"
 import {
   useRemoveAdmin,
   useRestoreAdmin,
@@ -43,6 +42,7 @@ import {
 } from "@/lib/api/hooks"
 import { extractApiStatus } from "@/lib/api/status"
 import type { AdminViewDto } from "@/lib/api/types"
+import { formatDateTime, formatRelativeFromNow } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 interface AdminRowActionsProps {
