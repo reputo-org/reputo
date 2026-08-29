@@ -87,4 +87,16 @@ describe('community worker module', () => {
     );
     expect(workerRun).toHaveBeenCalled();
   });
+
+  it('refuses to start on a queue the orchestrator cannot dispatch to', async () => {
+    process.env.TEMPORAL_COMMUNITY_TASK_QUEUE = 'community-worker-renamed';
+
+    const { Worker, NativeConnection } = await import('@temporalio/worker');
+    vi.clearAllMocks();
+    const { runCommunityWorker } = await import('../../../src/workers/typescript/community.worker.js');
+
+    await expect(runCommunityWorker()).rejects.toThrow(/community-worker-renamed/);
+    expect(NativeConnection.connect).not.toHaveBeenCalled();
+    expect(Worker.create).not.toHaveBeenCalled();
+  });
 });

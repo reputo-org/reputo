@@ -4,11 +4,21 @@ import { NativeConnection, Worker } from '@temporalio/worker';
 
 import { createCommunityDependencyResolverActivities } from '../../activities/community/index.js';
 import config from '../../config/index.js';
-import { COMMUNITY_WORKER_MAX_CONCURRENT_ACTIVITIES } from '../../shared/constants/index.js';
+import { COMMUNITY_WORKER_MAX_CONCURRENT_ACTIVITIES, communityTaskQueue } from '../../shared/constants/index.js';
 import { logger } from '../../shared/utils/index.js';
 
 export async function runCommunityWorker(): Promise<void> {
   logger.info('Starting Community Worker');
+
+  // Workflow code is a deterministic sandbox with no access to this config, so
+  // the orchestrator can only dispatch to the constant. A worker polling any
+  // other queue would leave every community fetch unclaimed until its two-hour
+  // timeout, so refuse to start instead of failing snapshots silently.
+  if (config.temporal.communityTaskQueue !== communityTaskQueue) {
+    throw new Error(
+      `TEMPORAL_COMMUNITY_TASK_QUEUE must be "${communityTaskQueue}" (the queue the orchestrator dispatches to), got "${config.temporal.communityTaskQueue}"`,
+    );
+  }
 
   const connection = await NativeConnection.connect({
     address: config.temporal.address,
