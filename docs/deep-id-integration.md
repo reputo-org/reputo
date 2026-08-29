@@ -99,11 +99,16 @@ After a standalone (non-`custom_score`) snapshot completes, the orchestrator run
   [Raw scores](reputation-algorithms.md#raw-scores).
 - The score `type` is the algorithm key — keys map 1:1 to DeepID score types, so there is
   no translation table.
-- Every entry carries `timestamp = completedAt`. DeepID keeps the newest timestamp per
-  `(client, type)`, so re-posting after a retry is safe and an older snapshot can never
+- Every entry carries one run-consistent `timestamp` — the workflow start time — so a
+  retried post reuses the same value and DeepID dedupes on `(did, type, timestamp)`.
+  DeepID keeps the newest timestamp per `(client, type)`, so an older snapshot can never
   overwrite a newer score.
 - The result reports `posted / ok / failed / dropped / skipped`. Only unexpected
   rejections are logged per DID (capped, with a summary line for the rest).
+- The outcome is persisted per `(snapshot, algorithm key)` in the `snapshot_publications`
+  ledger (`pending → sent | failed`, with the counts and a safe error) through the API
+  activities queue, and shown on the snapshot page — a posting failure stays visible
+  instead of living only in worker logs.
 
 `custom_score` snapshots do not use this path. They follow the encrypted lifecycle below,
 and their submissions happen **before** the snapshot completes.

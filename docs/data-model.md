@@ -19,6 +19,7 @@ Entities live in [`apps/api/src/persistence/entities/`](../apps/api/src/persiste
 | Type | Values |
 | --- | --- |
 | `snapshot_status` | `queued`, `running`, `completed`, `failed`, `cancelled` |
+| `snapshot_publication_status` | `pending`, `sent`, `failed` |
 | `oauth_provider` | `deep-id` |
 | `access_role` | `owner`, `admin` |
 
@@ -48,6 +49,14 @@ so a preset with snapshots cannot be deleted).
 
 The results of a snapshot, as `key` / `value` pairs. Foreign key to `snapshots` (cascade
 on delete). Unique per `(snapshot, key)`.
+
+### `snapshot_publications`
+
+One DeepID publication record per `(snapshot, algorithm key)`, written by the workflow
+through the API activities queue. Holds the `status` enum
+(`snapshot_publication_status`: `pending`, `sent`, `failed`), the posting `counts`
+(JSONB), and a safe `error` text. Foreign key to `snapshots` (cascade on delete). Unique
+per `(snapshot, algorithm_key)`.
 
 ## Identity and access
 
