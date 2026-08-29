@@ -111,4 +111,10 @@ export interface CommunityAdapter {
   /** Verifies the granted permissions by listing resources and reading one page of history. */
   probe(communityId: string): Promise<CommunityProbeResult>;
   iterateRecords(request: IterateRecordsRequest): AsyncGenerator<CommunityRecordBatch, CommunityResourceCoverage>;
+  /**
+   * Resolves a platform username to its stable platform account id through a
+   * per-username member lookup — exact match only, `null` when no member
+   * matches. The cohort step depends on this staying a lookup, never a guess.
+   */
+  searchMemberId(communityId: string, username: string): Promise<string | null>;
 }

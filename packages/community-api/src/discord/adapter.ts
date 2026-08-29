@@ -3,17 +3,25 @@ import { type CommunityHttpObserver, type CommunityLogger, executeRequest } from
 import type { CommunityAdapter } from '../shared/records.js';
 import type { CommunityProbeResult, CommunityResource } from '../shared/types.js';
 import { createDiscordRecordIterator } from './fetch.js';
-import { hasRequiredMessageFields, toCommunityResources } from './transform.js';
+import { findExactMemberId, hasRequiredMessageFields, toCommunityResources } from './transform.js';
 import {
   DISCORD_API_BASE_URL,
   type DiscordAdapterConfig,
   type DiscordRawChannel,
+  type DiscordRawGuildMember,
   type DiscordRawMessage,
   type DiscordRawThread,
 } from './types.js';
 
 /** Channels the probe will try before concluding that nothing is readable. */
 const PROBE_CHANNEL_LIMIT = 10;
+
+/**
+ * Members per search response. The search matches by username or nickname
+ * prefix, so the page must be wide enough that the exact username match cannot
+ * fall outside it. 1000 is Discord's maximum.
+ */
+const MEMBER_SEARCH_LIMIT = 1000;
 
 /**
  * The Discord implementation of the community platform adapter — the read
@@ -97,5 +105,22 @@ export function createDiscordAdapter(
     },
 
     iterateRecords,
+
+    // The member search endpoint works over REST with the bot credential and
+    // no privileged intent; full member enumeration would need one.
+    async searchMemberId(guildId: string, username: string): Promise<string | null> {
+      const query = new URLSearchParams({ query: username, limit: String(MEMBER_SEARCH_LIMIT) });
+      const response = await executeRequest<DiscordRawGuildMember[]>(
+        logger,
+        config,
+        {
+          method: 'GET',
+          url: `${DISCORD_API_BASE_URL}/guilds/${encodeURIComponent(guildId)}/members/search?${query.toString()}`,
+          headers: botHeaders,
+        },
+        observer,
+      );
+      return findExactMemberId(response.data ?? [], username);
+    },
   };
 }
