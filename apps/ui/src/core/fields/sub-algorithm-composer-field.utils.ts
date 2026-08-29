@@ -151,6 +151,8 @@ export function buildChildInputsArray(
         defaultValue = false
       } else if ("default" in input && input.default !== undefined) {
         defaultValue = input.default
+      } else if (input.type === "array") {
+        defaultValue = []
       }
 
       return { key: input.key, value: defaultValue }

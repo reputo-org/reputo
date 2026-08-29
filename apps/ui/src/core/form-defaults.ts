@@ -67,7 +67,11 @@ export function getDefaultValues(
           defaults[input.key] = ""
           break
         case "array": {
-          if ((input as any).widget === "resource_selector") {
+          if (
+            (input as any).widget === "resource_selector" ||
+            (input as any).widget === "community_resources" ||
+            (input as any).itemType === "string"
+          ) {
             defaults[input.key] = []
             break
           }

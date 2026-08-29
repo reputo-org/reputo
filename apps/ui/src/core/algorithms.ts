@@ -12,6 +12,7 @@ const DEPENDENCY_KEY_TO_LABEL: Record<string, string> = {
   "onchain-data": "On-chain data",
   "onchain-data-service": "On-chain data",
   "deep-id": "DeepID",
+  "discord-activity": "Discord",
 }
 
 /** Per-algorithm display metadata not derived from the definition itself */
@@ -20,6 +21,7 @@ const ALGORITHM_META: Record<string, { duration: string; level: string }> = {
   proposal_engagement: { duration: "2–4 min", level: "Beginner" },
   voting_engagement: { duration: "1–3 min", level: "Beginner" },
   token_value_over_time: { duration: "4–8 min", level: "Intermediate" },
+  discord_engagement: { duration: "5–20 min", level: "Beginner" },
 }
 
 const DEFAULT_META = { duration: "2–5 min", level: "Intermediate" }

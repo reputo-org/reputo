@@ -80,6 +80,21 @@ export interface AlgorithmPresetFrozenDto {
   updatedAt: string
 }
 
+export interface SnapshotPublicationDto {
+  algorithmKey: string
+  status: "pending" | "sent" | "failed"
+  counts?: {
+    posted: number
+    ok: number
+    failed: number
+    dropped: number
+    skipped: number
+  }
+  error?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface SnapshotResponseDto {
   _id: string
   status: "queued" | "running" | "completed" | "failed" | "cancelled"
@@ -87,6 +102,7 @@ export interface SnapshotResponseDto {
   algorithmPreset: string
   algorithmPresetFrozen?: AlgorithmPresetFrozenDto
   outputs?: Record<string, unknown>
+  publications?: SnapshotPublicationDto[]
   startedAt?: string
   completedAt?: string
   createdAt: string

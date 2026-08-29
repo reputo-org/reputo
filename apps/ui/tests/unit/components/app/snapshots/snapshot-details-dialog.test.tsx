@@ -102,4 +102,63 @@ describe("SnapshotDetailsDialog", () => {
 
     expect(screen.queryByText("Inputs")).not.toBeInTheDocument()
   })
+
+  it("shows the DeepID publication status with counts and safe errors", () => {
+    render(
+      <SnapshotDetailsDialog
+        isOpen
+        onClose={() => {}}
+        snapshot={{
+          ...snapshot,
+          publications: [
+            {
+              algorithmKey: "discord_engagement",
+              status: "sent",
+              counts: { posted: 12, ok: 10, failed: 0, dropped: 2, skipped: 0 },
+              createdAt: "2026-08-29T10:00:00.000Z",
+              updatedAt: "2026-08-29T10:00:05.000Z",
+            },
+          ],
+        }}
+      />
+    )
+
+    expect(screen.getByText("DeepID publication")).toBeInTheDocument()
+    expect(screen.getByText("Sent")).toBeInTheDocument()
+    expect(
+      screen.getByText("12 posted · 10 accepted · 2 without consent")
+    ).toBeInTheDocument()
+  })
+
+  it("surfaces a failed publication visibly with its error", () => {
+    render(
+      <SnapshotDetailsDialog
+        isOpen
+        onClose={() => {}}
+        snapshot={{
+          ...snapshot,
+          publications: [
+            {
+              algorithmKey: "discord_engagement",
+              status: "failed",
+              error: "DeepID rejected the request",
+              createdAt: "2026-08-29T10:00:00.000Z",
+              updatedAt: "2026-08-29T10:00:05.000Z",
+            },
+          ],
+        }}
+      />
+    )
+
+    expect(screen.getByText("Failed")).toBeInTheDocument()
+    expect(screen.getByText("DeepID rejected the request")).toBeInTheDocument()
+  })
+
+  it("omits the publication section when a snapshot has no publication rows", () => {
+    render(
+      <SnapshotDetailsDialog isOpen onClose={() => {}} snapshot={snapshot} />
+    )
+
+    expect(screen.queryByText("DeepID publication")).not.toBeInTheDocument()
+  })
 })
