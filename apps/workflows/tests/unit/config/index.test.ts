@@ -17,6 +17,7 @@ const BASE_ENV = {
   ONCHAIN_DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/reputo_onchain_test',
   ALCHEMY_API_KEY: 'test-alchemy-key',
   BLOCKFROST_API_KEY: 'test-blockfrost-key',
+  DISCORD_BOT_TOKEN: 'test-discord-bot-token',
   DEEP_ID_ISSUER_URL: 'https://identity.staging.deep-id.ai',
   DEEP_ID_APP_BASE_URL: 'https://app.staging.deep-id.ai',
   DEEP_ID_CLIENT_ID: 'test-deepid-client',
@@ -51,6 +52,14 @@ describe('workflows config', () => {
       clientSecret: 'test-deepid-secret',
       scopes: 'api wallets post_scores github discord mattermost',
     });
+    expect(configModule.default.temporal.communityTaskQueue).toBe('community-worker');
+    expect(configModule.default.community).toEqual({
+      discordBotToken: 'test-discord-bot-token',
+      requestTimeoutMs: 15_000,
+      retryMaxAttempts: 4,
+      retryBaseDelayMs: 500,
+      retryMaxDelayMs: 10_000,
+    });
   });
 
   it('rejects a missing ONCHAIN_DATABASE_URL during shared config load', async () => {
@@ -75,6 +84,12 @@ describe('workflows config', () => {
     delete process.env.BLOCKFROST_API_KEY;
 
     await expect(import('../../../src/config/index.js')).rejects.toThrow(/BLOCKFROST_API_KEY/);
+  });
+
+  it('rejects a missing DISCORD_BOT_TOKEN during shared config load', async () => {
+    delete process.env.DISCORD_BOT_TOKEN;
+
+    await expect(import('../../../src/config/index.js')).rejects.toThrow(/DISCORD_BOT_TOKEN/);
   });
 
   it('rejects an empty DEEPFUNDING_API_KEY (closes audit M4 empty-string-secret hole)', async () => {

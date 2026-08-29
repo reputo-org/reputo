@@ -32,6 +32,11 @@ export const envSchema = z.object({
     .min(1)
     .default('onchain-data-worker')
     .describe('Temporal task queue for onchain-data dependency resolution'),
+  TEMPORAL_COMMUNITY_TASK_QUEUE: z
+    .string()
+    .min(1)
+    .default('community-worker')
+    .describe('Temporal task queue for community dataset dependency resolution'),
 
   AWS_REGION: z.string().min(1).describe('AWS region for S3 and other AWS clients'),
   // AWS credentials are NOT validated here — the SDK reads them from the
@@ -146,6 +151,36 @@ export const envSchema = z.object({
     .min(0)
     .default(20_000)
     .describe('DeepID API retry max delay in milliseconds'),
+
+  DISCORD_BOT_TOKEN: z
+    .string()
+    .trim()
+    .min(1)
+    .describe('Discord bot token for read-only guild crawls (required for the community worker); never persisted'),
+  COMMUNITY_API_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(15_000)
+    .describe('Per-request timeout for community platform calls'),
+  COMMUNITY_API_RETRY_MAX_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(4)
+    .describe('Maximum attempts per community platform call, including the first'),
+  COMMUNITY_API_RETRY_BASE_DELAY_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(500)
+    .describe('Base delay for community platform retry backoff'),
+  COMMUNITY_API_RETRY_MAX_DELAY_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10_000)
+    .describe('Maximum delay for community platform retry backoff'),
 
   ONCHAIN_DATABASE_URL: z
     .string()

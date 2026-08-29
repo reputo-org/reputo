@@ -4,6 +4,9 @@ export const ALGORITHM_EXECUTION_TIMEOUT = '10 minutes';
 export const DEEPFUNDING_SYNC_TIMEOUT = '30 minutes';
 export const DEPENDENCY_RESOLUTION_TIMEOUT = '30 minutes';
 export const ONCHAIN_DATA_DEPENDENCY_RESOLUTION_TIMEOUT = '2 hours';
+// Covers a full 6-month community crawl at platform rate limits plus the
+// DuckDB staging, Parquet export, and S3 moves of the freeze.
+export const COMMUNITY_DEPENDENCY_RESOLUTION_TIMEOUT = '2 hours';
 export const DEEP_ID_POST_SCORES_TIMEOUT = '15 minutes';
 export const DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT = '5 minutes';
 // Covers one readiness pass (bounded by DeepID's 5-minute cursor lifetime) plus its cursor restarts.
@@ -23,3 +26,6 @@ export const ORCHESTRATOR_WORKER_MAX_CONCURRENT_WORKFLOWS = 5;
 export const ORCHESTRATOR_WORKER_MAX_CONCURRENT_ACTIVITIES = 5;
 export const TYPESCRIPT_ALGORITHM_WORKER_MAX_CONCURRENT_ACTIVITIES = 5;
 export const ONCHAIN_DATA_WORKER_MAX_CONCURRENT_ACTIVITIES = 1;
+// One fetch activity at a time IS the doc's "one community snapshot runs at a
+// time": queued snapshots wait on the task queue and run in arrival order.
+export const COMMUNITY_WORKER_MAX_CONCURRENT_ACTIVITIES = 1;

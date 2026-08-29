@@ -14,6 +14,7 @@ const config = {
     algorithmTypescriptTaskQueue: env.TEMPORAL_ALGORITHM_TYPESCRIPT_TASK_QUEUE,
     algorithmPythonTaskQueue: env.TEMPORAL_ALGORITHM_PYTHON_TASK_QUEUE,
     onchainDataTaskQueue: env.TEMPORAL_ONCHAIN_DATA_TASK_QUEUE,
+    communityTaskQueue: env.TEMPORAL_COMMUNITY_TASK_QUEUE,
   },
   aws: {
     region: env.AWS_REGION,
@@ -40,6 +41,13 @@ const config = {
     uri: env.ONCHAIN_DATABASE_URL,
     alchemyApiKey: env.ALCHEMY_API_KEY,
     blockfrostAPIKey: env.BLOCKFROST_API_KEY,
+  },
+  community: {
+    discordBotToken: env.DISCORD_BOT_TOKEN,
+    requestTimeoutMs: env.COMMUNITY_API_REQUEST_TIMEOUT_MS,
+    retryMaxAttempts: env.COMMUNITY_API_RETRY_MAX_ATTEMPTS,
+    retryBaseDelayMs: env.COMMUNITY_API_RETRY_BASE_DELAY_MS,
+    retryMaxDelayMs: env.COMMUNITY_API_RETRY_MAX_DELAY_MS,
   },
   deepId: {
     identityBaseUrl: env.DEEP_ID_ISSUER_URL,

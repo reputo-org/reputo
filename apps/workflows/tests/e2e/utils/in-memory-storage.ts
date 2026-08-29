@@ -1,4 +1,4 @@
-import type { Storage } from '@reputo/storage';
+import { ObjectNotFoundError, type Storage } from '@reputo/storage';
 
 /**
  * The bucket every e2e test seeds and reads from. Must match the value the
@@ -8,9 +8,10 @@ export const TEST_BUCKET = 'test-bucket';
 
 /**
  * A `Map`-backed stand-in for `@reputo/storage`'s `Storage` class. It implements
- * only the three methods the algorithm compute path actually calls — `getObject`,
- * `putObject`, `verify` — plus a few read helpers so tests can assert on the
- * bytes that compute wrote back. Cast to `Storage` the same way the rest of the
+ * only the methods the algorithm compute path and the community dataset engine
+ * actually call — `getObject`, `putObject`, `verify`, `listObjectsByPrefix`,
+ * `deleteObjects` — plus a few read helpers so tests can assert on the bytes
+ * that compute wrote back. Cast to `Storage` the same way the rest of the
  * suite does (`as unknown as Storage`); no S3/MinIO is involved.
  */
 export interface InMemoryStorage extends Storage {
@@ -24,6 +25,8 @@ export interface InMemoryStorage extends Storage {
   seed(key: string, body: Buffer | Uint8Array | string, bucket?: string): void;
   has(key: string, bucket?: string): boolean;
   keys(): string[];
+  /** Keys of every putObject call, in order — lets tests assert write ordering. */
+  putLog(): string[];
 }
 
 function toBuffer(body: Buffer | Uint8Array | string): Buffer {
@@ -38,13 +41,14 @@ function toBuffer(body: Buffer | Uint8Array | string): Buffer {
 
 export function createInMemoryStorage(): InMemoryStorage {
   const store = new Map<string, Buffer>();
+  const puts: string[] = [];
   const id = (bucket: string, key: string) => `${bucket}/${key}`;
 
   const fake = {
     async getObject({ bucket, key }: { bucket: string; key: string }): Promise<Buffer> {
       const buffer = store.get(id(bucket, key));
       if (buffer === undefined) {
-        throw new Error(`InMemoryStorage: object not found: ${id(bucket, key)}`);
+        throw new ObjectNotFoundError(id(bucket, key));
       }
       return buffer;
     },
@@ -59,14 +63,30 @@ export function createInMemoryStorage(): InMemoryStorage {
       body: Buffer | Uint8Array | string;
     }): Promise<string> {
       store.set(id(bucket, key), toBuffer(body));
+      puts.push(key);
       return key;
     },
 
     async verify({ bucket, key }: { bucket: string; key: string }) {
       if (!store.has(id(bucket, key))) {
-        throw new Error(`InMemoryStorage: object not found: ${id(bucket, key)}`);
+        throw new ObjectNotFoundError(id(bucket, key));
       }
       return { key, metadata: {} as never };
+    },
+
+    async listObjectsByPrefix({ bucket, prefix }: { bucket: string; prefix: string }): Promise<string[]> {
+      const scoped = `${bucket}/`;
+      return [...store.keys()]
+        .filter((stored) => stored.startsWith(scoped) && stored.slice(scoped.length).startsWith(prefix))
+        .map((stored) => stored.slice(scoped.length))
+        .sort();
+    },
+
+    async deleteObjects({ bucket, keys }: { bucket: string; keys: string[] }) {
+      for (const key of keys) {
+        store.delete(id(bucket, key));
+      }
+      return { deleted: keys, errors: [] };
     },
 
     readObject(key: string, bucket: string = TEST_BUCKET) {
@@ -95,6 +115,10 @@ export function createInMemoryStorage(): InMemoryStorage {
 
     keys() {
       return [...store.keys()];
+    },
+
+    putLog() {
+      return [...puts];
     },
   };
 

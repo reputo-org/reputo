@@ -7,6 +7,10 @@ Temporal workers that orchestrate snapshot execution and run TypeScript algorith
 - **Orchestrator worker** resolves snapshot dependencies and coordinates execution.
 - **Algorithm worker** runs TypeScript compute functions and reads or writes snapshot data through S3.
 - **Onchain-data worker** resolves the `onchain-data` dependency on its own task queue.
+- **Community worker** resolves community fetch dependencies (`discord-activity`): it crawls the
+  selected platform resources and freezes them as an immutable Parquet dataset under the snapshot
+  prefix. Its task queue runs one fetch at a time, so community snapshots queue up and run in
+  arrival order.
 
 Current TypeScript algorithms: `contribution_score`, `proposal_engagement`, `token_value_over_time`, `voting_engagement`. See [Reputation algorithms](../../docs/reputation-algorithms.md) for how to add a new one.
 
@@ -19,15 +23,17 @@ If a workflow needs new persistence behaviour, add the activity in [`apps/api`](
 ## Local commands
 
 ```bash
-pnpm --filter @reputo/workflows dev                       # build deps, watch all three workers
+pnpm --filter @reputo/workflows dev                       # build deps, watch all four workers
 pnpm --filter @reputo/workflows dev:orchestrator          # just the orchestrator
 pnpm --filter @reputo/workflows dev:algorithm-typescript  # just the algorithm worker
 pnpm --filter @reputo/workflows dev:onchain-data          # just the onchain-data worker
+pnpm --filter @reputo/workflows dev:community             # just the community worker
 
 pnpm --filter @reputo/workflows build
 pnpm --filter @reputo/workflows start:orchestrator
 pnpm --filter @reputo/workflows start:algorithm-typescript
 pnpm --filter @reputo/workflows start:onchain-data
+pnpm --filter @reputo/workflows start:community
 
 pnpm --filter @reputo/workflows test
 pnpm --filter @reputo/workflows typecheck

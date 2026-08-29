@@ -8,6 +8,8 @@ import {
   ACTIVITY_MAX_ATTEMPTS,
   ALGORITHM_EXECUTION_TIMEOUT,
   ALGORITHM_LIBRARY_TIMEOUT,
+  COMMUNITY_DEPENDENCY_RESOLUTION_TIMEOUT,
+  communityTaskQueue,
   DB_ACTIVITY_TIMEOUT,
   DEEP_ID_ENCRYPTED_SUBMISSION_TIMEOUT,
   DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
@@ -35,6 +37,8 @@ import type {
   SyncTarget,
   TypescriptAlgorithmDispatcherActivities,
 } from '../shared/types/index.js';
+import { isCommunityDependencyKey } from '../shared/types/index.js';
+import { extractCommunityFetchInput } from '../shared/utils/community-fetch.utils.js';
 import {
   buildCombinedChildAlgorithmPresets,
   getAlgorithmTaskQueueFromRuntime,
@@ -102,6 +106,16 @@ function collectDependencyKeys(sources: DependencySource[]): DependencyKey[] {
   }
 
   return dependencyKeys;
+}
+
+/** The preset of the first source declaring the dependency — its inputs configure the fetch. */
+function findDependencyPreset(sources: DependencySource[], dependencyKey: DependencyKey): DependencySource['preset'] {
+  for (const source of sources) {
+    if ((source.definition.dependencies ?? []).some((dependency) => dependency.key === dependencyKey)) {
+      return source.preset;
+    }
+  }
+  return sources[0].preset;
 }
 
 function collectOnchainSyncTargets(sources: DependencySource[]): SyncTarget[] {
@@ -338,6 +352,13 @@ async function runSnapshotPhases(args: {
     retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
   });
 
+  const { resolveDependency: resolveCommunityDependency } = workflow.proxyActivities<DependencyResolverActivities>({
+    taskQueue: communityTaskQueue,
+    startToCloseTimeout: COMMUNITY_DEPENDENCY_RESOLUTION_TIMEOUT,
+    heartbeatTimeout: HEARTBEAT_TIMEOUT,
+    retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
+  });
+
   const typescriptAlgorithmActivities = workflow.proxyActivities<TypescriptAlgorithmDispatcherActivities>({
     taskQueue: algorithmTaskQueue,
     startToCloseTimeout: ALGORITHM_EXECUTION_TIMEOUT,
@@ -410,6 +431,16 @@ async function runSnapshotPhases(args: {
               syncTargets,
             });
           }
+          if (isCommunityDependencyKey(dependencyKey)) {
+            return resolveCommunityDependency({
+              dependencyKey,
+              snapshotId,
+              communityFetch: extractCommunityFetchInput(
+                findDependencyPreset(dependencySources, dependencyKey),
+                workflowInfo.startTime,
+              ),
+            });
+          }
           return resolveOrchestratorDependency({
             dependencyKey,
             snapshotId,
@@ -447,6 +478,13 @@ async function runSnapshotPhases(args: {
             dependencyKey,
             snapshotId,
             syncTargets,
+          });
+        }
+        if (isCommunityDependencyKey(dependencyKey)) {
+          return resolveCommunityDependency({
+            dependencyKey,
+            snapshotId,
+            communityFetch: extractCommunityFetchInput(snapshot.algorithmPresetFrozen, workflowInfo.startTime),
           });
         }
         return resolveOrchestratorDependency({

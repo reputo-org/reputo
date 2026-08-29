@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { COMMUNITY_WORKER_MAX_CONCURRENT_ACTIVITIES } from '../../../src/shared/constants/index.js';
 
 vi.mock('@temporalio/worker', () => ({
   NativeConnection: {
@@ -9,8 +10,8 @@ vi.mock('@temporalio/worker', () => ({
   },
 }));
 
-vi.mock('../../../src/activities/onchain-data/index.js', () => ({
-  createOnchainDataDependencyResolverActivities: vi.fn(() => ({})),
+vi.mock('../../../src/activities/community/index.js', () => ({
+  createCommunityDependencyResolverActivities: vi.fn(() => ({})),
 }));
 
 vi.mock('../../../src/shared/utils/index.js', () => ({
@@ -30,6 +31,7 @@ const BASE_ENV = {
   TEMPORAL_ALGORITHM_TYPESCRIPT_TASK_QUEUE: 'algorithm-typescript-worker',
   TEMPORAL_ALGORITHM_PYTHON_TASK_QUEUE: 'algorithm-python-worker',
   TEMPORAL_ONCHAIN_DATA_TASK_QUEUE: 'onchain-data-worker',
+  TEMPORAL_COMMUNITY_TASK_QUEUE: 'community-worker',
   AWS_REGION: 'eu-central-1',
   STORAGE_BUCKET: 'reputo-test',
   DEEPFUNDING_API_BASE_URL: 'https://api.deepfunding.xyz',
@@ -44,7 +46,7 @@ const BASE_ENV = {
   DEEP_ID_CLIENT_SECRET: 'test-deepid-secret',
 };
 
-describe('onchain-data worker module', () => {
+describe('community worker module', () => {
   beforeEach(() => {
     vi.resetModules();
     process.env = { ...ORIGINAL_ENV, ...BASE_ENV };
@@ -56,22 +58,33 @@ describe('onchain-data worker module', () => {
   });
 
   it('loads with the full env and exposes the worker bootstrap', async () => {
-    const workerModule = await import('../../../src/workers/typescript/onchain-data.worker.js');
+    const workerModule = await import('../../../src/workers/typescript/community.worker.js');
 
-    expect(typeof workerModule.runOnchainDataWorker).toBe('function');
+    expect(typeof workerModule.runCommunityWorker).toBe('function');
   });
 
-  it('fails to load when ALCHEMY_API_KEY is missing (caught by env schema)', async () => {
-    delete process.env.ALCHEMY_API_KEY;
+  it('fails to load when DISCORD_BOT_TOKEN is missing (caught by env schema)', async () => {
+    delete process.env.DISCORD_BOT_TOKEN;
 
-    await expect(import('../../../src/workers/typescript/onchain-data.worker.js')).rejects.toThrow(/ALCHEMY_API_KEY/);
+    await expect(import('../../../src/workers/typescript/community.worker.js')).rejects.toThrow(/DISCORD_BOT_TOKEN/);
   });
 
-  it('fails to load when BLOCKFROST_API_KEY is missing (caught by env schema)', async () => {
-    delete process.env.BLOCKFROST_API_KEY;
+  it('polls the community queue with a single activity slot — the doc\'s "one snapshot fetch at a time"', async () => {
+    const { Worker, NativeConnection } = await import('@temporalio/worker');
+    vi.mocked(NativeConnection.connect).mockResolvedValue({} as never);
+    const workerRun = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(Worker.create).mockResolvedValue({ run: workerRun } as never);
 
-    await expect(import('../../../src/workers/typescript/onchain-data.worker.js')).rejects.toThrow(
-      /BLOCKFROST_API_KEY/,
+    const { runCommunityWorker } = await import('../../../src/workers/typescript/community.worker.js');
+    await runCommunityWorker();
+
+    expect(COMMUNITY_WORKER_MAX_CONCURRENT_ACTIVITIES).toBe(1);
+    expect(Worker.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskQueue: 'community-worker',
+        maxConcurrentActivityTaskExecutions: 1,
+      }),
     );
+    expect(workerRun).toHaveBeenCalled();
   });
 });

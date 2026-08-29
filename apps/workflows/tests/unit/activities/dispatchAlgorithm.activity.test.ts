@@ -20,6 +20,7 @@ describe('dispatchAlgorithm activity', () => {
     process.env.ONCHAIN_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/reputo_onchain_test';
     process.env.ALCHEMY_API_KEY = 'test-alchemy-key';
     process.env.BLOCKFROST_API_KEY = 'test-blockfrost-key';
+    process.env.DISCORD_BOT_TOKEN = 'test-discord-bot-token';
     process.env.DEEP_ID_ISSUER_URL = 'https://identity.staging.deep-id.ai';
     process.env.DEEP_ID_APP_BASE_URL = 'https://app.staging.deep-id.ai';
     process.env.DEEP_ID_CLIENT_ID = 'test-deepid-client';

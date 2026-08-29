@@ -1,9 +1,11 @@
 # @reputo/workflows
 
-Temporal workers that run snapshot execution and reputation algorithms off the request path. Three
+Temporal workers that run snapshot execution and reputation algorithms off the request path. Four
 workers: **orchestrator** (resolves snapshot dependencies and coordinates the run), **algorithm**
-(runs TypeScript compute functions, reading/writing snapshot data through S3), and **onchain-data**
-(resolves the onchain-data dependency on its own task queue).
+(runs TypeScript compute functions, reading/writing snapshot data through S3), **onchain-data**
+(resolves the onchain-data dependency on its own task queue), and **community** (fetches and
+freezes community platform datasets on a single-slot task queue, so one snapshot fetch runs at a
+time).
 
 The worker has no application-database connection: snapshot reads and writes are proxied to the API's
 Temporal activities on the `api-snapshot-activities` task queue (defined in `@reputo/contracts`). That
@@ -16,7 +18,7 @@ The `workflows/` and `activities/` subtrees each have their own `AGENTS.md`.
 ## How to run and test
 
 ```bash
-pnpm --filter @reputo/workflows dev                 # build deps, watch all three workers
-pnpm --filter @reputo/workflows dev:orchestrator    # one worker (also dev:algorithm-typescript, dev:onchain-data)
+pnpm --filter @reputo/workflows dev                 # build deps, watch all four workers
+pnpm --filter @reputo/workflows dev:orchestrator    # one worker (also dev:algorithm-typescript, dev:onchain-data, dev:community)
 pnpm --filter @reputo/workflows test                # Vitest
 ```

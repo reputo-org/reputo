@@ -24,6 +24,9 @@ export default createVitestConfig({
   resolve: {
     alias: {
       '@reputo/reputation-algorithms': resolve(__dirname, '../../packages/reputation-algorithms/src/index.ts'),
+      // Resolved to source so the suite's `undici` mock reaches the Discord
+      // adapter's transport.
+      '@reputo/community-api': resolve(__dirname, '../../packages/community-api/src/index.ts'),
     },
   },
 });
