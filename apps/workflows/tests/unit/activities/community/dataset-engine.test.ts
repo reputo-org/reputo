@@ -241,6 +241,83 @@ describe('freezeCommunityDataset', () => {
     expect(storage.readObject(`snapshots/${SNAPSHOT}/community_testplat/activities.parquet`)).toEqual(frozenBytes);
   });
 
+  it('sweeps staging segments an earlier attempt left behind after committing', async () => {
+    const { adapter } = scriptedAdapter({
+      r1: { batches: [{ records: [record()], cursor: 'c-1' }], coverage: { resource: 'r1', status: 'complete' } },
+    });
+    const { storage, run } = makeRun({ adapter, resourceIds: ['r1'] });
+    await run();
+
+    // Cleanup is best effort, so a committed dataset can still have leftovers.
+    const leftover = `snapshots/${SNAPSHOT}/community_testplat/staging/r1.00000.ndjson.gz`;
+    storage.seed(leftover, 'leftover');
+
+    const rerun = await run();
+
+    expect(rerun.committed).toBe(false);
+    expect(storage.has(leftover)).toBe(false);
+  });
+
+  it('keeps a committed dataset when staging cleanup fails', async () => {
+    const { adapter } = scriptedAdapter({
+      r1: { batches: [{ records: [record()], cursor: 'c-1' }], coverage: { resource: 'r1', status: 'complete' } },
+    });
+    const storage = createInMemoryStorage();
+    const warn = vi.fn();
+    vi.spyOn(storage, 'deleteObjects').mockRejectedValue(new Error('s3 is unavailable'));
+
+    const result = await freezeCommunityDataset({
+      snapshotId: SNAPSHOT,
+      platform: 'testplat',
+      window: WINDOW,
+      resourceIds: ['r1'],
+      adapter,
+      storage: storage as unknown as Storage,
+      bucket: TEST_BUCKET,
+      requestStats: { requests: 0, rateLimitWaits: 0, rateLimitWaitMs: 0 },
+      progress: { heartbeat: vi.fn() },
+      logger: { info: vi.fn(), warn },
+    });
+
+    expect(result.committed).toBe(true);
+    expect(storage.has(`snapshots/${SNAPSHOT}/community_testplat/manifest.json`)).toBe(true);
+    expect(warn).toHaveBeenCalledWith(
+      'Community staging cleanup failed',
+      expect.objectContaining({ platform: 'testplat' }),
+    );
+  });
+
+  it('reports the surviving segments when only some deletions fail', async () => {
+    const { adapter } = scriptedAdapter({
+      r1: { batches: [{ records: [record()], cursor: 'c-1' }], coverage: { resource: 'r1', status: 'complete' } },
+    });
+    const storage = createInMemoryStorage();
+    const warn = vi.fn();
+    vi.spyOn(storage, 'deleteObjects').mockResolvedValue({
+      deleted: [],
+      errors: [{ key: 'staging/r1.00000.ndjson.gz', message: 'AccessDenied' }],
+    });
+
+    const result = await freezeCommunityDataset({
+      snapshotId: SNAPSHOT,
+      platform: 'testplat',
+      window: WINDOW,
+      resourceIds: ['r1'],
+      adapter,
+      storage: storage as unknown as Storage,
+      bucket: TEST_BUCKET,
+      requestStats: { requests: 0, rateLimitWaits: 0, rateLimitWaitMs: 0 },
+      progress: { heartbeat: vi.fn() },
+      logger: { info: vi.fn(), warn },
+    });
+
+    expect(result.committed).toBe(true);
+    expect(warn).toHaveBeenCalledWith(
+      'Some community staging segments survived cleanup',
+      expect.objectContaining({ deleted: 0, failed: 1 }),
+    );
+  });
+
   it('refuses a committed dataset whose content hash no longer matches', async () => {
     const { adapter } = scriptedAdapter({
       r1: { batches: [{ records: [record()], cursor: 'c-1' }], coverage: { resource: 'r1', status: 'complete' } },

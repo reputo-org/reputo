@@ -218,6 +218,9 @@ export async function freezeCommunityDataset(
   const existing = await readCommittedManifest(storage, bucket, snapshotId, platform);
   if (existing) {
     logger.info('Community dataset already committed and verified; skipping fetch', { snapshotId, platform });
+    // Sweep again: cleanup is best effort, so an earlier attempt may have
+    // committed the dataset and still left staging segments behind.
+    await clearStagingSegments({ snapshotId, platform, storage, bucket, logger });
     return { committed: false, manifest: existing };
   }
 
@@ -465,21 +468,60 @@ async function exportAndCommit(args: {
     contentType: 'application/json',
   });
 
-  const stagingKeys = await storage.listObjectsByPrefix({
-    bucket,
-    prefix: getCommunityStagingPrefix(snapshotId, platform),
-  });
-  if (stagingKeys.length > 0) {
-    await storage.deleteObjects({ bucket, keys: stagingKeys });
-  }
-
   logger.info('Community dataset committed', {
     snapshotId,
     platform,
     activityRows,
     coverageRows: coverages.length,
-    stagingSegmentsDeleted: stagingKeys.length,
   });
 
+  await clearStagingSegments({ snapshotId, platform, storage, bucket, logger });
+
   return manifest;
+}
+
+/**
+ * Deletes the resumable staging segments once the dataset is committed. Best
+ * effort by design: the manifest already exists, so failing here would fail a
+ * successful snapshot. Whatever survives is swept by the next attempt (which
+ * runs this on the already-committed path) and, ultimately, by the snapshot's
+ * own deletion — staging lives under the snapshot prefix.
+ */
+async function clearStagingSegments(args: {
+  snapshotId: string;
+  platform: string;
+  storage: Storage;
+  bucket: string;
+  logger: CommunityEngineLogger;
+}): Promise<void> {
+  const { snapshotId, platform, storage, bucket, logger } = args;
+
+  try {
+    const keys = await storage.listObjectsByPrefix({
+      bucket,
+      prefix: getCommunityStagingPrefix(snapshotId, platform),
+    });
+    if (keys.length === 0) {
+      return;
+    }
+
+    const { deleted, errors } = await storage.deleteObjects({ bucket, keys });
+    if (errors.length > 0) {
+      logger.warn('Some community staging segments survived cleanup', {
+        snapshotId,
+        platform,
+        deleted: deleted.length,
+        failed: errors.length,
+      });
+      return;
+    }
+
+    logger.info('Community staging segments deleted', { snapshotId, platform, deleted: deleted.length });
+  } catch (error) {
+    logger.warn('Community staging cleanup failed', {
+      snapshotId,
+      platform,
+      error: (error as Error).message,
+    });
+  }
 }
