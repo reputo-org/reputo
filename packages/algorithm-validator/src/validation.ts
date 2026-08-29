@@ -216,6 +216,20 @@ function buildFieldSchema(input: any, label: string): z.ZodType {
 
     case 'array': {
       const arrayInput = input as ArrayIoItem;
+
+      if (getArrayItemType(arrayInput, input) === 'string') {
+        let strArrSchema = z.array(z.string().trim().min(1, `${label} entries must not be empty`));
+        if (arrayInput.minItems ?? input.minItems) {
+          const minItems = arrayInput.minItems ?? input.minItems;
+          strArrSchema = strArrSchema.min(minItems, `${label} must have at least ${minItems} item(s)`);
+        }
+        const uniqueSchema = strArrSchema.refine((items) => new Set(items).size === items.length, {
+          message: `${label} must not contain duplicate entries`,
+        });
+        schema = arrayInput.required === false ? uniqueSchema.optional() : uniqueSchema;
+        break;
+      }
+
       const itemProps = getArrayItemProperties(arrayInput, input);
       let arrSchema = z.array(buildObjectSchema(itemProps, label));
       arrSchema = applyArrayConstraints({
@@ -341,6 +355,15 @@ function buildObjectPropertySchema(prop: ObjectPropertyParam): z.ZodType {
       if (prop.type === 'integer') {
         n = n.int(`${propLabel} must be a whole number`);
       }
+      if (typeof prop.min === 'number') {
+        n =
+          prop.exclusiveMin === true
+            ? n.gt(prop.min, `${propLabel} must be greater than ${prop.min}`)
+            : n.min(prop.min, `${propLabel} must be at least ${prop.min}`);
+      }
+      if (typeof prop.max === 'number') {
+        n = n.max(prop.max, `${propLabel} must be at most ${prop.max}`);
+      }
       const preprocessed = z.preprocess(
         (value) => {
           if (value === '' || value === null || value === undefined) {
@@ -382,10 +405,19 @@ function buildObjectPropertySchema(prop: ObjectPropertyParam): z.ZodType {
 }
 
 function getArrayItemProperties(
-  arrayLike: { item?: { properties?: ObjectPropertyParam[] } },
+  arrayLike: { item?: { type?: string; properties?: ObjectPropertyParam[] } },
   formSchemaLike?: { itemProperties?: ObjectPropertyParam[] },
 ): ObjectPropertyParam[] {
-  return arrayLike.item?.properties ?? formSchemaLike?.itemProperties ?? [];
+  return arrayLike.item && 'properties' in arrayLike.item
+    ? (arrayLike.item.properties ?? [])
+    : (formSchemaLike?.itemProperties ?? []);
+}
+
+function getArrayItemType(
+  arrayLike: { item?: { type?: string } },
+  formSchemaLike?: { itemType?: string },
+): string | undefined {
+  return arrayLike.item?.type ?? formSchemaLike?.itemType;
 }
 
 function buildObjectSchema(itemProps: ObjectPropertyParam[], parentLabel: string): z.ZodType<Record<string, unknown>> {
