@@ -10,6 +10,7 @@ import { CommunityController } from './community.controller';
 import { CommunityService } from './community.service';
 import { CommunityAuditRepository } from './community-audit.repository';
 import { CommunityConnectionRepository } from './community-connection.repository';
+import { CommunityInputValidationService } from './community-input-validation.service';
 import { CommunityInstallStateService } from './community-install-state.service';
 
 @Module({
@@ -19,6 +20,7 @@ import { CommunityInstallStateService } from './community-install-state.service'
     CommunityConnectionRepository,
     CommunityAuditRepository,
     CommunityInstallStateService,
+    CommunityInputValidationService,
     CommunityService,
     RolesGuard,
     {
@@ -28,6 +30,6 @@ import { CommunityInstallStateService } from './community-install-state.service'
         createDiscordClient(configService.get<DiscordClientConfig>('community.discord') as DiscordClientConfig, logger),
     },
   ],
-  exports: [CommunityConnectionRepository],
+  exports: [CommunityConnectionRepository, CommunityInputValidationService],
 })
 export class CommunityModule {}

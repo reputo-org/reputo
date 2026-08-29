@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { CommunityModule } from '../community/community.module';
 import { SnapshotModule } from '../snapshot/snapshot.module';
 import { ApiWorkerBootstrap } from './api-worker.bootstrap';
 import { TemporalModule } from './temporal.module';
@@ -12,7 +13,7 @@ import { TemporalModule } from './temporal.module';
  * its own module keeps the dependency graph one-way.
  */
 @Module({
-  imports: [ConfigModule, SnapshotModule, TemporalModule],
+  imports: [ConfigModule, CommunityModule, SnapshotModule, TemporalModule],
   providers: [ApiWorkerBootstrap],
 })
 export class ApiWorkerModule {}

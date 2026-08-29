@@ -31,6 +31,7 @@ describe('ApiWorkerBootstrap', () => {
   let configValues: Record<string, string | undefined>;
   let configService: ConfigService;
   let snapshotService: { findByIdOrNull: ReturnType<typeof vi.fn>; applyExternalUpdate: ReturnType<typeof vi.fn> };
+  let communityConnections: { findById: ReturnType<typeof vi.fn> };
   let connection: { close: ReturnType<typeof vi.fn> };
   let worker: { run: ReturnType<typeof vi.fn>; shutdown: ReturnType<typeof vi.fn> };
   let workerStatus: ApiWorkerStatus;
@@ -51,6 +52,8 @@ describe('ApiWorkerBootstrap', () => {
       findByIdOrNull: vi.fn(),
       applyExternalUpdate: vi.fn(),
     };
+
+    communityConnections = { findById: vi.fn() };
 
     connection = { close: vi.fn().mockResolvedValue(undefined) };
     // Like the real SDK, run() resolves only once shutdown() is requested.
@@ -74,7 +77,13 @@ describe('ApiWorkerBootstrap', () => {
   let resolveRun: (() => void) | undefined;
 
   function createBootstrap() {
-    return new ApiWorkerBootstrap(logger as never, configService, snapshotService as never, workerStatus);
+    return new ApiWorkerBootstrap(
+      logger as never,
+      configService,
+      snapshotService as never,
+      communityConnections as never,
+      workerStatus,
+    );
   }
 
   it('starts a worker on bootstrap with the configured task queue', async () => {

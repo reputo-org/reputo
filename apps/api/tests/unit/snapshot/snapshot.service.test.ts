@@ -4,6 +4,7 @@ import { validateAlgorithmPreset } from '@reputo/algorithm-validator';
 import { getAlgorithmDefinition } from '@reputo/reputation-algorithms';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AlgorithmPresetRepository } from '../../../src/algorithm-preset/algorithm-preset.repository';
+import type { CommunityInputValidationService } from '../../../src/community/community-input-validation.service';
 import { SnapshotWorkflowStartException } from '../../../src/shared/exceptions';
 import type { CreateSnapshotDto, ListSnapshotsQueryDto } from '../../../src/snapshot/dto';
 import type { SnapshotRepository } from '../../../src/snapshot/snapshot.repository';
@@ -43,6 +44,7 @@ describe('SnapshotService', () => {
   };
   let mockStorageService: StorageService;
   let mockConfigService: ConfigService;
+  let mockCommunityInputValidation: CommunityInputValidationService;
   const mockLogger = {
     info: vi.fn(),
     error: vi.fn(),
@@ -96,6 +98,10 @@ describe('SnapshotService', () => {
       }),
     } as unknown as ConfigService;
 
+    mockCommunityInputValidation = {
+      validate: vi.fn().mockResolvedValue([]),
+    } as unknown as CommunityInputValidationService;
+
     vi.mocked(getAlgorithmDefinition).mockReturnValue(
       JSON.stringify({
         key: 'test_key',
@@ -120,6 +126,7 @@ describe('SnapshotService', () => {
       mockAlgorithmPresetRepository,
       mockTemporalService as unknown as TemporalService,
       mockStorageService,
+      mockCommunityInputValidation,
       mockConfigService,
     );
   });

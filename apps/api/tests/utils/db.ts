@@ -43,6 +43,7 @@ export async function truncateAllTables(dataSource: DataSource): Promise<void> {
     'oauth_consent_grants',
     'community_connection_audit',
     'community_connections',
+    'snapshot_publications',
     'snapshot_outputs',
     'snapshots',
     'algorithm_preset_inputs',
@@ -57,5 +58,11 @@ export async function truncateAllTables(dataSource: DataSource): Promise<void> {
  * scope of the original Prisma-era e2e suites.
  */
 export async function truncateBusinessTables(dataSource: DataSource): Promise<void> {
-  await runTruncate(dataSource, ['snapshot_outputs', 'snapshots', 'algorithm_preset_inputs', 'algorithm_presets']);
+  await runTruncate(dataSource, [
+    'snapshot_publications',
+    'snapshot_outputs',
+    'snapshots',
+    'algorithm_preset_inputs',
+    'algorithm_presets',
+  ]);
 }

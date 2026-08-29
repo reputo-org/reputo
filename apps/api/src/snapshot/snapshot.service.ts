@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { UpdateSnapshotInput } from '@reputo/contracts';
+import type { RecordSnapshotPublicationInput, UpdateSnapshotInput } from '@reputo/contracts';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { AlgorithmPresetRepository } from '../algorithm-preset/algorithm-preset.repository';
+import { CommunityInputValidationService } from '../community/community-input-validation.service';
 import { SnapshotWorkflowStartException, throwNotFoundError } from '../shared/exceptions';
 import { getAlgorithmDefinitionOrThrow, validateAlgorithmInputs } from '../shared/utils';
 import { StorageService } from '../storage/storage.service';
@@ -32,6 +33,7 @@ export class SnapshotService {
     private readonly algorithmPresetRepository: AlgorithmPresetRepository,
     private readonly temporalService: TemporalService,
     private readonly storageService: StorageService,
+    private readonly communityInputValidation: CommunityInputValidationService,
     configService: ConfigService,
   ) {
     this.storageMaxSizeBytes = configService.get<number>('storage.maxSizeBytes') as number;
@@ -51,6 +53,7 @@ export class SnapshotService {
       storageService: this.storageService,
       storageMaxSizeBytes: this.storageMaxSizeBytes,
       storageContentTypeAllowlist: this.storageContentTypeAllowlist,
+      communityValidation: this.communityInputValidation,
     });
 
     const frozenAlgorithmPreset: AlgorithmPresetFrozen = {
@@ -238,6 +241,30 @@ export class SnapshotService {
     );
 
     return result.row;
+  }
+
+  /**
+   * Upserts one publication ledger row from the Temporal
+   * `recordSnapshotPublication` activity. Returns `false` when the snapshot no
+   * longer exists; the caller surfaces that as a non-retryable failure.
+   */
+  async recordPublication(input: RecordSnapshotPublicationInput): Promise<boolean> {
+    const row = await this.repository.upsertPublication(input.snapshotId, {
+      algorithmKey: input.algorithmKey,
+      status: input.status,
+      counts: input.counts,
+      error: input.error,
+    });
+    if (!row) {
+      this.logger.warn({ snapshotId: input.snapshotId }, 'Publication record skipped — snapshot not found');
+      return false;
+    }
+
+    this.logger.info(
+      { snapshotId: input.snapshotId, algorithmKey: input.algorithmKey, status: input.status },
+      'Snapshot publication recorded',
+    );
+    return true;
   }
 
   async deleteById(id: string) {

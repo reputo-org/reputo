@@ -65,7 +65,11 @@ describe('AlgorithmPresetService.deletePresetWithSnapshots (transaction)', () =>
 
     const mockConfig = {
       get: vi.fn().mockReturnValue(undefined),
-    } as unknown as Parameters<typeof AlgorithmPresetService.prototype.constructor>[6];
+    } as unknown as Parameters<typeof AlgorithmPresetService.prototype.constructor>[7];
+
+    const mockCommunityInputValidation = {
+      validate: vi.fn().mockResolvedValue([]),
+    } as unknown as import('../../../src/community/community-input-validation.service').CommunityInputValidationService;
 
     service = new AlgorithmPresetService(
       mockLogger,
@@ -73,6 +77,7 @@ describe('AlgorithmPresetService.deletePresetWithSnapshots (transaction)', () =>
       mockStorage,
       mockSnapshotRepository,
       mockTemporal,
+      mockCommunityInputValidation,
       mockDataSource,
       mockConfig,
     );

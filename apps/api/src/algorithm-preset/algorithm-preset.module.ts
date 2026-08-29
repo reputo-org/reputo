@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { CommunityModule } from '../community/community.module';
 import { AlgorithmPresetEntity, AlgorithmPresetInputEntity } from '../persistence';
 import { SnapshotModule } from '../snapshot/snapshot.module';
 import { StorageModule } from '../storage/storage.module';
@@ -13,6 +14,7 @@ import { AlgorithmPresetService } from './algorithm-preset.service';
     TypeOrmModule.forFeature([AlgorithmPresetEntity, AlgorithmPresetInputEntity]),
     StorageModule,
     TemporalModule,
+    CommunityModule,
     forwardRef(() => SnapshotModule),
   ],
   controllers: [AlgorithmPresetController],

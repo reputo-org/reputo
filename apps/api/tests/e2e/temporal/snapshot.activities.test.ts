@@ -4,7 +4,8 @@ import { MockActivityEnvironment } from '@temporalio/testing';
 import { DataSource } from 'typeorm';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ENTITIES, SnapshotEntity, SnapshotOutputEntity } from '../../../src/persistence';
+import { CommunityConnectionRepository } from '../../../src/community/community-connection.repository';
+import { CommunityConnectionEntity, ENTITIES, SnapshotEntity, SnapshotOutputEntity } from '../../../src/persistence';
 import { SnapshotRepository } from '../../../src/snapshot/snapshot.repository';
 import { SnapshotService } from '../../../src/snapshot/snapshot.service';
 import { createSnapshotActivities } from '../../../src/temporal/snapshot.activities';
@@ -57,9 +58,12 @@ describe('API snapshot activities (integration)', () => {
       listObjectsByPrefix: vi.fn().mockResolvedValue([]),
       deleteObjects: vi.fn().mockResolvedValue({ deleted: [], errors: [] }),
     } as unknown as ConstructorParameters<typeof SnapshotService>[4];
+    const communityInputValidation = {
+      validate: vi.fn().mockResolvedValue([]),
+    } as unknown as ConstructorParameters<typeof SnapshotService>[5];
     const configService = {
       get: vi.fn(() => undefined),
-    } as unknown as ConstructorParameters<typeof SnapshotService>[5];
+    } as unknown as ConstructorParameters<typeof SnapshotService>[6];
 
     service = new SnapshotService(
       logger as never,
@@ -67,9 +71,13 @@ describe('API snapshot activities (integration)', () => {
       algorithmPresetRepository,
       temporalService,
       storageService,
+      communityInputValidation,
       configService,
     );
-    activities = createSnapshotActivities(service);
+    activities = createSnapshotActivities(
+      service,
+      new CommunityConnectionRepository(dataSource.getRepository(CommunityConnectionEntity)),
+    );
   }, 120_000);
 
   beforeEach(async () => {
@@ -274,6 +282,108 @@ describe('API snapshot activities (integration)', () => {
       }
 
       expect(received).toContain(snapshot.id);
+    });
+  });
+
+  describe('recordSnapshotPublication', () => {
+    it('inserts a pending row, then upserts the same row to sent with counts', async () => {
+      const { snapshot } = await seedSnapshot();
+
+      await env.run(activities.recordSnapshotPublication, {
+        snapshotId: snapshot.id,
+        algorithmKey: 'discord_engagement',
+        status: 'pending',
+      });
+      await env.run(activities.recordSnapshotPublication, {
+        snapshotId: snapshot.id,
+        algorithmKey: 'discord_engagement',
+        status: 'sent',
+        counts: { posted: 3, ok: 2, failed: 0, dropped: 1, skipped: 0 },
+      });
+
+      const rows = await dataSource.query(
+        'SELECT algorithm_key, status, counts, error FROM snapshot_publications WHERE snapshot_id = $1',
+        [snapshot.id],
+      );
+      expect(rows).toEqual([
+        {
+          algorithm_key: 'discord_engagement',
+          status: 'sent',
+          counts: { posted: 3, ok: 2, failed: 0, dropped: 1, skipped: 0 },
+          error: null,
+        },
+      ]);
+    });
+
+    it('records a failed publication with its safe error and clears stale counts', async () => {
+      const { snapshot } = await seedSnapshot();
+
+      await env.run(activities.recordSnapshotPublication, {
+        snapshotId: snapshot.id,
+        algorithmKey: 'discord_engagement',
+        status: 'pending',
+      });
+      await env.run(activities.recordSnapshotPublication, {
+        snapshotId: snapshot.id,
+        algorithmKey: 'discord_engagement',
+        status: 'failed',
+        error: 'DeepID rejected the request',
+      });
+
+      const rows = await dataSource.query(
+        'SELECT status, counts, error FROM snapshot_publications WHERE snapshot_id = $1',
+        [snapshot.id],
+      );
+      expect(rows).toEqual([{ status: 'failed', counts: null, error: 'DeepID rejected the request' }]);
+    });
+
+    it('throws non-retryable ApplicationFailure when the snapshot is missing', async () => {
+      const error = await env
+        .run(activities.recordSnapshotPublication, {
+          snapshotId: randomUUIDv7(),
+          algorithmKey: 'discord_engagement',
+          status: 'pending',
+        })
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(ApplicationFailure);
+      expect((error as ApplicationFailure).nonRetryable).toBe(true);
+    });
+  });
+
+  describe('getCommunityConnection', () => {
+    it('returns the connection metadata without credential fields', async () => {
+      const repo = dataSource.getRepository(CommunityConnectionEntity);
+      const saved = await repo.save(
+        repo.create({
+          platform: 'discord',
+          externalId: 'guild-1',
+          name: 'SNET',
+          status: 'active',
+          credentialsCiphertext: 'sealed-secret',
+        }),
+      );
+
+      const result = await env.run(activities.getCommunityConnection, { connectionId: saved.id });
+
+      expect(result).toEqual({
+        id: saved.id,
+        platform: 'discord',
+        externalId: 'guild-1',
+        name: 'SNET',
+        status: 'active',
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String),
+      });
+      expect(JSON.stringify(result)).not.toContain('sealed-secret');
+    });
+
+    it('throws non-retryable ApplicationFailure for a missing connection', async () => {
+      const error = await env.run(activities.getCommunityConnection, { connectionId: randomUUIDv7() }).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ApplicationFailure);
+      expect((error as ApplicationFailure).nonRetryable).toBe(true);
+      expect((error as ApplicationFailure).type).toBe('CommunityConnectionNotFoundError');
     });
   });
 });

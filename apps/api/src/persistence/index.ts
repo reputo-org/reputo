@@ -10,6 +10,7 @@ export {
   OAuthUserEntity,
   SnapshotEntity,
   SnapshotOutputEntity,
+  SnapshotPublicationEntity,
 } from './entities';
 export { SNAPSHOT_UPDATES_CHANNEL, SnapshotListenerService } from './snapshot-listener.service';
 export { PersistenceModule } from './typeorm.module';
