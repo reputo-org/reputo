@@ -20,6 +20,9 @@ const CHANNELS = [
 ];
 const PROBE = { resourceCount: 2, sampledResourceId: '1', sampledRecordCount: 1 };
 
+/** `lastCheckedAt` is stamped by the Postgres clock, which can drift a little from this process's. */
+const DB_CLOCK_SKEW_MS = 5_000;
+
 const discord = {
   buildInstallUrl: vi.fn(
     (state: string, guildId?: string) =>
@@ -126,10 +129,14 @@ describe('Community connections e2e', () => {
     });
 
     it('reports when the platform last confirmed the connection', async () => {
+      const before = Date.now();
       const { connection } = await connect();
+      const after = Date.now();
 
-      expect(Date.parse(connection.lastCheckedAt)).not.toBeNaN();
-      expect(Date.parse(connection.lastCheckedAt)).toBeLessThanOrEqual(Date.now());
+      const lastCheckedAt = Date.parse(connection.lastCheckedAt);
+      expect(lastCheckedAt).not.toBeNaN();
+      expect(lastCheckedAt).toBeGreaterThanOrEqual(before - DB_CLOCK_SKEW_MS);
+      expect(lastCheckedAt).toBeLessThanOrEqual(after + DB_CLOCK_SKEW_MS);
     });
 
     it('redirects with an invalid_state error when the state is missing, forged, or replayed', async () => {

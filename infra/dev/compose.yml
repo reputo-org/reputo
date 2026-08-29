@@ -140,6 +140,7 @@ x-workflows-env: &workflows-env
     TEMPORAL_ALGORITHM_TYPESCRIPT_TASK_QUEUE:
     TEMPORAL_ALGORITHM_PYTHON_TASK_QUEUE:
     TEMPORAL_ONCHAIN_DATA_TASK_QUEUE:
+    TEMPORAL_COMMUNITY_TASK_QUEUE:
     AWS_REGION: '${AWS_REGION:?missing AWS_REGION}'
     AWS_ACCESS_KEY_ID: minio
     AWS_SECRET_ACCESS_KEY: minio12345
@@ -171,6 +172,11 @@ x-workflows-env: &workflows-env
     DEEP_ID_RETRY_MAX_ATTEMPTS:
     DEEP_ID_RETRY_BASE_DELAY_MS:
     DEEP_ID_RETRY_MAX_DELAY_MS:
+    DISCORD_BOT_TOKEN: '${DISCORD_BOT_TOKEN:?missing DISCORD_BOT_TOKEN}'
+    COMMUNITY_API_REQUEST_TIMEOUT_MS:
+    COMMUNITY_API_RETRY_MAX_ATTEMPTS:
+    COMMUNITY_API_RETRY_BASE_DELAY_MS:
+    COMMUNITY_API_RETRY_MAX_DELAY_MS:
 
 ################################################################################
 # Networks / volumes
@@ -439,6 +445,18 @@ services:
             temporal:
                 condition: service_healthy
             onchain-data-postgresql:
+                condition: service_healthy
+            minio-init:
+                condition: service_completed_successfully
+        environment: *workflows-env
+
+    community-worker:
+        <<: *dev-service
+        container_name: community-worker
+        profiles: [apps]
+        command: pnpm --filter @reputo/workflows dev:community
+        depends_on:
+            temporal:
                 condition: service_healthy
             minio-init:
                 condition: service_completed_successfully

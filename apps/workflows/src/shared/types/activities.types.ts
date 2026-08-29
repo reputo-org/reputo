@@ -55,6 +55,12 @@ export interface OrchestratorDependencyResolverContext {
   storageConfig: StorageConfig;
 }
 
+/** Context for the community dataset dependency activities on the community worker. */
+export interface CommunityDependencyResolverContext {
+  storage: Storage;
+  storageConfig: StorageConfig;
+}
+
 export interface DependencyResolverActivities {
   resolveDependency: (input: ResolveDependencyInput) => Promise<ResolveDependencyResult>;
 }

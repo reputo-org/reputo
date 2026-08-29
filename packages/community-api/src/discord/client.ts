@@ -1,23 +1,14 @@
-import {
-  CommunityAuthError,
-  CommunityContractError,
-  CommunityHttpError,
-  CommunityPermissionError,
-} from '../shared/errors.js';
+import { CommunityAuthError, CommunityHttpError, CommunityPermissionError } from '../shared/errors.js';
 import { type CommunityLogger, executeRequest } from '../shared/http.js';
 import type { CommunityProbeResult, CommunityResource } from '../shared/types.js';
-import { buildInstallUrl, extractInstalledGuild, hasRequiredMessageFields, toCommunityResources } from './transform.js';
+import { createDiscordAdapter } from './adapter.js';
+import { buildInstallUrl, extractInstalledGuild } from './transform.js';
 import {
   DISCORD_API_BASE_URL,
   type DiscordClientConfig,
   type DiscordInstalledGuild,
-  type DiscordRawChannel,
-  type DiscordRawMessage,
   type DiscordTokenResponse,
 } from './types.js';
-
-/** Channels the probe will try before concluding that nothing is readable. */
-const PROBE_CHANNEL_LIMIT = 10;
 
 export interface DiscordClient {
   /**
@@ -38,15 +29,9 @@ export interface DiscordClient {
 
 export function createDiscordClient(config: DiscordClientConfig, logger: CommunityLogger): DiscordClient {
   const botHeaders = { authorization: `Bot ${config.botToken}` };
-
-  const listRawChannels = async (guildId: string): Promise<DiscordRawChannel[]> => {
-    const response = await executeRequest<DiscordRawChannel[]>(logger, config, {
-      method: 'GET',
-      url: `${DISCORD_API_BASE_URL}/guilds/${encodeURIComponent(guildId)}/channels`,
-      headers: botHeaders,
-    });
-    return response.data ?? [];
-  };
+  // The read side is the adapter; the client adds the connect-flow calls that
+  // need the OAuth application credentials.
+  const adapter = createDiscordAdapter(config, logger);
 
   return {
     buildInstallUrl(state, guildId) {
@@ -80,48 +65,11 @@ export function createDiscordClient(config: DiscordClientConfig, logger: Communi
     },
 
     async listResources(guildId) {
-      return toCommunityResources(await listRawChannels(guildId));
+      return adapter.listResources(guildId);
     },
 
     async probe(guildId) {
-      const resources = toCommunityResources(await listRawChannels(guildId));
-
-      for (const resource of resources.slice(0, PROBE_CHANNEL_LIMIT)) {
-        try {
-          const response = await executeRequest<DiscordRawMessage[]>(logger, config, {
-            method: 'GET',
-            url: `${DISCORD_API_BASE_URL}/channels/${encodeURIComponent(resource.id)}/messages?limit=1`,
-            headers: botHeaders,
-          });
-          const messages = response.data ?? [];
-
-          // The bot runs without privileged intents, so the probe proves the
-          // fetch's fields arrive over REST before a snapshot depends on them.
-          if (!hasRequiredMessageFields(messages)) {
-            throw new CommunityContractError(
-              'Discord returned messages without an id, timestamp, or author id; the fetch cannot score this server.',
-            );
-          }
-
-          return {
-            resourceCount: resources.length,
-            sampledResourceId: resource.id,
-            sampledRecordCount: messages.length,
-          };
-        } catch (error) {
-          // A channel the bot cannot read is normal; only a guild with no
-          // readable channel at all is a failed probe.
-          if (error instanceof CommunityPermissionError) continue;
-          throw error;
-        }
-      }
-
-      throw new CommunityPermissionError(
-        resources.length === 0
-          ? 'The bot can see no text, announcement, or forum channels in this server.'
-          : 'The bot cannot read message history in any channel of this server.',
-        403,
-      );
+      return adapter.probe(guildId);
     },
 
     async leaveGuild(guildId) {

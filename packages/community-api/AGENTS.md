@@ -4,11 +4,6 @@ Framework-agnostic, read-only clients for the community platforms Reputo scores.
 No framework, no database, no `process.env` — the consuming app validates its
 env and passes the values to the client factory.
 
-It exists so the API and the workflow workers can talk to Discord (and later
-GitHub and Mattermost) through one narrow interface: build an install URL,
-exchange a callback code, list resources, probe capabilities. Adding a platform
-adds one folder behind the same shapes; the shared transport does not change.
-
 Public API is `src/index.ts`. `src/shared` holds the transport (undici, retry
 with exponential backoff and jitter, `retry-after` wins on a 429) and the typed
 errors every platform maps onto: `CommunityAuthError`,

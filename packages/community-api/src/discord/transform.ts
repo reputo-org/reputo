@@ -1,12 +1,20 @@
 import { CommunityContractError } from '../shared/errors.js';
+import {
+  type CommunityActivityRecord,
+  CommunityChatActivityType,
+  type CommunityFetchWindow,
+} from '../shared/records.js';
 import type { CommunityResource, CommunityResourceKind } from '../shared/types.js';
 import {
   DISCORD_AUTHORIZE_URL,
   DISCORD_BOT_PERMISSIONS,
   DiscordChannelType,
   type DiscordInstalledGuild,
+  DiscordMessageType,
   type DiscordRawChannel,
   type DiscordRawMessage,
+  type DiscordRawThread,
+  DiscordThreadType,
   type DiscordTokenResponse,
 } from './types.js';
 
@@ -99,4 +107,217 @@ export function hasRequiredMessageFields(messages: readonly DiscordRawMessage[])
       typeof message.timestamp === 'string' &&
       typeof message.author?.id === 'string',
   );
+}
+
+const DISCORD_EPOCH_MS = 1_420_070_400_000;
+
+/**
+ * The smallest snowflake a message created at `iso` can have. Passing it as a
+ * `before` cursor starts pagination exactly at the window end (exclusive), so
+ * the walk never touches messages created at or after the boundary.
+ */
+export function snowflakeForTimestamp(iso: string): string {
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) {
+    throw new CommunityContractError('Fetch window boundary is not a valid ISO timestamp.');
+  }
+  return String(BigInt(Math.max(0, ms - DISCORD_EPOCH_MS)) << 22n);
+}
+
+/** Half-open window membership: `start <= iso < end`. */
+export function isWithinWindow(iso: string, window: CommunityFetchWindow): boolean {
+  const ms = Date.parse(iso);
+  return !Number.isNaN(ms) && ms >= Date.parse(window.start) && ms < Date.parse(window.end);
+}
+
+function toUtcIso(timestamp: string): string | undefined {
+  const ms = Date.parse(timestamp);
+  return Number.isNaN(ms) ? undefined : new Date(ms).toISOString();
+}
+
+function sumReactionCounts(reactions: unknown): number {
+  if (!Array.isArray(reactions)) {
+    return 0;
+  }
+  let total = 0;
+  for (const reaction of reactions) {
+    const count = (reaction as { count?: unknown })?.count;
+    if (typeof count === 'number' && Number.isFinite(count) && count > 0) {
+      total += count;
+    }
+  }
+  return total;
+}
+
+function mentionedUsers(mentions: unknown): Array<{ id: string; bot: boolean }> {
+  if (!Array.isArray(mentions)) {
+    return [];
+  }
+  const byId = new Map<string, boolean>();
+  for (const mention of mentions) {
+    const id = (mention as { id?: unknown })?.id;
+    if (typeof id === 'string' && id.length > 0 && !byId.has(id)) {
+      byId.set(id, (mention as { bot?: unknown }).bot === true);
+    }
+  }
+  return [...byId.entries()].map(([id, bot]) => ({ id, bot }));
+}
+
+/**
+ * Maps one raw Discord message to canonical, content-free activity rows,
+ * keeping only rows whose defining timestamp falls inside the window.
+ *
+ * - `message`/`reply` and the derived `reaction_received` and
+ *   `mention_received` rows use the crawled message's creation time.
+ * - `reply_received` credits the replied-to author at the receiving message's
+ *   creation time (the doc's rule for received activities), so a reply to a
+ *   message outside the window yields no received row.
+ * - Only human-content message types (default, reply) produce rows; records
+ *   without a stable author id are dropped; self-mentions and self-reactions
+ *   are not filtered — daily caps bound them at scoring time.
+ */
+export function toActivityRecords(
+  raw: DiscordRawMessage,
+  resourceId: string,
+  window: CommunityFetchWindow,
+): CommunityActivityRecord[] {
+  const objectId = raw?.id;
+  const authorId = raw?.author?.id;
+  const occurredAt = typeof raw?.timestamp === 'string' ? toUtcIso(raw.timestamp) : undefined;
+  if (typeof objectId !== 'string' || typeof authorId !== 'string' || occurredAt === undefined) {
+    return [];
+  }
+
+  const isReply = raw.type === DiscordMessageType.reply;
+  if (raw.type !== DiscordMessageType.default && !isReply) {
+    return [];
+  }
+
+  const actorIsBot = raw.author?.bot === true;
+  const parent = raw.referenced_message ?? undefined;
+  const parentAuthorId = typeof parent?.author?.id === 'string' ? parent.author.id : undefined;
+  const records: CommunityActivityRecord[] = [];
+
+  const push = (record: CommunityActivityRecord) => {
+    if (isWithinWindow(record.occurredAt, window)) {
+      records.push(record);
+    }
+  };
+
+  push({
+    type: isReply ? CommunityChatActivityType.reply : CommunityChatActivityType.message,
+    actor: authorId,
+    counterparty: isReply ? (parentAuthorId ?? null) : null,
+    resource: resourceId,
+    objectId,
+    occurredAt,
+    count: 1,
+    actorIsBot,
+    deleted: false,
+  });
+
+  const reactionCount = sumReactionCounts(raw.reactions);
+  if (reactionCount > 0) {
+    push({
+      type: CommunityChatActivityType.reactionReceived,
+      actor: authorId,
+      counterparty: null,
+      resource: resourceId,
+      objectId,
+      occurredAt,
+      count: reactionCount,
+      actorIsBot,
+      deleted: false,
+    });
+  }
+
+  if (isReply && parentAuthorId !== undefined) {
+    const parentOccurredAt = typeof parent?.timestamp === 'string' ? toUtcIso(parent.timestamp) : undefined;
+    if (parentOccurredAt !== undefined) {
+      push({
+        type: CommunityChatActivityType.replyReceived,
+        actor: parentAuthorId,
+        counterparty: authorId,
+        resource: resourceId,
+        objectId,
+        occurredAt: parentOccurredAt,
+        count: 1,
+        actorIsBot: parent?.author?.bot === true,
+        deleted: false,
+      });
+    }
+  }
+
+  for (const mentioned of mentionedUsers(raw.mentions)) {
+    push({
+      type: CommunityChatActivityType.mentionReceived,
+      actor: mentioned.id,
+      counterparty: authorId,
+      resource: resourceId,
+      objectId,
+      occurredAt,
+      count: 1,
+      actorIsBot: mentioned.bot,
+      deleted: false,
+    });
+  }
+
+  return records;
+}
+
+/** A thread the crawl walks, with its archive time when the listing carries one. */
+export interface DiscordCrawlableThread {
+  id: string;
+  archiveTimestamp?: string;
+}
+
+/**
+ * Narrows a raw thread listing to the crawlable threads of one parent channel:
+ * public and announcement threads only — private threads are out of scope.
+ */
+export function toCrawlableThreads(threads: unknown, parentId: string): DiscordCrawlableThread[] {
+  if (!Array.isArray(threads)) {
+    return [];
+  }
+
+  const crawlable: DiscordCrawlableThread[] = [];
+  for (const thread of threads as DiscordRawThread[]) {
+    const isPublicType =
+      thread?.type === DiscordThreadType.publicThread || thread?.type === DiscordThreadType.announcementThread;
+    if (!isPublicType || typeof thread.id !== 'string' || thread.parent_id !== parentId) {
+      continue;
+    }
+
+    const archiveTimestamp = thread.thread_metadata?.archive_timestamp;
+    crawlable.push({
+      id: thread.id,
+      archiveTimestamp: typeof archiveTimestamp === 'string' ? archiveTimestamp : undefined,
+    });
+  }
+
+  return crawlable.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** Parsed channel fields the crawl needs; undefined when the payload lacks them. */
+export interface DiscordChannelMeta {
+  id: string;
+  guildId: string;
+  kind: CommunityResourceKind;
+}
+
+export function toChannelMeta(channel: DiscordRawChannel): DiscordChannelMeta | undefined {
+  if (
+    typeof channel?.id !== 'string' ||
+    typeof channel.guild_id !== 'string' ||
+    typeof channel.type !== 'number' ||
+    !CHANNEL_KIND_BY_TYPE.has(channel.type)
+  ) {
+    return undefined;
+  }
+
+  return {
+    id: channel.id,
+    guildId: channel.guild_id,
+    kind: CHANNEL_KIND_BY_TYPE.get(channel.type) as CommunityResourceKind,
+  };
 }

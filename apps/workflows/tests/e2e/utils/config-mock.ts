@@ -20,6 +20,13 @@ export const testConfig = {
   storage: { bucket: TEST_BUCKET },
   logger: { level: 'silent' },
   app: { nodeEnv: 'production' },
+  community: {
+    discordBotToken: 'test-discord-bot-token',
+    requestTimeoutMs: 1_000,
+    retryMaxAttempts: 2,
+    retryBaseDelayMs: 1,
+    retryMaxDelayMs: 2,
+  },
   get onchainData() {
     return { uri: process.env.ONCHAIN_DATABASE_URL ?? '' };
   },
