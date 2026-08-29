@@ -2,4 +2,5 @@ export * from './access-role.js';
 export * from './auth-session.js';
 export * from './community.js';
 export * from './oauth-provider.js';
+export * from './snapshot-publication.js';
 export * from './snapshot-status.js';
