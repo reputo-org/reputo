@@ -90,6 +90,16 @@ export function extractDidsKey(inputs: AlgorithmPresetFrozen['inputs']): string 
   return didsInput.value;
 }
 
+/**
+ * The `dids` input when a dependency assembled one. A combined run whose
+ * children resolve their own cohorts (the community algorithms) has none —
+ * only children that read the DID map require it, and they throw themselves.
+ */
+export function extractOptionalDidsKey(inputs: AlgorithmPresetFrozen['inputs']): string | undefined {
+  const didsInput = inputs.find((input) => input.key === 'dids');
+  return didsInput != null && typeof didsInput.value === 'string' ? didsInput.value : undefined;
+}
+
 export async function loadDidInputMap(input: { storage: Storage; bucket: string; key: string }): Promise<DidInputMap> {
   const fileBuffer = await input.storage.getObject({
     bucket: input.bucket,

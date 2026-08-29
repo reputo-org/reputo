@@ -23,6 +23,9 @@ const POSTABLE_SCORE_TYPES = new Set<ScoreType>([
   'contribution_score',
   'proposal_engagement',
   'token_value_over_time',
+  'github_engagement',
+  'discord_engagement',
+  'mattermost_engagement',
 ]);
 
 /** Users posted per `POST /v1/clients/scores` call (sized defensively against request timeouts). */
@@ -33,7 +36,14 @@ const EXPECTED_DROP_MESSAGE = 'User not found';
 
 const UNEXPECTED_REJECTION_WARN_LIMIT = 20;
 
-const EMPTY_RESULT: PostSnapshotScoresResult = { posted: 0, ok: 0, failed: 0, dropped: 0, skipped: 0 };
+const EMPTY_RESULT: PostSnapshotScoresResult = {
+  attempted: false,
+  posted: 0,
+  ok: 0,
+  failed: 0,
+  dropped: 0,
+  skipped: 0,
+};
 
 /** One score CSV to post under one DeepID score type. */
 interface ScoreSource {
@@ -127,7 +137,10 @@ export function createDeepIdPostScoresActivity(ctx: DeepIdSyncContext) {
       return EMPTY_RESULT;
     }
 
-    const timestamp = snapshot.completedAt ?? new Date().toISOString();
+    // The workflow passes its run-consistent timestamp (the workflow start
+    // time), so a retried post reuses the same value and DeepID dedupes on
+    // `(did, type, timestamp)`. The fallbacks only cover legacy callers.
+    const timestamp = input.timestamp ?? snapshot.completedAt ?? new Date().toISOString();
     const client = createDeepIdClient({
       identityBaseUrl: config.deepId.identityBaseUrl,
       appBaseUrl: config.deepId.appBaseUrl,
@@ -144,7 +157,7 @@ export function createDeepIdPostScoresActivity(ctx: DeepIdSyncContext) {
       logLevel: config.logger.level,
     });
 
-    const totals: PostSnapshotScoresResult = { ...EMPTY_RESULT };
+    const totals: PostSnapshotScoresResult = { ...EMPTY_RESULT, attempted: true };
     let warnsLogged = 0;
 
     for (const source of sources) {

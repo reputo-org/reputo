@@ -1,3 +1,5 @@
+import type { CommunityPlatform } from '@reputo/contracts';
+
 export type DependencyKey = 'deepfunding-portal-api' | 'onchain-data' | 'deep-id' | 'discord-activity';
 
 /**
@@ -7,6 +9,11 @@ export type DependencyKey = 'deepfunding-portal-api' | 'onchain-data' | 'deep-id
 export const COMMUNITY_DEPENDENCY_KEYS = ['discord-activity'] as const;
 
 export type CommunityDependencyKey = (typeof COMMUNITY_DEPENDENCY_KEYS)[number];
+
+/** Each community platform's fetch is its own dependency key. */
+export const COMMUNITY_PLATFORM_BY_DEPENDENCY_KEY: Record<CommunityDependencyKey, CommunityPlatform> = {
+  'discord-activity': 'discord',
+};
 
 export function isCommunityDependencyKey(key: DependencyKey): key is CommunityDependencyKey {
   return (COMMUNITY_DEPENDENCY_KEYS as readonly DependencyKey[]).includes(key);
@@ -18,6 +25,13 @@ export function isCommunityDependencyKey(key: DependencyKey): key is CommunityDe
  * every retry; the platform follows from the dependency key.
  */
 export interface CommunityFetchInput {
+  /** Reputo community connection id the preset references. */
+  connectionId: string;
+  /**
+   * Platform-side community id — the Discord guild id — resolved from the
+   * connection by the orchestrator. The cohort's member lookup runs against it.
+   */
+  communityId: string;
   /** Selected resource ids — Discord channel ids. */
   resourceIds: string[];
   /** Window start (inclusive), ISO 8601 UTC. */

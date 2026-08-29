@@ -236,12 +236,22 @@ describe('OrchestratorWorkflow task queue routing', () => {
         key: 'discord_engagement',
         version: '1.0.0',
         inputs: [
+          { key: 'community_connection_id', value: 'conn-1' },
           { key: 'lookback_days', value: 90 },
           { key: 'resources', value: ['111', '222'] },
         ],
       },
     });
     const updateSnapshot = vi.fn().mockResolvedValue(undefined);
+    const getCommunityConnection = vi.fn().mockResolvedValue({
+      id: 'conn-1',
+      platform: 'discord',
+      externalId: 'guild-1',
+      name: 'Guild',
+      status: 'active',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    });
     const getAlgorithmDefinition = vi.fn().mockResolvedValue({
       algorithmDefinition: {
         key: 'discord_engagement',
@@ -260,6 +270,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
       return {
         getSnapshot,
         updateSnapshot,
+        getCommunityConnection,
         getAlgorithmDefinition,
         resolveDependency,
         runTypescriptAlgorithm,
@@ -277,10 +288,13 @@ describe('OrchestratorWorkflow task queue routing', () => {
       startToCloseTimeout: COMMUNITY_DEPENDENCY_RESOLUTION_TIMEOUT,
       heartbeatTimeout: HEARTBEAT_TIMEOUT,
     });
+    expect(getCommunityConnection).toHaveBeenCalledWith({ connectionId: 'conn-1' });
     expect(resolveDependency).toHaveBeenCalledWith({
       dependencyKey: 'discord-activity',
       snapshotId: 'snapshot-1',
       communityFetch: {
+        connectionId: 'conn-1',
+        communityId: 'guild-1',
         resourceIds: ['111', '222'],
         windowStart: '2026-05-31T10:30:00.000Z',
         windowEnd: '2026-08-29T10:30:00.000Z',
@@ -316,6 +330,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
                 algorithm_version: '1.0.0',
                 weight: 1,
                 inputs: [
+                  { key: 'community_connection_id', value: 'conn-2' },
                   { key: 'lookback_days', value: 30 },
                   { key: 'resources', value: ['333'] },
                 ],
@@ -347,6 +362,15 @@ describe('OrchestratorWorkflow task queue routing', () => {
         },
       });
     const resolveDependency = vi.fn().mockResolvedValue(undefined);
+    const getCommunityConnection = vi.fn().mockResolvedValue({
+      id: 'conn-2',
+      platform: 'discord',
+      externalId: 'guild-2',
+      name: 'Guild',
+      status: 'active',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    });
     const runTypescriptAlgorithm = vi.fn().mockResolvedValue({
       outputs: { discord_engagement: 'snapshots/snapshot-1/discord_engagement.csv' },
     });
@@ -359,6 +383,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
         ({
           getSnapshot,
           updateSnapshot,
+          getCommunityConnection,
           getAlgorithmDefinition,
           resolveDependency,
           runTypescriptAlgorithm,
@@ -379,6 +404,8 @@ describe('OrchestratorWorkflow task queue routing', () => {
       dependencyKey: 'discord-activity',
       snapshotId: 'snapshot-1',
       communityFetch: {
+        connectionId: 'conn-2',
+        communityId: 'guild-2',
         resourceIds: ['333'],
         windowStart: '2026-07-30T10:30:00.000Z',
         windowEnd: '2026-08-29T10:30:00.000Z',

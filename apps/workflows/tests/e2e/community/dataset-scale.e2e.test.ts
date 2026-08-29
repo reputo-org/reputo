@@ -34,6 +34,7 @@ const scaleAdapter: CommunityAdapter = {
   platform: 'discord',
   listResources: async () => [],
   probe: async () => ({ resourceCount: 1, sampledRecordCount: 0 }),
+  searchMemberId: async () => null,
   async *iterateRecords() {
     for (let offset = 0; offset < TOTAL_ROWS; offset += BATCH_SIZE) {
       const records = Array.from({ length: BATCH_SIZE }, (_, inner) => syntheticRecord(offset + inner));
@@ -56,6 +57,7 @@ describeMaybe('community dataset engine at SNET scale', () => {
       adapter: scaleAdapter,
       storage: storage as unknown as Storage,
       bucket: TEST_BUCKET,
+      fetchCohort: async () => [],
       requestStats: { requests: 0, rateLimitWaits: 0, rateLimitWaitMs: 0 },
       progress: { heartbeat: vi.fn() },
       logger: { info: vi.fn(), warn: vi.fn() },

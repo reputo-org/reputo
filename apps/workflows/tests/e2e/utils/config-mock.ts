@@ -27,6 +27,19 @@ export const testConfig = {
     retryBaseDelayMs: 1,
     retryMaxDelayMs: 2,
   },
+  deepId: {
+    identityBaseUrl: 'https://identity.test',
+    appBaseUrl: 'https://app.test',
+    clientId: 'test-client-id',
+    clientSecret: 'test-client-secret',
+    scopes: 'api wallets post_scores github discord mattermost',
+    requestTimeoutMs: 1_000,
+    concurrency: 2,
+    usersPageSize: 100,
+    retryMaxAttempts: 2,
+    retryBaseDelayMs: 1,
+    retryMaxDelayMs: 2,
+  },
   get onchainData() {
     return { uri: process.env.ONCHAIN_DATABASE_URL ?? '' };
   },

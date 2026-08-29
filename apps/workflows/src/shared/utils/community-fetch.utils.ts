@@ -11,13 +11,23 @@ interface AlgorithmPresetFrozenLike {
 }
 
 /**
- * Builds a community fetch input from the frozen preset: the selected
- * resource ids plus the window `[end − lookback_days, end)`, where `end` is
- * the workflow start time — deterministic, identical on every retry, and
- * never re-derived from a wall clock.
+ * Builds a community fetch input from the frozen preset: the referenced
+ * connection, the selected resource ids, and the window
+ * `[end − lookback_days, end)`, where `end` is the workflow start time —
+ * deterministic, identical on every retry, and never re-derived from a wall
+ * clock. The platform-side `communityId` is not part of the preset; the
+ * orchestrator resolves it from the connection and fills it in.
  */
-export function extractCommunityFetchInput(preset: AlgorithmPresetFrozenLike, windowEnd: Date): CommunityFetchInput {
+export function extractCommunityFetchInput(
+  preset: AlgorithmPresetFrozenLike,
+  windowEnd: Date,
+): Omit<CommunityFetchInput, 'communityId'> {
   const presetLabel = preset.key ?? 'unknown';
+
+  const connectionValue = preset.inputs.find((input) => input.key === 'community_connection_id')?.value;
+  if (typeof connectionValue !== 'string' || connectionValue.trim() === '') {
+    throw new Error(`Preset "${presetLabel}" needs a non-empty "community_connection_id" input`);
+  }
 
   const lookbackValue = preset.inputs.find((input) => input.key === 'lookback_days')?.value;
   if (
@@ -41,6 +51,7 @@ export function extractCommunityFetchInput(preset: AlgorithmPresetFrozenLike, wi
   }
 
   return {
+    connectionId: connectionValue.trim(),
     resourceIds: [...new Set(resourceIds)],
     windowStart: new Date(windowEnd.getTime() - lookbackValue * DAY_MS).toISOString(),
     windowEnd: windowEnd.toISOString(),

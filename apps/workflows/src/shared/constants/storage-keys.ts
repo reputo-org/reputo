@@ -5,6 +5,7 @@ export function getDeepfundingDbKey(snapshotId: string): string {
 }
 
 export const COMMUNITY_ACTIVITIES_FILENAME = 'activities.parquet';
+export const COMMUNITY_COHORT_FILENAME = 'cohort.parquet';
 export const COMMUNITY_COVERAGE_FILENAME = 'coverage.parquet';
 export const COMMUNITY_MANIFEST_FILENAME = 'manifest.json';
 
