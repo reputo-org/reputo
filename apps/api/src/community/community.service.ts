@@ -230,8 +230,10 @@ export class CommunityService {
       outcome: CommunityAuditOutcome.failure,
       errorCategory: category,
     });
+    // The class name is safe; a platform error message can embed a response-body
+    // snippet, and the category already carries the diagnostic value.
     this.logger.warn(
-      { connectionId, category, error: error instanceof Error ? error.message : undefined },
+      { connectionId, category, error: error instanceof Error ? error.name : undefined },
       'Discord community connect failed',
     );
 
