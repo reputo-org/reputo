@@ -17,6 +17,7 @@ import { createInMemoryStorage, TEST_BUCKET } from '../utils/in-memory-storage.j
  *   DISCORD_BOT_TOKEN=... \
  *   LIVE_DISCORD_CHANNEL_IDS=<comma-separated channel ids> \
  *   [LIVE_DISCORD_LOOKBACK_DAYS=30] \
+ *   [LIVE_DISCORD_GUILD_ID=<guild id> LIVE_DISCORD_MEMBER_USERNAME=<username>] \
  *   pnpm --filter @reputo/workflows test:e2e
  */
 const gate =
@@ -24,6 +25,12 @@ const gate =
   typeof process.env.DISCORD_BOT_TOKEN === 'string' &&
   typeof process.env.LIVE_DISCORD_CHANNEL_IDS === 'string';
 const describeMaybe = gate ? describe : describe.skip;
+
+const memberSearchGate =
+  gate &&
+  typeof process.env.LIVE_DISCORD_GUILD_ID === 'string' &&
+  typeof process.env.LIVE_DISCORD_MEMBER_USERNAME === 'string';
+const itMemberSearch = memberSearchGate ? it : it.skip;
 
 describeMaybe('discord live contract (real guild)', () => {
   it('crawls the selected channels into a committed, hash-verified dataset without privileged intents', async () => {
@@ -105,4 +112,40 @@ describeMaybe('discord live contract (real guild)', () => {
     });
     expect(rerun.committed).toBe(false);
   }, 1_800_000);
+
+  /**
+   * The cohort match depends on `GET /guilds/{id}/members/search` answering for
+   * a bot holding only View Channels and Read Message History. Discord gates
+   * full member enumeration behind the `GUILD_MEMBERS` privileged intent but
+   * not this prefix search, which is why the milestone picks a per-username
+   * lookup. A 403 here means that assumption no longer holds — the cohort would
+   * fail every snapshot, so this is the check that proves it before production.
+   */
+  itMemberSearch(
+    'resolves a username through member search without privileged intents',
+    async () => {
+      const adapter = createDiscordAdapter(
+        {
+          botToken: process.env.DISCORD_BOT_TOKEN as string,
+          requestTimeoutMs: 15_000,
+          retry: { maxAttempts: 4, baseDelayMs: 500, maxDelayMs: 10_000 },
+        },
+        { debug: () => {}, warn: (payload) => console.warn(payload) },
+      );
+
+      const accountId = await adapter.searchMemberId(
+        process.env.LIVE_DISCORD_GUILD_ID as string,
+        process.env.LIVE_DISCORD_MEMBER_USERNAME as string,
+      );
+
+      console.log('live member search', { matched: accountId !== null });
+      expect(accountId).toMatch(/^\d+$/);
+
+      // An unknown username resolves to null rather than a wrong guess.
+      await expect(
+        adapter.searchMemberId(process.env.LIVE_DISCORD_GUILD_ID as string, 'reputo-nonexistent-member-check'),
+      ).resolves.toBeNull();
+    },
+    120_000,
+  );
 });

@@ -1,9 +1,22 @@
-import { chunk, createDeepIdClient, isValidDid, type PostScoresRequest, type ScoreType } from '@reputo/deep-id-api';
+import {
+  chunk,
+  createDeepIdClient,
+  DeepIdContractError,
+  HttpError,
+  isValidDid,
+  type PostScoresRequest,
+  type ScoreType,
+} from '@reputo/deep-id-api';
 import { type AlgorithmDefinition, type CsvIoItem, getAlgorithmDefinition } from '@reputo/reputation-algorithms';
-import { Context } from '@temporalio/activity';
+import { StorageError } from '@reputo/storage';
+import { ApplicationFailure, Context } from '@temporalio/activity';
 import { parse } from 'csv-parse/sync';
 
 import config from '../../config/index.js';
+import {
+  DEEP_ID_POST_SCORES_FAILURE_ERROR_TYPE,
+  type DeepIdPostScoresFailureCategory,
+} from '../../shared/errors/index.js';
 import type {
   DeepIdPostScoresActivities,
   DeepIdSyncContext,
@@ -44,6 +57,32 @@ const EMPTY_RESULT: PostSnapshotScoresResult = {
   dropped: 0,
   skipped: 0,
 };
+
+function toFailureCategory(error: unknown): DeepIdPostScoresFailureCategory {
+  if (error instanceof HttpError) {
+    if (error.statusCode === 401 || error.statusCode === 403) return 'auth_failed';
+    if (error.statusCode === 429) return 'rate_limited';
+    if (error.statusCode >= 500) return 'upstream_error';
+    return 'rejected';
+  }
+  if (error instanceof DeepIdContractError) return 'contract_violation';
+  if (error instanceof StorageError) return 'output_unreadable';
+  return 'unknown';
+}
+
+/**
+ * DeepID's `HttpError` quotes a response-body snippet in its message, and the
+ * orchestrator records posting failures in the publication ledger the API and
+ * UI expose. So a failure crosses this boundary as its safe category only —
+ * never a body, and never chained as a `cause`. Retryable, so the activity's
+ * own retry policy still applies.
+ */
+function toSafeFailure(error: unknown): ApplicationFailure {
+  return ApplicationFailure.create({
+    message: `DeepID score posting failed: ${toFailureCategory(error)}`,
+    type: DEEP_ID_POST_SCORES_FAILURE_ERROR_TYPE,
+  });
+}
 
 /** One score CSV to post under one DeepID score type. */
 interface ScoreSource {
@@ -115,7 +154,7 @@ function collectStandaloneSource(snapshot: Snapshot, definition: AlgorithmDefini
 export function createDeepIdPostScoresActivity(ctx: DeepIdSyncContext) {
   const { storage, storageConfig } = ctx;
 
-  return async function post_snapshot_scores(input: PostSnapshotScoresInput): Promise<PostSnapshotScoresResult> {
+  async function postScores(input: PostSnapshotScoresInput): Promise<PostSnapshotScoresResult> {
     const { snapshot } = input;
     const logger = Context.current().log;
     const snapshotId = snapshot.id;
@@ -246,6 +285,14 @@ export function createDeepIdPostScoresActivity(ctx: DeepIdSyncContext) {
     }
 
     return totals;
+  }
+
+  return async function post_snapshot_scores(input: PostSnapshotScoresInput): Promise<PostSnapshotScoresResult> {
+    try {
+      return await postScores(input);
+    } catch (error) {
+      throw toSafeFailure(error);
+    }
   };
 }
 

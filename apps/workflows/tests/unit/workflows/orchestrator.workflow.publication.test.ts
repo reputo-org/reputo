@@ -1,5 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SnapshotStatus } from '../../../src/shared/constants/index.js';
+import { DEEP_ID_POST_SCORES_FAILURE_ERROR_TYPE } from '../../../src/shared/errors/index.js';
+
+// Hoisted so the classes keep their identity across the `vi.resetModules()`
+// each run performs: the workflow reads `ApplicationFailure.type` to build the
+// safe publication summary and rethrows `TemporalFailure` unchanged.
+const { ApplicationFailure, TemporalFailure } = vi.hoisted(() => {
+  class TemporalFailure extends Error {}
+  class ApplicationFailure extends TemporalFailure {
+    type?: string;
+    static create({ message, type }: { message: string; type?: string }): ApplicationFailure {
+      const failure = new ApplicationFailure(message);
+      failure.type = type;
+      return failure;
+    }
+  }
+  return { ApplicationFailure, TemporalFailure };
+});
 
 vi.mock('@temporalio/workflow', () => ({
   proxyActivities: vi.fn(),
@@ -10,6 +27,8 @@ vi.mock('@temporalio/workflow', () => ({
     warn: vi.fn(),
     error: vi.fn(),
   },
+  ApplicationFailure,
+  TemporalFailure,
 }));
 
 const START_TIME = new Date('2026-08-29T10:30:00.000Z');
@@ -79,8 +98,13 @@ describe('OrchestratorWorkflow publication ledger', () => {
     ]);
   });
 
-  it('records a failed publication when the post exhausts its retries — visibly, never silently', async () => {
-    const postSnapshotScores = vi.fn().mockRejectedValue(new Error('DeepID rejected the request'));
+  it('records the posting activity safe category when it exhausts its retries', async () => {
+    const postSnapshotScores = vi.fn().mockRejectedValue(
+      ApplicationFailure.create({
+        message: 'DeepID score posting failed: auth_failed',
+        type: DEEP_ID_POST_SCORES_FAILURE_ERROR_TYPE,
+      }),
+    );
     const recordSnapshotPublication = vi.fn().mockResolvedValue(undefined);
 
     // The failure must stay non-fatal: the workflow still resolves.
@@ -92,9 +116,29 @@ describe('OrchestratorWorkflow publication ledger', () => {
         snapshotId: 'snapshot-1',
         algorithmKey: 'discord_engagement',
         status: 'failed',
-        error: 'DeepID rejected the request',
+        error: 'DeepID score posting failed: auth_failed',
       },
     ]);
+  });
+
+  it('never records an unsanitized error message in the ledger', async () => {
+    // A raw DeepID HttpError message quotes a response-body snippet; only the
+    // posting activity's own sanitized failure may reach the ledger.
+    const postSnapshotScores = vi
+      .fn()
+      .mockRejectedValue(new Error('HTTP 500: Internal Server Error — {"trace":"super-secret-value"}'));
+    const recordSnapshotPublication = vi.fn().mockResolvedValue(undefined);
+
+    await runWorkflow({ postSnapshotScores, recordSnapshotPublication });
+
+    const recorded = recordSnapshotPublication.mock.calls.map(([input]) => input).at(-1);
+    expect(recorded).toEqual({
+      snapshotId: 'snapshot-1',
+      algorithmKey: 'discord_engagement',
+      status: 'failed',
+      error: 'The score posting activity failed',
+    });
+    expect(JSON.stringify(recordSnapshotPublication.mock.calls)).not.toContain('super-secret-value');
   });
 
   it('keeps a ledger-write failure non-fatal for the run', async () => {

@@ -16,6 +16,22 @@ import {
   SnapshotStatus,
 } from '../../../src/shared/constants/index.js';
 
+// Hoisted so the classes keep their identity across the `vi.resetModules()`
+// each run performs: the workflow reads `ApplicationFailure.type` to build the
+// safe publication summary and rethrows `TemporalFailure` unchanged.
+const { ApplicationFailure, TemporalFailure } = vi.hoisted(() => {
+  class TemporalFailure extends Error {}
+  class ApplicationFailure extends TemporalFailure {
+    type?: string;
+    static create({ message, type }: { message: string; type?: string }): ApplicationFailure {
+      const failure = new ApplicationFailure(message);
+      failure.type = type;
+      return failure;
+    }
+  }
+  return { ApplicationFailure, TemporalFailure };
+});
+
 vi.mock('@temporalio/workflow', () => ({
   proxyActivities: vi.fn(),
   workflowInfo: vi.fn(),
@@ -25,6 +41,8 @@ vi.mock('@temporalio/workflow', () => ({
     warn: vi.fn(),
     error: vi.fn(),
   },
+  ApplicationFailure,
+  TemporalFailure,
 }));
 
 function readyReadinessResult() {

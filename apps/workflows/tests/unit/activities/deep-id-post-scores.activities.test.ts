@@ -36,10 +36,12 @@ vi.mock('@reputo/reputation-algorithms', async (importOriginal) => {
   };
 });
 
-vi.mock('@temporalio/activity', () => ({
+vi.mock('@temporalio/activity', async (importOriginal) => ({
   Context: {
     current: () => ({ log: mockLog, heartbeat: vi.fn() }),
   },
+  // The real class: the activity converts every failure into a sanitized one.
+  ApplicationFailure: (await importOriginal<typeof import('@temporalio/activity')>()).ApplicationFailure,
 }));
 
 vi.mock('../../../src/config/index.js', () => ({
@@ -245,6 +247,53 @@ describe('createDeepIdPostScoresActivity', () => {
     );
     expect(summaryWarns).toHaveLength(1);
     expect(summaryWarns[0][1]).toMatchObject({ failed: 25, logged: 20 });
+  });
+
+  it('never lets a DeepID response body cross the activity boundary', async () => {
+    const csv = ['did,voting_engagement', `${DID_A},0.8`].join('\n');
+    const secret = 'internal trace token=super-secret-value';
+    const { HttpError } = await import('@reputo/deep-id-api');
+    mockPostScores.mockRejectedValue(new HttpError(500, 'Internal Server Error', JSON.stringify({ message: secret })));
+
+    const failure = await makeActivity(csv)({ snapshot: makeSnapshot() }).catch((error: Error) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    const serialized = JSON.stringify({
+      message: (failure as Error).message,
+      stack: (failure as Error).stack,
+      cause: (failure as Error).cause,
+    });
+    expect(serialized).not.toContain('super-secret-value');
+    expect((failure as Error).message).toBe('DeepID score posting failed: upstream_error');
+  });
+
+  it.each([
+    [401, 'auth_failed'],
+    [403, 'auth_failed'],
+    [429, 'rate_limited'],
+    [400, 'rejected'],
+    [503, 'upstream_error'],
+  ])('maps a %i response to the %s category', async (statusCode, category) => {
+    const csv = ['did,voting_engagement', `${DID_A},0.8`].join('\n');
+    const { HttpError } = await import('@reputo/deep-id-api');
+    mockPostScores.mockRejectedValue(new HttpError(statusCode, 'nope', 'body'));
+
+    const failure = await makeActivity(csv)({ snapshot: makeSnapshot() }).catch((error: Error) => error);
+
+    expect((failure as Error).message).toBe(`DeepID score posting failed: ${category}`);
+  });
+
+  it('reports an unreadable score output as its own category', async () => {
+    const { ObjectNotFoundError } = await import('@reputo/storage');
+    const getObject = vi.fn().mockRejectedValue(new ObjectNotFoundError('snapshots/snap-1/voting_engagement.csv'));
+    const activity = createDeepIdPostScoresActivity({
+      storage: { getObject } as never,
+      storageConfig: { bucket: 'reputo', maxSizeBytes: 1024 },
+    });
+
+    const failure = await activity({ snapshot: makeSnapshot() }).catch((error: Error) => error);
+
+    expect((failure as Error).message).toBe('DeepID score posting failed: output_unreadable');
   });
 
   it('skips empty score cells but still posts literal zeros', async () => {

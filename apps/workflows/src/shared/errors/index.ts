@@ -7,6 +7,35 @@ export const DEEP_ID_ENCRYPTION_READINESS_FATAL_ERROR_TYPE = 'DEEPID_ENCRYPTION_
 /** Temporal failure type for fatal, non-retryable encrypted evaluation/submission errors. */
 export const DEEP_ID_ENCRYPTED_SUBMISSION_FATAL_ERROR_TYPE = 'DEEPID_ENCRYPTED_SUBMISSION_FATAL';
 
+/**
+ * Temporal failure type carrying a score-posting failure across the activity
+ * boundary. DeepID's `HttpError` quotes a response-body snippet in its message,
+ * and the orchestrator persists posting failures in the publication ledger,
+ * which the API and UI expose — so only a failure of this type, whose message
+ * is a fixed category, may reach the ledger.
+ */
+export const DEEP_ID_POST_SCORES_FAILURE_ERROR_TYPE = 'DEEPID_POST_SCORES_FAILURE';
+
+/** Safe, stable categories of a score-posting failure. Never a response body. */
+export const DEEP_ID_POST_SCORES_FAILURE_CATEGORIES = [
+  /** DeepID rejected the client credentials or the token lacks `post_scores`. */
+  'auth_failed',
+  /** DeepID is rate limiting Reputo. */
+  'rate_limited',
+  /** DeepID rejected the request (4xx other than auth and rate limiting). */
+  'rejected',
+  /** DeepID returned a server error. */
+  'upstream_error',
+  /** DeepID's response broke the documented contract. */
+  'contract_violation',
+  /** The score CSV could not be read from storage. */
+  'output_unreadable',
+  /** Anything else, including transport failures. */
+  'unknown',
+] as const;
+
+export type DeepIdPostScoresFailureCategory = (typeof DEEP_ID_POST_SCORES_FAILURE_CATEGORIES)[number];
+
 export class WorkflowError extends Error {
   constructor(
     message: string,

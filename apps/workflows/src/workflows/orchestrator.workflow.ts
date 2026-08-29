@@ -23,7 +23,7 @@ import {
   onchainDataTaskQueue,
   SnapshotStatus,
 } from '../shared/constants/index.js';
-import { UnsupportedAlgorithmError } from '../shared/errors/index.js';
+import { DEEP_ID_POST_SCORES_FAILURE_ERROR_TYPE, UnsupportedAlgorithmError } from '../shared/errors/index.js';
 import type {
   AlgorithmLibraryActivities,
   AlgorithmResult,
@@ -343,14 +343,9 @@ async function runOrchestrator(input: OrchestratorWorkflowInput): Promise<void> 
         });
       }
     } catch (postError) {
-      workflow.log.error('DeepID score posting failed (non-fatal)', {
-        snapshotId,
-        error: (postError as Error).message,
-      });
-      await recordPublication({
-        status: SnapshotPublicationStatus.failed,
-        error: (postError as Error).message,
-      });
+      const failure = describePublicationFailure(postError);
+      workflow.log.error('DeepID score posting failed (non-fatal)', { snapshotId, error: failure });
+      await recordPublication({ status: SnapshotPublicationStatus.failed, error: failure });
     }
   }
 }
@@ -358,6 +353,23 @@ async function runOrchestrator(input: OrchestratorWorkflowInput): Promise<void> 
 interface SnapshotRunState {
   algorithmTaskQueue?: string;
   algorithmKind?: string;
+}
+
+/**
+ * Safe summary of a score-posting failure for the publication ledger, which the
+ * API and UI expose. Only the posting activity's own sanitized failure carries a
+ * message here; every other error (including a wrapped `HttpError`, whose
+ * message quotes a DeepID response body) collapses to a fixed sentence.
+ */
+function describePublicationFailure(error: unknown): string {
+  let current: unknown = error;
+  while (current instanceof Error) {
+    if (current instanceof workflow.ApplicationFailure && current.type === DEEP_ID_POST_SCORES_FAILURE_ERROR_TYPE) {
+      return current.message;
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return 'The score posting activity failed';
 }
 
 /** True when the error chain contains the non-retryable snapshot-deleted failure. */
