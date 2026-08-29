@@ -22,6 +22,9 @@ export const ENCRYPTED_SCORE_SCOPES = [
   'contribution_score_encr',
   'proposal_engagement_encr',
   'token_value_over_time_encr',
+  'github_engagement_encr',
+  'discord_engagement_encr',
+  'mattermost_engagement_encr',
 ] as const;
 
 /** One encrypted child scope / `scores_encr` field name, e.g. `voting_engagement_encr`. */
