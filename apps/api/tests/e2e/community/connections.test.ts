@@ -1,5 +1,10 @@
 import type { INestApplication } from '@nestjs/common';
-import { CommunityAuthError, CommunityPermissionError, CommunityRateLimitError } from '@reputo/community-api';
+import {
+  CommunityAuthError,
+  CommunityContractError,
+  CommunityPermissionError,
+  CommunityRateLimitError,
+} from '@reputo/community-api';
 import type { DataSource } from 'typeorm';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommunityConnectionAuditEntity, CommunityConnectionEntity } from '../../../src/persistence';
@@ -13,7 +18,7 @@ const CHANNELS = [
   { id: '1', name: 'general', kind: 'text' as const },
   { id: '2', name: 'proposals', kind: 'forum' as const },
 ];
-const PROBE = { resourceCount: 2, sampledResourceId: '1', sampledRecordCount: 1, requiredFieldsPresent: true };
+const PROBE = { resourceCount: 2, sampledResourceId: '1', sampledRecordCount: 1 };
 
 const discord = {
   buildInstallUrl: vi.fn(
@@ -145,6 +150,18 @@ describe('Community connections e2e', () => {
 
       expect(response.headers.location).toBe('http://localhost:5173/community?error=declined');
       expect(discord.exchangeCode).not.toHaveBeenCalled();
+    });
+
+    it('degrades the connection when the platform omits fields the fetch needs', async () => {
+      discord.probe.mockRejectedValue(
+        new CommunityContractError('Discord returned messages without an id, timestamp, or author id.'),
+      );
+
+      const { callback, connection } = await connect();
+
+      expect(callback.headers.location).toBe('http://localhost:5173/community?error=contract_violation');
+      expect(connection.status).toBe('degraded');
+      expect(connection.statusReason).toMatch(/unexpected response/);
     });
 
     it('breaks the connection when the probe finds no readable channel', async () => {

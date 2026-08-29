@@ -1,4 +1,9 @@
-import { CommunityAuthError, CommunityHttpError, CommunityPermissionError } from '../shared/errors.js';
+import {
+  CommunityAuthError,
+  CommunityContractError,
+  CommunityHttpError,
+  CommunityPermissionError,
+} from '../shared/errors.js';
 import { type CommunityLogger, executeRequest } from '../shared/http.js';
 import type { CommunityProbeResult, CommunityResource } from '../shared/types.js';
 import { buildInstallUrl, extractInstalledGuild, hasRequiredMessageFields, toCommunityResources } from './transform.js';
@@ -90,11 +95,18 @@ export function createDiscordClient(config: DiscordClientConfig, logger: Communi
           });
           const messages = response.data ?? [];
 
+          // The bot runs without privileged intents, so the probe proves the
+          // fetch's fields arrive over REST before a snapshot depends on them.
+          if (!hasRequiredMessageFields(messages)) {
+            throw new CommunityContractError(
+              'Discord returned messages without an id, timestamp, or author id; the fetch cannot score this server.',
+            );
+          }
+
           return {
             resourceCount: resources.length,
             sampledResourceId: resource.id,
             sampledRecordCount: messages.length,
-            requiredFieldsPresent: hasRequiredMessageFields(messages),
           };
         } catch (error) {
           // A channel the bot cannot read is normal; only a guild with no

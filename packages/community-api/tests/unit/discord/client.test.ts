@@ -1,7 +1,7 @@
 import { request } from 'undici';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDiscordClient } from '../../../src/discord/client.js';
-import { CommunityAuthError, CommunityPermissionError } from '../../../src/shared/errors.js';
+import { CommunityAuthError, CommunityContractError, CommunityPermissionError } from '../../../src/shared/errors.js';
 import { createStubLogger, mockUndiciResponse, TEST_DISCORD_CONFIG } from '../../utils/mock-helpers.js';
 
 vi.mock('undici', () => ({ request: vi.fn() }));
@@ -110,7 +110,6 @@ describe('probe', () => {
       resourceCount: 2,
       sampledResourceId: '1',
       sampledRecordCount: 1,
-      requiredFieldsPresent: true,
     });
     expect(lastCall()[0]).toBe('https://discord.com/api/v10/channels/1/messages?limit=1');
     expect(mockRequest).toHaveBeenCalledTimes(2);
@@ -126,17 +125,14 @@ describe('probe', () => {
 
     expect(result.sampledResourceId).toBe('2');
     expect(result.sampledRecordCount).toBe(0);
-    expect(result.requiredFieldsPresent).toBe(true);
   });
 
-  it('flags a sampled page that is missing the fields the fetch needs', async () => {
+  it('rejects a sampled page that is missing the fields the fetch needs', async () => {
     mockRequest
       .mockResolvedValueOnce(mockUndiciResponse(200, [channel('1')]) as never)
       .mockResolvedValueOnce(mockUndiciResponse(200, [{ id: 'm1', timestamp: '2026-08-01T00:00:00Z' }]) as never);
 
-    const result = await client.probe('guild-1');
-
-    expect(result.requiredFieldsPresent).toBe(false);
+    await expect(client.probe('guild-1')).rejects.toBeInstanceOf(CommunityContractError);
   });
 
   it('fails when no channel in the guild is readable', async () => {
