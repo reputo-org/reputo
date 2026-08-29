@@ -1,4 +1,4 @@
-import { type CommunityLogger, createDiscordAdapter } from '@reputo/community-api';
+import { CommunityApiError, type CommunityLogger, createDiscordAdapter } from '@reputo/community-api';
 import { CommunityPlatform } from '@reputo/contracts';
 import { Context } from '@temporalio/activity';
 import config from '../../config/index.js';
@@ -15,6 +15,18 @@ import { type CommunityFetchCheckpoint, type CommunityRequestStats, freezeCommun
 const PLATFORM_BY_DEPENDENCY_KEY: Record<CommunityDependencyKey, CommunityPlatform> = {
   'discord-activity': CommunityPlatform.discord,
 };
+
+/**
+ * Platform errors carry a response-body snippet in their message. Temporal
+ * serializes an activity failure into workflow history and the orchestrator
+ * persists it on the snapshot, so a platform failure crosses this boundary as
+ * its safe category only — never a body, and never chained as a `cause`.
+ */
+function toSafeFailure(platform: CommunityPlatform, error: unknown): unknown {
+  return error instanceof CommunityApiError
+    ? new Error(`Community ${platform} fetch failed: ${error.category}`)
+    : error;
+}
 
 export function createCommunityDependencyResolverActivities(
   ctx: CommunityDependencyResolverContext,
@@ -70,21 +82,26 @@ export function createCommunityDependencyResolverActivities(
         windowEnd: communityFetch.windowEnd,
       });
 
-      const result = await freezeCommunityDataset({
-        snapshotId,
-        platform,
-        window: { start: communityFetch.windowStart, end: communityFetch.windowEnd },
-        resourceIds: communityFetch.resourceIds,
-        adapter,
-        storage: ctx.storage,
-        bucket: ctx.storageConfig.bucket,
-        requestStats,
-        progress: {
-          heartbeat: (checkpoint) => context.heartbeat(checkpoint),
-          lastCheckpoint: context.info.heartbeatDetails as CommunityFetchCheckpoint | undefined,
-        },
-        logger,
-      });
+      let result: Awaited<ReturnType<typeof freezeCommunityDataset>>;
+      try {
+        result = await freezeCommunityDataset({
+          snapshotId,
+          platform,
+          window: { start: communityFetch.windowStart, end: communityFetch.windowEnd },
+          resourceIds: communityFetch.resourceIds,
+          adapter,
+          storage: ctx.storage,
+          bucket: ctx.storageConfig.bucket,
+          requestStats,
+          progress: {
+            heartbeat: (checkpoint) => context.heartbeat(checkpoint),
+            lastCheckpoint: context.info.heartbeatDetails as CommunityFetchCheckpoint | undefined,
+          },
+          logger,
+        });
+      } catch (error) {
+        throw toSafeFailure(platform, error);
+      }
 
       logger.info('Community dependency resolved', {
         dependencyKey,

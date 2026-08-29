@@ -186,10 +186,11 @@ describe('discord dataset dependency (synthetic guild)', () => {
       communityFetch: { resourceIds: ['c1', 'c2', 'c3'], ...WINDOW },
     };
 
-    // Attempt 1: channel c2's network dies mid-crawl, after c1 finished.
+    // Attempt 1: channel c2's network dies mid-crawl, after c1 finished. The
+    // failure crosses the activity boundary as its safe category.
     const state = { failChannel2: true };
     installGuildRoutes(state);
-    await expect(resolveDependency(input)).rejects.toThrow(/Could not reach the platform/);
+    await expect(resolveDependency(input)).rejects.toThrow('Community discord fetch failed: network_error');
     expect(harness.heartbeats.length).toBeGreaterThan(0);
     expect(storage.has('snapshots/snap-e2e/community_discord/manifest.json')).toBe(false);
 
@@ -260,6 +261,39 @@ describe('discord dataset dependency (synthetic guild)', () => {
     await resolveDependency(input);
     expect(mockRequest).not.toHaveBeenCalled();
     expect(storage.readObject(`${prefix}/activities.parquet`)).toEqual(frozen);
+  });
+
+  it('never lets a platform response body cross the activity boundary', async () => {
+    const storage = createInMemoryStorage();
+    const { resolveDependency } = createCommunityDependencyResolverActivities({
+      storage: storage as never,
+      storageConfig: { bucket: TEST_BUCKET, maxSizeBytes: 52_428_800 },
+    });
+
+    // A 500 body is echoed into CommunityHttpError's message; Temporal would
+    // serialize it into workflow history and the orchestrator would persist it
+    // on the snapshot, so the activity may only surface the safe category.
+    const secretBody = { message: 'internal trace token=super-secret-value' };
+    mockRequest.mockResolvedValue({
+      statusCode: 500,
+      headers: {},
+      body: { text: () => Promise.resolve(JSON.stringify(secretBody)) },
+    } as never);
+
+    const failure = await resolveDependency({
+      dependencyKey: 'discord-activity',
+      snapshotId: 'snap-leak',
+      communityFetch: { resourceIds: ['c1'], ...WINDOW },
+    }).catch((error: Error) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    const serialized = JSON.stringify({
+      message: (failure as Error).message,
+      stack: (failure as Error).stack,
+      cause: (failure as Error).cause,
+    });
+    expect(serialized).not.toContain('super-secret-value');
+    expect((failure as Error).message).toBe('Community discord fetch failed: upstream_error');
   });
 
   it('fails the snapshot with a clear error when no selected channel is readable', async () => {
