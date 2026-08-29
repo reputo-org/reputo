@@ -33,7 +33,26 @@ export interface HttpResponse<T> {
   data: T;
 }
 
-const NETWORK_ERROR_HINTS = ['timeout', 'econnreset', 'econnrefused', 'socket hang up', 'network', 'und_err'];
+/**
+ * Transport failures worth another attempt. Covers DNS (`enotfound`,
+ * `eai_again`), refused and reset sockets, unreachable routes, and undici's own
+ * `UND_ERR_*` codes — all transient, none of them a decision by the platform.
+ */
+const NETWORK_ERROR_HINTS = [
+  'timeout',
+  'etimedout',
+  'econnreset',
+  'econnrefused',
+  'econnaborted',
+  'enotfound',
+  'eai_again',
+  'ehostunreach',
+  'enetunreach',
+  'epipe',
+  'socket hang up',
+  'network',
+  'und_err',
+];
 
 /** Query strings can carry state and client ids; only the path is ever logged. */
 function redactUrl(url: string): string {

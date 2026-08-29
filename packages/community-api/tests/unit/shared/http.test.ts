@@ -105,6 +105,17 @@ describe('executeRequest', () => {
     expect(mockRequest).toHaveBeenCalledTimes(TEST_HTTP_CONFIG.retry.maxAttempts);
   });
 
+  it.each([
+    ['getaddrinfo ENOTFOUND discord.com', 'ENOTFOUND'],
+    ['getaddrinfo EAI_AGAIN discord.com', 'EAI_AGAIN'],
+    ['connect EHOSTUNREACH 162.159.0.1:443', 'EHOSTUNREACH'],
+  ])('retries the DNS or routing failure %s', async (message, code) => {
+    mockRequest.mockRejectedValue(Object.assign(new Error(message), { code }));
+
+    await expect(executeRequest(logger, TEST_HTTP_CONFIG, baseOptions)).rejects.toBeInstanceOf(CommunityNetworkError);
+    expect(mockRequest).toHaveBeenCalledTimes(TEST_HTTP_CONFIG.retry.maxAttempts);
+  });
+
   it('keeps the query string out of the logs', async () => {
     mockRequest.mockResolvedValue(mockUndiciResponse(200, []) as never);
 
