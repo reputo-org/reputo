@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   mockComputeContributionScore,
   mockComputeCustomScore,
+  mockComputeDiscordEngagement,
   mockComputeProposalEngagement,
   mockComputeVotingEngagement,
   mockComputeTokenValueOverTime,
 } = vi.hoisted(() => ({
   mockComputeContributionScore: vi.fn(),
   mockComputeCustomScore: vi.fn(),
+  mockComputeDiscordEngagement: vi.fn(),
   mockComputeProposalEngagement: vi.fn(),
   mockComputeVotingEngagement: vi.fn(),
   mockComputeTokenValueOverTime: vi.fn(),
@@ -32,6 +34,10 @@ vi.mock('../../../src/activities/typescript/algorithms/voting-engagement/compute
 
 vi.mock('../../../src/activities/typescript/algorithms/token-value-over-time/compute.js', () => ({
   computeTokenValueOverTime: mockComputeTokenValueOverTime,
+}));
+
+vi.mock('../../../src/activities/typescript/algorithms/discord-engagement/compute.js', () => ({
+  computeDiscordEngagement: mockComputeDiscordEngagement,
 }));
 
 import { dispatchAlgorithm } from '../../../src/activities/typescript/dispatchAlgorithm.activity.js';

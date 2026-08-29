@@ -1,9 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { SnapshotStatus } from '@reputo/contracts';
+import { type SnapshotPublicationCounts, type SnapshotPublicationStatus, SnapshotStatus } from '@reputo/contracts';
 import { type EntityManager, type FindOptionsWhere, In, LessThan, Raw, Repository } from 'typeorm';
 import type { AlgorithmPresetInput } from '../algorithm-preset/algorithm-preset.repository';
-import { SNAPSHOT_UPDATES_CHANNEL, SnapshotEntity, SnapshotOutputEntity } from '../persistence';
+import {
+  SNAPSHOT_UPDATES_CHANNEL,
+  SnapshotEntity,
+  SnapshotOutputEntity,
+  SnapshotPublicationEntity,
+} from '../persistence';
 import type { PaginateOptions, PaginateResult } from '../shared/persistence';
 import { paginate } from '../shared/persistence';
 
@@ -34,6 +39,15 @@ export interface AlgorithmPresetFrozen {
   updatedAt?: Date;
 }
 
+export interface SnapshotPublicationRow {
+  algorithmKey: string;
+  status: SnapshotPublicationStatus;
+  counts?: SnapshotPublicationCounts;
+  error?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface SnapshotRow {
   _id: string;
   status: SnapshotStatus;
@@ -41,11 +55,19 @@ export interface SnapshotRow {
   algorithmPresetFrozen: AlgorithmPresetFrozen;
   temporal?: SnapshotTemporal;
   outputs?: SnapshotOutputs;
+  publications?: SnapshotPublicationRow[];
   error?: SnapshotError;
   startedAt?: Date;
   completedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface UpsertSnapshotPublicationData {
+  algorithmKey: string;
+  status: SnapshotPublicationStatus;
+  counts?: SnapshotPublicationCounts;
+  error?: string;
 }
 
 export interface SnapshotCreateData {
@@ -119,6 +141,20 @@ function buildOutputRows(snapshotId: string, outputs: SnapshotOutputs): Snapshot
   return rows;
 }
 
+function mapPublications(publications: SnapshotPublicationEntity[]): SnapshotPublicationRow[] | undefined {
+  if (publications.length === 0) return undefined;
+  return publications
+    .map((publication) => ({
+      algorithmKey: publication.algorithmKey,
+      status: publication.status,
+      counts: (publication.counts as SnapshotPublicationCounts | null) ?? undefined,
+      error: publication.error ?? undefined,
+      createdAt: publication.createdAt,
+      updatedAt: publication.updatedAt,
+    }))
+    .sort((a, b) => a.algorithmKey.localeCompare(b.algorithmKey));
+}
+
 export function mapSnapshotRow(entity: SnapshotEntity): SnapshotRow {
   return {
     _id: entity.id,
@@ -127,6 +163,7 @@ export function mapSnapshotRow(entity: SnapshotEntity): SnapshotRow {
     algorithmPresetFrozen: entity.algorithmPresetFrozen as AlgorithmPresetFrozen,
     temporal: (entity.temporal as SnapshotTemporal | null) ?? undefined,
     outputs: mapOutputs(entity.outputs ?? []),
+    publications: mapPublications(entity.publications ?? []),
     error: (entity.error as SnapshotError | null) ?? undefined,
     startedAt: entity.startedAt ?? undefined,
     completedAt: entity.completedAt ?? undefined,
@@ -206,18 +243,21 @@ export class SnapshotRepository {
       where: buildWhere(filter),
       options,
       defaultOrderBy: { createdAt: 'DESC' },
-      extra: { relations: { outputs: true } },
+      extra: { relations: { outputs: true, publications: true } },
       mapRow: mapSnapshotRow,
     });
   }
 
   async findById(id: string): Promise<SnapshotRow | null> {
-    const entity = await this.snapshots.findOne({ where: { id }, relations: { outputs: true } });
+    const entity = await this.snapshots.findOne({ where: { id }, relations: { outputs: true, publications: true } });
     return entity ? mapSnapshotRow(entity) : null;
   }
 
   async find(filter: SnapshotFilter): Promise<SnapshotRow[]> {
-    const rows = await this.snapshots.find({ where: buildWhere(filter), relations: { outputs: true } });
+    const rows = await this.snapshots.find({
+      where: buildWhere(filter),
+      relations: { outputs: true, publications: true },
+    });
     return rows.map(mapSnapshotRow);
   }
 
@@ -311,6 +351,41 @@ export class SnapshotRepository {
 
       const refreshed = await snapshotRepo.findOne({ where: { id }, relations: { outputs: true } });
       return refreshed ? { row: mapSnapshotRow(refreshed), applied: true } : null;
+    });
+  }
+
+  /**
+   * Upserts one publication row on `(snapshotId, algorithmKey)` and notifies
+   * `snapshot_updates`, so SSE listeners refresh the snapshot when publication
+   * state moves after the terminal status write. Returns `null` when the
+   * snapshot no longer exists. Idempotent under Temporal activity retries.
+   */
+  async upsertPublication(snapshotId: string, data: UpsertSnapshotPublicationData): Promise<SnapshotRow | null> {
+    return this.snapshots.manager.transaction(async (manager) => {
+      const snapshotRepo = manager.getRepository(SnapshotEntity);
+      const publicationRepo = manager.getRepository(SnapshotPublicationEntity);
+
+      const snapshot = await snapshotRepo.findOne({ where: { id: snapshotId }, lock: { mode: 'pessimistic_write' } });
+      if (!snapshot) return null;
+
+      const existing = await publicationRepo.findOne({
+        where: { snapshotId, algorithmKey: data.algorithmKey },
+      });
+      const entity = existing ?? new SnapshotPublicationEntity();
+      entity.snapshotId = snapshotId;
+      entity.algorithmKey = data.algorithmKey;
+      entity.status = data.status;
+      entity.counts = data.counts ?? null;
+      entity.error = data.error ?? null;
+      await publicationRepo.save(entity);
+
+      await manager.query('SELECT pg_notify($1, $2)', [SNAPSHOT_UPDATES_CHANNEL, snapshotId]);
+
+      const refreshed = await snapshotRepo.findOne({
+        where: { id: snapshotId },
+        relations: { outputs: true, publications: true },
+      });
+      return refreshed ? mapSnapshotRow(refreshed) : null;
     });
   }
 

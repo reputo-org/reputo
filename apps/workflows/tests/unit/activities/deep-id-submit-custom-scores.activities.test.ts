@@ -208,6 +208,35 @@ describe('createSubmitCustomRawScoresActivity', () => {
     });
   });
 
+  it('posts a community child (discord_engagement) verbatim under its own type with observed min–max', async () => {
+    const discordKey = 'snapshots/snap-1/discord_engagement.csv';
+    const { activity } = makeActivity({
+      [discordKey]: [
+        'did,discord_engagement,message_points,active_day_points',
+        `${SUB_A},11,4,4`,
+        `${SUB_B},0,0,0`,
+      ].join('\n'),
+    });
+    okForAll();
+
+    const result = await activity(withChildren([child('discord_engagement', 2)], { discord_engagement: discordKey }));
+
+    // The score column is the native `discord_engagement`; the per-activity
+    // points columns never reach DeepID.
+    expect(mockPostScores).toHaveBeenCalledWith({
+      [SUB_A]: { score: 11, type: 'discord_engagement', timestamp: TIMESTAMP },
+      [SUB_B]: { score: 0, type: 'discord_engagement', timestamp: TIMESTAMP },
+    });
+    expect(result.children).toEqual([
+      expect.objectContaining({
+        scoreType: 'discord_engagement',
+        observation: { method: 'observed_min_max', min: 0, max: 11 },
+        posted: 2,
+        ok: 2,
+      }),
+    ]);
+  });
+
   it('posts did:plc child rows even though the shared parent DID list holds did:sub values', async () => {
     // The parent `dids` input plays no role here: a portal child's native
     // did:plc rows survive verbatim instead of being filtered or rebuilt

@@ -1,5 +1,6 @@
 import { CommunityApiError, type CommunityLogger, createDiscordAdapter } from '@reputo/community-api';
-import { CommunityPlatform } from '@reputo/contracts';
+import type { CommunityPlatform } from '@reputo/contracts';
+import { createDeepIdClient } from '@reputo/deep-id-api';
 import { Context } from '@temporalio/activity';
 import config from '../../config/index.js';
 import type {
@@ -9,12 +10,9 @@ import type {
   ResolveDependencyInput,
   ResolveDependencyResult,
 } from '../../shared/types/index.js';
+import { COMMUNITY_PLATFORM_BY_DEPENDENCY_KEY } from '../../shared/types/index.js';
+import { buildCommunityCohort } from './cohort.js';
 import { type CommunityFetchCheckpoint, type CommunityRequestStats, freezeCommunityDataset } from './dataset-engine.js';
-
-/** Each community platform's fetch is its own dependency key. */
-const PLATFORM_BY_DEPENDENCY_KEY: Record<CommunityDependencyKey, CommunityPlatform> = {
-  'discord-activity': CommunityPlatform.discord,
-};
 
 /**
  * Platform errors carry a response-body snippet in their message. Temporal
@@ -34,14 +32,18 @@ export function createCommunityDependencyResolverActivities(
   return {
     async resolveDependency(input: ResolveDependencyInput): Promise<ResolveDependencyResult> {
       const { dependencyKey, snapshotId, communityFetch } = input;
-      const platform = PLATFORM_BY_DEPENDENCY_KEY[dependencyKey as CommunityDependencyKey];
+      const platform: CommunityPlatform | undefined =
+        COMMUNITY_PLATFORM_BY_DEPENDENCY_KEY[dependencyKey as CommunityDependencyKey];
       if (platform === undefined) {
         throw new Error(
-          `community worker received unexpected dependency "${dependencyKey}"; supported: ${Object.keys(PLATFORM_BY_DEPENDENCY_KEY).join(', ')}`,
+          `community worker received unexpected dependency "${dependencyKey}"; supported: ${Object.keys(COMMUNITY_PLATFORM_BY_DEPENDENCY_KEY).join(', ')}`,
         );
       }
       if (communityFetch === undefined) {
         throw new Error(`community dependency "${dependencyKey}" requires the orchestrator's communityFetch input`);
+      }
+      if (typeof communityFetch.communityId !== 'string' || communityFetch.communityId.trim() === '') {
+        throw new Error(`community dependency "${dependencyKey}" requires the connection's platform community id`);
       }
 
       const context = Context.current();
@@ -82,6 +84,23 @@ export function createCommunityDependencyResolverActivities(
         windowEnd: communityFetch.windowEnd,
       });
 
+      const deepId = createDeepIdClient({
+        identityBaseUrl: config.deepId.identityBaseUrl,
+        appBaseUrl: config.deepId.appBaseUrl,
+        clientId: config.deepId.clientId,
+        clientSecret: config.deepId.clientSecret,
+        scopes: config.deepId.scopes,
+        requestTimeoutMs: config.deepId.requestTimeoutMs,
+        concurrency: config.deepId.concurrency,
+        defaultPageSize: config.deepId.usersPageSize,
+        retry: {
+          maxAttempts: config.deepId.retryMaxAttempts,
+          baseDelayMs: config.deepId.retryBaseDelayMs,
+          maxDelayMs: config.deepId.retryMaxDelayMs,
+        },
+        logLevel: config.logger.level,
+      });
+
       let result: Awaited<ReturnType<typeof freezeCommunityDataset>>;
       try {
         result = await freezeCommunityDataset({
@@ -92,6 +111,15 @@ export function createCommunityDependencyResolverActivities(
           adapter,
           storage: ctx.storage,
           bucket: ctx.storageConfig.bucket,
+          fetchCohort: (heartbeat) =>
+            buildCommunityCohort({
+              platform,
+              communityId: communityFetch.communityId,
+              adapter,
+              deepId,
+              heartbeat,
+              logger,
+            }),
           requestStats,
           progress: {
             heartbeat: (checkpoint) => context.heartbeat(checkpoint),

@@ -154,3 +154,29 @@ describe('hasRequiredMessageFields', () => {
     expect(hasRequiredMessageFields([{ ...message, id: undefined }])).toBe(false);
   });
 });
+
+describe('findExactMemberId', () => {
+  const member = (id: string, username: string) => ({ user: { id, username } });
+
+  it('returns the id of the exact username match, skipping prefix matches', async () => {
+    const { findExactMemberId } = await import('../../../src/discord/transform.js');
+    const members = [member('1', 'alice2'), member('2', 'alice'), member('3', 'alicent')];
+
+    expect(findExactMemberId(members, 'alice')).toBe('2');
+  });
+
+  it('never guesses: no exact match yields null', async () => {
+    const { findExactMemberId } = await import('../../../src/discord/transform.js');
+
+    expect(findExactMemberId([member('1', 'alice2')], 'alice')).toBeNull();
+    expect(findExactMemberId([], 'alice')).toBeNull();
+    expect(findExactMemberId([{ user: { id: '1' } }, {}], 'alice')).toBeNull();
+    expect(findExactMemberId([member('1', 'Alice')], 'alice')).toBeNull();
+  });
+
+  it('rejects a non-array member search result', async () => {
+    const { findExactMemberId } = await import('../../../src/discord/transform.js');
+
+    expect(() => findExactMemberId('nope' as never, 'alice')).toThrow(CommunityContractError);
+  });
+});

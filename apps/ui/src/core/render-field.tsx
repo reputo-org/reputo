@@ -4,6 +4,8 @@ import type { ReactElement } from "react"
 import type { Control } from "react-hook-form"
 import {
   BooleanField,
+  CommunityConnectionField,
+  CommunityResourcesField,
   CSVField,
   DateField,
   EnumField,
@@ -34,6 +36,9 @@ export function renderScalarField(
 
   switch (input.type) {
     case "text":
+      if (input.widget === "community_connection") {
+        return <CommunityConnectionField key={input.key} {...commonProps} />
+      }
       return <TextField key={input.key} {...commonProps} />
     case "number":
     case "integer":
@@ -53,6 +58,9 @@ export function renderScalarField(
     case "array":
       if (input.widget === "resource_selector") {
         return <ResourceSelectorField key={input.key} {...commonProps} />
+      }
+      if (input.widget === "community_resources") {
+        return <CommunityResourcesField key={input.key} {...commonProps} />
       }
       return <RepeaterField key={input.key} {...commonProps} />
     default:

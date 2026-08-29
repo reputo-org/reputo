@@ -1,9 +1,22 @@
-import { chunk, createDeepIdClient, isValidDid, type PostScoresRequest, type ScoreType } from '@reputo/deep-id-api';
+import {
+  chunk,
+  createDeepIdClient,
+  DeepIdContractError,
+  HttpError,
+  isValidDid,
+  type PostScoresRequest,
+  type ScoreType,
+} from '@reputo/deep-id-api';
 import { type AlgorithmDefinition, type CsvIoItem, getAlgorithmDefinition } from '@reputo/reputation-algorithms';
-import { Context } from '@temporalio/activity';
+import { StorageError } from '@reputo/storage';
+import { ApplicationFailure, Context } from '@temporalio/activity';
 import { parse } from 'csv-parse/sync';
 
 import config from '../../config/index.js';
+import {
+  DEEP_ID_POST_SCORES_FAILURE_ERROR_TYPE,
+  type DeepIdPostScoresFailureCategory,
+} from '../../shared/errors/index.js';
 import type {
   DeepIdPostScoresActivities,
   DeepIdSyncContext,
@@ -23,6 +36,9 @@ const POSTABLE_SCORE_TYPES = new Set<ScoreType>([
   'contribution_score',
   'proposal_engagement',
   'token_value_over_time',
+  'github_engagement',
+  'discord_engagement',
+  'mattermost_engagement',
 ]);
 
 /** Users posted per `POST /v1/clients/scores` call (sized defensively against request timeouts). */
@@ -33,7 +49,40 @@ const EXPECTED_DROP_MESSAGE = 'User not found';
 
 const UNEXPECTED_REJECTION_WARN_LIMIT = 20;
 
-const EMPTY_RESULT: PostSnapshotScoresResult = { posted: 0, ok: 0, failed: 0, dropped: 0, skipped: 0 };
+const EMPTY_RESULT: PostSnapshotScoresResult = {
+  attempted: false,
+  posted: 0,
+  ok: 0,
+  failed: 0,
+  dropped: 0,
+  skipped: 0,
+};
+
+function toFailureCategory(error: unknown): DeepIdPostScoresFailureCategory {
+  if (error instanceof HttpError) {
+    if (error.statusCode === 401 || error.statusCode === 403) return 'auth_failed';
+    if (error.statusCode === 429) return 'rate_limited';
+    if (error.statusCode >= 500) return 'upstream_error';
+    return 'rejected';
+  }
+  if (error instanceof DeepIdContractError) return 'contract_violation';
+  if (error instanceof StorageError) return 'output_unreadable';
+  return 'unknown';
+}
+
+/**
+ * DeepID's `HttpError` quotes a response-body snippet in its message, and the
+ * orchestrator records posting failures in the publication ledger the API and
+ * UI expose. So a failure crosses this boundary as its safe category only —
+ * never a body, and never chained as a `cause`. Retryable, so the activity's
+ * own retry policy still applies.
+ */
+function toSafeFailure(error: unknown): ApplicationFailure {
+  return ApplicationFailure.create({
+    message: `DeepID score posting failed: ${toFailureCategory(error)}`,
+    type: DEEP_ID_POST_SCORES_FAILURE_ERROR_TYPE,
+  });
+}
 
 /** One score CSV to post under one DeepID score type. */
 interface ScoreSource {
@@ -105,7 +154,7 @@ function collectStandaloneSource(snapshot: Snapshot, definition: AlgorithmDefini
 export function createDeepIdPostScoresActivity(ctx: DeepIdSyncContext) {
   const { storage, storageConfig } = ctx;
 
-  return async function post_snapshot_scores(input: PostSnapshotScoresInput): Promise<PostSnapshotScoresResult> {
+  async function postScores(input: PostSnapshotScoresInput): Promise<PostSnapshotScoresResult> {
     const { snapshot } = input;
     const logger = Context.current().log;
     const snapshotId = snapshot.id;
@@ -127,7 +176,10 @@ export function createDeepIdPostScoresActivity(ctx: DeepIdSyncContext) {
       return EMPTY_RESULT;
     }
 
-    const timestamp = snapshot.completedAt ?? new Date().toISOString();
+    // The workflow passes its run-consistent timestamp (the workflow start
+    // time), so a retried post reuses the same value and DeepID dedupes on
+    // `(did, type, timestamp)`. The fallbacks only cover legacy callers.
+    const timestamp = input.timestamp ?? snapshot.completedAt ?? new Date().toISOString();
     const client = createDeepIdClient({
       identityBaseUrl: config.deepId.identityBaseUrl,
       appBaseUrl: config.deepId.appBaseUrl,
@@ -144,7 +196,7 @@ export function createDeepIdPostScoresActivity(ctx: DeepIdSyncContext) {
       logLevel: config.logger.level,
     });
 
-    const totals: PostSnapshotScoresResult = { ...EMPTY_RESULT };
+    const totals: PostSnapshotScoresResult = { ...EMPTY_RESULT, attempted: true };
     let warnsLogged = 0;
 
     for (const source of sources) {
@@ -233,6 +285,14 @@ export function createDeepIdPostScoresActivity(ctx: DeepIdSyncContext) {
     }
 
     return totals;
+  }
+
+  return async function post_snapshot_scores(input: PostSnapshotScoresInput): Promise<PostSnapshotScoresResult> {
+    try {
+      return await postScores(input);
+    } catch (error) {
+      throw toSafeFailure(error);
+    }
   };
 }
 

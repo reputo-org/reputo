@@ -1,7 +1,9 @@
 import {
   API_SNAPSHOT_ACTIVITIES_TASK_QUEUE,
   type ApiSnapshotActivities,
+  type RecordSnapshotPublicationInput,
   SNAPSHOT_NOT_FOUND_ERROR_TYPE,
+  SnapshotPublicationStatus,
 } from '@reputo/contracts';
 import * as workflow from '@temporalio/workflow';
 import {
@@ -21,10 +23,12 @@ import {
   onchainDataTaskQueue,
   SnapshotStatus,
 } from '../shared/constants/index.js';
-import { UnsupportedAlgorithmError } from '../shared/errors/index.js';
+import { DEEP_ID_POST_SCORES_FAILURE_ERROR_TYPE, UnsupportedAlgorithmError } from '../shared/errors/index.js';
 import type {
   AlgorithmLibraryActivities,
   AlgorithmResult,
+  CommunityDependencyKey,
+  CommunityFetchInput,
   DeepIdEncryptionReadinessActivities,
   DeepIdPostScoresActivities,
   DeepIdSubmitCustomScoresActivities,
@@ -37,7 +41,7 @@ import type {
   SyncTarget,
   TypescriptAlgorithmDispatcherActivities,
 } from '../shared/types/index.js';
-import { isCommunityDependencyKey } from '../shared/types/index.js';
+import { COMMUNITY_PLATFORM_BY_DEPENDENCY_KEY, isCommunityDependencyKey } from '../shared/types/index.js';
 import { extractCommunityFetchInput } from '../shared/utils/community-fetch.utils.js';
 import {
   buildCombinedChildAlgorithmPresets,
@@ -46,11 +50,12 @@ import {
 import { extractOnchainSyncTargets } from '../shared/utils/sync-targets.utils.js';
 import { runEncryptedCustomScoreLifecycle } from './encrypted-custom-score.js';
 
-const { getSnapshot, updateSnapshot } = workflow.proxyActivities<ApiSnapshotActivities>({
-  taskQueue: API_SNAPSHOT_ACTIVITIES_TASK_QUEUE,
-  startToCloseTimeout: DB_ACTIVITY_TIMEOUT,
-  retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
-});
+const { getSnapshot, updateSnapshot, getCommunityConnection, recordSnapshotPublication } =
+  workflow.proxyActivities<ApiSnapshotActivities>({
+    taskQueue: API_SNAPSHOT_ACTIVITIES_TASK_QUEUE,
+    startToCloseTimeout: DB_ACTIVITY_TIMEOUT,
+    retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
+  });
 
 const { getAlgorithmDefinition } = workflow.proxyActivities<AlgorithmLibraryActivities>({
   startToCloseTimeout: ALGORITHM_LIBRARY_TIMEOUT,
@@ -152,6 +157,28 @@ function pickGeneratedDidsKey(results: ResolveDependencyResult[]): string | unde
     }
   }
   return undefined;
+}
+
+/**
+ * Builds a community dependency's fetch input: the frozen preset supplies the
+ * connection, resources, and window; the connection row (read through the API
+ * activities queue — the workers have no application database) supplies the
+ * platform-side community id the cohort's member lookup runs against.
+ */
+async function resolveCommunityFetch(
+  dependencyKey: CommunityDependencyKey,
+  preset: Parameters<typeof extractCommunityFetchInput>[0],
+  windowEnd: Date,
+): Promise<CommunityFetchInput> {
+  const fetchInput = extractCommunityFetchInput(preset, windowEnd);
+  const connection = await getCommunityConnection({ connectionId: fetchInput.connectionId });
+  const platform = COMMUNITY_PLATFORM_BY_DEPENDENCY_KEY[dependencyKey];
+  if (connection.platform !== platform) {
+    throw new Error(
+      `Preset connection "${connection.name}" is a ${connection.platform} connection; dependency "${dependencyKey}" needs ${platform}`,
+    );
+  }
+  return { ...fetchInput, communityId: connection.externalId };
 }
 
 /** Point the algorithm's `dids` input at a dependency-assembled DID map (in-memory only). */
@@ -271,8 +298,10 @@ async function runOrchestrator(input: OrchestratorWorkflowInput): Promise<void> 
   // Best-effort: post a non-custom snapshot's scores back to DeepID. This runs
   // only after a successful completion and never affects the snapshot status —
   // a posting failure is retried by Temporal, then logged and swallowed so it
-  // can never fail the reputation run. Combined snapshots already submitted
-  // their native child scores and final encrypted entries before completion.
+  // can never fail the reputation run. Its outcome is recorded per algorithm
+  // key in the publication ledger, so a failure stays visible instead of only
+  // living in worker logs. Combined snapshots already submitted their native
+  // child scores and final encrypted entries before completion.
   if (run.algorithmKind !== 'combined') {
     const { postSnapshotScores } = workflow.proxyActivities<DeepIdPostScoresActivities>({
       taskQueue: orchestratorTaskQueue,
@@ -280,15 +309,43 @@ async function runOrchestrator(input: OrchestratorWorkflowInput): Promise<void> 
       heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
       retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
     });
+
+    const algorithmKey = snapshot.algorithmPresetFrozen.key;
+    const recordPublication = async (record: Omit<RecordSnapshotPublicationInput, 'snapshotId' | 'algorithmKey'>) => {
+      try {
+        await recordSnapshotPublication({ snapshotId, algorithmKey, ...record });
+      } catch (recordError) {
+        workflow.log.error('Recording the publication status failed (non-fatal)', {
+          snapshotId,
+          error: (recordError as Error).message,
+        });
+      }
+    };
+
     try {
       const completedSnapshot = await getSnapshot({ snapshotId });
-      const postResult = await postSnapshotScores({ snapshot: completedSnapshot });
-      workflow.log.info('DeepID score posting finished', { snapshotId, ...postResult });
-    } catch (postError) {
-      workflow.log.error('DeepID score posting failed (non-fatal)', {
-        snapshotId,
-        error: (postError as Error).message,
+      await recordPublication({ status: SnapshotPublicationStatus.pending });
+      // One run-consistent timestamp (the workflow start) keys DeepID's
+      // idempotent dedup, so a retried post can never duplicate scores.
+      const postResult = await postSnapshotScores({
+        snapshot: completedSnapshot,
+        timestamp: workflowInfo.startTime.toISOString(),
       });
+      workflow.log.info('DeepID score posting finished', { snapshotId, ...postResult });
+
+      if (postResult.attempted) {
+        const { attempted: _attempted, ...counts } = postResult;
+        await recordPublication({ status: SnapshotPublicationStatus.sent, counts });
+      } else {
+        await recordPublication({
+          status: SnapshotPublicationStatus.failed,
+          error: 'The algorithm produced no postable score output',
+        });
+      }
+    } catch (postError) {
+      const failure = describePublicationFailure(postError);
+      workflow.log.error('DeepID score posting failed (non-fatal)', { snapshotId, error: failure });
+      await recordPublication({ status: SnapshotPublicationStatus.failed, error: failure });
     }
   }
 }
@@ -296,6 +353,23 @@ async function runOrchestrator(input: OrchestratorWorkflowInput): Promise<void> 
 interface SnapshotRunState {
   algorithmTaskQueue?: string;
   algorithmKind?: string;
+}
+
+/**
+ * Safe summary of a score-posting failure for the publication ledger, which the
+ * API and UI expose. Only the posting activity's own sanitized failure carries a
+ * message here; every other error (including a wrapped `HttpError`, whose
+ * message quotes a DeepID response body) collapses to a fixed sentence.
+ */
+function describePublicationFailure(error: unknown): string {
+  let current: unknown = error;
+  while (current instanceof Error) {
+    if (current instanceof workflow.ApplicationFailure && current.type === DEEP_ID_POST_SCORES_FAILURE_ERROR_TYPE) {
+      return current.message;
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return 'The score posting activity failed';
 }
 
 /** True when the error chain contains the non-retryable snapshot-deleted failure. */
@@ -423,7 +497,7 @@ async function runSnapshotPhases(args: {
       const syncTargets = collectOnchainSyncTargets(dependencySources);
 
       const dependencyResults = await Promise.all(
-        dependencyKeys.map((dependencyKey) => {
+        dependencyKeys.map(async (dependencyKey) => {
           if (dependencyKey === 'onchain-data') {
             return resolveOnchainDataDependency({
               dependencyKey,
@@ -435,7 +509,8 @@ async function runSnapshotPhases(args: {
             return resolveCommunityDependency({
               dependencyKey,
               snapshotId,
-              communityFetch: extractCommunityFetchInput(
+              communityFetch: await resolveCommunityFetch(
+                dependencyKey,
                 findDependencyPreset(dependencySources, dependencyKey),
                 workflowInfo.startTime,
               ),
@@ -471,7 +546,7 @@ async function runSnapshotPhases(args: {
     );
 
     const dependencyResults = await Promise.all(
-      algorithmDefinition.dependencies.map((dependency) => {
+      algorithmDefinition.dependencies.map(async (dependency) => {
         const dependencyKey = dependency.key as DependencyKey;
         if (dependencyKey === 'onchain-data') {
           return resolveOnchainDataDependency({
@@ -484,7 +559,11 @@ async function runSnapshotPhases(args: {
           return resolveCommunityDependency({
             dependencyKey,
             snapshotId,
-            communityFetch: extractCommunityFetchInput(snapshot.algorithmPresetFrozen, workflowInfo.startTime),
+            communityFetch: await resolveCommunityFetch(
+              dependencyKey,
+              snapshot.algorithmPresetFrozen,
+              workflowInfo.startTime,
+            ),
           });
         }
         return resolveOrchestratorDependency({

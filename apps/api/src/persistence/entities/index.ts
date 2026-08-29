@@ -8,6 +8,7 @@ import { OAuthConsentGrantEntity } from './oauth-consent-grant.entity';
 import { OAuthUserEntity } from './oauth-user.entity';
 import { SnapshotEntity } from './snapshot.entity';
 import { SnapshotOutputEntity } from './snapshot-output.entity';
+import { SnapshotPublicationEntity } from './snapshot-publication.entity';
 
 export { AccessAllowlistEntity } from './access-allowlist.entity';
 export { AlgorithmPresetEntity } from './algorithm-preset.entity';
@@ -19,12 +20,14 @@ export { OAuthConsentGrantEntity } from './oauth-consent-grant.entity';
 export { OAuthUserEntity } from './oauth-user.entity';
 export { SnapshotEntity } from './snapshot.entity';
 export { SnapshotOutputEntity } from './snapshot-output.entity';
+export { SnapshotPublicationEntity } from './snapshot-publication.entity';
 
 export const ENTITIES = [
   AlgorithmPresetEntity,
   AlgorithmPresetInputEntity,
   SnapshotEntity,
   SnapshotOutputEntity,
+  SnapshotPublicationEntity,
   OAuthUserEntity,
   AuthSessionEntity,
   OAuthConsentGrantEntity,

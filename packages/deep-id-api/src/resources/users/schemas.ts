@@ -24,6 +24,9 @@ export const encryptedScoresSchema: z.ZodType<DeepIdEncryptedScores> = z.object(
   contribution_score_encr: encryptedScoreFieldSchema.nullable().optional(),
   proposal_engagement_encr: encryptedScoreFieldSchema.nullable().optional(),
   token_value_over_time_encr: encryptedScoreFieldSchema.nullable().optional(),
+  github_engagement_encr: encryptedScoreFieldSchema.nullable().optional(),
+  discord_engagement_encr: encryptedScoreFieldSchema.nullable().optional(),
+  mattermost_engagement_encr: encryptedScoreFieldSchema.nullable().optional(),
 });
 
 /**

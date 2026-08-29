@@ -1,3 +1,4 @@
+export { buildCommunityCohort, type CommunityCohortRow } from './cohort.js';
 export {
   type CommunityDatasetManifest,
   type CommunityFetchCheckpoint,

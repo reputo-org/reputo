@@ -12,6 +12,7 @@ import type {
 } from '@reputo/community-api';
 import type { Storage } from '@reputo/storage';
 import { describe, expect, it, vi } from 'vitest';
+import type { CommunityCohortRow } from '../../../../src/activities/community/cohort.js';
 import {
   type CommunityDatasetManifest,
   type CommunityFetchCheckpoint,
@@ -47,6 +48,7 @@ function scriptedAdapter(script: Record<string, ResourceScript>) {
     platform: 'testplat',
     listResources: async () => [],
     probe: async () => ({ resourceCount: 0, sampledRecordCount: 0 }),
+    searchMemberId: async () => null,
     // eslint-disable-next-line require-yield
     async *iterateRecords({ resourceId, cursor }) {
       calls.push({ resourceId, cursor });
@@ -68,6 +70,7 @@ function makeRun(args: {
   resourceIds: string[];
   platform?: string;
   lastCheckpoint?: CommunityFetchCheckpoint;
+  cohort?: CommunityCohortRow[];
 }) {
   const storage = createInMemoryStorage();
   const heartbeats: CommunityFetchCheckpoint[] = [];
@@ -80,6 +83,10 @@ function makeRun(args: {
       adapter: args.adapter,
       storage: storage as unknown as Storage,
       bucket: TEST_BUCKET,
+      fetchCohort: async (heartbeat) => {
+        heartbeat();
+        return args.cohort ?? [];
+      },
       requestStats: { requests: 0, rateLimitWaits: 0, rateLimitWaitMs: 0 },
       progress: {
         heartbeat: (details) => heartbeats.push(details),
@@ -133,7 +140,11 @@ describe('freezeCommunityDataset', () => {
         coverage: { resource: 'r2', status: 'partial', reason: 'thread:permission_denied' },
       },
     });
-    const { storage, heartbeats, run } = makeRun({ adapter, resourceIds: ['r1', 'r2'] });
+    const cohort = [
+      { did: 'did:sub:bbbbbbbbbbbbbbbbbbbbbbbb', username: 'bob', accountId: null, status: 'unmatched' as const },
+      { did: 'did:sub:aaaaaaaaaaaaaaaaaaaaaaaa', username: 'alice', accountId: 'alice', status: 'matched' as const },
+    ];
+    const { storage, heartbeats, run } = makeRun({ adapter, resourceIds: ['r1', 'r2'], cohort });
 
     const result = await run();
 
@@ -142,7 +153,7 @@ describe('freezeCommunityDataset', () => {
     const prefix = `snapshots/${SNAPSHOT}/community_testplat`;
     const manifest = storage.readJson<CommunityDatasetManifest>(`${prefix}/manifest.json`);
     expect(manifest).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       platform: 'testplat',
       snapshotId: SNAPSHOT,
       window: WINDOW,
@@ -150,6 +161,7 @@ describe('freezeCommunityDataset', () => {
     });
     expect(manifest.files['activities.parquet'].rows).toBe(4);
     expect(manifest.files['coverage.parquet'].rows).toBe(2);
+    expect(manifest.files['cohort.parquet'].rows).toBe(2);
     expect(manifest.fetchStats).toMatchObject({ pages: 3, rows: 4 });
 
     // The manifest is the commit: it is the last object written, and the
@@ -173,6 +185,16 @@ describe('freezeCommunityDataset', () => {
     expect(coverage).toEqual([
       { resource: 'r1', status: 'complete', reason: null },
       { resource: 'r2', status: 'partial', reason: 'thread:permission_denied' },
+    ]);
+
+    // The frozen cohort is sorted by DID and keeps unmatched users, flagged.
+    const cohortRows = await readParquet(
+      storage.readObject(`${prefix}/cohort.parquet`),
+      'did, username, account_id, status',
+    );
+    expect(cohortRows).toEqual([
+      { did: 'did:sub:aaaaaaaaaaaaaaaaaaaaaaaa', username: 'alice', account_id: 'alice', status: 'matched' },
+      { did: 'did:sub:bbbbbbbbbbbbbbbbbbbbbbbb', username: 'bob', account_id: null, status: 'unmatched' },
     ]);
 
     // One heartbeat per page batch at minimum, and the final checkpoint
@@ -231,6 +253,7 @@ describe('freezeCommunityDataset', () => {
       adapter: second.adapter,
       storage: storage as unknown as Storage,
       bucket: TEST_BUCKET,
+      fetchCohort: async () => [],
       requestStats: { requests: 0, rateLimitWaits: 0, rateLimitWaitMs: 0 },
       progress: { heartbeat: vi.fn() },
       logger: { info: vi.fn(), warn: vi.fn() },
@@ -274,6 +297,7 @@ describe('freezeCommunityDataset', () => {
       adapter,
       storage: storage as unknown as Storage,
       bucket: TEST_BUCKET,
+      fetchCohort: async () => [],
       requestStats: { requests: 0, rateLimitWaits: 0, rateLimitWaitMs: 0 },
       progress: { heartbeat: vi.fn() },
       logger: { info: vi.fn(), warn },
@@ -306,6 +330,7 @@ describe('freezeCommunityDataset', () => {
       adapter,
       storage: storage as unknown as Storage,
       bucket: TEST_BUCKET,
+      fetchCohort: async () => [],
       requestStats: { requests: 0, rateLimitWaits: 0, rateLimitWaitMs: 0 },
       progress: { heartbeat: vi.fn() },
       logger: { info: vi.fn(), warn },

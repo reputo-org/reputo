@@ -101,9 +101,16 @@ export interface DeepIdPostScoresActivities {
 
 export interface PostSnapshotScoresInput {
   snapshot: Snapshot;
+  /**
+   * Run-consistent entry timestamp — the workflow start time. Retried posts
+   * reuse it, so DeepID dedupes on `(did, type, timestamp)`.
+   */
+  timestamp?: string;
 }
 
 export interface PostSnapshotScoresResult {
+  /** False when the snapshot had nothing postable (no score type or no primary CSV). */
+  attempted: boolean;
   posted: number;
   ok: number;
   failed: number;

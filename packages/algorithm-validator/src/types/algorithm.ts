@@ -86,7 +86,7 @@ export interface StringIoItem extends BaseIoItem {
   maxLength?: number;
   enum?: string[];
   uiHint?: {
-    widget?: 'select' | string;
+    widget?: 'select' | 'community_connection' | string;
     options?: Array<{
       value: string;
       label: string;
@@ -94,6 +94,8 @@ export interface StringIoItem extends BaseIoItem {
       filters?: Record<string, string>;
     }>;
     dependsOn?: string | string[];
+    /** Community platform a `community_connection` widget offers connections for. */
+    platform?: string;
   };
 }
 
@@ -134,6 +136,12 @@ export interface ScalarObjectPropertyParam extends BaseObjectPropertyParam {
   type: 'string' | 'integer' | 'number';
   enum?: string[];
   default?: string | number;
+  /** Minimum allowed value for numeric properties. */
+  min?: number;
+  /** Maximum allowed value for numeric properties. */
+  max?: number;
+  /** When true, the value must be strictly greater than `min`. */
+  exclusiveMin?: boolean;
   uiHint?: {
     widget?: 'select' | string;
     options?: Array<{
@@ -170,16 +178,21 @@ export interface ArrayIoItem extends BaseIoItem {
   /** Keys that must be unique across all array rows when combined together. */
   uniqueBy?: string[];
   uiHint?: {
-    widget?: 'repeater' | 'resource_selector' | string;
+    widget?: 'repeater' | 'resource_selector' | 'community_resources' | string;
     addButtonLabel?: string;
     presets?: Array<{ label: string; value: Array<Record<string, unknown>> }>;
     dependsOn?: string | string[];
     resourceCatalog?: ResourceCatalog;
   };
-  item: {
-    type: 'object';
-    properties: ObjectPropertyParam[];
-  };
+  /** Row schema: an object with typed properties, or bare string entries. */
+  item:
+    | {
+        type: 'object';
+        properties: ObjectPropertyParam[];
+      }
+    | {
+        type: 'string';
+      };
 }
 
 export interface SubAlgorithmIoItem extends BaseIoItem {

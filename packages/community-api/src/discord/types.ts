@@ -77,6 +77,10 @@ export interface DiscordRawMessage {
   } | null;
 }
 
+export interface DiscordRawGuildMember {
+  user?: { id?: unknown; username?: unknown };
+}
+
 export interface DiscordRawThread {
   id?: unknown;
   type?: unknown;

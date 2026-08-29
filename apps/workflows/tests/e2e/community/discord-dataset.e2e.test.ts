@@ -19,6 +19,25 @@ const harness = vi.hoisted(() => ({
   heartbeatDetails: undefined as unknown,
 }));
 
+// DeepID is faked at the client factory: the cohort's consented-user pages come
+// from this fixture, while the Discord member search still travels through the
+// real adapter and the undici mock.
+const deepIdHarness = vi.hoisted(() => ({
+  users: {} as Record<string, unknown>,
+}));
+
+vi.mock('@reputo/deep-id-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@reputo/deep-id-api')>();
+  return {
+    ...actual,
+    createDeepIdClient: () => ({
+      async *iterateUsers() {
+        yield { users: deepIdHarness.users };
+      },
+    }),
+  };
+});
+
 vi.mock('@temporalio/activity', () => ({
   Context: {
     current: () => ({
@@ -102,6 +121,21 @@ function installGuildRoutes(state: { failChannel2: boolean }) {
     ['/channels/c2', () => ({ statusCode: 200, body: { id: 'c2', type: 0, guild_id: 'g1' } })],
     ['/channels/c3', () => ({ statusCode: 403, body: { message: 'Missing Access' } })],
     [
+      '/guilds/g1/members/search',
+      (url: string) => {
+        const query = new URL(url).searchParams.get('query');
+        // Prefix matches around the exact hit prove the cohort narrows to an
+        // exact username match, never a guess.
+        return {
+          statusCode: 200,
+          body:
+            query === 'alice'
+              ? [{ user: { id: 'al2', username: 'alice2' } }, { user: { id: 'alice', username: 'alice' } }]
+              : [],
+        };
+      },
+    ],
+    [
       '/guilds/g1/threads/active',
       () => ({
         statusCode: 200,
@@ -167,10 +201,23 @@ async function readParquet(bytes: Buffer | undefined, columns: string): Promise<
 
 const sha256 = (data: Uint8Array): string => createHash('sha256').update(data).digest('hex');
 
+const socialIdentity = (username: string) => ({
+  username,
+  verifiedAt: '2026-08-01T00:00:00.000Z',
+  expiresAt: '2026-11-01T00:00:00.000Z',
+  vc: null,
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   harness.heartbeats = [];
   harness.heartbeatDetails = undefined;
+  deepIdHarness.users = {
+    'did:sub:aaaaaaaaaaaaaaaaaaaaaaaa': { scopes: ['api', 'discord'], discord: socialIdentity('alice') },
+    'did:sub:bbbbbbbbbbbbbbbbbbbbbbbb': { scopes: ['api', 'discord'], discord: socialIdentity('ghost') },
+    'did:sub:cccccccccccccccccccccccc': { scopes: ['api', 'discord'], discord: null },
+    'did:sub:dddddddddddddddddddddddd': { scopes: ['api'] },
+  };
 });
 
 describe('discord dataset dependency (synthetic guild)', () => {
@@ -183,7 +230,7 @@ describe('discord dataset dependency (synthetic guild)', () => {
     const input = {
       dependencyKey: 'discord-activity' as const,
       snapshotId: 'snap-e2e',
-      communityFetch: { resourceIds: ['c1', 'c2', 'c3'], ...WINDOW },
+      communityFetch: { connectionId: 'conn-1', communityId: 'g1', resourceIds: ['c1', 'c2', 'c3'], ...WINDOW },
     };
 
     // Attempt 1: channel c2's network dies mid-crawl, after c1 finished. The
@@ -205,7 +252,7 @@ describe('discord dataset dependency (synthetic guild)', () => {
     const prefix = 'snapshots/snap-e2e/community_discord';
     const manifest = storage.readJson<CommunityManifest>(`${prefix}/manifest.json`);
     expect(manifest).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       platform: 'discord',
       snapshotId: 'snap-e2e',
       window: { start: WINDOW.windowStart, end: WINDOW.windowEnd },
@@ -250,6 +297,19 @@ describe('discord dataset dependency (synthetic guild)', () => {
       { resource: 'c3', status: 'failed', reason: 'permission_denied' },
     ]);
 
+    // The frozen cohort keeps every consented user: matched by exact username,
+    // unmatched (renamed or unlinked accounts) as explicit rows with a flag.
+    const cohort = await readParquet(
+      storage.readObject(`${prefix}/cohort.parquet`),
+      'did, username, account_id, status',
+    );
+    expect(cohort).toEqual([
+      { did: 'did:sub:aaaaaaaaaaaaaaaaaaaaaaaa', username: 'alice', account_id: 'alice', status: 'matched' },
+      { did: 'did:sub:bbbbbbbbbbbbbbbbbbbbbbbb', username: 'ghost', account_id: null, status: 'unmatched' },
+      { did: 'did:sub:cccccccccccccccccccccccc', username: null, account_id: null, status: 'unmatched' },
+    ]);
+    expect(manifest.files['cohort.parquet'].rows).toBe(3);
+
     // Staging segments are gone after the commit; only the dataset remains.
     expect(storage.keys().filter((key) => key.includes('/staging/'))).toEqual([]);
 
@@ -283,7 +343,7 @@ describe('discord dataset dependency (synthetic guild)', () => {
     const failure = await resolveDependency({
       dependencyKey: 'discord-activity',
       snapshotId: 'snap-leak',
-      communityFetch: { resourceIds: ['c1'], ...WINDOW },
+      communityFetch: { connectionId: 'conn-1', communityId: 'g1', resourceIds: ['c1'], ...WINDOW },
     }).catch((error: Error) => error);
 
     expect(failure).toBeInstanceOf(Error);
@@ -308,7 +368,7 @@ describe('discord dataset dependency (synthetic guild)', () => {
       resolveDependency({
         dependencyKey: 'discord-activity',
         snapshotId: 'snap-all-denied',
-        communityFetch: { resourceIds: ['c3'], ...WINDOW },
+        communityFetch: { connectionId: 'conn-1', communityId: 'g1', resourceIds: ['c3'], ...WINDOW },
       }),
     ).rejects.toThrow(/none of the 1 selected resources could be read \(permission_denied\)/);
     expect(storage.has('snapshots/snap-all-denied/community_discord/manifest.json')).toBe(false);
@@ -327,5 +387,12 @@ describe('discord dataset dependency (synthetic guild)', () => {
     await expect(resolveDependency({ dependencyKey: 'discord-activity', snapshotId: 'snap-x' })).rejects.toThrow(
       /communityFetch/,
     );
+    await expect(
+      resolveDependency({
+        dependencyKey: 'discord-activity',
+        snapshotId: 'snap-x',
+        communityFetch: { connectionId: 'conn-1', communityId: ' ', resourceIds: ['c1'], ...WINDOW },
+      }),
+    ).rejects.toThrow(/community id/);
   });
 });

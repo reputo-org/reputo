@@ -161,6 +161,9 @@ describe('AlgorithmPresetService', () => {
       }
       return { success: true, data: { preset: {}, payload: {} } };
     });
+    const mockCommunityInputValidation = {
+      validate: vi.fn().mockResolvedValue([]),
+    } as unknown as import('../../../src/community/community-input-validation.service').CommunityInputValidationService;
 
     service = new AlgorithmPresetService(
       mockLogger,
@@ -168,6 +171,7 @@ describe('AlgorithmPresetService', () => {
       mockStorageService,
       mockSnapshotRepository,
       mockTemporalService,
+      mockCommunityInputValidation,
       mockDataSource,
       mockConfigService,
     );

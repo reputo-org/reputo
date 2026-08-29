@@ -14,15 +14,18 @@ import type {
 import { ObjectNotFoundError, type Storage } from '@reputo/storage';
 import {
   COMMUNITY_ACTIVITIES_FILENAME,
+  COMMUNITY_COHORT_FILENAME,
   COMMUNITY_COVERAGE_FILENAME,
   COMMUNITY_MANIFEST_FILENAME,
   getCommunityDatasetKey,
   getCommunityStagingPrefix,
 } from '../../shared/constants/index.js';
+import type { CommunityCohortRow } from './cohort.js';
 
 const gzipAsync = promisify(gzip);
 
-export const COMMUNITY_DATASET_SCHEMA_VERSION = 1;
+/** Version 2 added `cohort.parquet` to every committed dataset. */
+export const COMMUNITY_DATASET_SCHEMA_VERSION = 2;
 
 /** Rows buffered locally before a resumable staging segment is committed to S3. */
 const SEGMENT_MAX_ROWS = 5_000;
@@ -96,6 +99,13 @@ export interface FreezeCommunityDatasetInput {
   adapter: CommunityAdapter;
   storage: Storage;
   bucket: string;
+  /**
+   * Fetches the consented cohort (DeepID users matched to platform accounts).
+   * Runs inside the freeze, after the crawl and before the manifest commit, so
+   * `cohort.parquet` is covered by the same first-writer-wins rule. The passed
+   * heartbeat re-sends the engine's current checkpoint to prove liveness.
+   */
+  fetchCohort(heartbeat: () => void): Promise<CommunityCohortRow[]>;
   /** Live transport counters for the current attempt (adapter observer output). */
   requestStats: CommunityRequestStats;
   progress: {
@@ -304,6 +314,11 @@ export async function freezeCommunityDataset(
       );
     }
 
+    // The cohort joins the freeze before the manifest commit, so a dataset
+    // either carries its cohort or does not exist yet.
+    const cohort = await input.fetchCohort(beat);
+    beat();
+
     const manifest = await exportAndCommit({
       snapshotId,
       platform,
@@ -311,6 +326,7 @@ export async function freezeCommunityDataset(
       checkpoint,
       resourceIds,
       coverages,
+      cohort,
       storage,
       bucket,
       scratch,
@@ -332,6 +348,7 @@ async function exportAndCommit(args: {
   checkpoint: CommunityFetchCheckpoint;
   resourceIds: string[];
   coverages: CommunityResourceCoverage[];
+  cohort: CommunityCohortRow[];
   storage: Storage;
   bucket: string;
   scratch: string;
@@ -339,7 +356,8 @@ async function exportAndCommit(args: {
   beat: () => void;
   logger: CommunityEngineLogger;
 }): Promise<CommunityDatasetManifest> {
-  const { snapshotId, platform, window, checkpoint, resourceIds, coverages, storage, bucket, scratch, logger } = args;
+  const { snapshotId, platform, window, checkpoint, resourceIds, coverages, cohort, storage, bucket, scratch, logger } =
+    args;
 
   const segmentDir = join(scratch, 'segments');
   const duckdbTmpDir = join(scratch, 'duckdb-tmp');
@@ -366,6 +384,7 @@ async function exportAndCommit(args: {
   const connection = await instance.connect();
   const activitiesPath = join(scratch, COMMUNITY_ACTIVITIES_FILENAME);
   const coveragePath = join(scratch, COMMUNITY_COVERAGE_FILENAME);
+  const cohortPath = join(scratch, COMMUNITY_COHORT_FILENAME);
   let duckdbVersion: string;
   let activityRows: number;
   try {
@@ -412,6 +431,28 @@ async function exportAndCommit(args: {
         `TO '${coveragePath.replaceAll("'", "''")}' (FORMAT parquet, COMPRESSION zstd)`,
     );
 
+    await connection.run('CREATE TABLE cohort (did VARCHAR, username VARCHAR, account_id VARCHAR, status VARCHAR)');
+    const insertCohort = await connection.prepare('INSERT INTO cohort VALUES ($1, $2, $3, $4)');
+    for (const row of cohort) {
+      insertCohort.bindVarchar(1, row.did);
+      if (row.username === null) {
+        insertCohort.bindNull(2);
+      } else {
+        insertCohort.bindVarchar(2, row.username);
+      }
+      if (row.accountId === null) {
+        insertCohort.bindNull(3);
+      } else {
+        insertCohort.bindVarchar(3, row.accountId);
+      }
+      insertCohort.bindVarchar(4, row.status);
+      await insertCohort.run();
+    }
+    await connection.run(
+      `COPY (SELECT did, username, account_id, status FROM cohort ORDER BY did) ` +
+        `TO '${cohortPath.replaceAll("'", "''")}' (FORMAT parquet, COMPRESSION zstd)`,
+    );
+
     const versionResult = await connection.runAndReadAll('SELECT version() AS version');
     duckdbVersion = String(versionResult.getRowObjects()[0]?.version ?? 'unknown');
     const countResult = await connection.runAndReadAll(
@@ -424,7 +465,11 @@ async function exportAndCommit(args: {
   }
   args.beat();
 
-  const [activitiesBytes, coverageBytes] = await Promise.all([readFile(activitiesPath), readFile(coveragePath)]);
+  const [activitiesBytes, coverageBytes, cohortBytes] = await Promise.all([
+    readFile(activitiesPath),
+    readFile(coveragePath),
+    readFile(cohortPath),
+  ]);
   await storage.putObject({
     bucket,
     key: getCommunityDatasetKey(snapshotId, platform, COMMUNITY_ACTIVITIES_FILENAME),
@@ -435,6 +480,12 @@ async function exportAndCommit(args: {
     bucket,
     key: getCommunityDatasetKey(snapshotId, platform, COMMUNITY_COVERAGE_FILENAME),
     body: coverageBytes,
+    contentType: 'application/octet-stream',
+  });
+  await storage.putObject({
+    bucket,
+    key: getCommunityDatasetKey(snapshotId, platform, COMMUNITY_COHORT_FILENAME),
+    body: cohortBytes,
     contentType: 'application/octet-stream',
   });
 
@@ -453,6 +504,11 @@ async function exportAndCommit(args: {
         sha256: sha256(coverageBytes),
         bytes: coverageBytes.byteLength,
         rows: coverages.length,
+      },
+      [COMMUNITY_COHORT_FILENAME]: {
+        sha256: sha256(cohortBytes),
+        bytes: cohortBytes.byteLength,
+        rows: cohort.length,
       },
     },
     fetchStats: args.stats(),
@@ -473,6 +529,7 @@ async function exportAndCommit(args: {
     platform,
     activityRows,
     coverageRows: coverages.length,
+    cohortRows: cohort.length,
   });
 
   await clearStagingSegments({ snapshotId, platform, storage, bucket, logger });

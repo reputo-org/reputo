@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { DataSource } from 'typeorm';
+import { CommunityInputValidationService } from '../community/community-input-validation.service';
 import { throwNotFoundError } from '../shared/exceptions';
 import { collectUploadKeys, getAlgorithmDefinitionOrThrow, validateAlgorithmInputs } from '../shared/utils';
 import type { SnapshotRow } from '../snapshot/snapshot.repository';
@@ -28,6 +29,7 @@ export class AlgorithmPresetService {
     @Inject(forwardRef(() => SnapshotRepository))
     private readonly snapshotRepository: SnapshotRepository,
     private readonly temporalService: TemporalService,
+    private readonly communityInputValidation: CommunityInputValidationService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
     configService: ConfigService,
@@ -44,6 +46,7 @@ export class AlgorithmPresetService {
       storageService: this.storageService,
       storageMaxSizeBytes: this.storageMaxSizeBytes,
       storageContentTypeAllowlist: this.storageContentTypeAllowlist,
+      communityValidation: this.communityInputValidation,
     });
 
     return this.repository.create(createDto);
@@ -94,6 +97,7 @@ export class AlgorithmPresetService {
       storageService: this.storageService,
       storageMaxSizeBytes: this.storageMaxSizeBytes,
       storageContentTypeAllowlist: this.storageContentTypeAllowlist,
+      communityValidation: this.communityInputValidation,
     });
 
     const updatedAlgorithmPreset = await this.repository.updateById(id, updateDto);

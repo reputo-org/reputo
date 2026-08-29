@@ -12,6 +12,7 @@ import {
   type DiscordInstalledGuild,
   DiscordMessageType,
   type DiscordRawChannel,
+  type DiscordRawGuildMember,
   type DiscordRawMessage,
   type DiscordRawThread,
   DiscordThreadType,
@@ -263,6 +264,26 @@ export function toActivityRecords(
   }
 
   return records;
+}
+
+/**
+ * The account id of the member whose username equals `username` exactly.
+ * Discord's member search matches by prefix on usernames and nicknames, so the
+ * result is narrowed to an exact username match — never a guess.
+ */
+export function findExactMemberId(members: readonly DiscordRawGuildMember[], username: string): string | null {
+  if (!Array.isArray(members)) {
+    throw new CommunityContractError('Discord member search result was not an array.');
+  }
+
+  for (const member of members) {
+    const user = member?.user;
+    if (typeof user?.id === 'string' && user.id.length > 0 && user.username === username) {
+      return user.id;
+    }
+  }
+
+  return null;
 }
 
 /** A thread the crawl walks, with its archive time when the listing carries one. */

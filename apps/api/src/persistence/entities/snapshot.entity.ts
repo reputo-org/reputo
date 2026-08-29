@@ -14,6 +14,7 @@ import {
 import { v7 as uuidv7 } from 'uuid';
 import { AlgorithmPresetEntity } from './algorithm-preset.entity';
 import { SnapshotOutputEntity } from './snapshot-output.entity';
+import { SnapshotPublicationEntity } from './snapshot-publication.entity';
 
 @Entity({ name: 'snapshots' })
 @Index('snapshots_algorithm_preset_id_idx', ['algorithmPresetId'])
@@ -72,6 +73,12 @@ export class SnapshotEntity {
     },
   )
   outputs!: SnapshotOutputEntity[];
+
+  @OneToMany(
+    () => SnapshotPublicationEntity,
+    (publication) => publication.snapshot,
+  )
+  publications!: SnapshotPublicationEntity[];
 
   @BeforeInsert()
   generateId(): void {
