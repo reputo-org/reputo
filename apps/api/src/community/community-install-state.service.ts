@@ -18,6 +18,12 @@ interface InstallStatePayload {
  * The value is self-contained — payload plus an HMAC over it — so no row is
  * written before the admin returns. Authenticity comes from the signature and
  * freshness from the embedded expiry.
+ *
+ * It is deliberately not single-use: consuming the nonce would need a third
+ * table, and replay buys nothing here because the callback is role-guarded and
+ * the guild comes from the code exchange. A replayed state can only reconnect a
+ * community the same admin could connect anyway. Make it one-time if the
+ * callback ever becomes reachable by a non-admin.
  */
 @Injectable()
 export class CommunityInstallStateService {

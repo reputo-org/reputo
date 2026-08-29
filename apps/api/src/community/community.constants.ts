@@ -59,7 +59,7 @@ const REASON_BY_CATEGORY: Record<string, string> = {
   [CommunityErrorCategory.networkError]: 'The platform could not be reached. Try the check again shortly.',
   [CommunityErrorCategory.upstreamError]: 'The platform returned an error. Try the check again shortly.',
   [CommunityErrorCategory.contractViolation]: 'The platform returned an unexpected response.',
-  [CommunityLocalErrorCategory.invalidState]: 'The authorization link expired or was already used. Start again.',
+  [CommunityLocalErrorCategory.invalidState]: 'The authorization link is no longer valid. Start again.',
   [CommunityLocalErrorCategory.declined]: 'The authorization was cancelled before the bot was installed.',
 };
 

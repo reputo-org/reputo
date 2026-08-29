@@ -126,7 +126,7 @@ export function describeConnectOutcome(params: {
   const messages: Record<string, string> = {
     declined: "The authorization was cancelled before the bot was installed.",
     invalid_state:
-      "That authorization link expired or was already used. Try connecting again.",
+      "That authorization link is no longer valid. Try connecting again.",
     auth_failed: "The platform rejected the bot credentials.",
     permission_denied:
       "The bot needs View Channels and Read Message History. Reconnect and grant both.",
