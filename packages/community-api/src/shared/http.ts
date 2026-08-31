@@ -35,6 +35,13 @@ export interface HttpRequestOptions {
   headers?: Record<string, string>;
   /** Pre-encoded request body. Never logged. */
   body?: string;
+  /**
+   * Treat a 403 that reports `x-ratelimit-remaining: 0` as a spent request
+   * budget rather than a refusal. GitHub answers an exhausted primary limit
+   * that way and sends no `retry-after`; Discord sends the same header on
+   * genuine permission failures, so platforms opt in.
+   */
+  throttleOnSpentBudget?: boolean;
 }
 
 export interface HttpResponse<T> {
@@ -109,6 +116,23 @@ export function parseRetryAfterMs(
   return undefined;
 }
 
+/**
+ * Milliseconds until the request budget refills, from an `x-ratelimit-reset`
+ * epoch-seconds header. Undefined when the platform sent no usable reset.
+ */
+export function parseRateLimitResetMs(
+  headers: Record<string, string | string[] | undefined>,
+  nowMs: number = Date.now(),
+): number | undefined {
+  const reset = Number(firstHeader(headers, 'x-ratelimit-reset'));
+  return Number.isFinite(reset) ? Math.max(0, reset * 1000 - nowMs) : undefined;
+}
+
+/** True when the platform reports this response spent the last of the budget. */
+function hasSpentBudget(headers: Record<string, string | string[] | undefined>): boolean {
+  return Number(firstHeader(headers, 'x-ratelimit-remaining')) === 0;
+}
+
 export function calculateBackoffMs(attempt: number, baseDelayMs: number, maxDelayMs: number): number {
   const capped = Math.min(baseDelayMs * 2 ** attempt, maxDelayMs);
   return capped + Math.random() * capped * 0.5;
@@ -159,13 +183,25 @@ export async function executeRequest<T>(
       if (response.statusCode === 401) {
         throw new CommunityAuthError('Platform rejected the credentials.', response.statusCode);
       }
-      // A 403 carrying `retry-after` is a throttle, not a permission decision —
-      // GitHub answers its secondary rate limit that way.
+      // A spent budget is not a permission decision, and a 403 is how GitHub
+      // reports both: `retry-after` marks its secondary limit, a zero
+      // `x-ratelimit-remaining` its primary one.
+      const spentBudget = options.throttleOnSpentBudget === true && hasSpentBudget(response.headers);
       const throttled =
         response.statusCode === 429 ||
-        (response.statusCode === 403 && firstHeader(response.headers, 'retry-after') !== undefined);
+        (response.statusCode === 403 && (spentBudget || firstHeader(response.headers, 'retry-after') !== undefined));
       if (response.statusCode === 403 && !throttled) {
         throw new CommunityPermissionError('Platform denied access to this resource.', response.statusCode);
+      }
+
+      // The budget refills on the platform's own schedule — up to an hour out,
+      // which no in-process backoff can wait for. Surface it so the caller
+      // retries the whole fetch after the reset instead of sleeping here.
+      if (throttled && spentBudget) {
+        throw new CommunityRateLimitError(
+          'Platform request budget is spent for this window.',
+          parseRateLimitResetMs(response.headers),
+        );
       }
 
       if (throttled) {

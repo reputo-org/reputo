@@ -103,6 +103,7 @@ export function createGitHubApi(
         method,
         url: `${GITHUB_API_BASE_URL}${path}`,
         headers: { ...GITHUB_API_HEADERS, authorization },
+        throttleOnSpentBudget: true,
       },
       observer,
     );
