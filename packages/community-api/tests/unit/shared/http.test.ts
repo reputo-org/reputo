@@ -55,6 +55,19 @@ describe('executeRequest', () => {
     expect(mockRequest).toHaveBeenCalledTimes(1);
   });
 
+  it('treats a 403 carrying retry-after as a throttle, not a permission failure', async () => {
+    mockRequest
+      .mockResolvedValueOnce(
+        mockUndiciResponse(403, { message: 'secondary rate limit' }, { 'retry-after': '0' }) as never,
+      )
+      .mockResolvedValueOnce(mockUndiciResponse(200, { ok: true }) as never);
+
+    const response = await executeRequest<{ ok: boolean }>(logger, TEST_HTTP_CONFIG, baseOptions);
+
+    expect(response.data).toEqual({ ok: true });
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+  });
+
   it('raises an http error on other 4xx without retrying', async () => {
     mockRequest.mockResolvedValue(mockUndiciResponse(400, { error: 'invalid_grant' }) as never);
 

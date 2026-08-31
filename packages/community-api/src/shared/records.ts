@@ -57,6 +57,18 @@ export interface CommunityFetchWindow {
   end: string;
 }
 
+/** Half-open window membership: `start <= iso < end`. */
+export function isWithinWindow(iso: string, window: CommunityFetchWindow): boolean {
+  const ms = Date.parse(iso);
+  return !Number.isNaN(ms) && ms >= Date.parse(window.start) && ms < Date.parse(window.end);
+}
+
+/** Normalizes a platform timestamp to ISO 8601 UTC; undefined when unparseable. */
+export function toUtcIso(timestamp: unknown): string | undefined {
+  const ms = typeof timestamp === 'string' ? Date.parse(timestamp) : Number.NaN;
+  return Number.isNaN(ms) ? undefined : new Date(ms).toISOString();
+}
+
 export const CommunityCoverageStatus = {
   complete: 'complete',
   partial: 'partial',

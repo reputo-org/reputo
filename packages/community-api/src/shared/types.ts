@@ -11,9 +11,9 @@ export interface CommunityHttpConfig {
 }
 
 /** Canonical, platform-neutral kinds of a selectable resource. */
-export type CommunityResourceKind = 'text' | 'announcement' | 'forum';
+export type CommunityResourceKind = 'text' | 'announcement' | 'forum' | 'repository';
 
-/** One selectable resource inside a connected community — a Discord channel. */
+/** One selectable resource inside a connected community — a Discord channel, a GitHub repository. */
 export interface CommunityResource {
   id: string;
   name: string;

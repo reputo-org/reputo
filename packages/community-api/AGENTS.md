@@ -22,3 +22,7 @@ Rules that outrank convenience here:
   logged. The transport logs a method, a query-stripped URL, and a status code.
 - The Discord bot asks for View Channels and Read Message History only, and no
   privileged intents — the probe verifies field availability under that limit.
+- The GitHub App private key never leaves the process: it signs a short-lived
+  app JWT, which mints installation tokens that live in memory for the run. Only
+  installation responses move the rate-limit snapshot the crawl throttles on;
+  the App's own budget is a different bucket.

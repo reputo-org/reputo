@@ -118,7 +118,7 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 
 /**
  * One platform call with exponential backoff and jitter on transient failures
- * (429, 5xx, network). A `retry-after` on a 429 overrides the computed backoff.
+ * (throttles, 5xx, network). A `retry-after` header overrides the computed backoff.
  * Auth and permission failures are surfaced immediately as typed errors so the
  * caller can move the connection to `broken` instead of retrying.
  */
@@ -159,10 +159,16 @@ export async function executeRequest<T>(
       if (response.statusCode === 401) {
         throw new CommunityAuthError('Platform rejected the credentials.', response.statusCode);
       }
-      if (response.statusCode === 403) {
+      // A 403 carrying `retry-after` is a throttle, not a permission decision —
+      // GitHub answers its secondary rate limit that way.
+      const throttled =
+        response.statusCode === 429 ||
+        (response.statusCode === 403 && firstHeader(response.headers, 'retry-after') !== undefined);
+      if (response.statusCode === 403 && !throttled) {
         throw new CommunityPermissionError('Platform denied access to this resource.', response.statusCode);
       }
-      if (response.statusCode === 429) {
+
+      if (throttled) {
         const retryAfterMs = parseRetryAfterMs(response.headers, text);
         if (attempt === maxAttempts - 1) {
           throw new CommunityRateLimitError('Platform rate limit exhausted the retry budget.', retryAfterMs);
