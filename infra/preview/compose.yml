@@ -139,6 +139,8 @@ x-workflows-environment: &workflows-environment
     DEEP_ID_CLIENT_ID: '${DEEP_ID_CLIENT_ID:?missing DEEP_ID_CLIENT_ID}'
     DEEP_ID_CLIENT_SECRET: '${DEEP_ID_CLIENT_SECRET:?missing DEEP_ID_CLIENT_SECRET}'
     DISCORD_BOT_TOKEN: mock-discord-bot-token
+    GITHUB_APP_ID: '000000'
+    GITHUB_APP_PRIVATE_KEY: mock-github-app-private-key
 
 ################################################################################
 # Networks / volumes
