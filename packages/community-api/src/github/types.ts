@@ -84,7 +84,7 @@ export interface GitHubRawRepository {
   id?: unknown;
   name?: unknown;
   full_name?: unknown;
-  archived?: unknown;
+  has_issues?: unknown;
 }
 
 export interface GitHubRawRepositoriesResponse {

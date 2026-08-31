@@ -4,7 +4,7 @@ import type { CommunityAdapter } from '../shared/records.js';
 import type { CommunityProbeResult, CommunityResource } from '../shared/types.js';
 import { createGitHubApi, type GitHubApi } from './auth.js';
 import { createGitHubRecordIterator } from './fetch.js';
-import { hasRequiredIssueFields, toMatchedAccountId, toRepositoryResources } from './transform.js';
+import { hasRequiredIssueFields, toIssueEnabledIds, toMatchedAccountId, toRepositoryResources } from './transform.js';
 import type {
   GitHubAdapterConfig,
   GitHubRateLimit,
@@ -21,15 +21,24 @@ export interface GitHubAdapter extends CommunityAdapter {
 /** Repositories per listing page. 100 is GitHub's maximum. */
 const REPOSITORIES_PAGE_LIMIT = 100;
 
-/** Repositories the probe will try before concluding that nothing is readable. */
+/**
+ * Issue pages the probe will read before concluding that nothing is readable.
+ * An installation grants its permissions to every repository it lists, so one
+ * readable tracker proves the rest; the cap only bounds the cost of finding it.
+ */
 const PROBE_REPOSITORY_LIMIT = 10;
 
+interface InstallationRepositories {
+  resources: CommunityResource[];
+  /** Repositories the probe can actually read issues from. */
+  probeCandidates: CommunityResource[];
+}
+
 /** Every repository the installation can read, across all listing pages. */
-export async function listInstallationRepositories(
-  api: GitHubApi,
-  installationId: string,
-): Promise<CommunityResource[]> {
+async function readInstallationRepositories(api: GitHubApi, installationId: string): Promise<InstallationRepositories> {
   const resources: CommunityResource[] = [];
+  const issueEnabled = new Set<string>();
+
   for (let page = 1; ; page++) {
     const response = await api.installationRequest<GitHubRawRepositoriesResponse>(
       installationId,
@@ -38,20 +47,33 @@ export async function listInstallationRepositories(
     );
     const listed = toRepositoryResources(response?.repositories);
     resources.push(...listed);
+    for (const id of toIssueEnabledIds(response?.repositories)) {
+      issueEnabled.add(id);
+    }
     if (listed.length < REPOSITORIES_PAGE_LIMIT) {
-      return resources.sort((a, b) => a.name.localeCompare(b.name));
+      resources.sort((a, b) => a.name.localeCompare(b.name));
+      return { resources, probeCandidates: resources.filter((resource) => issueEnabled.has(resource.id)) };
     }
   }
+}
+
+export async function listInstallationRepositories(
+  api: GitHubApi,
+  installationId: string,
+): Promise<CommunityResource[]> {
+  return (await readInstallationRepositories(api, installationId)).resources;
 }
 
 /**
  * Lists the installation's repositories and reads one issues page, proving both
  * the App's permissions and that the fields the crawl depends on arrive.
+ * Candidates are the repositories whose tracker is on, so an installation whose
+ * first repositories happen to have issues disabled still probes cleanly.
  */
 export async function probeInstallation(api: GitHubApi, installationId: string): Promise<CommunityProbeResult> {
-  const resources = await listInstallationRepositories(api, installationId);
+  const { resources, probeCandidates } = await readInstallationRepositories(api, installationId);
 
-  for (const resource of resources.slice(0, PROBE_REPOSITORY_LIMIT)) {
+  for (const resource of probeCandidates.slice(0, PROBE_REPOSITORY_LIMIT)) {
     try {
       const issues = await api.installationRequest<GitHubRawIssue[]>(
         installationId,
@@ -80,7 +102,9 @@ export async function probeInstallation(api: GitHubApi, installationId: string):
   throw new CommunityPermissionError(
     resources.length === 0
       ? 'The GitHub App installation grants access to no repositories.'
-      : 'The GitHub App cannot read issues in any repository of this installation.',
+      : probeCandidates.length === 0
+        ? 'No repository in this installation has its issue tracker enabled, so there is nothing to score.'
+        : 'The GitHub App cannot read issues in any repository of this installation.',
     403,
   );
 }

@@ -83,6 +83,44 @@ describe('listResources and probe', () => {
     await expect(newClient().probe('55')).rejects.toBeInstanceOf(CommunityPermissionError);
   });
 
+  it('probes past repositories whose issue tracker is off', async () => {
+    mockRequest
+      .mockResolvedValueOnce(mockUndiciResponse(201, INSTALLATION_TOKEN_BODY) as never)
+      .mockResolvedValueOnce(
+        mockUndiciResponse(
+          200,
+          {
+            repositories: [
+              { id: 9, name: 'archived', full_name: 'singnet/archived', has_issues: false },
+              { id: 1, name: 'snet', full_name: 'singnet/snet', has_issues: true },
+            ],
+          },
+          rateLimitHeaders(11_000),
+        ) as never,
+      )
+      .mockResolvedValueOnce(
+        mockUndiciResponse(200, [{ id: 10, created_at: '2026-07-01T00:00:00Z' }], rateLimitHeaders(10_999)) as never,
+      );
+
+    // The tracker-less repository sorts first but is never read.
+    await expect(newClient().probe('55')).resolves.toMatchObject({ resourceCount: 2, sampledResourceId: '1' });
+    expect(lastCall()[0]).toContain('/repos/singnet/snet/issues');
+  });
+
+  it('reports an installation whose repositories all have issues disabled', async () => {
+    mockRequest
+      .mockResolvedValueOnce(mockUndiciResponse(201, INSTALLATION_TOKEN_BODY) as never)
+      .mockResolvedValueOnce(
+        mockUndiciResponse(
+          200,
+          { repositories: [{ id: 9, name: 'archived', full_name: 'singnet/archived', has_issues: false }] },
+          rateLimitHeaders(11_000),
+        ) as never,
+      );
+
+    await expect(newClient().probe('55')).rejects.toThrow(/issue tracker enabled/);
+  });
+
   it('fails the probe when the installation grants no repository', async () => {
     mockRequest
       .mockResolvedValueOnce(mockUndiciResponse(201, INSTALLATION_TOKEN_BODY) as never)

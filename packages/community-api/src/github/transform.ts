@@ -50,22 +50,38 @@ export function toInstallation(raw: GitHubRawInstallation): GitHubInstallation {
   };
 }
 
+function listedRepositories(repositories: unknown): Array<GitHubRawRepository & { id: number; full_name: string }> {
+  if (!Array.isArray(repositories)) {
+    throw new CommunityContractError('GitHub repository listing was not an array.');
+  }
+
+  return (repositories as GitHubRawRepository[]).filter(
+    (repository): repository is GitHubRawRepository & { id: number; full_name: string } =>
+      typeof repository?.id === 'number' && typeof repository.full_name === 'string',
+  );
+}
+
 /**
  * Repositories the installation can read, keyed by their stable numeric id so a
  * rename cannot invalidate a saved preset. The full name is the display label.
  */
 export function toRepositoryResources(repositories: unknown): CommunityResource[] {
-  if (!Array.isArray(repositories)) {
-    throw new CommunityContractError('GitHub repository listing was not an array.');
-  }
-
-  return (repositories as GitHubRawRepository[])
-    .filter(
-      (repository): repository is GitHubRawRepository & { id: number; full_name: string } =>
-        typeof repository?.id === 'number' && typeof repository.full_name === 'string',
-    )
+  return listedRepositories(repositories)
     .map((repository) => ({ id: String(repository.id), name: repository.full_name, kind: 'repository' as const }))
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Ids of the listed repositories whose issue tracker is still on. The probe
+ * reads an issues page, which a repository with issues disabled answers with
+ * `410 Gone` however healthy the installation is.
+ */
+export function toIssueEnabledIds(repositories: unknown): Set<string> {
+  return new Set(
+    listedRepositories(repositories)
+      .filter((repository) => repository.has_issues !== false)
+      .map((repository) => String(repository.id)),
+  );
 }
 
 /**
