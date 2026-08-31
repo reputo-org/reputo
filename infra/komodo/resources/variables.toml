@@ -282,6 +282,26 @@ description = "Staging Discord bot install callback URL. Must match a redirect U
 is_secret = false
 
 [[variable]]
+name = "STAGING_GITHUB_APP_ID"
+description = "Staging GitHub App identifier."
+is_secret = false
+
+[[variable]]
+name = "STAGING_GITHUB_APP_PRIVATE_KEY"
+description = "Staging GitHub App private key (PEM, newlines escaped as \\n). Signs the app JWT; deployment config only, never written to the database."
+is_secret = true
+
+[[variable]]
+name = "STAGING_GITHUB_APP_SLUG"
+description = "Staging GitHub App URL slug, used to build the install redirect."
+is_secret = false
+
+[[variable]]
+name = "STAGING_GITHUB_APP_CALLBACK_URL"
+description = "Staging GitHub App setup URL. GitHub has no redirect parameter for installs, so this must match the App's Setup URL exactly, e.g. https://<STAGING_API_DOMAIN>/api/v1/community/connections/github/callback."
+is_secret = false
+
+[[variable]]
 name = "PRODUCTION_TRAEFIK_DOMAIN"
 description = "Production Traefik dashboard host."
 is_secret = false
@@ -514,4 +534,24 @@ is_secret = true
 [[variable]]
 name = "PRODUCTION_DISCORD_BOT_CALLBACK_URL"
 description = "Production Discord bot install callback URL. Must match a redirect URI registered on the Discord application, e.g. https://<PRODUCTION_API_DOMAIN>/api/v1/community/connections/discord/callback."
+is_secret = false
+
+[[variable]]
+name = "PRODUCTION_GITHUB_APP_ID"
+description = "Production GitHub App identifier."
+is_secret = false
+
+[[variable]]
+name = "PRODUCTION_GITHUB_APP_PRIVATE_KEY"
+description = "Production GitHub App private key (PEM, newlines escaped as \\n). Signs the app JWT; deployment config only, never written to the database."
+is_secret = true
+
+[[variable]]
+name = "PRODUCTION_GITHUB_APP_SLUG"
+description = "Production GitHub App URL slug, used to build the install redirect."
+is_secret = false
+
+[[variable]]
+name = "PRODUCTION_GITHUB_APP_CALLBACK_URL"
+description = "Production GitHub App setup URL. GitHub has no redirect parameter for installs, so this must match the App's Setup URL exactly, e.g. https://<PRODUCTION_API_DOMAIN>/api/v1/community/connections/github/callback."
 is_secret = false
