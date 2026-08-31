@@ -1,5 +1,13 @@
-import { CommunityApiError, type CommunityLogger, createDiscordAdapter } from '@reputo/community-api';
-import type { CommunityPlatform } from '@reputo/contracts';
+import {
+  type CommunityAdapter,
+  CommunityApiError,
+  type CommunityHttpObserver,
+  type CommunityLogger,
+  createDiscordAdapter,
+  createGitHubAdapter,
+  type GitHubRateLimit,
+} from '@reputo/community-api';
+import { CommunityPlatform } from '@reputo/contracts';
 import { createDeepIdClient } from '@reputo/deep-id-api';
 import { Context } from '@temporalio/activity';
 import config from '../../config/index.js';
@@ -24,6 +32,47 @@ function toSafeFailure(platform: CommunityPlatform, error: unknown): unknown {
   return error instanceof CommunityApiError
     ? new Error(`Community ${platform} fetch failed: ${error.category}`)
     : error;
+}
+
+/**
+ * The adapter each platform's fetch runs on, built from deployment credentials
+ * only. `rateLimit` is optional: platforms that report a budget expose it, and
+ * the run logs its request count against it.
+ */
+function createPlatformAdapter(
+  platform: CommunityPlatform,
+  communityId: string,
+  logger: CommunityLogger,
+  observer: CommunityHttpObserver,
+): CommunityAdapter & { rateLimit?(): GitHubRateLimit | undefined } {
+  const http = {
+    requestTimeoutMs: config.community.requestTimeoutMs,
+    retry: {
+      maxAttempts: config.community.retryMaxAttempts,
+      baseDelayMs: config.community.retryBaseDelayMs,
+      maxDelayMs: config.community.retryMaxDelayMs,
+    },
+  };
+
+  switch (platform) {
+    case CommunityPlatform.discord:
+      return createDiscordAdapter({ ...http, botToken: config.community.discordBotToken }, logger, observer);
+    case CommunityPlatform.github:
+      // The crawl carries no community id per resource, so the installation is
+      // bound here — one adapter per fetch.
+      return createGitHubAdapter(
+        {
+          ...http,
+          appId: config.community.githubAppId,
+          privateKey: config.community.githubAppPrivateKey,
+          installationId: communityId,
+        },
+        logger,
+        observer,
+      );
+    default:
+      throw new Error(`community worker has no adapter for platform "${platform}"`);
+  }
 }
 
 export function createCommunityDependencyResolverActivities(
@@ -53,27 +102,15 @@ export function createCommunityDependencyResolverActivities(
         warn: (payload) => logger.warn('community-api', payload as Record<string, unknown>),
       };
       const requestStats: CommunityRequestStats = { requests: 0, rateLimitWaits: 0, rateLimitWaitMs: 0 };
-      const adapter = createDiscordAdapter(
-        {
-          botToken: config.community.discordBotToken,
-          requestTimeoutMs: config.community.requestTimeoutMs,
-          retry: {
-            maxAttempts: config.community.retryMaxAttempts,
-            baseDelayMs: config.community.retryBaseDelayMs,
-            maxDelayMs: config.community.retryMaxDelayMs,
-          },
+      const adapter = createPlatformAdapter(platform, communityFetch.communityId, communityLogger, {
+        onRequest: () => {
+          requestStats.requests += 1;
         },
-        communityLogger,
-        {
-          onRequest: () => {
-            requestStats.requests += 1;
-          },
-          onRateLimitWait: (delayMs) => {
-            requestStats.rateLimitWaits += 1;
-            requestStats.rateLimitWaitMs += delayMs;
-          },
+        onRateLimitWait: (delayMs) => {
+          requestStats.rateLimitWaits += 1;
+          requestStats.rateLimitWaitMs += delayMs;
         },
-      );
+      });
 
       logger.info('Resolving community dependency', {
         dependencyKey,
@@ -136,6 +173,8 @@ export function createCommunityDependencyResolverActivities(
         snapshotId,
         committed: result.committed,
         fetchStats: result.manifest.fetchStats,
+        // Reads the run's request count against the platform's hourly budget.
+        rateLimit: adapter.rateLimit?.(),
       });
 
       return {};

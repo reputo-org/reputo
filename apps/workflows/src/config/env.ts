@@ -157,6 +157,14 @@ export const envSchema = z.object({
     .trim()
     .min(1)
     .describe('Discord bot token for read-only guild crawls (required for the community worker); never persisted'),
+  GITHUB_APP_ID: z.string().trim().min(1).describe('GitHub App identifier (required for the community worker)'),
+  GITHUB_APP_PRIVATE_KEY: z
+    .string()
+    .trim()
+    .min(1)
+    // Deployment variables are single-line, so a PEM arrives with escaped newlines.
+    .transform((value) => value.replace(/\\n/g, '\n'))
+    .describe('PEM-encoded GitHub App private key; signs the app JWT and is never persisted'),
   COMMUNITY_API_REQUEST_TIMEOUT_MS: z.coerce
     .number()
     .int()
