@@ -1,10 +1,10 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { CommunityApiError, type DiscordClient } from '@reputo/community-api';
-import { CommunityConnectionStatus, CommunityPlatform } from '@reputo/contracts';
+import { Injectable } from '@nestjs/common';
+import { CommunityApiError } from '@reputo/community-api';
+import { CommunityConnectionStatus } from '@reputo/contracts';
 import type { AlgorithmDefinition, ArrayIoItem, IoItem, StringIoItem } from '@reputo/reputation-algorithms';
 import { type AlgorithmInputValue, getAlgorithmDefinitionOrThrow } from '../shared/utils';
-import { DISCORD_CLIENT } from './community.constants';
 import { CommunityConnectionRepository, type CommunityConnectionRow } from './community-connection.repository';
+import { CommunityPlatformRegistry } from './community-platform.registry';
 
 export interface CommunityInputValidationError {
   field: string;
@@ -46,8 +46,7 @@ function isSubAlgorithmEntry(
 export class CommunityInputValidationService {
   constructor(
     private readonly connections: CommunityConnectionRepository,
-    @Inject(DISCORD_CLIENT)
-    private readonly discord: DiscordClient,
+    private readonly platforms: CommunityPlatformRegistry,
   ) {}
 
   async validate(
@@ -161,8 +160,9 @@ export class CommunityInputValidationService {
 
   /**
    * Lists the connection's resource ids once per validation pass. A platform
-   * failure resolves to `undefined` — reported as "could not verify", so a
-   * platform outage cannot silently accept unknown ids.
+   * failure — or a platform Reputo cannot read yet — resolves to `undefined`,
+   * reported as "could not verify", so an outage cannot silently accept
+   * unknown ids.
    */
   private listResourceIds(
     connection: CommunityConnectionRow,
@@ -172,11 +172,12 @@ export class CommunityInputValidationService {
     if (cached) return cached;
 
     const listed = (async () => {
-      if (connection.platform !== CommunityPlatform.discord) {
+      const client = this.platforms.find(connection.platform);
+      if (!client) {
         return undefined;
       }
       try {
-        const resources = await this.discord.listResources(connection.externalId);
+        const resources = await client.listResources(connection.externalId);
         return new Set(resources.map((resource) => resource.id));
       } catch (error) {
         if (error instanceof CommunityApiError) {

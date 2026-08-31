@@ -46,6 +46,7 @@ const inputs = (resources: string[]) => [
 describe('CommunityInputValidationService', () => {
   let connections: { findById: ReturnType<typeof vi.fn> };
   let discord: { listResources: ReturnType<typeof vi.fn> };
+  let platforms: { find: ReturnType<typeof vi.fn> };
   let service: CommunityInputValidationService;
 
   beforeEach(() => {
@@ -56,7 +57,8 @@ describe('CommunityInputValidationService', () => {
         { id: 'c2', name: 'dev', kind: 'forum' },
       ]),
     };
-    service = new CommunityInputValidationService(connections as never, discord as never);
+    platforms = { find: vi.fn().mockReturnValue(discord) };
+    service = new CommunityInputValidationService(connections as never, platforms as never);
   });
 
   it('accepts an active connection of the right platform with known resource ids', async () => {

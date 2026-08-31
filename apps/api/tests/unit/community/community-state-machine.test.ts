@@ -45,10 +45,24 @@ describe('describeErrorCategory', () => {
   });
 
   it('never leaks a platform response body', () => {
-    const reasons = Object.values(CommunityErrorCategory).map(describeErrorCategory);
+    const reasons = Object.values(CommunityErrorCategory).flatMap((category) => [
+      describeErrorCategory(category),
+      describeErrorCategory(category, 'discord'),
+      describeErrorCategory(category, 'github'),
+    ]);
 
     for (const reason of reasons) {
       expect(reason).not.toMatch(/HTTP \d{3}|token|secret/i);
     }
+  });
+
+  it('names what the admin must re-grant on that platform', () => {
+    expect(describeErrorCategory(CommunityErrorCategory.permissionDenied, 'discord')).toContain(
+      'View Channels or Read Message History',
+    );
+    expect(describeErrorCategory(CommunityErrorCategory.permissionDenied, 'github')).toContain('GitHub App');
+    expect(describeErrorCategory(CommunityErrorCategory.rateLimited, 'github')).toBe(
+      describeErrorCategory(CommunityErrorCategory.rateLimited),
+    );
   });
 });

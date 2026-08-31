@@ -145,7 +145,7 @@ describe('Community connections e2e', () => {
           .get(`/community/connections/discord/callback?${query}`)
           .expect(302);
 
-        expect(response.headers.location).toBe('http://localhost:5173/community?error=invalid_state');
+        expect(response.headers.location).toBe('http://localhost:5173/community?error=invalid_state&platform=discord');
       }
       expect(discord.exchangeCode).not.toHaveBeenCalled();
     });
@@ -155,7 +155,7 @@ describe('Community connections e2e', () => {
         .get('/community/connections/discord/callback?error=access_denied&error_description=The+user+cancelled')
         .expect(302);
 
-      expect(response.headers.location).toBe('http://localhost:5173/community?error=declined');
+      expect(response.headers.location).toBe('http://localhost:5173/community?error=declined&platform=discord');
       expect(discord.exchangeCode).not.toHaveBeenCalled();
     });
 
@@ -166,7 +166,9 @@ describe('Community connections e2e', () => {
 
       const { callback, connection } = await connect();
 
-      expect(callback.headers.location).toBe('http://localhost:5173/community?error=contract_violation');
+      expect(callback.headers.location).toBe(
+        'http://localhost:5173/community?error=contract_violation&platform=discord',
+      );
       expect(connection.status).toBe('degraded');
       expect(connection.statusReason).toMatch(/unexpected response/);
     });
@@ -176,7 +178,9 @@ describe('Community connections e2e', () => {
 
       const { callback, connection } = await connect();
 
-      expect(callback.headers.location).toBe('http://localhost:5173/community?error=permission_denied');
+      expect(callback.headers.location).toBe(
+        'http://localhost:5173/community?error=permission_denied&platform=discord',
+      );
       expect(connection.status).toBe('broken');
       expect(connection.statusReason).toMatch(/View Channels or Read Message History/);
     });
@@ -236,11 +240,11 @@ describe('Community connections e2e', () => {
       const response = await api(app, adminCookie).get(`/community/connections/${connection.id}/health`).expect(200);
 
       expect(response.body.status).toBe('broken');
-      expect(response.body.reason).toMatch(/rejected the bot credentials/);
+      expect(response.body.reason).toMatch(/rejected Reputo's credentials/);
 
       const list = await api(app, adminCookie).get('/community/connections').expect(200);
       expect(list.body[0]).toMatchObject({ status: 'broken' });
-      expect(list.body[0].statusReason).toMatch(/rejected the bot credentials/);
+      expect(list.body[0].statusReason).toMatch(/rejected Reputo's credentials/);
     });
 
     it('degrades rather than breaks on a transient failure, and recovers on the next check', async () => {

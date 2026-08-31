@@ -1,5 +1,5 @@
 import { registerAs } from '@nestjs/config';
-import type { CommunityHttpConfig, DiscordClientConfig } from '@reputo/community-api';
+import type { CommunityHttpConfig, DiscordClientConfig, GitHubClientConfig } from '@reputo/community-api';
 
 import { env } from './env';
 
@@ -7,6 +7,7 @@ export interface CommunityConfig {
   http: CommunityHttpConfig;
   installStateTtlSeconds: number;
   discord: DiscordClientConfig;
+  github: GitHubClientConfig;
 }
 
 export default registerAs('community', (): CommunityConfig => {
@@ -28,6 +29,13 @@ export default registerAs('community', (): CommunityConfig => {
       clientSecret: env.DISCORD_CLIENT_SECRET,
       botToken: env.DISCORD_BOT_TOKEN,
       callbackUrl: env.DISCORD_BOT_CALLBACK_URL,
+    },
+    github: {
+      ...http,
+      appId: env.GITHUB_APP_ID,
+      privateKey: env.GITHUB_APP_PRIVATE_KEY,
+      slug: env.GITHUB_APP_SLUG,
+      callbackUrl: env.GITHUB_APP_CALLBACK_URL,
     },
   };
 });

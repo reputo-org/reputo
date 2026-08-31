@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   COMMUNITY_CONNECTION_STATUSES,
   COMMUNITY_PLATFORMS,
+  COMMUNITY_RESOURCE_KINDS,
   type CommunityConnectionDto as CommunityConnectionContract,
   type CommunityConnectionStatus,
   type CommunityHealthDto as CommunityHealthContract,
@@ -52,7 +53,7 @@ export class CommunityResourceDto implements CommunityResourceContract {
   @ApiProperty({ description: 'Resource name.', example: 'general' })
   name: string;
 
-  @ApiProperty({ description: 'Resource kind.', enum: ['text', 'announcement', 'forum'] })
+  @ApiProperty({ description: 'Resource kind.', enum: COMMUNITY_RESOURCE_KINDS })
   kind: CommunityResourceContract['kind'];
 }
 
@@ -72,7 +73,7 @@ export class CommunityHealthDto implements CommunityHealthContract {
 
 export class CommunityInstallUrlDto {
   @ApiProperty({
-    description: 'Authorization URL the admin opens to install the bot.',
+    description: 'Authorization URL the admin opens to install Reputo on the platform.',
     example: 'https://discord.com/oauth2/authorize?client_id=...&scope=bot',
   })
   url: string;
