@@ -1,4 +1,4 @@
-import type { CommunityConnectionStatus, CommunityPlatform } from '../enums/community.js';
+import type { CommunityConnectionStatus, CommunityPlatform, CommunityResourceKind } from '../enums/community.js';
 
 /**
  * Wire DTO for a community connection. JSON-serializable; dates are ISO 8601
@@ -29,12 +29,12 @@ export interface CommunityConnectionDto {
   updatedAt: string;
 }
 
-/** One selectable resource inside a connected community — a Discord channel. */
+/** One selectable resource inside a connected community — a Discord channel, a GitHub repository. */
 export interface CommunityResourceDto {
   id: string;
   name: string;
   /** Canonical resource kind, platform-neutral. */
-  kind: 'text' | 'announcement' | 'forum';
+  kind: CommunityResourceKind;
 }
 
 /** Result of an on-demand capability probe. */
