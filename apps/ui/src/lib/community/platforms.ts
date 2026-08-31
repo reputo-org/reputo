@@ -28,7 +28,7 @@ export const COMMUNITY_PLATFORMS: readonly PlatformMeta[] = [
     description:
       "Score pull requests, reviews, issues, and comments across selected repositories.",
     resourceNoun: "organization",
-    available: false,
+    available: true,
   },
   {
     id: "mattermost",
@@ -103,42 +103,67 @@ export function needsReconnect(status: CommunityConnectionStatus): boolean {
   return status === "broken" || status === "disconnected"
 }
 
+const CONNECT_ERROR_MESSAGES: Record<string, string> = {
+  declined: "The authorization was cancelled before Reputo was installed.",
+  approval_required:
+    "An organization owner still has to approve the install. Connect again once they have.",
+  invalid_state:
+    "That authorization link is no longer valid. Try connecting again.",
+  auth_failed: "The platform rejected Reputo's credentials.",
+  permission_denied:
+    "Reputo is missing the read access it needs. Reconnect and grant it again.",
+  not_found: "The community could not be found.",
+  rate_limited: "The platform is rate limiting Reputo. Try again shortly.",
+  network_error: "The platform could not be reached. Try again shortly.",
+  upstream_error: "The platform returned an error. Try again shortly.",
+  contract_violation: "The platform returned an unexpected response.",
+}
+
+/** Wording that names what the admin must actually re-grant on that platform. */
+const CONNECT_ERROR_MESSAGES_BY_PLATFORM: Partial<
+  Record<CommunityPlatform, Record<string, string>>
+> = {
+  discord: {
+    permission_denied:
+      "The bot needs View Channels and Read Message History. Reconnect and grant both.",
+  },
+  github: {
+    permission_denied:
+      "The GitHub App needs read access to issues and pull requests. Reconnect and grant it.",
+    not_found: "The GitHub App is no longer installed on that account.",
+  },
+}
+
+const platformLabel = (id: string) =>
+  COMMUNITY_PLATFORMS.find((entry) => entry.id === id)?.label ?? id
+
 /**
- * Message for the `?connected=` / `?error=` parameters the API redirects back
- * with after a connect attempt.
+ * Message for the `?connected=` / `?error=` / `?platform=` parameters the API
+ * redirects back with after a connect attempt.
  */
 export function describeConnectOutcome(params: {
   connected?: string | null
   error?: string | null
+  platform?: string | null
 }): { kind: "success" | "error"; message: string } | null {
   if (params.connected) {
-    const platform = COMMUNITY_PLATFORMS.find(
-      (entry) => entry.id === params.connected
-    )
     return {
       kind: "success",
-      message: `${platform?.label ?? params.connected} connected.`,
+      message: `${platformLabel(params.connected)} connected.`,
     }
   }
 
   if (!params.error) return null
 
-  const messages: Record<string, string> = {
-    declined: "The authorization was cancelled before the bot was installed.",
-    invalid_state:
-      "That authorization link is no longer valid. Try connecting again.",
-    auth_failed: "The platform rejected the bot credentials.",
-    permission_denied:
-      "The bot needs View Channels and Read Message History. Reconnect and grant both.",
-    not_found: "The community could not be found.",
-    rate_limited: "The platform is rate limiting Reputo. Try again shortly.",
-    network_error: "The platform could not be reached. Try again shortly.",
-    upstream_error: "The platform returned an error. Try again shortly.",
-    contract_violation: "The platform returned an unexpected response.",
-  }
+  const perPlatform = params.platform
+    ? CONNECT_ERROR_MESSAGES_BY_PLATFORM[params.platform as CommunityPlatform]
+    : undefined
 
   return {
     kind: "error",
-    message: messages[params.error] ?? "The connection attempt did not finish.",
+    message:
+      perPlatform?.[params.error] ??
+      CONNECT_ERROR_MESSAGES[params.error] ??
+      "The connection attempt did not finish.",
   }
 }

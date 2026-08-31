@@ -33,7 +33,10 @@ export function PlatformCard({ platform, connections }: PlatformCardProps) {
   const startInstall = async (connectionId?: string) => {
     setIsConnecting(true)
     try {
-      const { url } = await communityApi.getDiscordInstallUrl(connectionId)
+      const { url } = await communityApi.getInstallUrl(
+        platform.id,
+        connectionId
+      )
       window.location.href = url
     } catch {
       toast.error(

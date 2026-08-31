@@ -13,6 +13,7 @@ const DEPENDENCY_KEY_TO_LABEL: Record<string, string> = {
   "onchain-data-service": "On-chain data",
   "deep-id": "DeepID",
   "discord-activity": "Discord",
+  "github-activity": "GitHub",
 }
 
 /** Per-algorithm display metadata not derived from the definition itself */
