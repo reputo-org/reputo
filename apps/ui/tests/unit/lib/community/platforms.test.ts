@@ -18,15 +18,12 @@ const ALL_STATUSES: CommunityConnectionStatus[] = [
 ]
 
 describe("COMMUNITY_PLATFORMS", () => {
-  it("offers Discord and marks GitHub and Mattermost as not yet available", () => {
+  it("offers Discord and GitHub and marks Mattermost as not yet available", () => {
     const available = COMMUNITY_PLATFORMS.filter((entry) => entry.available)
     const comingSoon = COMMUNITY_PLATFORMS.filter((entry) => !entry.available)
 
-    expect(available.map((entry) => entry.id)).toEqual(["discord"])
-    expect(comingSoon.map((entry) => entry.id)).toEqual([
-      "github",
-      "mattermost",
-    ])
+    expect(available.map((entry) => entry.id)).toEqual(["discord", "github"])
+    expect(comingSoon.map((entry) => entry.id)).toEqual(["mattermost"])
   })
 })
 
@@ -82,6 +79,7 @@ describe("describeConnectOutcome", () => {
   it("explains each error category the API redirects with", () => {
     const categories = [
       "declined",
+      "approval_required",
       "invalid_state",
       "auth_failed",
       "permission_denied",
@@ -99,6 +97,22 @@ describe("describeConnectOutcome", () => {
         "The connection attempt did not finish."
       )
     }
+  })
+
+  it("names what the admin must re-grant on the platform that failed", () => {
+    expect(
+      describeConnectOutcome({
+        error: "permission_denied",
+        platform: "discord",
+      })?.message
+    ).toContain("View Channels and Read Message History")
+    expect(
+      describeConnectOutcome({ error: "permission_denied", platform: "github" })
+        ?.message
+    ).toContain("GitHub App")
+    expect(
+      describeConnectOutcome({ error: "rate_limited", platform: "github" })
+    ).toEqual(describeConnectOutcome({ error: "rate_limited" }))
   })
 
   it("falls back to a generic message for an unknown category", () => {

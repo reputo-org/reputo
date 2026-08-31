@@ -29,3 +29,18 @@ export const CommunityConnectionStatus = {
 export type CommunityConnectionStatus = (typeof CommunityConnectionStatus)[keyof typeof CommunityConnectionStatus];
 
 export const COMMUNITY_CONNECTION_STATUSES = Object.values(CommunityConnectionStatus);
+
+/**
+ * Canonical, platform-neutral kinds of a selectable resource — a Discord
+ * channel, a GitHub repository.
+ */
+export const CommunityResourceKind = {
+  text: 'text',
+  announcement: 'announcement',
+  forum: 'forum',
+  repository: 'repository',
+} as const;
+
+export type CommunityResourceKind = (typeof CommunityResourceKind)[keyof typeof CommunityResourceKind];
+
+export const COMMUNITY_RESOURCE_KINDS = Object.values(CommunityResourceKind);

@@ -1,4 +1,16 @@
+import { generateKeyPairSync } from 'node:crypto';
 import { TEST_BUCKET } from './in-memory-storage.js';
+
+/** Generated on first read: only the GitHub suites need a signable App key. */
+let githubPrivateKey: string | undefined;
+const TEST_GITHUB_APP_PRIVATE_KEY = (): string => {
+  githubPrivateKey ??= generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  }).privateKey;
+  return githubPrivateKey;
+};
 
 /**
  * Stand-in for the workers' env-backed `config` (`src/config/index.js`). The real
@@ -22,6 +34,10 @@ export const testConfig = {
   app: { nodeEnv: 'production' },
   community: {
     discordBotToken: 'test-discord-bot-token',
+    githubAppId: '1234',
+    get githubAppPrivateKey() {
+      return TEST_GITHUB_APP_PRIVATE_KEY();
+    },
     requestTimeoutMs: 1_000,
     retryMaxAttempts: 2,
     retryBaseDelayMs: 1,

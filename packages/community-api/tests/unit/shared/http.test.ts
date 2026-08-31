@@ -55,6 +55,51 @@ describe('executeRequest', () => {
     expect(mockRequest).toHaveBeenCalledTimes(1);
   });
 
+  it('treats a 403 carrying retry-after as a throttle, not a permission failure', async () => {
+    mockRequest
+      .mockResolvedValueOnce(
+        mockUndiciResponse(403, { message: 'secondary rate limit' }, { 'retry-after': '0' }) as never,
+      )
+      .mockResolvedValueOnce(mockUndiciResponse(200, { ok: true }) as never);
+
+    const response = await executeRequest<{ ok: boolean }>(logger, TEST_HTTP_CONFIG, baseOptions);
+
+    expect(response.data).toEqual({ ok: true });
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it('treats an opted-in 403 with a spent budget as a rate limit, carrying the reset', async () => {
+    const resetSeconds = Math.floor(Date.now() / 1000) + 600;
+    mockRequest.mockResolvedValue(
+      mockUndiciResponse(
+        403,
+        { message: 'API rate limit exceeded' },
+        { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(resetSeconds) },
+      ) as never,
+    );
+
+    const failure = await executeRequest(logger, TEST_HTTP_CONFIG, {
+      ...baseOptions,
+      throttleOnSpentBudget: true,
+    }).catch((error: Error) => error);
+
+    expect(failure).toBeInstanceOf(CommunityRateLimitError);
+    // The budget refills on the platform's clock, so the caller retries later
+    // instead of spending the remaining attempts now.
+    expect((failure as CommunityRateLimitError).retryAfterMs).toBeGreaterThan(0);
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('still refuses a 403 with a spent budget when the platform did not opt in', async () => {
+    mockRequest.mockResolvedValue(
+      mockUndiciResponse(403, { message: 'Missing Access' }, { 'x-ratelimit-remaining': '0' }) as never,
+    );
+
+    await expect(executeRequest(logger, TEST_HTTP_CONFIG, baseOptions)).rejects.toBeInstanceOf(
+      CommunityPermissionError,
+    );
+  });
+
   it('raises an http error on other 4xx without retrying', async () => {
     mockRequest.mockResolvedValue(mockUndiciResponse(400, { error: 'invalid_grant' }) as never);
 

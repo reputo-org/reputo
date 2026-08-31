@@ -20,7 +20,7 @@ Reputo is a pnpm workspace built with [Turbo](https://turborepo.com).
 | `@reputo/storage` | S3 client with presigned upload and download helpers. | [packages/storage/README.md](../packages/storage/README.md) |
 | `@reputo/onchain-data` | EVM and Cardano transfer sync, stored in PostgreSQL (TypeORM). | [packages/onchain-data/README.md](../packages/onchain-data/README.md) |
 | `@reputo/deepfunding-portal-api` | DeepFunding Portal API client and SQLite ingest. | [packages/deepfunding-portal-api/README.md](../packages/deepfunding-portal-api/README.md) |
-| `@reputo/community-api` | Read-only community platform clients (Discord today) with a shared HTTP core. | [packages/community-api/README.md](../packages/community-api/README.md) |
+| `@reputo/community-api` | Read-only community platform clients (Discord and GitHub today) with a shared HTTP core. | [packages/community-api/README.md](../packages/community-api/README.md) |
 
 ## Tooling
 

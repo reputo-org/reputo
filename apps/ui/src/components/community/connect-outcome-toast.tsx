@@ -16,9 +16,10 @@ export function ConnectOutcomeToast() {
   const searchParams = useSearchParams()
   const connected = searchParams.get("connected")
   const error = searchParams.get("error")
+  const platform = searchParams.get("platform")
 
   useEffect(() => {
-    const outcome = describeConnectOutcome({ connected, error })
+    const outcome = describeConnectOutcome({ connected, error, platform })
     if (!outcome) return
 
     if (outcome.kind === "success") {
@@ -28,7 +29,7 @@ export function ConnectOutcomeToast() {
     }
 
     router.replace(pathname, { scroll: false })
-  }, [connected, error, pathname, router])
+  }, [connected, error, platform, pathname, router])
 
   return null
 }

@@ -1,12 +1,12 @@
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import type { DiscordClient } from '@reputo/community-api';
+import type { DiscordClient, GitHubClient } from '@reputo/community-api';
 import { LoggerModule } from 'nestjs-pino';
 import { AlgorithmPresetModule } from '../../src/algorithm-preset/algorithm-preset.module';
 import { AuthModule, AuthService } from '../../src/auth';
 import { OAuthAuthProviderService } from '../../src/auth/oauth-auth-provider.service';
-import { CommunityModule, DISCORD_CLIENT } from '../../src/community';
+import { CommunityModule, DISCORD_CLIENT, GITHUB_CLIENT } from '../../src/community';
 import { configModules } from '../../src/config';
 import { setupSwagger } from '../../src/docs';
 import { HealthModule } from '../../src/health';
@@ -21,6 +21,7 @@ import { AUTH_TEST_ENV, applyAuthTestEnv } from './auth-session';
 export interface TestAppOptions {
   authEnv?: Partial<Record<keyof typeof AUTH_TEST_ENV, string>>;
   discordClient?: DiscordClient;
+  githubClient?: GitHubClient;
   includeSwagger?: boolean;
   oauthProviderService?: Pick<
     OAuthAuthProviderService,
@@ -130,22 +131,24 @@ export async function createTestApp(options: TestAppOptions) {
     } satisfies TestAppOptions['oauthProviderService']);
 
   // Suites that exercise Discord pass their own double; nothing else may reach the network.
+  const unreachable = (platform: string) => () => {
+    throw new Error(`${platform} client not stubbed in this test app`);
+  };
+
   const unreachableDiscordClient: DiscordClient = {
-    buildInstallUrl: () => {
-      throw new Error('Discord client not stubbed in this test app');
-    },
-    exchangeCode: async () => {
-      throw new Error('Discord client not stubbed in this test app');
-    },
-    listResources: async () => {
-      throw new Error('Discord client not stubbed in this test app');
-    },
-    probe: async () => {
-      throw new Error('Discord client not stubbed in this test app');
-    },
-    leaveGuild: async () => {
-      throw new Error('Discord client not stubbed in this test app');
-    },
+    buildInstallUrl: unreachable('Discord'),
+    exchangeCode: unreachable('Discord'),
+    listResources: unreachable('Discord'),
+    probe: unreachable('Discord'),
+    leaveGuild: unreachable('Discord'),
+  };
+
+  const unreachableGitHubClient: GitHubClient = {
+    buildInstallUrl: unreachable('GitHub'),
+    confirmInstallation: unreachable('GitHub'),
+    listResources: unreachable('GitHub'),
+    probe: unreachable('GitHub'),
+    deleteInstallation: unreachable('GitHub'),
   };
 
   const noopListener = {
@@ -176,6 +179,8 @@ export async function createTestApp(options: TestAppOptions) {
   })
     .overrideProvider(DISCORD_CLIENT)
     .useValue(options.discordClient ?? unreachableDiscordClient)
+    .overrideProvider(GITHUB_CLIENT)
+    .useValue(options.githubClient ?? unreachableGitHubClient)
     .overrideProvider(SnapshotListenerService)
     .useValue(noopListener)
     .overrideProvider(OAuthAuthProviderService)

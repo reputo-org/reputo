@@ -3,28 +3,21 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DuckDBInstance } from '@duckdb/node-api';
-import { request } from 'undici';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
+import { communityActivityHarness, deepIdUsersHarness, sharedUndiciRequestMock } from '../utils/community-mocks.js';
 import { createInMemoryStorage, TEST_BUCKET } from '../utils/in-memory-storage.js';
 
 // Only the runtime boundary is mocked — undici (the synthetic guild), the
 // Temporal activity Context, and the env-backed config. The Discord adapter,
 // dataset engine, DuckDB staging, Parquet export, hashing, and the manifest
 // commit all run for real against the in-memory Storage fake.
-vi.mock('undici', () => ({ request: vi.fn() }));
-
-const harness = vi.hoisted(() => ({
-  heartbeats: [] as unknown[],
-  heartbeatDetails: undefined as unknown,
+vi.mock('undici', async () => ({
+  request: (await import('../utils/community-mocks.js')).sharedUndiciRequestMock(),
 }));
 
-// DeepID is faked at the client factory: the cohort's consented-user pages come
-// from this fixture, while the Discord member search still travels through the
-// real adapter and the undici mock.
-const deepIdHarness = vi.hoisted(() => ({
-  users: {} as Record<string, unknown>,
-}));
+const harness = communityActivityHarness();
+
+const deepIdHarness = deepIdUsersHarness();
 
 vi.mock('@reputo/deep-id-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@reputo/deep-id-api')>();
@@ -32,27 +25,30 @@ vi.mock('@reputo/deep-id-api', async (importOriginal) => {
     ...actual,
     createDeepIdClient: () => ({
       async *iterateUsers() {
-        yield { users: deepIdHarness.users };
+        yield { users: (await import('../utils/community-mocks.js')).deepIdUsersHarness().users };
       },
     }),
   };
 });
 
-vi.mock('@temporalio/activity', () => ({
-  Context: {
-    current: () => ({
-      log: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
-      heartbeat: (details: unknown) => {
-        harness.heartbeats.push(details);
-      },
-      info: {
-        get heartbeatDetails() {
-          return harness.heartbeatDetails;
+vi.mock('@temporalio/activity', async () => {
+  const { communityActivityHarness: shared } = await import('../utils/community-mocks.js');
+  return {
+    Context: {
+      current: () => ({
+        log: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        heartbeat: (details: unknown) => {
+          shared().heartbeats.push(details);
         },
-      },
-    }),
-  },
-}));
+        info: {
+          get heartbeatDetails() {
+            return shared().heartbeatDetails;
+          },
+        },
+      }),
+    },
+  };
+});
 
 vi.mock('../../../src/config/index.js', async () => ({
   default: (await import('../utils/config-mock.js')).testConfig,
@@ -61,7 +57,7 @@ vi.mock('../../../src/config/index.js', async () => ({
 const { createCommunityDependencyResolverActivities } = await import('../../../src/activities/community/index.js');
 type CommunityManifest = import('../../../src/activities/community/index.js').CommunityDatasetManifest;
 
-const mockRequest = vi.mocked(request);
+const mockRequest = sharedUndiciRequestMock();
 const WINDOW = { windowStart: '2026-06-01T00:00:00.000Z', windowEnd: '2026-08-01T00:00:00.000Z' };
 
 const msg = (

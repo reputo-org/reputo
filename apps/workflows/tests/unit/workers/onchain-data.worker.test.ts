@@ -38,6 +38,8 @@ const BASE_ENV = {
   ALCHEMY_API_KEY: 'test-alchemy-key',
   BLOCKFROST_API_KEY: 'test-blockfrost-key',
   DISCORD_BOT_TOKEN: 'test-discord-bot-token',
+  GITHUB_APP_ID: '1234',
+  GITHUB_APP_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----\ntest-key\n-----END PRIVATE KEY-----',
   DEEP_ID_ISSUER_URL: 'https://identity.staging.deep-id.ai',
   DEEP_ID_APP_BASE_URL: 'https://app.staging.deep-id.ai',
   DEEP_ID_CLIENT_ID: 'test-deepid-client',

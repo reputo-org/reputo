@@ -3,6 +3,8 @@ import {
   type CommunityActivityRecord,
   CommunityChatActivityType,
   type CommunityFetchWindow,
+  isWithinWindow,
+  toUtcIso,
 } from '../shared/records.js';
 import type { CommunityResource, CommunityResourceKind } from '../shared/types.js';
 import {
@@ -125,17 +127,6 @@ export function snowflakeForTimestamp(iso: string): string {
   return String(BigInt(Math.max(0, ms - DISCORD_EPOCH_MS)) << 22n);
 }
 
-/** Half-open window membership: `start <= iso < end`. */
-export function isWithinWindow(iso: string, window: CommunityFetchWindow): boolean {
-  const ms = Date.parse(iso);
-  return !Number.isNaN(ms) && ms >= Date.parse(window.start) && ms < Date.parse(window.end);
-}
-
-function toUtcIso(timestamp: string): string | undefined {
-  const ms = Date.parse(timestamp);
-  return Number.isNaN(ms) ? undefined : new Date(ms).toISOString();
-}
-
 function sumReactionCounts(reactions: unknown): number {
   if (!Array.isArray(reactions)) {
     return 0;
@@ -184,7 +175,7 @@ export function toActivityRecords(
 ): CommunityActivityRecord[] {
   const objectId = raw?.id;
   const authorId = raw?.author?.id;
-  const occurredAt = typeof raw?.timestamp === 'string' ? toUtcIso(raw.timestamp) : undefined;
+  const occurredAt = toUtcIso(raw?.timestamp);
   if (typeof objectId !== 'string' || typeof authorId !== 'string' || occurredAt === undefined) {
     return [];
   }
@@ -233,7 +224,7 @@ export function toActivityRecords(
   }
 
   if (isReply && parentAuthorId !== undefined) {
-    const parentOccurredAt = typeof parent?.timestamp === 'string' ? toUtcIso(parent.timestamp) : undefined;
+    const parentOccurredAt = toUtcIso(parent?.timestamp);
     if (parentOccurredAt !== undefined) {
       push({
         type: CommunityChatActivityType.replyReceived,

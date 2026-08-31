@@ -7,6 +7,7 @@ import type {
   CommunityConnectionDto,
   CommunityHealthDto,
   CommunityInstallUrlDto,
+  CommunityPlatform,
   CommunityResourceDto,
   CreateAdminDto,
   CreateAlgorithmPresetDto,
@@ -219,15 +220,17 @@ export const communityApi = {
     return response.data
   },
   /**
-   * Discord bot install URL, carrying a signed state that expires. Pass a
-   * connection id to reconnect it: the authorization screen is then locked to
-   * that community so the admin cannot land on a different server.
+   * Platform install URL, carrying a signed state that expires. Pass a
+   * connection id to reconnect it: where the platform allows it, the
+   * authorization screen is then locked to that community so the admin cannot
+   * land on a different one.
    */
-  getDiscordInstallUrl: async (
+  getInstallUrl: async (
+    platform: CommunityPlatform,
     connectionId?: string
   ): Promise<CommunityInstallUrlDto> => {
     const response = await api.get<CommunityInstallUrlDto>(
-      "/community/connections/discord/install-url",
+      `/community/connections/${platform}/install-url`,
       { params: connectionId ? { connectionId } : undefined }
     )
     return response.data

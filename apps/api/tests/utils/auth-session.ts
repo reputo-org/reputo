@@ -36,6 +36,10 @@ export const AUTH_TEST_ENV = {
   DISCORD_CLIENT_SECRET: 'discord-client-secret',
   DISCORD_BOT_TOKEN: 'discord-bot-token',
   DISCORD_BOT_CALLBACK_URL: 'http://localhost:3000/api/v1/community/connections/discord/callback',
+  GITHUB_APP_ID: '1234',
+  GITHUB_APP_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----\\ntest-key\\n-----END PRIVATE KEY-----',
+  GITHUB_APP_SLUG: 'reputo-community',
+  GITHUB_APP_CALLBACK_URL: 'http://localhost:3000/api/v1/community/connections/github/callback',
   COMMUNITY_INSTALL_STATE_TTL_SECONDS: '600',
 } as const;
 

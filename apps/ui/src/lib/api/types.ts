@@ -232,7 +232,7 @@ export interface CommunityConnectionDto {
 export interface CommunityResourceDto {
   id: string
   name: string
-  kind: "text" | "announcement" | "forum"
+  kind: "text" | "announcement" | "forum" | "repository"
 }
 
 export interface CommunityHealthDto {
