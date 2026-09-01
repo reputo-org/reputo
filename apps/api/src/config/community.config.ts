@@ -1,5 +1,11 @@
 import { registerAs } from '@nestjs/config';
-import type { CommunityHttpConfig, DiscordClientConfig, GitHubClientConfig } from '@reputo/community-api';
+import type {
+  CommunityCredentialKeyring,
+  CommunityHttpConfig,
+  DiscordClientConfig,
+  GitHubClientConfig,
+  MattermostClientConfig,
+} from '@reputo/community-api';
 
 import { env } from './env';
 
@@ -8,6 +14,8 @@ export interface CommunityConfig {
   installStateTtlSeconds: number;
   discord: DiscordClientConfig;
   github: GitHubClientConfig;
+  mattermost: MattermostClientConfig;
+  credentials: CommunityCredentialKeyring;
 }
 
 export default registerAs('community', (): CommunityConfig => {
@@ -36,6 +44,17 @@ export default registerAs('community', (): CommunityConfig => {
       privateKey: env.GITHUB_APP_PRIVATE_KEY,
       slug: env.GITHUB_APP_SLUG,
       callbackUrl: env.GITHUB_APP_CALLBACK_URL,
+    },
+    mattermost: {
+      ...http,
+      outbound: {
+        allowedHosts: env.COMMUNITY_MATTERMOST_ALLOWED_HOSTS,
+        maxResponseBytes: env.COMMUNITY_MATTERMOST_MAX_RESPONSE_BYTES,
+      },
+    },
+    credentials: {
+      currentSecret: env.COMMUNITY_CREDENTIALS_ENCRYPTION_KEY,
+      previousSecret: env.COMMUNITY_CREDENTIALS_ENCRYPTION_KEY_PREVIOUS,
     },
   };
 });

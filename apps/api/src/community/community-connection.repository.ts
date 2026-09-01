@@ -19,6 +19,7 @@ export interface UpsertCommunityConnectionInput {
   externalId: string;
   name: string;
   status: CommunityConnectionStatus;
+  credentialsCiphertext?: string;
 }
 
 function isDuplicateKeyError(error: unknown): boolean {
@@ -94,11 +95,23 @@ export class CommunityConnectionRepository {
     return Boolean(result.affected);
   }
 
+  /**
+   * The sealed credential of one connection, exposed on its own so credentials
+   * never travel inside the row object the rest of the domain passes around.
+   */
+  async findCredentialsCiphertext(platform: CommunityPlatform, externalId: string): Promise<string | null> {
+    const entity = await this.connections.findOne({
+      where: { platform, externalId },
+      select: { id: true, credentialsCiphertext: true },
+    });
+    return entity?.credentialsCiphertext ?? null;
+  }
+
   private findByExternalId(input: UpsertCommunityConnectionInput): Promise<CommunityConnectionEntity | null> {
     return this.connections.findOne({ where: { platform: input.platform, externalId: input.externalId } });
   }
 
-  /** A fresh install always clears any credential the previous one left behind. */
+  /** A fresh install always replaces any credential the previous one left behind. */
   private applyInstall(
     entity: CommunityConnectionEntity | undefined,
     input: UpsertCommunityConnectionInput,
@@ -109,7 +122,7 @@ export class CommunityConnectionRepository {
     target.externalId = input.externalId;
     target.name = input.name;
     target.status = input.status;
-    target.credentialsCiphertext = null;
+    target.credentialsCiphertext = input.credentialsCiphertext ?? null;
 
     return target;
   }

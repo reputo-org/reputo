@@ -1,12 +1,12 @@
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import type { DiscordClient, GitHubClient } from '@reputo/community-api';
+import type { DiscordClient, GitHubClient, MattermostClient } from '@reputo/community-api';
 import { LoggerModule } from 'nestjs-pino';
 import { AlgorithmPresetModule } from '../../src/algorithm-preset/algorithm-preset.module';
 import { AuthModule, AuthService } from '../../src/auth';
 import { OAuthAuthProviderService } from '../../src/auth/oauth-auth-provider.service';
-import { CommunityModule, DISCORD_CLIENT, GITHUB_CLIENT } from '../../src/community';
+import { CommunityModule, DISCORD_CLIENT, GITHUB_CLIENT, MATTERMOST_CLIENT } from '../../src/community';
 import { configModules } from '../../src/config';
 import { setupSwagger } from '../../src/docs';
 import { HealthModule } from '../../src/health';
@@ -22,6 +22,10 @@ export interface TestAppOptions {
   authEnv?: Partial<Record<keyof typeof AUTH_TEST_ENV, string>>;
   discordClient?: DiscordClient;
   githubClient?: GitHubClient;
+  /** Pass 'real' to exercise the configured client and its outbound policy. */
+  mattermostClient?: MattermostClient | 'real';
+  /** Captures every log line, so a suite can grep them for leaked secrets. */
+  logStream?: { write: (line: string) => void };
   includeSwagger?: boolean;
   oauthProviderService?: Pick<
     OAuthAuthProviderService,
@@ -151,13 +155,19 @@ export async function createTestApp(options: TestAppOptions) {
     deleteInstallation: unreachable('GitHub'),
   };
 
+  const unreachableMattermostClient: MattermostClient = {
+    validateToken: unreachable('Mattermost'),
+    listResources: unreachable('Mattermost'),
+    probe: unreachable('Mattermost'),
+  };
+
   const noopListener = {
     notifications$: { subscribe: () => ({ unsubscribe: () => undefined }) },
     onModuleInit: async () => undefined,
     onModuleDestroy: async () => undefined,
   };
 
-  const moduleRef = await Test.createTestingModule({
+  const builder = Test.createTestingModule({
     imports: [
       ConfigModule.forRoot({
         load: configModules,
@@ -165,9 +175,7 @@ export async function createTestApp(options: TestAppOptions) {
         ignoreEnvFile: true,
       }),
       LoggerModule.forRoot({
-        pinoHttp: {
-          level: 'silent',
-        },
+        pinoHttp: options.logStream ? { level: 'debug', stream: options.logStream } : { level: 'silent' },
       }),
       PersistenceModule,
       HealthModule,
@@ -190,8 +198,14 @@ export async function createTestApp(options: TestAppOptions) {
     .overrideProvider(TemporalService)
     .useValue(mockTemporalService)
     .overrideProvider(SnapshotReconcilerService)
-    .useValue(noopReconciler)
-    .compile();
+    .useValue(noopReconciler);
+
+  // 'real' keeps the configured client so the outbound policy itself is under test.
+  if (options.mattermostClient !== 'real') {
+    builder.overrideProvider(MATTERMOST_CLIENT).useValue(options.mattermostClient ?? unreachableMattermostClient);
+  }
+
+  const moduleRef = await builder.compile();
 
   const app = moduleRef.createNestApplication();
 
