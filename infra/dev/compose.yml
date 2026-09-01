@@ -98,6 +98,12 @@ x-api-env: &api-env
     GITHUB_APP_PRIVATE_KEY: '${GITHUB_APP_PRIVATE_KEY:?missing GITHUB_APP_PRIVATE_KEY}'
     GITHUB_APP_SLUG: '${GITHUB_APP_SLUG:?missing GITHUB_APP_SLUG}'
     GITHUB_APP_CALLBACK_URL: '${GITHUB_APP_CALLBACK_URL:?missing GITHUB_APP_CALLBACK_URL}'
+    COMMUNITY_CREDENTIALS_ENCRYPTION_KEY: '${COMMUNITY_CREDENTIALS_ENCRYPTION_KEY:?missing COMMUNITY_CREDENTIALS_ENCRYPTION_KEY}'
+    COMMUNITY_CREDENTIALS_ENCRYPTION_KEY_PREVIOUS:
+    # In-network hostname of the dev Mattermost container; from the host use
+    # localhost (see .env.example).
+    COMMUNITY_MATTERMOST_ALLOWED_HOSTS: '${COMMUNITY_MATTERMOST_ALLOWED_HOSTS:-mattermost,localhost}'
+    COMMUNITY_MATTERMOST_MAX_RESPONSE_BYTES:
     COMMUNITY_INSTALL_STATE_TTL_SECONDS:
     COMMUNITY_API_REQUEST_TIMEOUT_MS:
     COMMUNITY_API_RETRY_MAX_ATTEMPTS:
@@ -183,6 +189,10 @@ x-workflows-env: &workflows-env
     COMMUNITY_API_RETRY_MAX_ATTEMPTS:
     COMMUNITY_API_RETRY_BASE_DELAY_MS:
     COMMUNITY_API_RETRY_MAX_DELAY_MS:
+    # Read-only role created by the db-readonly-role one-shot service.
+    APP_DATABASE_URL: postgresql://reputo_app_readonly:reputo_app_readonly@postgres:5432/reputo_app
+    COMMUNITY_CREDENTIALS_ENCRYPTION_KEY: '${COMMUNITY_CREDENTIALS_ENCRYPTION_KEY:?missing COMMUNITY_CREDENTIALS_ENCRYPTION_KEY}'
+    COMMUNITY_CREDENTIALS_ENCRYPTION_KEY_PREVIOUS:
 
 ################################################################################
 # Networks / volumes
@@ -262,6 +272,38 @@ services:
             postgres:
                 condition: service_healthy
         environment: *api-env
+
+    # One-shot read-only role bootstrap. The community worker reads connection
+    # rows and sealed credentials with this role instead of the app user; the
+    # grant is scoped to community_connections only. Idempotent, and runs after
+    # db-migrate so the table exists. Production provisioning is documented in
+    # docs/deployment.md.
+    db-readonly-role:
+        <<: *service-defaults
+        container_name: db-readonly-role
+        profiles: [apps]
+        image: postgres:16
+        restart: 'no'
+        depends_on:
+            postgres:
+                condition: service_healthy
+            db-migrate:
+                condition: service_completed_successfully
+        environment:
+            PGPASSWORD: reputo_app
+        entrypoint:
+            - /bin/sh
+            - -lc
+            - |
+              psql -h postgres -U reputo_app -d reputo_app -v ON_ERROR_STOP=1 <<'SQL'
+              DO $$$$ BEGIN
+                CREATE ROLE reputo_app_readonly LOGIN PASSWORD 'reputo_app_readonly';
+              EXCEPTION WHEN duplicate_object THEN NULL;
+              END $$$$;
+              GRANT CONNECT ON DATABASE reputo_app TO reputo_app_readonly;
+              GRANT USAGE ON SCHEMA public TO reputo_app_readonly;
+              GRANT SELECT ON community_connections TO reputo_app_readonly;
+              SQL
 
     ui:
         <<: *dev-service
@@ -372,6 +414,28 @@ services:
             - postgres_data:/var/lib/postgresql/data
         healthcheck: *pg-healthcheck
 
+    # Local Mattermost for the token-mode connect flow (all-in-one preview
+    # image, bundled database, ephemeral data). Create a bot token in its
+    # System Console, then connect http://localhost:8065 from the UI — the
+    # hostname is on the API's dev allowlist.
+    mattermost:
+        <<: *service-defaults
+        container_name: mattermost
+        profiles: [infra]
+        image: mattermost/mattermost-preview:11.7.10
+        # The preview image ships amd64 only; Apple Silicon runs it emulated.
+        platform: linux/amd64
+        ports:
+            - '8065:8065'
+        healthcheck:
+            test:
+                - CMD-SHELL
+                - "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8065' || exit 1"
+            interval: 15s
+            timeout: 5s
+            retries: 20
+            start_period: 90s
+
     minio:
         <<: *service-defaults
         container_name: minio
@@ -465,5 +529,7 @@ services:
             temporal:
                 condition: service_healthy
             minio-init:
+                condition: service_completed_successfully
+            db-readonly-role:
                 condition: service_completed_successfully
         environment: *workflows-env
