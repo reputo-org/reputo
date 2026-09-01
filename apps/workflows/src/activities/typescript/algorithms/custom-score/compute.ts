@@ -11,6 +11,7 @@ import {
 } from '../../../../shared/utils/index.js';
 import { computeContributionScore } from '../contribution-score/compute.js';
 import { computeDiscordEngagement } from '../discord-engagement/compute.js';
+import { computeGithubEngagement } from '../github-engagement/compute.js';
 import { computeProposalEngagement } from '../proposal-engagement/compute.js';
 import { extractOptionalDidsKey } from '../shared/did-input.js';
 import { computeTokenValueOverTime } from '../token-value-over-time/compute.js';
@@ -24,6 +25,7 @@ const standaloneRegistry: Record<string, AlgorithmComputeFunction> = {
   proposal_engagement: computeProposalEngagement,
   token_value_over_time: computeTokenValueOverTime,
   discord_engagement: computeDiscordEngagement,
+  github_engagement: computeGithubEngagement,
 };
 
 const DETAILS_OUTPUT_KEY = 'custom_score_details';

@@ -152,6 +152,29 @@ describe('createDeepIdPostScoresActivity', () => {
     });
   });
 
+  it('posts a github_engagement snapshot under its own score type, explicit zeros included', async () => {
+    const csv = ['did,github_engagement,pull_request_opened_points', `${DID_A},51.5,30`, `${DID_C},0,0`].join('\n');
+
+    mockPostScores.mockResolvedValue({
+      status: { ok: 2, failed: 0 },
+      results: { [DID_A]: { message: 'OK' }, [DID_C]: { message: 'OK' } },
+    });
+
+    const result = await makeActivity(csv)({
+      snapshot: makeSnapshot({
+        algorithmPresetFrozen: { key: 'github_engagement', version: '1.0.0', inputs: [] },
+        outputs: { github_engagement: 'snapshots/snap-1/github_engagement.csv' },
+      }),
+      timestamp: '2026-06-12T09:00:00.000Z',
+    });
+
+    expect(result).toEqual({ attempted: true, posted: 2, ok: 2, failed: 0, dropped: 0, skipped: 0 });
+    expect(mockPostScores).toHaveBeenCalledWith({
+      [DID_A]: { score: 51.5, type: 'github_engagement', timestamp: '2026-06-12T09:00:00.000Z' },
+      [DID_C]: { score: 0, type: 'github_engagement', timestamp: '2026-06-12T09:00:00.000Z' },
+    });
+  });
+
   it('skips when the algorithm key is not a DeepID score type', async () => {
     const getObject = vi.fn();
     const activity = createDeepIdPostScoresActivity({
