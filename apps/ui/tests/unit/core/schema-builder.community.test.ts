@@ -107,3 +107,90 @@ describe("schema-builder community widgets (real discord_engagement definition)"
     ).toBe(false)
   })
 })
+
+const githubAlgorithm = getAlgorithmById("github_engagement")
+if (!githubAlgorithm)
+  throw new Error("github_engagement missing from the registry")
+const githubSchema = buildSchemaFromAlgorithm(githubAlgorithm)
+
+describe("schema-builder community widgets (real github_engagement definition)", () => {
+  it("carries the github platform, repository resources, and lookback bounds", () => {
+    expect(
+      githubSchema.inputs.find(
+        (candidate) => candidate.key === "community_connection_id"
+      )
+    ).toMatchObject({
+      type: "text",
+      widget: "community_connection",
+      platform: "github",
+      required: true,
+    })
+    expect(
+      githubSchema.inputs.find((candidate) => candidate.key === "resources")
+    ).toMatchObject({
+      type: "array",
+      widget: "community_resources",
+      itemType: "string",
+      dependsOn: "community_connection_id",
+      minItems: 1,
+    })
+    expect(
+      githubSchema.inputs.find((candidate) => candidate.key === "lookback_days")
+    ).toMatchObject({ type: "integer", min: 1, max: 183, default: 90 })
+  })
+
+  it("exposes the five GitHub activities and the recommended weights preset", () => {
+    const activities = githubSchema.inputs.find(
+      (candidate) => candidate.key === "activities"
+    )
+
+    expect(activities?.widget).toBe("repeater")
+    expect(activities?.uniqueBy).toEqual(["activity"])
+    expect(activities?.arrayPresets?.[0]).toMatchObject({
+      label: "Recommended weights",
+    })
+    expect(
+      (activities?.arrayPresets?.[0].value as Array<{ activity: string }>).map(
+        (row) => row.activity
+      )
+    ).toEqual([
+      "pull_request_opened",
+      "pull_request_merged",
+      "pull_request_review",
+      "issue_opened",
+      "comment",
+    ])
+  })
+
+  it("round-trips a valid payload and rejects over-cap lookbacks, zero weights, and unknown activities", () => {
+    const zodSchema = buildZodSchema(githubSchema as never)
+    const valid = {
+      community_connection_id: "01990000-0000-7000-8000-000000000002",
+      resources: ["9001", "9002"],
+      lookback_days: 90,
+      activities: [
+        { activity: "pull_request_merged", points: 15, daily_cap: 5 },
+        { activity: "comment", points: 1, daily_cap: 20 },
+      ],
+      name: "GitHub preset",
+      description: "A synthetic preset used in tests.",
+    }
+
+    expect(zodSchema.safeParse(valid).success).toBe(true)
+    expect(zodSchema.safeParse({ ...valid, lookback_days: 184 }).success).toBe(
+      false
+    )
+    expect(
+      zodSchema.safeParse({
+        ...valid,
+        activities: [{ activity: "comment", points: 0, daily_cap: 20 }],
+      }).success
+    ).toBe(false)
+    expect(
+      zodSchema.safeParse({
+        ...valid,
+        activities: [{ activity: "starred", points: 1, daily_cap: 5 }],
+      }).success
+    ).toBe(false)
+  })
+})

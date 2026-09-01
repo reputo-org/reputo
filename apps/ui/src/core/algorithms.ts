@@ -23,6 +23,7 @@ const ALGORITHM_META: Record<string, { duration: string; level: string }> = {
   voting_engagement: { duration: "1–3 min", level: "Beginner" },
   token_value_over_time: { duration: "4–8 min", level: "Intermediate" },
   discord_engagement: { duration: "5–20 min", level: "Beginner" },
+  github_engagement: { duration: "5–20 min", level: "Beginner" },
 }
 
 const DEFAULT_META = { duration: "2–5 min", level: "Intermediate" }
