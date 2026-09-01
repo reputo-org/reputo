@@ -1,10 +1,18 @@
 import { CommunityContractError, CommunityOutboundPolicyError } from '../shared/errors.js';
+import {
+  type CommunityActivityRecord,
+  CommunityChatActivityType,
+  type CommunityFetchWindow,
+  isWithinWindow,
+} from '../shared/records.js';
 import type { CommunityResource } from '../shared/types.js';
 import type {
   MattermostRawChannel,
   MattermostRawPost,
   MattermostRawPostList,
+  MattermostRawReaction,
   MattermostRawTeam,
+  MattermostRawUser,
   MattermostTeam,
 } from './types.js';
 
@@ -121,4 +129,184 @@ export function countMattermostPosts(page: MattermostRawPostList): number {
     }
   }
   return order.length;
+}
+
+/** Posts of one history page, in the server's order, plus the map the roots resolve from. */
+export interface MattermostPostPage {
+  posts: MattermostRawPost[];
+  byId: Map<string, MattermostRawPost>;
+}
+
+/**
+ * Narrows one `GET /channels/{id}/posts` response. `order` lists the requested
+ * posts, newest first; `posts` additionally carries the thread roots of any
+ * reply among them, so a reply's received row is credited without a second
+ * request.
+ */
+export function toMattermostPostPage(page: MattermostRawPostList): MattermostPostPage {
+  const order = page?.order;
+  const posts = page?.posts;
+  if (!Array.isArray(order) || posts === null || typeof posts !== 'object') {
+    throw new CommunityContractError('Mattermost post listing did not carry an order array and a posts map.');
+  }
+
+  const byId = new Map(Object.entries(posts as Record<string, MattermostRawPost>));
+  return {
+    posts: order.map((id) => byId.get(String(id))).filter((post): post is MattermostRawPost => post !== undefined),
+    byId,
+  };
+}
+
+/** A post that carries the fields the crawl needs, already narrowed. */
+export interface MattermostPost {
+  id: string;
+  userId: string;
+  /** Creation time, ISO 8601 UTC — Mattermost sends Unix milliseconds. */
+  occurredAt: string;
+  rootId: string | null;
+}
+
+/**
+ * A scoreable post: a human message that still exists. System posts carry a
+ * non-empty `type`; deleted posts carry a non-zero `delete_at` and stay out of
+ * the dataset, like content deleted before any other platform's fetch.
+ * Anything without a stable author id or timestamp is dropped, never guessed.
+ */
+export function toScoreablePost(post: MattermostRawPost | undefined): MattermostPost | undefined {
+  if (post === undefined || (typeof post.type === 'string' && post.type !== '')) {
+    return undefined;
+  }
+  if (typeof post.delete_at === 'number' && post.delete_at > 0) {
+    return undefined;
+  }
+
+  const { id, user_id: userId, create_at: createAt, root_id: rootId } = post;
+  if (typeof id !== 'string' || id === '' || typeof userId !== 'string' || userId === '') {
+    return undefined;
+  }
+  if (typeof createAt !== 'number' || !Number.isFinite(createAt) || createAt <= 0) {
+    return undefined;
+  }
+
+  return {
+    id,
+    userId,
+    occurredAt: new Date(createAt).toISOString(),
+    rootId: typeof rootId === 'string' && rootId !== '' ? rootId : null,
+  };
+}
+
+/** Reactor ids of one post, with how many reactions each of them left on it. */
+export function toReactionCounts(post: MattermostRawPost): Map<string, number> {
+  const counts = new Map<string, number>();
+  const reactions = post?.metadata?.reactions;
+  if (!Array.isArray(reactions)) {
+    return counts;
+  }
+
+  for (const reaction of reactions as MattermostRawReaction[]) {
+    const userId = reaction?.user_id;
+    if (typeof userId === 'string' && userId !== '') {
+      counts.set(userId, (counts.get(userId) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+/**
+ * Maps one narrowed post to canonical, content-free activity rows, keeping only
+ * rows whose defining timestamp falls inside the window. `isBot` answers for an
+ * account id from the crawl's bulk lookup.
+ *
+ * - `message`/`reply` and the derived `reaction_received` rows use the post's
+ *   own creation time.
+ * - `reply_received` credits the thread root's author at the root's creation
+ *   time, so a reply to a post outside the window yields no received row.
+ * - Reactions record their reactor as the counterparty — Mattermost exposes it,
+ *   unlike Discord — as one row per reactor. Self-reactions are not filtered;
+ *   daily caps bound them at scoring time.
+ */
+export function toMattermostActivityRecords(
+  post: MattermostPost,
+  raw: MattermostRawPost,
+  page: MattermostPostPage,
+  resourceId: string,
+  window: CommunityFetchWindow,
+  isBot: (userId: string) => boolean,
+): CommunityActivityRecord[] {
+  const records: CommunityActivityRecord[] = [];
+  const push = (record: CommunityActivityRecord) => {
+    if (isWithinWindow(record.occurredAt, window)) {
+      records.push(record);
+    }
+  };
+
+  const root = post.rootId === null ? undefined : toScoreablePost(page.byId.get(post.rootId));
+  const base = {
+    resource: resourceId,
+    objectId: post.id,
+    occurredAt: post.occurredAt,
+    actorIsBot: isBot(post.userId),
+    deleted: false,
+  };
+
+  push({
+    ...base,
+    type: post.rootId === null ? CommunityChatActivityType.message : CommunityChatActivityType.reply,
+    actor: post.userId,
+    counterparty: root?.userId ?? null,
+    count: 1,
+  });
+
+  for (const [reactorId, count] of toReactionCounts(raw)) {
+    push({
+      ...base,
+      type: CommunityChatActivityType.reactionReceived,
+      actor: post.userId,
+      counterparty: reactorId,
+      count,
+    });
+  }
+
+  if (root !== undefined) {
+    push({
+      type: CommunityChatActivityType.replyReceived,
+      actor: root.userId,
+      counterparty: post.userId,
+      resource: resourceId,
+      objectId: post.id,
+      occurredAt: root.occurredAt,
+      count: 1,
+      actorIsBot: isBot(root.userId),
+      deleted: false,
+    });
+  }
+
+  return records;
+}
+
+/** The accounts a bulk `/users/ids` or `/users/usernames` lookup answered with. */
+export function toMattermostUsers(users: unknown): MattermostRawUser[] {
+  if (!Array.isArray(users)) {
+    throw new CommunityContractError('Mattermost user lookup did not answer with an array.');
+  }
+  return users as MattermostRawUser[];
+}
+
+/**
+ * Account ids of a bulk username lookup, keyed by the requested username.
+ * Usernames are unique on a Mattermost server, so the match is exact by
+ * construction; a username the server did not answer for stays absent rather
+ * than resolving to a near match.
+ */
+export function toAccountIdsByUsername(users: unknown, requested: readonly string[]): Map<string, string | null> {
+  const byUsername = new Map<string, string | null>(requested.map((username) => [username, null]));
+
+  for (const user of toMattermostUsers(users)) {
+    const { id, username } = user;
+    if (typeof id === 'string' && id !== '' && typeof username === 'string' && byUsername.has(username)) {
+      byUsername.set(username, id);
+    }
+  }
+  return byUsername;
 }

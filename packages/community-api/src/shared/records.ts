@@ -47,7 +47,7 @@ export interface CommunityActivityRecord {
   count: number;
   /** The actor is a bot or webhook. Bot rows stay in the dataset, flagged. */
   actorIsBot: boolean;
-  /** The platform reported the underlying object as deleted (Mattermost `since` sync). */
+  /** The platform reported the underlying object as deleted, where it says so at all. */
   deleted: boolean;
 }
 
@@ -129,4 +129,10 @@ export interface CommunityAdapter {
    * matches. The cohort step depends on this staying a lookup, never a guess.
    */
   searchMemberId(communityId: string, username: string): Promise<string | null>;
+  /**
+   * The same lookup for a whole batch, on the platforms whose API resolves
+   * usernames in bulk. Every requested username gets an entry. Optional: the
+   * cohort falls back to `searchMemberId` per username where it is absent.
+   */
+  searchMemberIds?(communityId: string, usernames: readonly string[]): Promise<Map<string, string | null>>;
 }

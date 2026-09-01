@@ -1,0 +1,227 @@
+{
+    "key": "mattermost_engagement",
+    "name": "Mattermost Engagement",
+    "kind": "standalone",
+    "category": "Engagement",
+    "summary": "Scores Mattermost community activity per consented user, with configurable points and daily caps per activity.",
+    "description": "### What it does\nScores each consented user's activity in a connected Mattermost team during the snapshot window.\n\n### How it works\n- The snapshot freezes the selected channels' activity for the lookback window into an immutable dataset. The bot reads a channel only while it is a member of it.\n- Users who granted the `mattermost` consent scope in DeepID are matched to their Mattermost account by username. A user who cannot be matched receives an explicit `0` with a flag — never a guess.\n- Each enabled activity earns the points you set. Counts are capped per user, per activity, per UTC day by that activity's daily cap.\n- `active_day` credits one unit per UTC day that has at least one message or reply; its daily cap bounds the number of credited days in the window.\n- The final score is the sum of the earned points. Scores stay raw — normalization and weighting happen only in Custom Score.\n- Bots are excluded from scoring. System messages and deleted posts are not scored. An activity without a row is disabled.\n\n### Outputs\n- CSV file with `did`, the raw `mattermost_engagement` score, and the points earned per activity.\n- JSON file with per-user counts, match status, and channel coverage details.",
+    "version": "1.0.0",
+    "inputs": [
+        {
+            "key": "community_connection_id",
+            "label": "Mattermost team",
+            "description": "The connected Mattermost team to score. Connect one on the Communities page first.",
+            "type": "string",
+            "required": true,
+            "uiHint": {
+                "widget": "community_connection",
+                "platform": "mattermost"
+            }
+        },
+        {
+            "key": "resources",
+            "label": "Channels",
+            "description": "The channels to include. The bot must be a member of a channel to read it.",
+            "type": "array",
+            "minItems": 1,
+            "required": true,
+            "item": {
+                "type": "string"
+            },
+            "uiHint": {
+                "widget": "community_resources",
+                "dependsOn": "community_connection_id"
+            }
+        },
+        {
+            "key": "lookback_days",
+            "label": "Lookback period (days)",
+            "description": "How far back the snapshot fetches activity, counted from the moment the snapshot starts.",
+            "type": "integer",
+            "min": 1,
+            "max": 183,
+            "default": 90,
+            "step": 1,
+            "required": true,
+            "uiHint": {
+                "widget": "number",
+                "suffix": "days",
+                "presets": [
+                    7,
+                    30,
+                    90,
+                    183
+                ]
+            }
+        },
+        {
+            "key": "activities",
+            "label": "Activity weights",
+            "description": "Points and daily caps per activity. Points must be above `0`; the daily cap bounds how much of one activity a user can earn per UTC day. Leave an activity out to disable it.",
+            "type": "array",
+            "minItems": 1,
+            "required": true,
+            "uniqueBy": [
+                "activity"
+            ],
+            "item": {
+                "type": "object",
+                "properties": [
+                    {
+                        "key": "activity",
+                        "label": "Activity",
+                        "description": "The activity this row scores.",
+                        "type": "string",
+                        "required": true,
+                        "enum": [
+                            "message",
+                            "reply",
+                            "reaction_received",
+                            "reply_received",
+                            "active_day"
+                        ],
+                        "uiHint": {
+                            "widget": "select",
+                            "options": [
+                                {
+                                    "value": "message",
+                                    "label": "Message sent"
+                                },
+                                {
+                                    "value": "reply",
+                                    "label": "Reply sent"
+                                },
+                                {
+                                    "value": "reaction_received",
+                                    "label": "Reaction received"
+                                },
+                                {
+                                    "value": "reply_received",
+                                    "label": "Reply received"
+                                },
+                                {
+                                    "value": "active_day",
+                                    "label": "Active day"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "key": "points",
+                        "label": "Points",
+                        "description": "Points per counted unit. Must be above `0`.",
+                        "type": "number",
+                        "min": 0,
+                        "exclusiveMin": true,
+                        "required": true
+                    },
+                    {
+                        "key": "daily_cap",
+                        "label": "Daily cap",
+                        "description": "Most units of this activity credited per user per UTC day.",
+                        "type": "integer",
+                        "min": 1,
+                        "required": true
+                    }
+                ]
+            },
+            "uiHint": {
+                "widget": "repeater",
+                "addButtonLabel": "Add activity",
+                "presets": [
+                    {
+                        "label": "Recommended weights",
+                        "value": [
+                            {
+                                "activity": "message",
+                                "points": 1,
+                                "daily_cap": 25
+                            },
+                            {
+                                "activity": "reply",
+                                "points": 1.5,
+                                "daily_cap": 25
+                            },
+                            {
+                                "activity": "reaction_received",
+                                "points": 0.25,
+                                "daily_cap": 50
+                            },
+                            {
+                                "activity": "reply_received",
+                                "points": 1,
+                                "daily_cap": 25
+                            },
+                            {
+                                "activity": "active_day",
+                                "points": 2,
+                                "daily_cap": 30
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    ],
+    "outputs": [
+        {
+            "key": "mattermost_engagement",
+            "label": "Mattermost engagement (CSV)",
+            "description": "One row per consented user with the raw score and the points earned per activity. Explicit zeros included.",
+            "type": "csv",
+            "csv": {
+                "hasHeader": true,
+                "delimiter": ",",
+                "columns": [
+                    {
+                        "key": "did",
+                        "type": "string",
+                        "description": "User DID (`did:sub`)."
+                    },
+                    {
+                        "key": "mattermost_engagement",
+                        "type": "number",
+                        "description": "Raw engagement score: the sum of the per-activity points."
+                    },
+                    {
+                        "key": "message_points",
+                        "type": "number",
+                        "description": "Points earned from messages."
+                    },
+                    {
+                        "key": "reply_points",
+                        "type": "number",
+                        "description": "Points earned from replies."
+                    },
+                    {
+                        "key": "reaction_received_points",
+                        "type": "number",
+                        "description": "Points earned from reactions received."
+                    },
+                    {
+                        "key": "reply_received_points",
+                        "type": "number",
+                        "description": "Points earned from replies received."
+                    },
+                    {
+                        "key": "active_day_points",
+                        "type": "number",
+                        "description": "Points earned from active days."
+                    }
+                ]
+            }
+        },
+        {
+            "key": "mattermost_engagement_details",
+            "label": "Mattermost engagement details (JSON)",
+            "description": "Per-user activity counts, match status, and channel coverage for the snapshot window.",
+            "type": "json"
+        }
+    ],
+    "runtime": "typescript",
+    "dependencies": [
+        {
+            "key": "mattermost-activity"
+        }
+    ]
+}

@@ -46,6 +46,8 @@ const config = {
     discordBotToken: env.DISCORD_BOT_TOKEN,
     githubAppId: env.GITHUB_APP_ID,
     githubAppPrivateKey: env.GITHUB_APP_PRIVATE_KEY,
+    mattermostAllowedHosts: env.COMMUNITY_MATTERMOST_ALLOWED_HOSTS,
+    mattermostMaxResponseBytes: env.COMMUNITY_MATTERMOST_MAX_RESPONSE_BYTES,
     requestTimeoutMs: env.COMMUNITY_API_REQUEST_TIMEOUT_MS,
     retryMaxAttempts: env.COMMUNITY_API_RETRY_MAX_ATTEMPTS,
     retryBaseDelayMs: env.COMMUNITY_API_RETRY_BASE_DELAY_MS,

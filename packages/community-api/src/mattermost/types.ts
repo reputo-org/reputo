@@ -32,10 +32,19 @@ export interface MattermostTeam {
   displayName: string;
 }
 
+/**
+ * Transport plus the team the crawl reads. The adapter binds one team for the
+ * whole fetch, so `iterateRecords` needs no per-resource credential.
+ */
+export interface MattermostAdapterConfig extends MattermostClientConfig {
+  target: MattermostTeamTarget;
+}
+
 /** Raw shapes, narrowed before use — the transforms own the validation. */
 export interface MattermostRawUser {
   id?: unknown;
   username?: unknown;
+  is_bot?: unknown;
 }
 
 export interface MattermostRawTeam {
@@ -53,10 +62,20 @@ export interface MattermostRawChannel {
   delete_at?: unknown;
 }
 
+export interface MattermostRawReaction {
+  user_id?: unknown;
+  post_id?: unknown;
+}
+
 export interface MattermostRawPost {
   id?: unknown;
   user_id?: unknown;
   create_at?: unknown;
+  delete_at?: unknown;
+  root_id?: unknown;
+  type?: unknown;
+  message?: unknown;
+  metadata?: { reactions?: unknown } | null;
 }
 
 /** `GET /channels/{id}/posts` returns ids in `order` and the posts keyed by id. */

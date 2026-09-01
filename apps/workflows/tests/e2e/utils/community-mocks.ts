@@ -15,13 +15,27 @@ function singleton<T>(key: string, create: () => T): T {
   return globals[key] as T;
 }
 
-/**
- * Shared `undici.request` spy. Use it as:
- *   vi.mock('undici', async () => ({
- *     request: (await import('../utils/community-mocks.js')).sharedUndiciRequestMock(),
- *   }));
- */
+/** Shared `undici.request` spy, installed through `sharedUndiciModuleMock`. */
 export const sharedUndiciRequestMock = (): Mock => singleton('__reputoUndiciRequest', () => vi.fn());
+
+/**
+ * The whole `undici` module double. Every community suite installs the same
+ * one — the first file to register it wins for the shared registry, so they
+ * must not differ:
+ *   vi.mock('undici', async () => (await import('../utils/community-mocks.js')).sharedUndiciModuleMock());
+ *
+ * `Agent` stands in for the pinned dispatcher the Mattermost safe outbound path
+ * builds. The spied `request` ignores the dispatcher it is handed, so the stub
+ * only has to be constructible and closable.
+ */
+export function sharedUndiciModuleMock() {
+  return {
+    request: sharedUndiciRequestMock(),
+    Agent: class {
+      async close(): Promise<void> {}
+    },
+  };
+}
 
 /** Heartbeats the faked Temporal activity Context recorded, and the details a retry resumes from. */
 export interface CommunityActivityHarness {

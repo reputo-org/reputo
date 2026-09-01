@@ -165,6 +165,24 @@ export const envSchema = z.object({
     // Deployment variables are single-line, so a PEM arrives with escaped newlines.
     .transform((value) => value.replace(/\\n/g, '\n'))
     .describe('PEM-encoded GitHub App private key; signs the app JWT and is never persisted'),
+  COMMUNITY_MATTERMOST_ALLOWED_HOSTS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((host) => host.trim().toLowerCase())
+        .filter((host) => host.length > 0),
+    )
+    .describe(
+      'Comma-separated hostnames exempt from the outbound HTTPS and public-address rules (e.g. the dev Mattermost container). Deployment configuration, never user input; must match the API value.',
+    ),
+  COMMUNITY_MATTERMOST_MAX_RESPONSE_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5_242_880)
+    .describe('Cap on a single Mattermost response body in bytes'),
   COMMUNITY_API_REQUEST_TIMEOUT_MS: z.coerce
     .number()
     .int()

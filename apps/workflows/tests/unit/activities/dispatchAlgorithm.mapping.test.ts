@@ -5,6 +5,7 @@ const {
   mockComputeCustomScore,
   mockComputeDiscordEngagement,
   mockComputeGithubEngagement,
+  mockComputeMattermostEngagement,
   mockComputeProposalEngagement,
   mockComputeVotingEngagement,
   mockComputeTokenValueOverTime,
@@ -13,6 +14,7 @@ const {
   mockComputeCustomScore: vi.fn(),
   mockComputeDiscordEngagement: vi.fn(),
   mockComputeGithubEngagement: vi.fn(),
+  mockComputeMattermostEngagement: vi.fn(),
   mockComputeProposalEngagement: vi.fn(),
   mockComputeVotingEngagement: vi.fn(),
   mockComputeTokenValueOverTime: vi.fn(),
@@ -44,6 +46,10 @@ vi.mock('../../../src/activities/typescript/algorithms/discord-engagement/comput
 
 vi.mock('../../../src/activities/typescript/algorithms/github-engagement/compute.js', () => ({
   computeGithubEngagement: mockComputeGithubEngagement,
+}));
+
+vi.mock('../../../src/activities/typescript/algorithms/mattermost-engagement/compute.js', () => ({
+  computeMattermostEngagement: mockComputeMattermostEngagement,
 }));
 
 import { dispatchAlgorithm } from '../../../src/activities/typescript/dispatchAlgorithm.activity.js';

@@ -1,6 +1,7 @@
 import {
   API_SNAPSHOT_ACTIVITIES_TASK_QUEUE,
   type ApiSnapshotActivities,
+  CommunityPlatform,
   type RecordSnapshotPublicationInput,
   SNAPSHOT_NOT_FOUND_ERROR_TYPE,
   SnapshotPublicationStatus,
@@ -50,7 +51,7 @@ import {
 import { extractOnchainSyncTargets } from '../shared/utils/sync-targets.utils.js';
 import { runEncryptedCustomScoreLifecycle } from './encrypted-custom-score.js';
 
-const { getSnapshot, updateSnapshot, getCommunityConnection, recordSnapshotPublication } =
+const { getSnapshot, updateSnapshot, getCommunityConnection, getCommunitySealedCredential, recordSnapshotPublication } =
   workflow.proxyActivities<ApiSnapshotActivities>({
     taskQueue: API_SNAPSHOT_ACTIVITIES_TASK_QUEUE,
     startToCloseTimeout: DB_ACTIVITY_TIMEOUT,
@@ -164,6 +165,10 @@ function pickGeneratedDidsKey(results: ResolveDependencyResult[]): string | unde
  * connection, resources, and window; the connection row (read through the API
  * activities queue — the workers have no application database) supplies the
  * platform-side community id the cohort's member lookup runs against.
+ *
+ * Platforms that connect with an admin-supplied token also carry their sealed
+ * credential from here. It crosses the queue and the workflow history still
+ * encrypted and bound to its connection; only the fetch opens it.
  */
 async function resolveCommunityFetch(
   dependencyKey: CommunityDependencyKey,
@@ -178,8 +183,16 @@ async function resolveCommunityFetch(
       `Preset connection "${connection.name}" is a ${connection.platform} connection; dependency "${dependencyKey}" needs ${platform}`,
     );
   }
-  return { ...fetchInput, communityId: connection.externalId };
+  if (!SEALED_CREDENTIAL_PLATFORMS.has(platform)) {
+    return { ...fetchInput, communityId: connection.externalId };
+  }
+
+  const { credentialsCiphertext } = await getCommunitySealedCredential({ connectionId: fetchInput.connectionId });
+  return { ...fetchInput, communityId: connection.externalId, credentialsCiphertext };
 }
+
+/** Platforms whose connection stores a sealed token rather than deployment credentials. */
+const SEALED_CREDENTIAL_PLATFORMS = new Set<CommunityPlatform>([CommunityPlatform.mattermost]);
 
 /** Point the algorithm's `dids` input at a dependency-assembled DID map (in-memory only). */
 function applyDidsOverride(snapshot: Snapshot, didsKey: string): void {

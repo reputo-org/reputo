@@ -320,6 +320,84 @@ describe('OrchestratorWorkflow task queue routing', () => {
     });
   });
 
+  it('carries a token-connected platform\u2019s sealed credential into the fetch, still encrypted', async () => {
+    vi.resetModules();
+
+    const temporalWorkflow = await import('@temporalio/workflow');
+    const proxyActivities = vi.mocked(temporalWorkflow.proxyActivities);
+    const workflowInfo = vi.mocked(temporalWorkflow.workflowInfo);
+
+    workflowInfo.mockReturnValue({
+      workflowId: 'wf-1',
+      runId: 'run-1',
+      taskQueue: 'orchestrator-q',
+      startTime: new Date('2026-08-29T10:30:00.000Z'),
+    } as never);
+
+    const getSnapshot = vi.fn().mockResolvedValue({
+      status: SnapshotStatus.queued,
+      algorithmPresetFrozen: {
+        key: 'mattermost_engagement',
+        version: '1.0.0',
+        inputs: [
+          { key: 'community_connection_id', value: 'conn-9' },
+          { key: 'lookback_days', value: 90 },
+          { key: 'resources', value: ['chan-1'] },
+        ],
+      },
+    });
+    const getCommunityConnection = vi.fn().mockResolvedValue({
+      id: 'conn-9',
+      platform: 'mattermost',
+      externalId: 'https://chat.example.com/team-1',
+      name: 'SNET',
+      status: 'active',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    });
+    const getCommunitySealedCredential = vi.fn().mockResolvedValue({ credentialsCiphertext: 'ccv1:kid:iv:tag:ct' });
+    const getAlgorithmDefinition = vi.fn().mockResolvedValue({
+      algorithmDefinition: {
+        key: 'mattermost_engagement',
+        version: '1.0.0',
+        runtime: 'typescript',
+        dependencies: [{ key: 'mattermost-activity' }],
+      },
+    });
+    const resolveDependency = vi.fn().mockResolvedValue(undefined);
+
+    proxyActivities.mockImplementation(
+      () =>
+        ({
+          getSnapshot,
+          updateSnapshot: vi.fn().mockResolvedValue(undefined),
+          getCommunityConnection,
+          getCommunitySealedCredential,
+          getAlgorithmDefinition,
+          resolveDependency,
+          runTypescriptAlgorithm: vi.fn().mockResolvedValue({ outputs: { some_key: 'some_value' } }),
+        }) as never,
+    );
+
+    const { OrchestratorWorkflow } = await import('../../../src/workflows/orchestrator.workflow.js');
+
+    await OrchestratorWorkflow({ snapshotId: 'snapshot-1' });
+
+    expect(getCommunitySealedCredential).toHaveBeenCalledWith({ connectionId: 'conn-9' });
+    expect(resolveDependency).toHaveBeenCalledWith({
+      dependencyKey: 'mattermost-activity',
+      snapshotId: 'snapshot-1',
+      communityFetch: {
+        connectionId: 'conn-9',
+        communityId: 'https://chat.example.com/team-1',
+        resourceIds: ['chan-1'],
+        credentialsCiphertext: 'ccv1:kid:iv:tag:ct',
+        windowStart: '2026-05-31T10:30:00.000Z',
+        windowEnd: '2026-08-29T10:30:00.000Z',
+      },
+    });
+  });
+
   it('extracts the community fetch input from the declaring child preset in a combined run', async () => {
     vi.resetModules();
 
