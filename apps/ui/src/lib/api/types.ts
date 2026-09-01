@@ -85,6 +85,21 @@ export interface SnapshotErrorDto {
   timestamp?: string
 }
 
+export interface SnapshotPublicationDto {
+  algorithmKey: string
+  status: "pending" | "sent" | "failed"
+  counts?: {
+    posted: number
+    ok: number
+    failed: number
+    dropped: number
+    skipped: number
+  }
+  error?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface SnapshotResponseDto {
   _id: string
   status: "queued" | "running" | "completed" | "failed" | "cancelled"
@@ -93,6 +108,7 @@ export interface SnapshotResponseDto {
   algorithmPresetFrozen?: AlgorithmPresetFrozenDto
   outputs?: Record<string, unknown>
   error?: SnapshotErrorDto
+  publications?: SnapshotPublicationDto[]
   startedAt?: string
   completedAt?: string
   createdAt: string
@@ -195,4 +211,42 @@ export interface CreateAdminDto {
 
 export interface UpdateAdminRoleDto {
   role: AdminRole
+}
+
+export type CommunityPlatform = "github" | "discord" | "mattermost"
+
+export type CommunityConnectionStatus =
+  | "pending"
+  | "active"
+  | "degraded"
+  | "broken"
+  | "disconnected"
+
+export interface CommunityConnectionDto {
+  id: string
+  platform: CommunityPlatform
+  externalId: string
+  name: string
+  status: CommunityConnectionStatus
+  statusReason?: string
+  /** When the platform last confirmed this state; health is never checked on a timer. */
+  lastCheckedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CommunityResourceDto {
+  id: string
+  name: string
+  kind: "text" | "announcement" | "forum" | "repository"
+}
+
+export interface CommunityHealthDto {
+  status: CommunityConnectionStatus
+  checkedAt: string
+  reason?: string
+}
+
+export interface CommunityInstallUrlDto {
+  url: string
 }

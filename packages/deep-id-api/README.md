@@ -6,7 +6,8 @@ by Reputo as a machine-to-machine (M2M) integration. It handles the OAuth 2.0
 endpoints Reputo needs:
 
 - `getUsers` / `iterateUsers` — list consented users from `GET /v1/users`,
-  paginated via the `x-next` response header.
+  paginated via the `x-next` response header (page size 100 by default, which is
+  DeepID's maximum).
 - `getSealMetadata` — fetch the public SEAL/CKKS parameters referenced by a
   user's `scores_encr['seal-metadata']` URL.
 - `postScores` — submit plaintext child scores or the final encrypted
@@ -41,6 +42,28 @@ const result = await client.postScores({
   },
 });
 console.log(result.status); // { ok, failed }
+```
+
+## Community identities
+
+`GET /v1/users` returns one field per granted identity scope — `github`, `discord`,
+`mattermost` — holding the platform account the user verified in DeepID. The field is
+`null` when nothing is linked and absent when the scope is outside the token/consent
+intersection. `username` is the only join key DeepID exposes, so a rename on the platform
+breaks the link until the user re-verifies.
+
+```ts
+import { parseSocialIdentity, SOCIAL_IDENTITY_SCOPES } from '@reputo/deep-id-api';
+
+const scopes = `api ${SOCIAL_IDENTITY_SCOPES.join(' ')}`;
+for await (const page of client.iterateUsers({ filteredTokenScopes: scopes })) {
+  for (const [did, user] of Object.entries(page.users)) {
+    const discord = parseSocialIdentity(user.discord); // null when absent or unlinked
+    if (discord) {
+      // discord.username is the platform account to match; never log discord.vc
+    }
+  }
+}
 ```
 
 ## Encrypted score contracts

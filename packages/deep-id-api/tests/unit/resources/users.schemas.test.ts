@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseEncryptedScores } from '../../../src/resources/users/schemas.js';
+import { parseEncryptedScores, parseSocialIdentity } from '../../../src/resources/users/schemas.js';
+import type { DeepIdUser } from '../../../src/resources/users/types.js';
 import { DeepIdContractError } from '../../../src/shared/errors/index.js';
 
 const CIPHERTEXT = 'q1w2e3-serialized-ckks-ciphertext';
@@ -97,5 +98,66 @@ describe('parseEncryptedScores', () => {
         contribution_score_encr: { ciphertext: null, status: 'encrypted' },
       }),
     ).toThrow(DeepIdContractError);
+  });
+});
+
+const DISCORD = {
+  username: 'octocat',
+  verifiedAt: '2026-08-25T10:44:56.502Z',
+  expiresAt: '2026-11-23T10:44:56.502Z',
+  vc: 'eyJhbGciOiJFUzI1NiJ9.payload.signature',
+};
+
+describe('parseSocialIdentity', () => {
+  it('accepts a linked account and keeps the username as the join key', () => {
+    const identity = parseSocialIdentity(DISCORD);
+    expect(identity).toEqual(DISCORD);
+
+    const username: string = identity?.username ?? '';
+    expect(username).toBe('octocat');
+  });
+
+  it('accepts an account whose credential is null', () => {
+    expect(parseSocialIdentity({ ...DISCORD, vc: null })?.vc).toBeNull();
+  });
+
+  it('returns null for an unlinked platform and for an unrequested scope', () => {
+    expect(parseSocialIdentity(null)).toBeNull();
+    expect(parseSocialIdentity(undefined)).toBeNull();
+  });
+
+  it('tolerates and drops unknown extra fields', () => {
+    expect(parseSocialIdentity({ ...DISCORD, instanceUrl: 'https://chat.example.com' })).toEqual(DISCORD);
+  });
+
+  it('rejects an empty username', () => {
+    const error = captureError(() => parseSocialIdentity({ ...DISCORD, username: '' }));
+    expect(error.issues.some((issue) => issue.path === 'username')).toBe(true);
+  });
+
+  it('rejects a non-ISO verification timestamp', () => {
+    expect(() => parseSocialIdentity({ ...DISCORD, verifiedAt: '2026-08-25' })).toThrow(DeepIdContractError);
+  });
+
+  it('rejects a bare username string', () => {
+    expect(() => parseSocialIdentity('octocat')).toThrow(DeepIdContractError);
+  });
+});
+
+describe('DeepIdUser social identity fields', () => {
+  it('types each platform field as an identity, null, or absent', () => {
+    const user: DeepIdUser = {
+      scopes: ['post_scores', 'wallets', 'github', 'discord', 'mattermost'],
+      github: null,
+      discord: DISCORD,
+      wallets: [{ type: 'ethereum', address: '0x0000000000000000000000000000000000000001' }],
+    };
+
+    expect(user.github).toBeNull();
+    expect(user.mattermost).toBeUndefined();
+
+    const username: string | undefined = user.discord?.username;
+    expect(username).toBe('octocat');
+    expect(parseSocialIdentity(user.discord)).toEqual(DISCORD);
   });
 });

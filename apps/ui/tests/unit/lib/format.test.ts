@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest"
-import {
-  formatDateTime,
-  formatRelativeFromNow,
-} from "../../../../src/lib/admins/format"
+import { formatDateTime, formatRelativeFromNow } from "../../../src/lib/format"
 
 describe("formatDateTime", () => {
   it("returns an em-dash for null or undefined", () => {

@@ -4,7 +4,8 @@ Framework-agnostic client for the DeepID Client API over the machine-to-machine
 (OAuth 2.0 client-credentials) path. No framework, no database — pure HTTP.
 
 It exists so Reputo can read consented users (`GET /v1/users`, including
-encrypted `scores_encr` fields), fetch public SEAL/CKKS metadata, and post
+encrypted `scores_encr` fields and the `github`/`discord`/`mattermost` social
+identities the community algorithms match on), fetch public SEAL/CKKS metadata, and post
 computed reputation scores back (`POST /v1/clients/scores` — plaintext child
 scores or the final encrypted `custom_score_encr`) using a single cached M2M token.
 

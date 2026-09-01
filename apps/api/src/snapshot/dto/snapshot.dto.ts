@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SNAPSHOT_STATUS, type SnapshotStatus } from '@reputo/contracts';
+import {
+  SNAPSHOT_PUBLICATION_STATUSES,
+  SNAPSHOT_STATUS,
+  type SnapshotPublicationCounts,
+  type SnapshotPublicationStatus,
+  type SnapshotStatus,
+} from '@reputo/contracts';
 
 class AlgorithmPresetFrozenDto {
   @ApiProperty({
@@ -94,6 +100,53 @@ class SnapshotErrorDto {
   timestamp?: string;
 }
 
+export class SnapshotPublicationDto {
+  @ApiProperty({
+    description: 'Algorithm key the scores were published under',
+    example: 'discord_engagement',
+  })
+  algorithmKey: string;
+
+  @ApiProperty({
+    description: 'Publication status',
+    enum: SNAPSHOT_PUBLICATION_STATUSES,
+    example: 'sent',
+  })
+  status: SnapshotPublicationStatus;
+
+  @ApiPropertyOptional({
+    description: 'Row counts of the posting pass',
+    type: 'object',
+    properties: {
+      posted: { type: 'number' },
+      ok: { type: 'number' },
+      failed: { type: 'number' },
+      dropped: { type: 'number' },
+      skipped: { type: 'number' },
+    },
+    additionalProperties: false,
+  })
+  counts?: SnapshotPublicationCounts;
+
+  @ApiPropertyOptional({
+    description: 'Safe error category or summary of a failed publication',
+    example: 'DeepID rejected the request',
+  })
+  error?: string;
+
+  @ApiProperty({
+    description: 'Creation timestamp (ISO 8601)',
+    example: '2026-08-29T10:00:00.000Z',
+  })
+  createdAt: string;
+
+  @ApiProperty({
+    description: 'Last update timestamp (ISO 8601)',
+    example: '2026-08-29T10:00:05.000Z',
+  })
+  updatedAt: string;
+}
+
 export class SnapshotDto {
   @ApiProperty({
     description: 'Unique identifier (UUID v7)',
@@ -137,6 +190,12 @@ export class SnapshotDto {
     type: SnapshotErrorDto,
   })
   error?: SnapshotErrorDto;
+
+  @ApiPropertyOptional({
+    description: 'DeepID publication status per algorithm key',
+    type: [SnapshotPublicationDto],
+  })
+  publications?: SnapshotPublicationDto[];
 
   @ApiPropertyOptional({
     description: 'Timestamp when execution started (status changed to running, ISO 8601)',

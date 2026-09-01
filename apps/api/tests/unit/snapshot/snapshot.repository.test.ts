@@ -171,7 +171,7 @@ describe('SnapshotRepository', () => {
             status: SnapshotStatus.completed,
             algorithmPresetId: PRESET_ID,
           }),
-          relations: { outputs: true },
+          relations: { outputs: true, publications: true },
         }),
       );
     });
@@ -183,7 +183,7 @@ describe('SnapshotRepository', () => {
 
       const call = snapshotRepoMock.findAndCount.mock.calls[0][0];
       expect(call).toMatchObject({
-        relations: { outputs: true },
+        relations: { outputs: true, publications: true },
       });
       const where = call.where as { algorithmPresetFrozen?: unknown };
       expect(where.algorithmPresetFrozen).toBeDefined();
@@ -214,7 +214,7 @@ describe('SnapshotRepository', () => {
 
       expect(snapshotRepoMock.findOne).toHaveBeenCalledWith({
         where: { id: SNAPSHOT_ID },
-        relations: { outputs: true },
+        relations: { outputs: true, publications: true },
       });
       expect(result?._id).toBe(SNAPSHOT_ID);
       expect(result?.outputs).toEqual({ csv: 'snapshots/out.csv' });
@@ -230,7 +230,7 @@ describe('SnapshotRepository', () => {
       expect(snapshotRepoMock.find).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ algorithmPresetId: PRESET_ID }),
-          relations: { outputs: true },
+          relations: { outputs: true, publications: true },
         }),
       );
       expect(result).toHaveLength(2);

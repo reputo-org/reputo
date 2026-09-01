@@ -1,12 +1,20 @@
 import { API_SNAPSHOT_ACTIVITIES_TASK_QUEUE, OAUTH_PROVIDERS, OAuthProviderDeepId } from '@reputo/contracts';
 import { z } from 'zod';
 
-import { AUTH_MODE_MOCK, AUTH_MODE_OAUTH } from '../shared/constants';
+import {
+  AUTH_MODE_MOCK,
+  AUTH_MODE_OAUTH,
+  COMMUNITY_CONNECTIONS_ROUTE,
+  GITHUB_CALLBACK_ROUTE,
+} from '../shared/constants';
 
 export const NODE_ENVS = ['production', 'development', 'test'] as const;
 export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'] as const;
 export const AUTH_MODES = [AUTH_MODE_OAUTH, AUTH_MODE_MOCK] as const;
 export const COOKIE_SAME_SITE = ['lax', 'strict', 'none'] as const;
+
+/** The App's setup URL must land on this API's callback route, or a connect can never complete. */
+const GITHUB_CALLBACK_PATH = `${COMMUNITY_CONNECTIONS_ROUTE}/${GITHUB_CALLBACK_ROUTE}`;
 
 const truthyStringBoolean = z
   .union([z.boolean(), z.enum(['true', '1', 'false', '0'])])
@@ -106,6 +114,62 @@ export const envSchema = z
       .trim()
       .min(1)
       .describe('Space separated Deep ID scopes requested during the interactive consent flow'),
+
+    DISCORD_CLIENT_ID: z.string().trim().min(1).describe('Discord application (bot) client identifier'),
+    DISCORD_CLIENT_SECRET: z.string().trim().min(1).describe('Discord application client secret'),
+    DISCORD_BOT_TOKEN: z
+      .string()
+      .trim()
+      .min(1)
+      .describe('Discord bot token used for read-only guild calls; never persisted to the database'),
+    DISCORD_BOT_CALLBACK_URL: z.string().url().describe('Discord bot install callback URL handled by this API'),
+
+    GITHUB_APP_ID: z.string().trim().min(1).describe('GitHub App identifier'),
+    GITHUB_APP_PRIVATE_KEY: z
+      .string()
+      .trim()
+      .min(1)
+      // Deployment variables are single-line, so a PEM arrives with escaped newlines.
+      .transform((value) => value.replace(/\\n/g, '\n'))
+      .describe('PEM-encoded GitHub App private key; signs the app JWT and is never persisted'),
+    GITHUB_APP_SLUG: z.string().trim().min(1).describe('GitHub App URL slug used to build the install redirect'),
+    GITHUB_APP_CALLBACK_URL: z
+      .string()
+      .url()
+      .refine((value) => new URL(value).pathname.endsWith(GITHUB_CALLBACK_PATH), {
+        error: `GITHUB_APP_CALLBACK_URL must end with "${GITHUB_CALLBACK_PATH}" — it is the App's setup URL and has to reach this API's callback route`,
+      })
+      .describe("GitHub App setup URL; must match the App configuration and this API's callback route"),
+    COMMUNITY_INSTALL_STATE_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(600)
+      .describe('Lifetime of a signed community install-state value in seconds'),
+    COMMUNITY_API_REQUEST_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(15_000)
+      .describe('Per-request timeout for community platform calls'),
+    COMMUNITY_API_RETRY_MAX_ATTEMPTS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(4)
+      .describe('Maximum attempts per community platform call, including the first'),
+    COMMUNITY_API_RETRY_BASE_DELAY_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(500)
+      .describe('Base delay for community platform retry backoff'),
+    COMMUNITY_API_RETRY_MAX_DELAY_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(10_000)
+      .describe('Maximum delay for community platform retry backoff'),
 
     DATABASE_URL: z
       .string()

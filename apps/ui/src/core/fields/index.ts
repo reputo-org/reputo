@@ -1,4 +1,6 @@
 export { BooleanField } from "./boolean-field"
+export { CommunityConnectionField } from "./community-connection-field"
+export { CommunityResourcesField } from "./community-resources-field"
 export { CSVField } from "./csv-field"
 export { DateField } from "./date-field"
 export { EnumField } from "./enum-field"

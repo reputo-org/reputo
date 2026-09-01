@@ -3,15 +3,34 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ACTIVITY_MAX_ATTEMPTS,
   algorithmTypescriptTaskQueue,
+  COMMUNITY_DEPENDENCY_RESOLUTION_TIMEOUT,
+  communityTaskQueue,
   DB_ACTIVITY_TIMEOUT,
   DEEP_ID_ENCRYPTED_SUBMISSION_TIMEOUT,
   DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
   DEEP_ID_READINESS_CHECK_TIMEOUT,
   DEPENDENCY_RESOLUTION_TIMEOUT,
+  HEARTBEAT_TIMEOUT,
   ONCHAIN_DATA_DEPENDENCY_RESOLUTION_TIMEOUT,
   onchainDataTaskQueue,
   SnapshotStatus,
 } from '../../../src/shared/constants/index.js';
+
+// Hoisted so the classes keep their identity across the `vi.resetModules()`
+// each run performs: the workflow reads `ApplicationFailure.type` to build the
+// safe publication summary and rethrows `TemporalFailure` unchanged.
+const { ApplicationFailure, TemporalFailure } = vi.hoisted(() => {
+  class TemporalFailure extends Error {}
+  class ApplicationFailure extends TemporalFailure {
+    type?: string;
+    static create({ message, type }: { message: string; type?: string }): ApplicationFailure {
+      const failure = new ApplicationFailure(message);
+      failure.type = type;
+      return failure;
+    }
+  }
+  return { ApplicationFailure, TemporalFailure };
+});
 
 vi.mock('@temporalio/workflow', () => ({
   proxyActivities: vi.fn(),
@@ -22,6 +41,8 @@ vi.mock('@temporalio/workflow', () => ({
     warn: vi.fn(),
     error: vi.fn(),
   },
+  ApplicationFailure,
+  TemporalFailure,
 }));
 
 function readyReadinessResult() {
@@ -118,16 +139,22 @@ describe('OrchestratorWorkflow task queue routing', () => {
       startToCloseTimeout: ONCHAIN_DATA_DEPENDENCY_RESOLUTION_TIMEOUT,
     });
     expect(recordedOptions[3]).not.toHaveProperty('heartbeatTimeout');
-    expect(recordedOptions[4]).toMatchObject({ taskQueue: algorithmTypescriptTaskQueue });
+    expect(recordedOptions[4]).toMatchObject({
+      taskQueue: communityTaskQueue,
+      startToCloseTimeout: COMMUNITY_DEPENDENCY_RESOLUTION_TIMEOUT,
+      heartbeatTimeout: HEARTBEAT_TIMEOUT,
+      retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
+    });
+    expect(recordedOptions[5]).toMatchObject({ taskQueue: algorithmTypescriptTaskQueue });
     // The best-effort post proxy is created after the phases, so the DeepID
     // proxies sit one index earlier than before the finalizer restructure.
-    expect(recordedOptions[6]).toMatchObject({
+    expect(recordedOptions[7]).toMatchObject({
       taskQueue: 'orchestrator-q',
       startToCloseTimeout: DEEP_ID_READINESS_CHECK_TIMEOUT,
       heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
       retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
     });
-    expect(recordedOptions[7]).toMatchObject({
+    expect(recordedOptions[8]).toMatchObject({
       taskQueue: 'orchestrator-q',
       startToCloseTimeout: DEEP_ID_ENCRYPTED_SUBMISSION_TIMEOUT,
       heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
@@ -202,6 +229,205 @@ describe('OrchestratorWorkflow task queue routing', () => {
       dependencyKey: 'onchain-data',
       snapshotId: 'snapshot-1',
       syncTargets: [],
+    });
+  });
+
+  it('routes community dependencies to the community queue with a window fixed from the workflow start', async () => {
+    vi.resetModules();
+
+    const temporalWorkflow = await import('@temporalio/workflow');
+    const proxyActivities = vi.mocked(temporalWorkflow.proxyActivities);
+    const workflowInfo = vi.mocked(temporalWorkflow.workflowInfo);
+
+    workflowInfo.mockReturnValue({
+      workflowId: 'wf-1',
+      runId: 'run-1',
+      taskQueue: 'orchestrator-q',
+      startTime: new Date('2026-08-29T10:30:00.000Z'),
+    } as never);
+
+    const recordedOptions: Array<Record<string, unknown>> = [];
+
+    const getSnapshot = vi.fn().mockResolvedValue({
+      status: SnapshotStatus.queued,
+      algorithmPresetFrozen: {
+        key: 'discord_engagement',
+        version: '1.0.0',
+        inputs: [
+          { key: 'community_connection_id', value: 'conn-1' },
+          { key: 'lookback_days', value: 90 },
+          { key: 'resources', value: ['111', '222'] },
+        ],
+      },
+    });
+    const updateSnapshot = vi.fn().mockResolvedValue(undefined);
+    const getCommunityConnection = vi.fn().mockResolvedValue({
+      id: 'conn-1',
+      platform: 'discord',
+      externalId: 'guild-1',
+      name: 'Guild',
+      status: 'active',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    });
+    const getAlgorithmDefinition = vi.fn().mockResolvedValue({
+      algorithmDefinition: {
+        key: 'discord_engagement',
+        version: '1.0.0',
+        runtime: 'typescript',
+        dependencies: [{ key: 'discord-activity' }],
+      },
+    });
+    const resolveDependency = vi.fn().mockResolvedValue(undefined);
+    const runTypescriptAlgorithm = vi.fn().mockResolvedValue({
+      outputs: { some_key: 'some_value' },
+    });
+
+    proxyActivities.mockImplementation((opts) => {
+      recordedOptions.push(opts as Record<string, unknown>);
+      return {
+        getSnapshot,
+        updateSnapshot,
+        getCommunityConnection,
+        getAlgorithmDefinition,
+        resolveDependency,
+        runTypescriptAlgorithm,
+      } as never;
+    });
+
+    const { OrchestratorWorkflow } = await import('../../../src/workflows/orchestrator.workflow.js');
+
+    await OrchestratorWorkflow({
+      snapshotId: 'snapshot-1',
+    });
+
+    expect(recordedOptions[4]).toMatchObject({
+      taskQueue: communityTaskQueue,
+      startToCloseTimeout: COMMUNITY_DEPENDENCY_RESOLUTION_TIMEOUT,
+      heartbeatTimeout: HEARTBEAT_TIMEOUT,
+    });
+    expect(getCommunityConnection).toHaveBeenCalledWith({ connectionId: 'conn-1' });
+    expect(resolveDependency).toHaveBeenCalledWith({
+      dependencyKey: 'discord-activity',
+      snapshotId: 'snapshot-1',
+      communityFetch: {
+        connectionId: 'conn-1',
+        communityId: 'guild-1',
+        resourceIds: ['111', '222'],
+        windowStart: '2026-05-31T10:30:00.000Z',
+        windowEnd: '2026-08-29T10:30:00.000Z',
+      },
+    });
+  });
+
+  it('extracts the community fetch input from the declaring child preset in a combined run', async () => {
+    vi.resetModules();
+
+    const temporalWorkflow = await import('@temporalio/workflow');
+    const proxyActivities = vi.mocked(temporalWorkflow.proxyActivities);
+    const workflowInfo = vi.mocked(temporalWorkflow.workflowInfo);
+
+    workflowInfo.mockReturnValue({
+      workflowId: 'wf-1',
+      runId: 'run-1',
+      taskQueue: 'orchestrator-q',
+      startTime: new Date('2026-08-29T10:30:00.000Z'),
+    } as never);
+
+    const getSnapshot = vi.fn().mockResolvedValue({
+      status: SnapshotStatus.queued,
+      algorithmPresetFrozen: {
+        key: 'custom_score',
+        version: '1.0.0',
+        inputs: [
+          {
+            key: 'sub_algorithms',
+            value: [
+              {
+                algorithm_key: 'discord_engagement',
+                algorithm_version: '1.0.0',
+                weight: 1,
+                inputs: [
+                  { key: 'community_connection_id', value: 'conn-2' },
+                  { key: 'lookback_days', value: 30 },
+                  { key: 'resources', value: ['333'] },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const updateSnapshot = vi.fn().mockResolvedValue(undefined);
+    const getAlgorithmDefinition = vi
+      .fn()
+      .mockResolvedValueOnce({
+        algorithmDefinition: {
+          key: 'custom_score',
+          version: '1.0.0',
+          kind: 'combined',
+          runtime: 'typescript',
+          inputs: [{ key: 'sub_algorithms', type: 'sub_algorithm' }],
+        },
+      })
+      .mockResolvedValueOnce({
+        algorithmDefinition: {
+          key: 'discord_engagement',
+          version: '1.0.0',
+          runtime: 'typescript',
+          dependencies: [{ key: 'discord-activity' }],
+          inputs: [],
+        },
+      });
+    const resolveDependency = vi.fn().mockResolvedValue(undefined);
+    const getCommunityConnection = vi.fn().mockResolvedValue({
+      id: 'conn-2',
+      platform: 'discord',
+      externalId: 'guild-2',
+      name: 'Guild',
+      status: 'active',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    });
+    const runTypescriptAlgorithm = vi.fn().mockResolvedValue({
+      outputs: { discord_engagement: 'snapshots/snapshot-1/discord_engagement.csv' },
+    });
+    const submitCustomRawScores = vi.fn().mockResolvedValue({ children: [] });
+    const checkEncryptionReadiness = vi.fn().mockResolvedValue(readyReadinessResult());
+    const submitCustomEncryptedScores = vi.fn().mockResolvedValue(submittedEncryptedResult());
+
+    proxyActivities.mockImplementation(
+      () =>
+        ({
+          getSnapshot,
+          updateSnapshot,
+          getCommunityConnection,
+          getAlgorithmDefinition,
+          resolveDependency,
+          runTypescriptAlgorithm,
+          submitCustomRawScores,
+          checkEncryptionReadiness,
+          submitCustomEncryptedScores,
+        }) as never,
+    );
+
+    const { OrchestratorWorkflow } = await import('../../../src/workflows/orchestrator.workflow.js');
+
+    await OrchestratorWorkflow({
+      snapshotId: 'snapshot-1',
+    });
+
+    expect(resolveDependency).toHaveBeenCalledTimes(1);
+    expect(resolveDependency).toHaveBeenCalledWith({
+      dependencyKey: 'discord-activity',
+      snapshotId: 'snapshot-1',
+      communityFetch: {
+        connectionId: 'conn-2',
+        communityId: 'guild-2',
+        resourceIds: ['333'],
+        windowStart: '2026-07-30T10:30:00.000Z',
+        windowEnd: '2026-08-29T10:30:00.000Z',
+      },
     });
   });
 

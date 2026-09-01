@@ -207,7 +207,10 @@
                     "type": "object",
                     "additionalProperties": false,
                     "properties": {
-                        "widget": { "const": "select" },
+                        "widget": {
+                            "type": "string",
+                            "enum": ["select", "community_connection"]
+                        },
                         "options": {
                             "type": "array",
                             "items": {
@@ -233,9 +236,25 @@
                                     "items": { "type": "string" }
                                 }
                             ]
+                        },
+                        "platform": {
+                            "type": "string",
+                            "enum": ["github", "discord", "mattermost"]
                         }
                     },
-                    "required": ["widget"]
+                    "required": ["widget"],
+                    "allOf": [
+                        {
+                            "if": {
+                                "properties": {
+                                    "widget": { "const": "community_connection" }
+                                }
+                            },
+                            "then": {
+                                "required": ["platform"]
+                            }
+                        }
+                    ]
                 }
             }
         },
@@ -272,17 +291,29 @@
                     }
                 },
                 "item": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": ["type", "properties"],
-                    "properties": {
-                        "type": { "const": "object" },
-                        "properties": {
-                            "type": "array",
-                            "minItems": 1,
-                            "items": { "$ref": "#/$defs/objectPropertyParam" }
+                    "oneOf": [
+                        {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["type", "properties"],
+                            "properties": {
+                                "type": { "const": "object" },
+                                "properties": {
+                                    "type": "array",
+                                    "minItems": 1,
+                                    "items": { "$ref": "#/$defs/objectPropertyParam" }
+                                }
+                            }
+                        },
+                        {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["type"],
+                            "properties": {
+                                "type": { "const": "string" }
+                            }
                         }
-                    }
+                    ]
                 },
                 "uiHint": {
                     "type": "object",
@@ -290,7 +321,7 @@
                     "properties": {
                         "widget": {
                             "type": "string",
-                            "enum": ["repeater", "resource_selector"]
+                            "enum": ["repeater", "resource_selector", "community_resources"]
                         },
                         "addButtonLabel": { "type": "string" },
                         "dependsOn": {
@@ -333,6 +364,16 @@
                             },
                             "then": {
                                 "required": ["resourceCatalog"]
+                            }
+                        },
+                        {
+                            "if": {
+                                "properties": {
+                                    "widget": { "const": "community_resources" }
+                                }
+                            },
+                            "then": {
+                                "required": ["dependsOn"]
                             }
                         }
                     ]
@@ -406,6 +447,12 @@
                     "minItems": 1
                 },
                 "default": {},
+                "min": { "type": "number" },
+                "max": { "type": "number" },
+                "exclusiveMin": {
+                    "type": "boolean",
+                    "description": "When true, the value must be strictly greater than min (weights must be positive, never zero)."
+                },
                 "required": { "type": "boolean" },
                 "uiHint": {
                     "type": "object",
@@ -755,7 +802,7 @@
             "properties": {
                 "key": {
                     "type": "string",
-                    "enum": ["onchain-data", "deepfunding-portal-api", "deep-id"]
+                    "enum": ["onchain-data", "deepfunding-portal-api", "deep-id", "discord-activity", "github-activity"]
                 }
             }
         }

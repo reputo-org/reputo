@@ -78,11 +78,22 @@ x-api-environment: &api-environment
     DEEP_ID_CONSENT_REDIRECT_URI: https://mock.invalid/api/v1/oauth/consent/deep-id/callback
     DEEP_ID_CONSENT_GRANT_TTL_SECONDS: '600'
     VOTING_PORTAL_RETURN_URL: https://mock.invalid/voting
-    DEEP_ID_CONSENT_SCOPES: api wallets post_scores voting_engagement_encr contribution_score_encr proposal_engagement_encr token_value_over_time_encr
+    DEEP_ID_CONSENT_SCOPES: api wallets post_scores voting_engagement_encr contribution_score_encr proposal_engagement_encr token_value_over_time_encr github discord mattermost
     AUTH_COOKIE_NAME: reputo_auth_session
     AUTH_COOKIE_SECURE: 'true'
     AUTH_COOKIE_SAME_SITE: lax
     AUTH_TOKEN_ENCRYPTION_KEY: '${AUTH_TOKEN_ENCRYPTION_KEY:?missing AUTH_TOKEN_ENCRYPTION_KEY}'
+    # Placeholders so the API boots. Connecting a community needs a real app or
+    # GitHub App whose callback matches this host, which an ephemeral preview has
+    # not got — the connections page renders, the connect flow does not complete.
+    DISCORD_CLIENT_ID: mock-discord-client-id
+    DISCORD_CLIENT_SECRET: mock-discord-client-secret
+    DISCORD_BOT_TOKEN: mock-discord-bot-token
+    DISCORD_BOT_CALLBACK_URL: '${PULLPREVIEW_URL:?missing PULLPREVIEW_URL}/api/v1/community/connections/discord/callback'
+    GITHUB_APP_ID: '000000'
+    GITHUB_APP_PRIVATE_KEY: mock-github-app-private-key
+    GITHUB_APP_SLUG: mock-reputo-community
+    GITHUB_APP_CALLBACK_URL: '${PULLPREVIEW_URL:?missing PULLPREVIEW_URL}/api/v1/community/connections/github/callback'
     DATABASE_URL: postgresql://reputo_app:reputo_app@postgres:5432/reputo_preview
     AWS_REGION: us-east-1
     AWS_ACCESS_KEY_ID: minio
@@ -108,6 +119,7 @@ x-workflows-environment: &workflows-environment
     TEMPORAL_ALGORITHM_TYPESCRIPT_TASK_QUEUE: algorithm-typescript-worker
     TEMPORAL_ALGORITHM_PYTHON_TASK_QUEUE: algorithm-python-worker
     TEMPORAL_ONCHAIN_DATA_TASK_QUEUE: onchain-data-worker
+    TEMPORAL_COMMUNITY_TASK_QUEUE: community-worker
     AWS_REGION: us-east-1
     AWS_ACCESS_KEY_ID: minio
     AWS_SECRET_ACCESS_KEY: minio12345preview
@@ -126,6 +138,9 @@ x-workflows-environment: &workflows-environment
     DEEP_ID_APP_BASE_URL: https://app.staging.deep-id.ai
     DEEP_ID_CLIENT_ID: '${DEEP_ID_CLIENT_ID:?missing DEEP_ID_CLIENT_ID}'
     DEEP_ID_CLIENT_SECRET: '${DEEP_ID_CLIENT_SECRET:?missing DEEP_ID_CLIENT_SECRET}'
+    DISCORD_BOT_TOKEN: mock-discord-bot-token
+    GITHUB_APP_ID: '000000'
+    GITHUB_APP_PRIVATE_KEY: mock-github-app-private-key
 
 ################################################################################
 # Networks / volumes
@@ -390,6 +405,21 @@ services:
             minio-init:
                 condition: service_completed_successfully
         command: ['pnpm', 'start:algorithm-typescript']
+        environment: *workflows-environment
+        deploy:
+            resources: *resources-m
+
+    community-worker:
+        <<: *service-defaults
+        container_name: community-worker
+        image: ghcr.io/reputo-org/reputo/workflows:${IMAGE_TAG:?missing IMAGE_TAG}
+        pull_policy: always
+        depends_on:
+            temporal:
+                condition: service_healthy
+            minio-init:
+                condition: service_completed_successfully
+        command: ['pnpm', 'start:community']
         environment: *workflows-environment
         deploy:
             resources: *resources-m

@@ -199,7 +199,10 @@ function ArrayValueDisplay({
     return <div className="text-sm font-medium">—</div>
   }
 
-  const properties = definitionInput?.item?.properties ?? []
+  const properties =
+    definitionInput?.item && "properties" in definitionInput.item
+      ? definitionInput.item.properties
+      : []
   const propLabels = new Map(properties.map((p) => [p.key, p.label ?? p.key]))
 
   return (

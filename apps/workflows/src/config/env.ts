@@ -32,6 +32,11 @@ export const envSchema = z.object({
     .min(1)
     .default('onchain-data-worker')
     .describe('Temporal task queue for onchain-data dependency resolution'),
+  TEMPORAL_COMMUNITY_TASK_QUEUE: z
+    .string()
+    .min(1)
+    .default('community-worker')
+    .describe('Temporal task queue for community dataset dependency resolution'),
 
   AWS_REGION: z.string().min(1).describe('AWS region for S3 and other AWS clients'),
   // AWS credentials are NOT validated here — the SDK reads them from the
@@ -111,7 +116,7 @@ export const envSchema = z.object({
   DEEP_ID_SCOPES: z
     .string()
     .min(1)
-    .default('api wallets post_scores')
+    .default('api wallets post_scores github discord mattermost')
     .describe('Space-separated scopes requested for the DeepID token'),
   DEEP_ID_REQUEST_TIMEOUT_MS: z.coerce
     .number()
@@ -146,6 +151,44 @@ export const envSchema = z.object({
     .min(0)
     .default(20_000)
     .describe('DeepID API retry max delay in milliseconds'),
+
+  DISCORD_BOT_TOKEN: z
+    .string()
+    .trim()
+    .min(1)
+    .describe('Discord bot token for read-only guild crawls (required for the community worker); never persisted'),
+  GITHUB_APP_ID: z.string().trim().min(1).describe('GitHub App identifier (required for the community worker)'),
+  GITHUB_APP_PRIVATE_KEY: z
+    .string()
+    .trim()
+    .min(1)
+    // Deployment variables are single-line, so a PEM arrives with escaped newlines.
+    .transform((value) => value.replace(/\\n/g, '\n'))
+    .describe('PEM-encoded GitHub App private key; signs the app JWT and is never persisted'),
+  COMMUNITY_API_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(15_000)
+    .describe('Per-request timeout for community platform calls'),
+  COMMUNITY_API_RETRY_MAX_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(4)
+    .describe('Maximum attempts per community platform call, including the first'),
+  COMMUNITY_API_RETRY_BASE_DELAY_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(500)
+    .describe('Base delay for community platform retry backoff'),
+  COMMUNITY_API_RETRY_MAX_DELAY_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10_000)
+    .describe('Maximum delay for community platform retry backoff'),
 
   ONCHAIN_DATABASE_URL: z
     .string()

@@ -1,4 +1,16 @@
+import { generateKeyPairSync } from 'node:crypto';
 import { TEST_BUCKET } from './in-memory-storage.js';
+
+/** Generated on first read: only the GitHub suites need a signable App key. */
+let githubPrivateKey: string | undefined;
+const TEST_GITHUB_APP_PRIVATE_KEY = (): string => {
+  githubPrivateKey ??= generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  }).privateKey;
+  return githubPrivateKey;
+};
 
 /**
  * Stand-in for the workers' env-backed `config` (`src/config/index.js`). The real
@@ -20,6 +32,30 @@ export const testConfig = {
   storage: { bucket: TEST_BUCKET },
   logger: { level: 'silent' },
   app: { nodeEnv: 'production' },
+  community: {
+    discordBotToken: 'test-discord-bot-token',
+    githubAppId: '1234',
+    get githubAppPrivateKey() {
+      return TEST_GITHUB_APP_PRIVATE_KEY();
+    },
+    requestTimeoutMs: 1_000,
+    retryMaxAttempts: 2,
+    retryBaseDelayMs: 1,
+    retryMaxDelayMs: 2,
+  },
+  deepId: {
+    identityBaseUrl: 'https://identity.test',
+    appBaseUrl: 'https://app.test',
+    clientId: 'test-client-id',
+    clientSecret: 'test-client-secret',
+    scopes: 'api wallets post_scores github discord mattermost',
+    requestTimeoutMs: 1_000,
+    concurrency: 2,
+    usersPageSize: 100,
+    retryMaxAttempts: 2,
+    retryBaseDelayMs: 1,
+    retryMaxDelayMs: 2,
+  },
   get onchainData() {
     return { uri: process.env.ONCHAIN_DATABASE_URL ?? '' };
   },

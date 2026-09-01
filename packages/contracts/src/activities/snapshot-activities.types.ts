@@ -1,5 +1,8 @@
+import type { CommunityConnectionDto } from '../community/community-connection.dto.js';
+import type { SnapshotPublicationStatus } from '../enums/snapshot-publication.js';
 import type { SnapshotStatus } from '../enums/snapshot-status.js';
 import type { SnapshotDto, SnapshotError, SnapshotOutputs, SnapshotTemporalInfo } from '../snapshot/snapshot.dto.js';
+import type { SnapshotPublicationCounts } from '../snapshot/snapshot-publication.dto.js';
 
 /**
  * `ApplicationFailure.type` thrown (non-retryable) by the API snapshot
@@ -7,6 +10,12 @@ import type { SnapshotDto, SnapshotError, SnapshotOutputs, SnapshotTemporalInfo 
  * can recognize a deleted snapshot without matching on message text.
  */
 export const SNAPSHOT_NOT_FOUND_ERROR_TYPE = 'SnapshotNotFoundError' as const;
+
+/**
+ * `ApplicationFailure.type` thrown (non-retryable) by `getCommunityConnection`
+ * when the referenced connection no longer exists.
+ */
+export const COMMUNITY_CONNECTION_NOT_FOUND_ERROR_TYPE = 'CommunityConnectionNotFoundError' as const;
 
 export interface GetSnapshotInput {
   snapshotId: string;
@@ -28,6 +37,23 @@ export interface UpdateSnapshotInput {
   error?: Omit<SnapshotError, 'timestamp'> & { message: string };
 }
 
+export interface GetCommunityConnectionInput {
+  connectionId: string;
+}
+
+/**
+ * Input to the `recordSnapshotPublication` activity. Upsert semantics on
+ * `(snapshotId, algorithmKey)`, so an activity retry rewrites the same row.
+ * `error` must be a safe category or summary — never a DeepID response body.
+ */
+export interface RecordSnapshotPublicationInput {
+  snapshotId: string;
+  algorithmKey: string;
+  status: SnapshotPublicationStatus;
+  counts?: SnapshotPublicationCounts;
+  error?: string;
+}
+
 /**
  * The set of activities the Reputo API exposes for the snapshot lifecycle.
  *
@@ -43,4 +69,10 @@ export interface UpdateSnapshotInput {
 export interface ApiSnapshotActivities {
   getSnapshot(input: GetSnapshotInput): Promise<SnapshotDto>;
   updateSnapshot(input: UpdateSnapshotInput): Promise<void>;
+  /**
+   * Reads connection metadata for a community snapshot run — the workers have
+   * no application-database access. Never returns credential material.
+   */
+  getCommunityConnection(input: GetCommunityConnectionInput): Promise<CommunityConnectionDto>;
+  recordSnapshotPublication(input: RecordSnapshotPublicationInput): Promise<void>;
 }

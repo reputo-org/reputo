@@ -2,9 +2,6 @@ packages:
   - packages/*
   - apps/*
 
-# Only better-sqlite3 may run its build scripts (native module). The rest
-# work from prebuilt binaries shipped as optional dependencies, and lefthook
-# is installed by the root postinstall script instead.
 allowBuilds:
   '@scarf/scarf': false
   '@swc/core': false
@@ -19,8 +16,7 @@ allowBuilds:
 catalog:
   '@aws-sdk/client-s3': ^3.1086.0
   '@aws-sdk/s3-request-presigner': ^3.1086.0
-  # Held at 2.3.7: Biome 2.4+ ships new rules (a11y on public SVGs, stricter
-  # organize-imports) that need their own repo-wide migration.
+  '@duckdb/node-api': 1.5.5-r.4
   '@biomejs/biome': 2.3.7
   '@blockfrost/blockfrost-js': ^6.1.1
   '@blockfrost/openapi': ^0.1.90
@@ -84,9 +80,6 @@ catalogMode: strict
 
 injectWorkspacePackages: true
 
-# pnpm 11 no longer reads settings from package.json; the security overrides
-# moved here from the root package.json `pnpm` block (the old
-# onlyBuiltDependencies allowlist became allowBuilds above).
 overrides:
   'fast-xml-parser@^5.0.0': ^5.3.5
   'file-type@^20.0.0': ^21.3.2

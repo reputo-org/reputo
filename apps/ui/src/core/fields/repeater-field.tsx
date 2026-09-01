@@ -595,7 +595,11 @@ function RepeaterFieldBase({
                 </TooltipTrigger>
                 <TooltipContent side="top">
                   <span>
-                    Fills {preset.label} on {chains}
+                    {chains
+                      ? `Fills ${preset.label} on ${chains}`
+                      : `Applies ${preset.value.length} preconfigured row${
+                          preset.value.length === 1 ? "" : "s"
+                        }`}
                   </span>
                 </TooltipContent>
               </Tooltip>

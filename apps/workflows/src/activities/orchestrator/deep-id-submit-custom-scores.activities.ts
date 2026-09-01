@@ -27,6 +27,9 @@ const CHILD_SCORE_TYPES = new Set<ScoreType>([
   'contribution_score',
   'proposal_engagement',
   'token_value_over_time',
+  'github_engagement',
+  'discord_engagement',
+  'mattermost_engagement',
 ]);
 
 /** Users posted per `POST /v1/clients/scores` call (sized defensively against request timeouts). */

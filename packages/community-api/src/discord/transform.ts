@@ -1,0 +1,335 @@
+import { CommunityContractError } from '../shared/errors.js';
+import {
+  type CommunityActivityRecord,
+  CommunityChatActivityType,
+  type CommunityFetchWindow,
+  isWithinWindow,
+  toUtcIso,
+} from '../shared/records.js';
+import type { CommunityResource, CommunityResourceKind } from '../shared/types.js';
+import {
+  DISCORD_AUTHORIZE_URL,
+  DISCORD_BOT_PERMISSIONS,
+  DiscordChannelType,
+  type DiscordInstalledGuild,
+  DiscordMessageType,
+  type DiscordRawChannel,
+  type DiscordRawGuildMember,
+  type DiscordRawMessage,
+  type DiscordRawThread,
+  DiscordThreadType,
+  type DiscordTokenResponse,
+} from './types.js';
+
+export interface BuildInstallUrlParams {
+  clientId: string;
+  callbackUrl: string;
+  /** Signed, TTL-bounded value the caller mints and verifies on the callback. */
+  state: string;
+  /**
+   * Guild to pre-select on the authorization screen. Set when reconnecting an
+   * existing community so the admin cannot land on the wrong server; the guild
+   * picker is locked to it.
+   */
+  guildId?: string;
+}
+
+const CHANNEL_KIND_BY_TYPE = new Map<number, CommunityResourceKind>([
+  [DiscordChannelType.guildText, 'text'],
+  [DiscordChannelType.guildAnnouncement, 'announcement'],
+  [DiscordChannelType.guildForum, 'forum'],
+]);
+
+/**
+ * Bot-install authorization URL. `scope=bot` with exactly the read permissions
+ * the pipeline needs, and `response_type=code` so the callback can exchange the
+ * code and learn which guild was installed.
+ */
+export function buildInstallUrl({ clientId, callbackUrl, state, guildId }: BuildInstallUrlParams): string {
+  const url = new URL(DISCORD_AUTHORIZE_URL);
+  url.searchParams.set('client_id', clientId);
+  url.searchParams.set('scope', 'bot');
+  url.searchParams.set('permissions', DISCORD_BOT_PERMISSIONS);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('redirect_uri', callbackUrl);
+  url.searchParams.set('state', state);
+
+  if (guildId) {
+    url.searchParams.set('guild_id', guildId);
+    url.searchParams.set('disable_guild_select', 'true');
+  }
+
+  return url.toString();
+}
+
+/** The guild a bot-scoped token exchange installed into. */
+export function extractInstalledGuild(response: DiscordTokenResponse): DiscordInstalledGuild {
+  const id = response?.guild?.id;
+  const name = response?.guild?.name;
+
+  if (typeof id !== 'string' || id.length === 0) {
+    throw new CommunityContractError('Discord token response carried no guild id; the bot scope was not granted.');
+  }
+
+  return { id, name: typeof name === 'string' && name.length > 0 ? name : id };
+}
+
+/** Channels the pipeline can read, in the order Discord shows them. */
+export function toCommunityResources(channels: readonly DiscordRawChannel[]): CommunityResource[] {
+  if (!Array.isArray(channels)) {
+    throw new CommunityContractError('Discord channel listing was not an array.');
+  }
+
+  return channels
+    .filter(
+      (channel): channel is DiscordRawChannel & { id: string; type: number } =>
+        typeof channel?.id === 'string' && typeof channel.type === 'number' && CHANNEL_KIND_BY_TYPE.has(channel.type),
+    )
+    .sort((a, b) => {
+      const positionA = typeof a.position === 'number' ? a.position : Number.MAX_SAFE_INTEGER;
+      const positionB = typeof b.position === 'number' ? b.position : Number.MAX_SAFE_INTEGER;
+      return positionA === positionB ? a.id.localeCompare(b.id) : positionA - positionB;
+    })
+    .map((channel) => ({
+      id: channel.id,
+      name: typeof channel.name === 'string' && channel.name.length > 0 ? channel.name : channel.id,
+      kind: CHANNEL_KIND_BY_TYPE.get(channel.type) as CommunityResourceKind,
+    }));
+}
+
+/**
+ * Whether a sampled page carries the fields the fetch depends on. The bot runs
+ * without privileged intents, so the probe proves these arrive over REST before
+ * a snapshot ever relies on them. An empty page proves read permission and
+ * leaves the fields unverified, which counts as present.
+ */
+export function hasRequiredMessageFields(messages: readonly DiscordRawMessage[]): boolean {
+  return messages.every(
+    (message) =>
+      typeof message?.id === 'string' &&
+      typeof message.timestamp === 'string' &&
+      typeof message.author?.id === 'string',
+  );
+}
+
+const DISCORD_EPOCH_MS = 1_420_070_400_000;
+
+/**
+ * The smallest snowflake a message created at `iso` can have. Passing it as a
+ * `before` cursor starts pagination exactly at the window end (exclusive), so
+ * the walk never touches messages created at or after the boundary.
+ */
+export function snowflakeForTimestamp(iso: string): string {
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) {
+    throw new CommunityContractError('Fetch window boundary is not a valid ISO timestamp.');
+  }
+  return String(BigInt(Math.max(0, ms - DISCORD_EPOCH_MS)) << 22n);
+}
+
+function sumReactionCounts(reactions: unknown): number {
+  if (!Array.isArray(reactions)) {
+    return 0;
+  }
+  let total = 0;
+  for (const reaction of reactions) {
+    const count = (reaction as { count?: unknown })?.count;
+    if (typeof count === 'number' && Number.isFinite(count) && count > 0) {
+      total += count;
+    }
+  }
+  return total;
+}
+
+function mentionedUsers(mentions: unknown): Array<{ id: string; bot: boolean }> {
+  if (!Array.isArray(mentions)) {
+    return [];
+  }
+  const byId = new Map<string, boolean>();
+  for (const mention of mentions) {
+    const id = (mention as { id?: unknown })?.id;
+    if (typeof id === 'string' && id.length > 0 && !byId.has(id)) {
+      byId.set(id, (mention as { bot?: unknown }).bot === true);
+    }
+  }
+  return [...byId.entries()].map(([id, bot]) => ({ id, bot }));
+}
+
+/**
+ * Maps one raw Discord message to canonical, content-free activity rows,
+ * keeping only rows whose defining timestamp falls inside the window.
+ *
+ * - `message`/`reply` and the derived `reaction_received` and
+ *   `mention_received` rows use the crawled message's creation time.
+ * - `reply_received` credits the replied-to author at the receiving message's
+ *   creation time (the doc's rule for received activities), so a reply to a
+ *   message outside the window yields no received row.
+ * - Only human-content message types (default, reply) produce rows; records
+ *   without a stable author id are dropped; self-mentions and self-reactions
+ *   are not filtered — daily caps bound them at scoring time.
+ */
+export function toActivityRecords(
+  raw: DiscordRawMessage,
+  resourceId: string,
+  window: CommunityFetchWindow,
+): CommunityActivityRecord[] {
+  const objectId = raw?.id;
+  const authorId = raw?.author?.id;
+  const occurredAt = toUtcIso(raw?.timestamp);
+  if (typeof objectId !== 'string' || typeof authorId !== 'string' || occurredAt === undefined) {
+    return [];
+  }
+
+  const isReply = raw.type === DiscordMessageType.reply;
+  if (raw.type !== DiscordMessageType.default && !isReply) {
+    return [];
+  }
+
+  const actorIsBot = raw.author?.bot === true;
+  const parent = raw.referenced_message ?? undefined;
+  const parentAuthorId = typeof parent?.author?.id === 'string' ? parent.author.id : undefined;
+  const records: CommunityActivityRecord[] = [];
+
+  const push = (record: CommunityActivityRecord) => {
+    if (isWithinWindow(record.occurredAt, window)) {
+      records.push(record);
+    }
+  };
+
+  push({
+    type: isReply ? CommunityChatActivityType.reply : CommunityChatActivityType.message,
+    actor: authorId,
+    counterparty: isReply ? (parentAuthorId ?? null) : null,
+    resource: resourceId,
+    objectId,
+    occurredAt,
+    count: 1,
+    actorIsBot,
+    deleted: false,
+  });
+
+  const reactionCount = sumReactionCounts(raw.reactions);
+  if (reactionCount > 0) {
+    push({
+      type: CommunityChatActivityType.reactionReceived,
+      actor: authorId,
+      counterparty: null,
+      resource: resourceId,
+      objectId,
+      occurredAt,
+      count: reactionCount,
+      actorIsBot,
+      deleted: false,
+    });
+  }
+
+  if (isReply && parentAuthorId !== undefined) {
+    const parentOccurredAt = toUtcIso(parent?.timestamp);
+    if (parentOccurredAt !== undefined) {
+      push({
+        type: CommunityChatActivityType.replyReceived,
+        actor: parentAuthorId,
+        counterparty: authorId,
+        resource: resourceId,
+        objectId,
+        occurredAt: parentOccurredAt,
+        count: 1,
+        actorIsBot: parent?.author?.bot === true,
+        deleted: false,
+      });
+    }
+  }
+
+  for (const mentioned of mentionedUsers(raw.mentions)) {
+    push({
+      type: CommunityChatActivityType.mentionReceived,
+      actor: mentioned.id,
+      counterparty: authorId,
+      resource: resourceId,
+      objectId,
+      occurredAt,
+      count: 1,
+      actorIsBot: mentioned.bot,
+      deleted: false,
+    });
+  }
+
+  return records;
+}
+
+/**
+ * The account id of the member whose username equals `username` exactly.
+ * Discord's member search matches by prefix on usernames and nicknames, so the
+ * result is narrowed to an exact username match — never a guess.
+ */
+export function findExactMemberId(members: readonly DiscordRawGuildMember[], username: string): string | null {
+  if (!Array.isArray(members)) {
+    throw new CommunityContractError('Discord member search result was not an array.');
+  }
+
+  for (const member of members) {
+    const user = member?.user;
+    if (typeof user?.id === 'string' && user.id.length > 0 && user.username === username) {
+      return user.id;
+    }
+  }
+
+  return null;
+}
+
+/** A thread the crawl walks, with its archive time when the listing carries one. */
+export interface DiscordCrawlableThread {
+  id: string;
+  archiveTimestamp?: string;
+}
+
+/**
+ * Narrows a raw thread listing to the crawlable threads of one parent channel:
+ * public and announcement threads only — private threads are out of scope.
+ */
+export function toCrawlableThreads(threads: unknown, parentId: string): DiscordCrawlableThread[] {
+  if (!Array.isArray(threads)) {
+    return [];
+  }
+
+  const crawlable: DiscordCrawlableThread[] = [];
+  for (const thread of threads as DiscordRawThread[]) {
+    const isPublicType =
+      thread?.type === DiscordThreadType.publicThread || thread?.type === DiscordThreadType.announcementThread;
+    if (!isPublicType || typeof thread.id !== 'string' || thread.parent_id !== parentId) {
+      continue;
+    }
+
+    const archiveTimestamp = thread.thread_metadata?.archive_timestamp;
+    crawlable.push({
+      id: thread.id,
+      archiveTimestamp: typeof archiveTimestamp === 'string' ? archiveTimestamp : undefined,
+    });
+  }
+
+  return crawlable.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** Parsed channel fields the crawl needs; undefined when the payload lacks them. */
+export interface DiscordChannelMeta {
+  id: string;
+  guildId: string;
+  kind: CommunityResourceKind;
+}
+
+export function toChannelMeta(channel: DiscordRawChannel): DiscordChannelMeta | undefined {
+  if (
+    typeof channel?.id !== 'string' ||
+    typeof channel.guild_id !== 'string' ||
+    typeof channel.type !== 'number' ||
+    !CHANNEL_KIND_BY_TYPE.has(channel.type)
+  ) {
+    return undefined;
+  }
+
+  return {
+    id: channel.id,
+    guildId: channel.guild_id,
+    kind: CHANNEL_KIND_BY_TYPE.get(channel.type) as CommunityResourceKind,
+  };
+}

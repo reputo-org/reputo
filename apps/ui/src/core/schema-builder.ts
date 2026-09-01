@@ -34,6 +34,12 @@ export interface FormInputProperty {
   required?: boolean
   enum?: string[]
   default?: string | number
+  /** Minimum allowed value for numeric properties */
+  min?: number
+  /** Maximum allowed value for numeric properties */
+  max?: number
+  /** When true, the value must be strictly greater than `min` */
+  exclusiveMin?: boolean
   options?: SelectOption[]
   dependsOn?: string | string[]
   minItems?: number
@@ -86,6 +92,10 @@ export interface FormInput {
   maxItems?: number
   /** Parent input keys that child algorithms inherit and must not redefine */
   sharedInputKeys?: string[]
+  /** Community platform a `community_connection` widget offers connections for */
+  platform?: string
+  /** Array item type; "string" for bare id lists, "object" for row fields */
+  itemType?: string
   [key: string]: any
 }
 
@@ -325,6 +335,7 @@ function transformInputToFormInput(
           widget?: string
           options?: SelectOption[]
           dependsOn?: string
+          platform?: string
         }
       } | null
 
@@ -338,6 +349,18 @@ function transformInputToFormInput(
           options: strInput.uiHint.options,
           dependsOn: strInput.uiHint.dependsOn,
           enum: strInput.enum,
+        }
+      }
+
+      if (strInput?.uiHint?.widget === "community_connection") {
+        return {
+          key: inputKey,
+          label: algoInput.label,
+          type: "text",
+          widget: "community_connection",
+          platform: strInput.uiHint.platform,
+          description: strInput.description,
+          required: strInput.required !== false,
         }
       }
 
@@ -373,7 +396,10 @@ function transformInputToFormInput(
       const arrayInput = fullInput as
         | (ArrayIoItem & { uniqueBy?: string[] })
         | null
-      const itemProps = arrayInput?.item?.properties ?? []
+      const itemProps =
+        arrayInput?.item && "properties" in arrayInput.item
+          ? arrayInput.item.properties
+          : []
 
       return {
         key: inputKey,
@@ -385,8 +411,10 @@ function transformInputToFormInput(
         minItems: arrayInput?.minItems,
         uniqueBy: arrayInput?.uniqueBy,
         addButtonLabel: arrayInput?.uiHint?.addButtonLabel ?? "Add item",
+        dependsOn: arrayInput?.uiHint?.dependsOn,
         arrayPresets: arrayInput?.uiHint?.presets,
         resourceCatalog: arrayInput?.uiHint?.resourceCatalog,
+        itemType: arrayInput?.item?.type,
         itemProperties: itemProps.map(transformObjectPropertyToFormProperty),
       }
     }
@@ -433,6 +461,9 @@ function transformObjectPropertyToFormProperty(prop: any): FormInputProperty {
     required: prop.required !== false,
     enum: prop.enum,
     default: prop.default,
+    min: prop.min,
+    max: prop.max,
+    exclusiveMin: prop.exclusiveMin,
     options: prop.uiHint?.options,
     dependsOn: prop.uiHint?.dependsOn,
   }

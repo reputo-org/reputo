@@ -4,6 +4,11 @@ import type {
   AdminViewDto,
   AlgorithmPresetQueryParams,
   AlgorithmPresetResponseDto,
+  CommunityConnectionDto,
+  CommunityHealthDto,
+  CommunityInstallUrlDto,
+  CommunityPlatform,
+  CommunityResourceDto,
   CreateAdminDto,
   CreateAlgorithmPresetDto,
   CreateSnapshotDto,
@@ -208,6 +213,48 @@ export const adminsApi = {
   /** Owner-only. Soft-revoke and force logout for the matching user. */
   remove: async (provider: OAuthProviderId, email: string): Promise<void> => {
     await api.delete(adminPath(provider, email))
+  },
+}
+
+export const communityApi = {
+  /** Every connection with its lifecycle state. Credentials are never returned. */
+  list: async (): Promise<CommunityConnectionDto[]> => {
+    const response = await api.get<CommunityConnectionDto[]>(
+      "/community/connections"
+    )
+    return response.data
+  },
+  /**
+   * Platform install URL, carrying a signed state that expires. Pass a
+   * connection id to reconnect it: where the platform allows it, the
+   * authorization screen is then locked to that community so the admin cannot
+   * land on a different one.
+   */
+  getInstallUrl: async (
+    platform: CommunityPlatform,
+    connectionId?: string
+  ): Promise<CommunityInstallUrlDto> => {
+    const response = await api.get<CommunityInstallUrlDto>(
+      `/community/connections/${platform}/install-url`,
+      { params: connectionId ? { connectionId } : undefined }
+    )
+    return response.data
+  },
+  listResources: async (id: string): Promise<CommunityResourceDto[]> => {
+    const response = await api.get<CommunityResourceDto[]>(
+      `/community/connections/${id}/resources`
+    )
+    return response.data
+  },
+  /** Runs the capability probe again and returns the resulting state. */
+  recheck: async (id: string): Promise<CommunityHealthDto> => {
+    const response = await api.get<CommunityHealthDto>(
+      `/community/connections/${id}/health`
+    )
+    return response.data
+  },
+  disconnect: async (id: string): Promise<void> => {
+    await api.delete(`/community/connections/${id}`)
   },
 }
 

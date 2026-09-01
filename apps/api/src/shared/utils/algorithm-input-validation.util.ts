@@ -15,6 +15,18 @@ export interface AlgorithmInputValue {
   value?: unknown;
 }
 
+/**
+ * Community-input checks that need live data (connection rows, platform
+ * resource listings). Injected by callers so this util stays free of module
+ * dependencies; runs only after the shared validator accepted the payload.
+ */
+export interface CommunityInputValidation {
+  validate(
+    definition: AlgorithmDefinition,
+    inputs: ReadonlyArray<AlgorithmInputValue>,
+  ): Promise<Array<{ field: string; message: string }>>;
+}
+
 function getStorageInputFileLabel(input: CsvIoItem | JsonIoItem): string {
   return input.label ?? input.key;
 }
@@ -106,6 +118,7 @@ export async function validateAlgorithmInputs(params: {
   storageService: StorageService;
   storageMaxSizeBytes: number;
   storageContentTypeAllowlist: string;
+  communityValidation?: CommunityInputValidation;
 }): Promise<void> {
   const fileContentCache = new Map<string, Buffer>();
 
@@ -147,6 +160,15 @@ export async function validateAlgorithmInputs(params: {
   });
 
   if (validationResult.success) {
+    if (params.communityValidation) {
+      const communityErrors = await params.communityValidation.validate(params.definition, params.inputs);
+      if (communityErrors.length > 0) {
+        throw new BadRequestException({
+          message: 'Invalid algorithm inputs',
+          errors: communityErrors,
+        });
+      }
+    }
     return;
   }
 

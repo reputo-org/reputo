@@ -12,7 +12,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { safeGetDefinition } from "@/core/fields/sub-algorithm-composer-field.utils"
-import type { SnapshotResponseDto } from "@/lib/api/types"
+import type {
+  SnapshotPublicationDto,
+  SnapshotResponseDto,
+} from "@/lib/api/types"
 import { FileDisplay } from "../file-display"
 import { PresetInputRows, toTitleCase } from "../presets/preset-input-rows"
 
@@ -28,6 +31,34 @@ interface SnapshotDetailsDialogProps {
 function isStorageKey(value: unknown): value is string {
   if (typeof value !== "string" || !value) return false
   return value.includes("/") || value.startsWith("uploads/")
+}
+
+function getPublicationBadge(status: SnapshotPublicationDto["status"]) {
+  switch (status) {
+    case "sent":
+      return (
+        <Badge className="bg-foreground text-background border-transparent">
+          Sent
+        </Badge>
+      )
+    case "failed":
+      return (
+        <Badge className="bg-red-500 text-white border-transparent">
+          Failed
+        </Badge>
+      )
+    default:
+      return <Badge variant="secondary">Pending</Badge>
+  }
+}
+
+function summarizeCounts(counts: SnapshotPublicationDto["counts"]): string {
+  if (!counts) return ""
+  const parts = [`${counts.ok} accepted`]
+  if (counts.dropped > 0) parts.push(`${counts.dropped} without consent`)
+  if (counts.failed > 0) parts.push(`${counts.failed} rejected`)
+  if (counts.skipped > 0) parts.push(`${counts.skipped} skipped`)
+  return `${counts.posted} posted · ${parts.join(" · ")}`
 }
 
 export function SnapshotDetailsDialog({
@@ -243,6 +274,39 @@ export function SnapshotDetailsDialog({
                       </div>
                     )
                   })}
+                </div>
+              </div>
+            )}
+
+            {snapshot.publications && snapshot.publications.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-3">
+                  DeepID publication
+                </h3>
+                <div className="space-y-2 pb-4">
+                  {snapshot.publications.map((publication) => (
+                    <div
+                      key={publication.algorithmKey}
+                      className="p-3 border rounded-lg"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-medium">
+                          {toTitleCase(publication.algorithmKey)}
+                        </div>
+                        {getPublicationBadge(publication.status)}
+                      </div>
+                      {publication.counts && (
+                        <div className="text-sm text-muted-foreground mt-1">
+                          {summarizeCounts(publication.counts)}
+                        </div>
+                      )}
+                      {publication.status === "failed" && publication.error && (
+                        <div className="text-sm text-red-600 dark:text-red-400 mt-1 break-words">
+                          {publication.error}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

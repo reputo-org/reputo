@@ -5,6 +5,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { AdminModule } from './admin';
 import { AlgorithmPresetModule } from './algorithm-preset/algorithm-preset.module';
 import { AuthModule } from './auth';
+import { CommunityModule } from './community';
 import { configModules, validateEnv } from './config';
 import { pinoConfig } from './config/pino.config';
 import { ConsentModule } from './consent';
@@ -32,6 +33,7 @@ import { ApiWorkerModule } from './temporal/api-worker.module';
     AuthModule,
     AdminModule,
     ConsentModule,
+    CommunityModule,
     AlgorithmPresetModule,
     SnapshotModule,
     StorageModule,

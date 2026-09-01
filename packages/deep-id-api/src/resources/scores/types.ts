@@ -9,6 +9,9 @@ export const SCORE_TYPES = [
   'proposal_engagement',
   'token_value_over_time',
   'custom_score',
+  'github_engagement',
+  'discord_engagement',
+  'mattermost_engagement',
 ] as const;
 
 export type ScoreType = (typeof SCORE_TYPES)[number];

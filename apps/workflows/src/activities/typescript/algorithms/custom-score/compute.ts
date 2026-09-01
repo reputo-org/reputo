@@ -10,8 +10,10 @@ import {
   parseCustomScoreChildren,
 } from '../../../../shared/utils/index.js';
 import { computeContributionScore } from '../contribution-score/compute.js';
+import { computeDiscordEngagement } from '../discord-engagement/compute.js';
+import { computeGithubEngagement } from '../github-engagement/compute.js';
 import { computeProposalEngagement } from '../proposal-engagement/compute.js';
-import { extractDidsKey } from '../shared/did-input.js';
+import { extractOptionalDidsKey } from '../shared/did-input.js';
 import { computeTokenValueOverTime } from '../token-value-over-time/compute.js';
 import { computeVotingEngagement } from '../voting-engagement/compute.js';
 
@@ -22,6 +24,8 @@ const standaloneRegistry: Record<string, AlgorithmComputeFunction> = {
   contribution_score: computeContributionScore,
   proposal_engagement: computeProposalEngagement,
   token_value_over_time: computeTokenValueOverTime,
+  discord_engagement: computeDiscordEngagement,
+  github_engagement: computeGithubEngagement,
 };
 
 const DETAILS_OUTPUT_KEY = 'custom_score_details';
@@ -47,16 +51,17 @@ function roundWeight(weight: number): number {
 }
 
 // Children keep the parent snapshot id: dependency artifacts are stored under it
-// (e.g. the run's single deepfunding.db, shared by every portal child), and unique
-// child keys keep the per-child output files apart.
-function buildChildSnapshot(snapshot: Snapshot, child: CustomScoreChild, didsKey: string): Snapshot {
+// (e.g. the run's single deepfunding.db or community_discord dataset, shared by
+// every child that reads it), and unique child keys keep the output files apart.
+function buildChildSnapshot(snapshot: Snapshot, child: CustomScoreChild, didsKey: string | undefined): Snapshot {
+  const inputs = child.inputs.filter((input) => input.key !== 'dids');
   return {
     ...snapshot,
     algorithmPresetFrozen: {
       ...snapshot.algorithmPresetFrozen,
       key: child.algorithm_key,
       version: child.algorithm_version,
-      inputs: [...child.inputs.filter((input) => input.key !== 'dids'), { key: 'dids', value: didsKey }],
+      inputs: didsKey === undefined ? inputs : [...inputs, { key: 'dids', value: didsKey }],
     },
   };
 }
@@ -65,7 +70,7 @@ function buildChildSnapshot(snapshot: Snapshot, child: CustomScoreChild, didsKey
 async function runChildAlgorithm(input: {
   snapshot: Snapshot;
   storage: Storage;
-  didsKey: string;
+  didsKey: string | undefined;
   child: CustomScoreChild;
 }): Promise<string> {
   const childDefinition = JSON.parse(
@@ -116,7 +121,7 @@ export async function computeCustomScore(snapshot: Snapshot, storage: Storage): 
 
   logger.info('Starting custom_score', { snapshotId });
 
-  const didsKey = extractDidsKey(snapshot.algorithmPresetFrozen.inputs);
+  const didsKey = extractOptionalDidsKey(snapshot.algorithmPresetFrozen.inputs);
   const children = parseCustomScoreChildren(snapshot.algorithmPresetFrozen.inputs);
   const totalChildWeight = children.reduce((sum, child) => sum + child.weight, 0);
 
