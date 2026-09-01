@@ -14,6 +14,7 @@ export const CommunityErrorCategory = {
   upstreamError: 'upstream_error',
   networkError: 'network_error',
   contractViolation: 'contract_violation',
+  outboundPolicy: 'outbound_policy',
 } as const;
 
 export type CommunityErrorCategory = (typeof CommunityErrorCategory)[keyof typeof CommunityErrorCategory];
@@ -98,6 +99,21 @@ export class CommunityContractError extends CommunityApiError {
   constructor(message: string) {
     super(message);
     this.name = 'CommunityContractError';
+  }
+}
+
+/**
+ * The outbound network policy refused the call — a private or unresolvable
+ * target, a redirect, a plain-http URL off the allowlist, or an oversized
+ * response. Raised before or instead of the platform call; messages name the
+ * violated rule and never the response.
+ */
+export class CommunityOutboundPolicyError extends CommunityApiError {
+  readonly category = CommunityErrorCategory.outboundPolicy;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'CommunityOutboundPolicyError';
   }
 }
 

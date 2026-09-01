@@ -1,8 +1,9 @@
-import { request } from 'undici';
+import { type Dispatcher, request } from 'undici';
 import {
   CommunityAuthError,
   CommunityHttpError,
   CommunityNetworkError,
+  CommunityOutboundPolicyError,
   CommunityPermissionError,
   CommunityRateLimitError,
 } from './errors.js';
@@ -42,6 +43,16 @@ export interface HttpRequestOptions {
    * genuine permission failures, so platforms opt in.
    */
   throttleOnSpentBudget?: boolean;
+  /**
+   * Dispatcher override for the safe outbound path: it pins the connection to
+   * pre-validated addresses, so DNS cannot be re-resolved between the policy
+   * check and the socket.
+   */
+  dispatcher?: Dispatcher;
+  /** Reject any 3xx as a policy violation instead of returning it. */
+  rejectRedirects?: boolean;
+  /** Cap on response body bytes; exceeding it is a policy violation. */
+  maxResponseBytes?: number;
 }
 
 export interface HttpResponse<T> {
@@ -141,6 +152,25 @@ export function calculateBackoffMs(attempt: number, baseDelayMs: number, maxDela
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
+ * Reads the body while counting bytes, so an attacker-controlled origin cannot
+ * stream an unbounded response. Abandoning the iterator destroys the stream.
+ */
+async function readBodyText(body: AsyncIterable<Buffer> & { text(): Promise<string> }, maxBytes?: number) {
+  if (maxBytes === undefined) return body.text();
+
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of body) {
+    total += chunk.length;
+    if (total > maxBytes) {
+      throw new CommunityOutboundPolicyError(`Platform response exceeded the ${maxBytes}-byte cap.`);
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/**
  * One platform call with exponential backoff and jitter on transient failures
  * (throttles, 5xx, network). A `retry-after` header overrides the computed backoff.
  * Auth and permission failures are surfaced immediately as typed errors so the
@@ -166,10 +196,16 @@ export async function executeRequest<T>(
         method,
         headers,
         body,
+        dispatcher: options.dispatcher,
         headersTimeout: config.requestTimeoutMs,
         bodyTimeout: config.requestTimeoutMs,
       });
-      const text = await response.body.text();
+
+      if (options.rejectRedirects === true && response.statusCode >= 300 && response.statusCode < 400) {
+        await response.body.dump();
+        throw new CommunityOutboundPolicyError('Platform answered with a redirect, which the outbound policy refuses.');
+      }
+      const text = await readBodyText(response.body, options.maxResponseBytes);
 
       logger.debug({
         msg: 'Community platform response',
