@@ -11,9 +11,7 @@ import { createInMemoryStorage, TEST_BUCKET } from '../utils/in-memory-storage.j
 // Temporal activity Context, and the env-backed config. The Discord adapter,
 // dataset engine, DuckDB staging, Parquet export, hashing, and the manifest
 // commit all run for real against the in-memory Storage fake.
-vi.mock('undici', async () => ({
-  request: (await import('../utils/community-mocks.js')).sharedUndiciRequestMock(),
-}));
+vi.mock('undici', async () => (await import('../utils/community-mocks.js')).sharedUndiciModuleMock());
 
 const harness = communityActivityHarness();
 

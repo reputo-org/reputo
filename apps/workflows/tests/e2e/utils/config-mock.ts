@@ -1,6 +1,9 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { TEST_BUCKET } from './in-memory-storage.js';
 
+/** Sealing secret the Mattermost suites seal their synthetic bot token with. */
+export const TEST_COMMUNITY_CREDENTIALS_SECRET = 'test-community-credentials-secret-0123456789';
+
 /** Generated on first read: only the GitHub suites need a signable App key. */
 let githubPrivateKey: string | undefined;
 const TEST_GITHUB_APP_PRIVATE_KEY = (): string => {
@@ -38,10 +41,13 @@ export const testConfig = {
     get githubAppPrivateKey() {
       return TEST_GITHUB_APP_PRIVATE_KEY();
     },
+    mattermostAllowedHosts: ['127.0.0.1', 'localhost'],
+    mattermostMaxResponseBytes: 1_048_576,
     requestTimeoutMs: 1_000,
     retryMaxAttempts: 2,
     retryBaseDelayMs: 1,
     retryMaxDelayMs: 2,
+    credentials: { currentSecret: TEST_COMMUNITY_CREDENTIALS_SECRET },
   },
   deepId: {
     identityBaseUrl: 'https://identity.test',

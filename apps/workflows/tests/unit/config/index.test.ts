@@ -25,6 +25,10 @@ const BASE_ENV = {
   DEEP_ID_CLIENT_ID: 'test-deepid-client',
   DEEP_ID_CLIENT_SECRET: 'test-deepid-secret',
   COMMUNITY_CREDENTIALS_ENCRYPTION_KEY: 'workflow-credentials-test-key-0123456789abcdef',
+  // Pinned rather than defaulted: the root `vitest run` shares worker
+  // processes across projects, so another project's setup can leave these set.
+  COMMUNITY_MATTERMOST_ALLOWED_HOSTS: '',
+  COMMUNITY_MATTERMOST_MAX_RESPONSE_BYTES: '5242880',
 };
 
 describe('workflows config', () => {
@@ -61,6 +65,10 @@ describe('workflows config', () => {
       githubAppId: '1234',
       // The env schema unescapes the single-line PEM a deployment variable carries.
       githubAppPrivateKey: '-----BEGIN PRIVATE KEY-----\ntest-key\n-----END PRIVATE KEY-----',
+      // Default-deny: no host is exempt from the outbound policy unless the
+      // deployment says so, and the API must be configured to match.
+      mattermostAllowedHosts: [],
+      mattermostMaxResponseBytes: 5_242_880,
       requestTimeoutMs: 15_000,
       retryMaxAttempts: 4,
       retryBaseDelayMs: 500,

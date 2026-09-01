@@ -5,6 +5,7 @@ import {
   type CommunityLogger,
   createDiscordAdapter,
   createGitHubAdapter,
+  createMattermostAdapter,
   type GitHubRateLimit,
 } from '@reputo/community-api';
 import { CommunityPlatform } from '@reputo/contracts';
@@ -14,12 +15,14 @@ import config from '../../config/index.js';
 import type {
   CommunityDependencyKey,
   CommunityDependencyResolverContext,
+  CommunityFetchInput,
   DependencyResolverActivities,
   ResolveDependencyInput,
   ResolveDependencyResult,
 } from '../../shared/types/index.js';
 import { COMMUNITY_PLATFORM_BY_DEPENDENCY_KEY } from '../../shared/types/index.js';
 import { buildCommunityCohort } from './cohort.js';
+import { openMattermostTarget } from './credentials.js';
 import { type CommunityFetchCheckpoint, type CommunityRequestStats, freezeCommunityDataset } from './dataset-engine.js';
 
 /**
@@ -35,13 +38,15 @@ function toSafeFailure(platform: CommunityPlatform, error: unknown): unknown {
 }
 
 /**
- * The adapter each platform's fetch runs on, built from deployment credentials
- * only. `rateLimit` is optional: platforms that report a budget expose it, and
- * the run logs its request count against it.
+ * The adapter each platform's fetch runs on. Discord and GitHub are configured
+ * entirely from deployment credentials; Mattermost's token is admin-supplied
+ * and arrives sealed, so it is opened here — in the same stack frame as the
+ * adapter that spends it. `rateLimit` is optional: platforms that report a
+ * budget expose it, and the run logs its request count against it.
  */
 function createPlatformAdapter(
   platform: CommunityPlatform,
-  communityId: string,
+  communityFetch: CommunityFetchInput,
   logger: CommunityLogger,
   observer: CommunityHttpObserver,
 ): CommunityAdapter & { rateLimit?(): GitHubRateLimit | undefined } {
@@ -65,11 +70,32 @@ function createPlatformAdapter(
           ...http,
           appId: config.community.githubAppId,
           privateKey: config.community.githubAppPrivateKey,
-          installationId: communityId,
+          installationId: communityFetch.communityId,
         },
         logger,
         observer,
       );
+    case CommunityPlatform.mattermost: {
+      if (communityFetch.credentialsCiphertext === undefined) {
+        throw new Error("community mattermost fetch requires the connection's sealed credential");
+      }
+      return createMattermostAdapter(
+        {
+          ...http,
+          outbound: {
+            allowedHosts: config.community.mattermostAllowedHosts,
+            maxResponseBytes: config.community.mattermostMaxResponseBytes,
+          },
+          target: openMattermostTarget(
+            config.community.credentials,
+            communityFetch.communityId,
+            communityFetch.credentialsCiphertext,
+          ),
+        },
+        logger,
+        observer,
+      );
+    }
     default:
       throw new Error(`community worker has no adapter for platform "${platform}"`);
   }
@@ -102,7 +128,7 @@ export function createCommunityDependencyResolverActivities(
         warn: (payload) => logger.warn('community-api', payload as Record<string, unknown>),
       };
       const requestStats: CommunityRequestStats = { requests: 0, rateLimitWaits: 0, rateLimitWaitMs: 0 };
-      const adapter = createPlatformAdapter(platform, communityFetch.communityId, communityLogger, {
+      const adapter = createPlatformAdapter(platform, communityFetch, communityLogger, {
         onRequest: () => {
           requestStats.requests += 1;
         },
