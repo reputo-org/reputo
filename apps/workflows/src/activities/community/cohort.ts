@@ -39,7 +39,7 @@ export interface BuildCommunityCohortInput {
  * DID so the frozen `cohort.parquet` is deterministic for its fetch moment.
  */
 export async function buildCommunityCohort(input: BuildCommunityCohortInput): Promise<CommunityCohortRow[]> {
-  const { platform, communityId, adapter, deepId, heartbeat, logger } = input;
+  const { platform, deepId, heartbeat, logger } = input;
 
   const consented: Array<{ did: string; username: string | null }> = [];
   let scannedUsers = 0;
@@ -56,23 +56,11 @@ export async function buildCommunityCohort(input: BuildCommunityCohortInput): Pr
   }
   consented.sort((a, b) => a.did.localeCompare(b.did));
 
-  const accountIdByUsername = new Map<string, string | null>();
-  const rows: CommunityCohortRow[] = [];
-  for (const { did, username } of consented) {
-    let accountId: string | null = null;
-    if (username !== null) {
-      const cached = accountIdByUsername.get(username);
-      accountId = cached !== undefined ? cached : await adapter.searchMemberId(communityId, username);
-      accountIdByUsername.set(username, accountId);
-    }
-    rows.push({
-      did,
-      username,
-      accountId,
-      status: accountId === null ? 'unmatched' : 'matched',
-    });
-    heartbeat();
-  }
+  const accountIdByUsername = await resolveAccountIds(input, consented);
+  const rows: CommunityCohortRow[] = consented.map(({ did, username }) => {
+    const accountId = username === null ? null : (accountIdByUsername.get(username) ?? null);
+    return { did, username, accountId, status: accountId === null ? 'unmatched' : 'matched' };
+  });
 
   logger.info('Community cohort assembled', {
     platform,
@@ -86,4 +74,30 @@ export async function buildCommunityCohort(input: BuildCommunityCohortInput): Pr
 
 function hasScope(user: DeepIdUser, scope: string): boolean {
   return Array.isArray(user.scopes) && user.scopes.includes(scope);
+}
+
+/**
+ * Looks every distinct consented username up on the platform. Adapters whose
+ * API resolves usernames in bulk answer in one call per batch; the rest are
+ * asked one username at a time. Either way each username costs one lookup.
+ */
+async function resolveAccountIds(
+  input: BuildCommunityCohortInput,
+  consented: ReadonlyArray<{ username: string | null }>,
+): Promise<Map<string, string | null>> {
+  const { adapter, communityId, heartbeat } = input;
+  const usernames = [...new Set(consented.map((entry) => entry.username).filter((name) => name !== null))];
+
+  if (adapter.searchMemberIds !== undefined) {
+    const resolved = await adapter.searchMemberIds(communityId, usernames);
+    heartbeat();
+    return resolved;
+  }
+
+  const resolved = new Map<string, string | null>();
+  for (const username of usernames) {
+    resolved.set(username, await adapter.searchMemberId(communityId, username));
+    heartbeat();
+  }
+  return resolved;
 }
