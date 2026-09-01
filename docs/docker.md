@@ -27,7 +27,7 @@ Each stack folder contains its `stack.toml` (Komodo Stack definition), `compose.
 
 | Profile | Services |
 | --- | --- |
-| `apps` | api, ui, workers, one-shot db-migrate and db-readonly-role |
+| `apps` | api, ui, workers, one-shot db-migrate |
 | `infra` | traefik, temporal stack, both Postgres flavours, MinIO, Mattermost (preview image, for the token connect flow) |
 
 For local endpoints (UI, API, Temporal UI, MinIO, Postgres), see [Local development](local-development.md#local-endpoints-both-flows).

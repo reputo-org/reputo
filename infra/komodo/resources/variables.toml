@@ -316,10 +316,6 @@ name = "STAGING_COMMUNITY_MATTERMOST_ALLOWED_HOSTS"
 description = "Staging comma-separated hostnames exempt from the Mattermost outbound HTTPS/public-address policy. Leave empty (default-deny) unless an internal server is intentionally reachable."
 is_secret = false
 
-[[variable]]
-name = "STAGING_APP_DATABASE_URL_READONLY"
-description = "Staging application Postgres URL for the community worker, as a READ-ONLY role (SELECT on community_connections only — see docs/deployment.md for the provisioning SQL). Never the application user."
-is_secret = true
 
 [[variable]]
 name = "PRODUCTION_TRAEFIK_DOMAIN"
@@ -591,7 +587,3 @@ name = "PRODUCTION_COMMUNITY_MATTERMOST_ALLOWED_HOSTS"
 description = "Production comma-separated hostnames exempt from the Mattermost outbound HTTPS/public-address policy. Leave empty (default-deny) unless an internal server is intentionally reachable."
 is_secret = false
 
-[[variable]]
-name = "PRODUCTION_APP_DATABASE_URL_READONLY"
-description = "Production application Postgres URL for the community worker, as a READ-ONLY role (SELECT on community_connections only — see docs/deployment.md for the provisioning SQL). Never the application user."
-is_secret = true
