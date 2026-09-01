@@ -235,6 +235,7 @@ describe('Mattermost community connections e2e', () => {
       'https://10.0.0.8',
       'https://192.168.1.10:8065',
       'https://[::1]:8065',
+      'https://[::ffff:127.0.0.1]', // URL rewrites this to ::ffff:7f00:1
       'https://169.254.169.254/latest/meta-data',
       'http://localhost:8065', // resolves to loopback; also plain http off the allowlist
       'http://public.example.com', // https requirement, refused before any DNS or socket work

@@ -75,7 +75,22 @@ const blockedRanges = new BlockList();
 for (const [net, prefix] of BLOCKED_IPV4_RANGES) blockedRanges.addSubnet(net, prefix, 'ipv4');
 for (const [net, prefix] of BLOCKED_IPV6_RANGES) blockedRanges.addSubnet(net, prefix, 'ipv6');
 
-const IPV4_MAPPED_PATTERN = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i;
+const IPV4_MAPPED_DOTTED = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i;
+/** `URL` canonicalizes `[::ffff:127.0.0.1]` to `::ffff:7f00:1`, so both forms arrive here. */
+const IPV4_MAPPED_HEX = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i;
+
+/** The IPv4 address an IPv4-mapped IPv6 address actually reaches, in either notation. */
+function toMappedIpv4(address: string): string | undefined {
+  const dotted = IPV4_MAPPED_DOTTED.exec(address);
+  if (dotted) return dotted[1];
+
+  const hex = IPV4_MAPPED_HEX.exec(address);
+  if (!hex) return undefined;
+
+  const high = Number.parseInt(hex[1], 16);
+  const low = Number.parseInt(hex[2], 16);
+  return `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`;
+}
 
 /** True for any address the policy refuses to dial. Unparseable input is refused. */
 export function isBlockedAddress(address: string): boolean {
@@ -83,9 +98,11 @@ export function isBlockedAddress(address: string): boolean {
   if (family === 0) return true;
   if (family === 4) return blockedRanges.check(address);
 
-  // An IPv4-mapped IPv6 address reaches the IPv4 network; judge the mapped part.
-  const mapped = IPV4_MAPPED_PATTERN.exec(address);
-  if (mapped) return blockedRanges.check(mapped[1]);
+  // An IPv4-mapped IPv6 address reaches the IPv4 network, so it is judged as
+  // that IPv4 address. Node's BlockList maps them onto the IPv4 rules too;
+  // decoding here keeps the policy independent of that behavior.
+  const mapped = toMappedIpv4(address);
+  if (mapped !== undefined) return blockedRanges.check(mapped);
   return blockedRanges.check(address, 'ipv6');
 }
 

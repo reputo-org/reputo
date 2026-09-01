@@ -42,6 +42,11 @@ describe('isBlockedAddress', () => {
     ['64:ff9b::a00:1', 'NAT64'],
     ['::ffff:10.0.0.1', 'IPv4-mapped private'],
     ['::ffff:127.0.0.1', 'IPv4-mapped loopback'],
+    // The canonical hexadecimal spelling of the three above — what `URL`
+    // produces from a bracketed literal, so this is the form the policy sees.
+    ['::ffff:7f00:1', 'IPv4-mapped loopback, hex'],
+    ['::ffff:a9fe:a9fe', 'IPv4-mapped metadata, hex'],
+    ['::ffff:a00:1', 'IPv4-mapped private, hex'],
     ['not-an-ip', 'unparseable'],
   ])('blocks %s (%s)', (address) => {
     expect(isBlockedAddress(address)).toBe(true);
@@ -52,6 +57,7 @@ describe('isBlockedAddress', () => {
     ['8.8.8.8', 'public IPv4'],
     ['2606:2800:220:1:248:1893:25c8:1946', 'public IPv6'],
     ['::ffff:8.8.8.8', 'IPv4-mapped public'],
+    ['::ffff:808:808', 'IPv4-mapped public, hex'],
   ])('allows %s (%s)', (address) => {
     expect(isBlockedAddress(address)).toBe(false);
   });
@@ -87,6 +93,20 @@ describe('resolvePinnedTarget', () => {
       'https://192.168.1.10:8065',
       'https://169.254.169.254/latest/meta-data',
       'https://[::1]:8065',
+    ]) {
+      await expect(resolvePinnedTarget(url, policy(), publicLookup)).rejects.toThrow(/private or reserved/);
+    }
+  });
+
+  it('rejects bracketed IPv4-mapped literals, which URL rewrites to hexadecimal', async () => {
+    // `https://[::ffff:127.0.0.1]` never reaches the policy as written: URL
+    // canonicalizes the hostname to `::ffff:7f00:1` first. Going through
+    // resolvePinnedTarget is what proves the mapped form is judged as IPv4.
+    for (const url of [
+      'https://[::ffff:127.0.0.1]',
+      'https://[::ffff:169.254.169.254]',
+      'https://[::ffff:10.0.0.1]:8065',
+      'https://[::127.0.0.1]',
     ]) {
       await expect(resolvePinnedTarget(url, policy(), publicLookup)).rejects.toThrow(/private or reserved/);
     }
