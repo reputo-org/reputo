@@ -45,6 +45,13 @@ export interface CommunityFetchInput {
   windowStart: string;
   /** Window end (exclusive), ISO 8601 UTC — the workflow start time. */
   windowEnd: string;
+  /**
+   * Sealed platform credential, for platforms that connect with an
+   * admin-supplied token. The orchestrator reads it through the API's
+   * `getCommunitySealedCredential` activity — the workers have no application
+   * database — and it stays encrypted until the outbound call opens it.
+   */
+  credentialsCiphertext?: string;
 }
 
 /**

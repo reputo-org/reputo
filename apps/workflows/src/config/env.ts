@@ -198,19 +198,10 @@ export const envSchema = z.object({
     })
     .describe('PostgreSQL connection URL for the onchain-data database'),
 
-  APP_DATABASE_URL: z
-    .string()
-    .url()
-    .refine((value) => value.startsWith('postgresql://') || value.startsWith('postgres://'), {
-      error: 'APP_DATABASE_URL must use the postgresql:// or postgres:// scheme',
-    })
-    .describe(
-      'PostgreSQL URL of the application database, as a READ-ONLY role; the community worker reads connection rows and sealed credentials through it',
-    ),
   COMMUNITY_CREDENTIALS_ENCRYPTION_KEY: z
     .string()
     .min(32)
-    .describe('Secret that seals community platform tokens; must match the API value'),
+    .describe('Secret that opens sealed community platform credentials; must match the API value'),
   COMMUNITY_CREDENTIALS_ENCRYPTION_KEY_PREVIOUS: z
     .string()
     .optional()
