@@ -1,6 +1,7 @@
 import { ApplicationFailure } from '@temporalio/activity';
 import { MockActivityEnvironment } from '@temporalio/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { CommunityConnectionRepository } from '../../../src/community/community-connection.repository';
 import type { SnapshotService } from '../../../src/snapshot/snapshot.service';
 import { createSnapshotActivities, toSnapshotDto } from '../../../src/temporal/snapshot.activities';
 
@@ -33,6 +34,10 @@ describe('snapshot.activities factory', () => {
     findByIdOrNull: ReturnType<typeof vi.fn>;
     applyExternalUpdate: ReturnType<typeof vi.fn>;
   };
+  let communityConnections: {
+    findById: ReturnType<typeof vi.fn>;
+    findCredentialsCiphertextById: ReturnType<typeof vi.fn>;
+  };
   let activities: ReturnType<typeof createSnapshotActivities>;
 
   beforeEach(() => {
@@ -41,7 +46,14 @@ describe('snapshot.activities factory', () => {
       findByIdOrNull: vi.fn(),
       applyExternalUpdate: vi.fn(),
     };
-    activities = createSnapshotActivities(snapshotService as unknown as SnapshotService);
+    communityConnections = {
+      findById: vi.fn(),
+      findCredentialsCiphertextById: vi.fn(),
+    };
+    activities = createSnapshotActivities(
+      snapshotService as unknown as SnapshotService,
+      communityConnections as unknown as CommunityConnectionRepository,
+    );
   });
 
   describe('getSnapshot', () => {
@@ -87,6 +99,31 @@ describe('snapshot.activities factory', () => {
       expect(error).toBeInstanceOf(ApplicationFailure);
       expect((error as ApplicationFailure).nonRetryable).toBe(true);
       expect((error as ApplicationFailure).type).toBe('SnapshotNotFoundError');
+    });
+  });
+
+  describe('getCommunitySealedCredential', () => {
+    const CONNECTION_ID = '01940000-0000-7000-8000-000000000002';
+
+    it('returns the envelope still sealed, so no token enters workflow history', async () => {
+      communityConnections.findCredentialsCiphertextById.mockResolvedValue('ccv1:keyid123:iv:tag:ciphertext');
+
+      const result = await env.run(activities.getCommunitySealedCredential, { connectionId: CONNECTION_ID });
+
+      expect(communityConnections.findCredentialsCiphertextById).toHaveBeenCalledWith(CONNECTION_ID);
+      expect(result).toEqual({ credentialsCiphertext: 'ccv1:keyid123:iv:tag:ciphertext' });
+    });
+
+    it('fails non-retryably when the connection stores no credential', async () => {
+      communityConnections.findCredentialsCiphertextById.mockResolvedValue(null);
+
+      const error = await env
+        .run(activities.getCommunitySealedCredential, { connectionId: CONNECTION_ID })
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(ApplicationFailure);
+      expect((error as ApplicationFailure).nonRetryable).toBe(true);
+      expect((error as ApplicationFailure).type).toBe('CommunityCredentialNotFoundError');
     });
   });
 });

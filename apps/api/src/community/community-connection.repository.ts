@@ -107,6 +107,15 @@ export class CommunityConnectionRepository {
     return entity?.credentialsCiphertext ?? null;
   }
 
+  /** Same, addressed by connection id — the handle the snapshot activities carry. */
+  async findCredentialsCiphertextById(id: string): Promise<string | null> {
+    const entity = await this.connections.findOne({
+      where: { id },
+      select: { id: true, credentialsCiphertext: true },
+    });
+    return entity?.credentialsCiphertext ?? null;
+  }
+
   private findByExternalId(input: UpsertCommunityConnectionInput): Promise<CommunityConnectionEntity | null> {
     return this.connections.findOne({ where: { platform: input.platform, externalId: input.externalId } });
   }
