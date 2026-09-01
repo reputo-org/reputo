@@ -197,6 +197,28 @@ describe("CommunityResourcesField", () => {
     expect(screen.getByText("1 selected")).toBeInTheDocument()
   })
 
+  it("labels repositories by name without the channel `#` prefix", async () => {
+    const user = userEvent.setup()
+    mockUseCommunityResources.mockReturnValue({
+      data: [{ id: "9001", name: "snet/reputo", kind: "repository" }],
+      isLoading: false,
+    })
+    render(
+      <TestForm
+        defaultValues={{ community_connection_id: "conn-3", resources: [] }}
+      >
+        {(control) => (
+          <CommunityResourcesField input={RESOURCES_INPUT} control={control} />
+        )}
+      </TestForm>
+    )
+
+    await user.click(screen.getByRole("combobox", { name: /Channels/ }))
+
+    expect(await screen.findByText("snet/reputo")).toBeInTheDocument()
+    expect(screen.queryByText("#snet/reputo")).not.toBeInTheDocument()
+  })
+
   it("shows stored ids the connection no longer lists as removable raw-id badges", async () => {
     const user = userEvent.setup()
     render(
