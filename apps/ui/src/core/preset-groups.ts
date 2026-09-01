@@ -105,6 +105,20 @@ const GROUPS_BY_ALGORITHM: Record<string, GroupSpec[]> = {
       keys: ["lookback_days", "activities"],
     },
   ],
+  github_engagement: [
+    {
+      id: "community",
+      title: "Community",
+      description: "Choose the connected GitHub account and its repositories.",
+      keys: ["community_connection_id", "resources"],
+    },
+    {
+      id: "scoring",
+      title: "Scoring",
+      description: "Set the time period and the points per activity.",
+      keys: ["lookback_days", "activities"],
+    },
+  ],
 }
 
 const DETAILS_KEYS = new Set(["name", "description"])

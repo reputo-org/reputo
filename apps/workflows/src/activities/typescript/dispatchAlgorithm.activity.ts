@@ -4,6 +4,7 @@ import type { AlgorithmComputeFunction, AlgorithmResult, Snapshot } from '../../
 import { computeContributionScore } from './algorithms/contribution-score/compute.js';
 import { computeCustomScore } from './algorithms/custom-score/compute.js';
 import { computeDiscordEngagement } from './algorithms/discord-engagement/compute.js';
+import { computeGithubEngagement } from './algorithms/github-engagement/compute.js';
 import { computeProposalEngagement } from './algorithms/proposal-engagement/compute.js';
 import { computeTokenValueOverTime } from './algorithms/token-value-over-time/compute.js';
 import { computeVotingEngagement } from './algorithms/voting-engagement/compute.js';
@@ -15,6 +16,7 @@ const registry: Record<string, AlgorithmComputeFunction> = {
   token_value_over_time: computeTokenValueOverTime,
   custom_score: computeCustomScore,
   discord_engagement: computeDiscordEngagement,
+  github_engagement: computeGithubEngagement,
 };
 
 export function dispatchAlgorithm(storage: Storage) {

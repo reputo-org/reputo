@@ -39,9 +39,10 @@ interface CommunityResourcesFieldProps {
 
 /**
  * Definition-driven multi-select of a connection's resources (Discord
- * channels), with search. The resource list follows the `dependsOn` connection
- * input; until a connection is chosen the control stays disabled. Stored ids
- * the connection no longer lists stay visible as removable raw-id badges.
+ * channels, GitHub repositories), with search. The resource list follows the
+ * `dependsOn` connection input; until a connection is chosen the control stays
+ * disabled. Stored ids the connection no longer lists stay visible as
+ * removable raw-id badges.
  */
 export function CommunityResourcesField({
   input,
@@ -61,9 +62,12 @@ export function CommunityResourcesField({
   )
 
   const options = resources ?? []
+  // Channel-style resources keep Discord's `#` convention; repositories don't.
+  const displayName = (resource: { name: string; kind: string }) =>
+    resource.kind === "repository" ? resource.name : `#${resource.name}`
   const labelFor = (id: string) => {
     const resource = options.find((candidate) => candidate.id === id)
-    return resource ? `#${resource.name}` : id
+    return resource ? displayName(resource) : id
   }
 
   return (
@@ -135,7 +139,9 @@ export function CommunityResourcesField({
                                 : "opacity-0"
                             )}
                           />
-                          <span className="truncate">#{resource.name}</span>
+                          <span className="truncate">
+                            {displayName(resource)}
+                          </span>
                           <span className="ml-auto text-xs text-muted-foreground">
                             {resource.kind}
                           </span>
