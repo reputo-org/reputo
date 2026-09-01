@@ -1,12 +1,13 @@
 {
   "name": "@reputo/community-api",
   "version": "0.0.0",
-  "description": "Framework-agnostic read-only clients for the community platforms Reputo scores: shared HTTP core plus the Discord and GitHub clients.",
+  "description": "Framework-agnostic read-only clients for the community platforms Reputo scores: shared HTTP core, credential sealing, safe outbound fetch, plus the Discord, GitHub, and Mattermost clients.",
   "keywords": [
     "typescript",
     "community",
     "discord",
     "github",
+    "mattermost",
     "api",
     "client"
   ],

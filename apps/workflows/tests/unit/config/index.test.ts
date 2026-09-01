@@ -24,6 +24,7 @@ const BASE_ENV = {
   DEEP_ID_APP_BASE_URL: 'https://app.staging.deep-id.ai',
   DEEP_ID_CLIENT_ID: 'test-deepid-client',
   DEEP_ID_CLIENT_SECRET: 'test-deepid-secret',
+  COMMUNITY_CREDENTIALS_ENCRYPTION_KEY: 'workflow-credentials-test-key-0123456789abcdef',
 };
 
 describe('workflows config', () => {
@@ -64,6 +65,10 @@ describe('workflows config', () => {
       retryMaxAttempts: 4,
       retryBaseDelayMs: 500,
       retryMaxDelayMs: 10_000,
+      credentials: {
+        currentSecret: 'workflow-credentials-test-key-0123456789abcdef',
+        previousSecret: undefined,
+      },
     });
   });
 

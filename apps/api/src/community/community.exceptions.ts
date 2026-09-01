@@ -1,4 +1,12 @@
-import { BadGatewayException, BadRequestException, ConflictException, NotImplementedException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  ConflictException,
+  HttpException,
+  HttpStatus,
+  NotImplementedException,
+} from '@nestjs/common';
+import { CommunityErrorCategory } from '@reputo/community-api';
 import type { CommunityPlatform } from '@reputo/contracts';
 
 /** Raised when an operation needs a connection that an admin has disconnected. */
@@ -22,5 +30,23 @@ export class CommunityPlatformUnsupportedException extends NotImplementedExcepti
 export class CommunityPlatformMismatchException extends BadRequestException {
   constructor(expected: CommunityPlatform, actual: CommunityPlatform) {
     super(`This route handles ${expected} connections, but that connection is ${actual}.`);
+  }
+}
+
+/** Failures the admin cannot fix by changing their input. */
+const UPSTREAM_CONNECT_CATEGORIES = new Set<string>([
+  CommunityErrorCategory.rateLimited,
+  CommunityErrorCategory.networkError,
+  CommunityErrorCategory.upstreamError,
+]);
+
+/**
+ * Raised when a Mattermost validate or connect attempt fails. The body carries
+ * the safe category as a machine-readable reason code — the dialog maps it to
+ * prose — and never an upstream response.
+ */
+export class CommunityMattermostConnectException extends HttpException {
+  constructor(readonly category: string) {
+    super(category, UPSTREAM_CONNECT_CATEGORIES.has(category) ? HttpStatus.BAD_GATEWAY : HttpStatus.BAD_REQUEST);
   }
 }

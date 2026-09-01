@@ -17,6 +17,14 @@ export const SNAPSHOT_NOT_FOUND_ERROR_TYPE = 'SnapshotNotFoundError' as const;
  */
 export const COMMUNITY_CONNECTION_NOT_FOUND_ERROR_TYPE = 'CommunityConnectionNotFoundError' as const;
 
+/**
+ * `ApplicationFailure.type` thrown (non-retryable) by
+ * `getCommunitySealedCredential` when the connection stores no credential —
+ * the platform was disconnected, or its token was never sealed. The remedy is
+ * an admin reconnect, so retrying cannot help.
+ */
+export const COMMUNITY_CREDENTIAL_NOT_FOUND_ERROR_TYPE = 'CommunityCredentialNotFoundError' as const;
+
 export interface GetSnapshotInput {
   snapshotId: string;
 }
@@ -39,6 +47,20 @@ export interface UpdateSnapshotInput {
 
 export interface GetCommunityConnectionInput {
   connectionId: string;
+}
+
+export interface GetCommunitySealedCredentialInput {
+  connectionId: string;
+}
+
+/**
+ * A connection's platform credential, still sealed. The envelope crosses the
+ * activity boundary encrypted and AAD-bound to its connection; only the
+ * workers' sealing key opens it, so no Temporal payload or history entry ever
+ * holds a usable token.
+ */
+export interface CommunitySealedCredentialDto {
+  credentialsCiphertext: string;
 }
 
 /**
@@ -74,5 +96,12 @@ export interface ApiSnapshotActivities {
    * no application-database access. Never returns credential material.
    */
   getCommunityConnection(input: GetCommunityConnectionInput): Promise<CommunityConnectionDto>;
+  /**
+   * Reads one connection's sealed credential, for the platforms that connect
+   * with an admin-supplied token rather than deployment configuration. The
+   * application database stays behind the API; the worker receives only the
+   * envelope and opens it at the outbound call.
+   */
+  getCommunitySealedCredential(input: GetCommunitySealedCredentialInput): Promise<CommunitySealedCredentialDto>;
   recordSnapshotPublication(input: RecordSnapshotPublicationInput): Promise<void>;
 }

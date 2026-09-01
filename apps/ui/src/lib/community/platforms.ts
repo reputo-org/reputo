@@ -36,7 +36,7 @@ export const COMMUNITY_PLATFORMS: readonly PlatformMeta[] = [
     description:
       "Score messages, replies, and reactions across a team's channels.",
     resourceNoun: "team",
-    available: false,
+    available: true,
   },
 ]
 
@@ -131,6 +131,12 @@ const CONNECT_ERROR_MESSAGES_BY_PLATFORM: Partial<
     permission_denied:
       "The GitHub App needs read access to issues and pull requests. Reconnect and grant it.",
     not_found: "The GitHub App is no longer installed on that account.",
+  },
+  mattermost: {
+    permission_denied:
+      "The bot cannot read any channel of this team. Invite it to the channels it should read.",
+    auth_failed:
+      "Mattermost rejected the token. Reconnect with a valid bot token.",
   },
 }
 

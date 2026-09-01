@@ -4,11 +4,12 @@ import { describe, expect, it } from 'vitest';
 import { CommunityLocalErrorCategory, describeErrorCategory, statusForFailure } from '../../../src/community';
 
 describe('statusForFailure', () => {
-  it('breaks the connection when the credentials or permissions are the problem', () => {
+  it('breaks the connection when the credentials, permissions, or target are the problem', () => {
     for (const category of [
       CommunityErrorCategory.authFailed,
       CommunityErrorCategory.permissionDenied,
       CommunityErrorCategory.notFound,
+      CommunityErrorCategory.outboundPolicy,
     ]) {
       expect(statusForFailure(category)).toBe(CommunityConnectionStatus.broken);
     }
@@ -61,6 +62,7 @@ describe('describeErrorCategory', () => {
       'View Channels or Read Message History',
     );
     expect(describeErrorCategory(CommunityErrorCategory.permissionDenied, 'github')).toContain('GitHub App');
+    expect(describeErrorCategory(CommunityErrorCategory.permissionDenied, 'mattermost')).toContain('Invite it');
     expect(describeErrorCategory(CommunityErrorCategory.rateLimited, 'github')).toBe(
       describeErrorCategory(CommunityErrorCategory.rateLimited),
     );

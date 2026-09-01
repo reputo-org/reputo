@@ -140,6 +140,36 @@ export const envSchema = z
         error: `GITHUB_APP_CALLBACK_URL must end with "${GITHUB_CALLBACK_PATH}" — it is the App's setup URL and has to reach this API's callback route`,
       })
       .describe("GitHub App setup URL; must match the App configuration and this API's callback route"),
+
+    COMMUNITY_CREDENTIALS_ENCRYPTION_KEY: z
+      .string()
+      .min(32)
+      .describe('Secret that seals community platform tokens (Mattermost) at rest; 32+ chars'),
+    COMMUNITY_CREDENTIALS_ENCRYPTION_KEY_PREVIOUS: z
+      .string()
+      .optional()
+      // Deployment variable shells arrive as empty strings; treat those as unset.
+      .transform((value) => (value === '' ? undefined : value))
+      .pipe(z.string().min(32).optional())
+      .describe('Previous sealing secret, kept during rotation so existing envelopes still open'),
+    COMMUNITY_MATTERMOST_ALLOWED_HOSTS: z
+      .string()
+      .default('')
+      .transform((value) =>
+        value
+          .split(',')
+          .map((host) => host.trim().toLowerCase())
+          .filter((host) => host.length > 0),
+      )
+      .describe(
+        'Comma-separated hostnames exempt from the outbound HTTPS and public-address rules (e.g. the dev Mattermost container). Deployment configuration, never user input.',
+      ),
+    COMMUNITY_MATTERMOST_MAX_RESPONSE_BYTES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(5_242_880)
+      .describe('Cap on a single Mattermost response body in bytes'),
     COMMUNITY_INSTALL_STATE_TTL_SECONDS: z.coerce
       .number()
       .int()

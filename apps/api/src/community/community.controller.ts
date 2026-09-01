@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -6,6 +7,7 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Post,
   Query,
   Res,
   UseGuards,
@@ -14,6 +16,7 @@ import {
   ApiBadGatewayResponse,
   ApiBadRequestResponse,
   ApiConflictResponse,
+  ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiFoundResponse,
   ApiNoContentResponse,
@@ -40,6 +43,9 @@ import {
   CommunityResourceDto,
   DiscordCallbackQueryDto,
   GitHubCallbackQueryDto,
+  MattermostConnectRequestDto,
+  MattermostValidateRequestDto,
+  MattermostValidationDto,
 } from './dto';
 
 @ApiTags('Community Connections')
@@ -139,6 +145,45 @@ export class CommunityController {
     @Res() response: Response,
   ): Promise<void> {
     response.redirect(await this.communityService.handleGitHubCallback(actor, query));
+  }
+
+  @Post('mattermost/validate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Validate a Mattermost server and token',
+    description:
+      "Verifies the pasted server URL and bot token against the server and returns the token's teams. " +
+      'Nothing is stored, the token is never echoed back, and the URL must pass the outbound network policy.',
+  })
+  @ApiOkResponse({ description: 'Token verified; teams to pick from.', type: MattermostValidationDto })
+  @ApiBadRequestResponse({
+    description: 'The URL is blocked by the outbound policy or the server rejected the token. Carries a reason code.',
+  })
+  @ApiBadGatewayResponse({ description: 'The server could not be reached or answered with an error.' })
+  validateMattermost(
+    @CurrentUser() actor: OAuthUserRow,
+    @Body() body: MattermostValidateRequestDto,
+  ): Promise<MattermostValidationDto> {
+    return this.communityService.validateMattermost(actor, body);
+  }
+
+  @Post('mattermost/connect')
+  @ApiOperation({
+    summary: 'Connect a Mattermost team',
+    description:
+      'Validates the token again, seals it at rest bound to the connection, saves the connection, and probes it. ' +
+      'The connection is keyed by origin and team, so http:// and https:// on the same host never collide.',
+  })
+  @ApiCreatedResponse({ description: 'Connection saved; state reflects the probe.', type: CommunityConnectionDto })
+  @ApiBadRequestResponse({
+    description: 'Blocked URL, rejected token, or a team the token does not belong to. Carries a reason code.',
+  })
+  @ApiBadGatewayResponse({ description: 'The server could not be reached or answered with an error.' })
+  connectMattermost(
+    @CurrentUser() actor: OAuthUserRow,
+    @Body() body: MattermostConnectRequestDto,
+  ): Promise<CommunityConnectionDto> {
+    return this.communityService.connectMattermost(actor, body);
   }
 
   @Get(':id/resources')

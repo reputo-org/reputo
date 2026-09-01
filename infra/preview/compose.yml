@@ -94,6 +94,8 @@ x-api-environment: &api-environment
     GITHUB_APP_PRIVATE_KEY: mock-github-app-private-key
     GITHUB_APP_SLUG: mock-reputo-community
     GITHUB_APP_CALLBACK_URL: '${PULLPREVIEW_URL:?missing PULLPREVIEW_URL}/api/v1/community/connections/github/callback'
+    COMMUNITY_CREDENTIALS_ENCRYPTION_KEY: '${COMMUNITY_CREDENTIALS_ENCRYPTION_KEY:?missing COMMUNITY_CREDENTIALS_ENCRYPTION_KEY}'
+    COMMUNITY_MATTERMOST_ALLOWED_HOSTS: ''
     DATABASE_URL: postgresql://reputo_app:reputo_app@postgres:5432/reputo_preview
     AWS_REGION: us-east-1
     AWS_ACCESS_KEY_ID: minio
@@ -141,6 +143,7 @@ x-workflows-environment: &workflows-environment
     DISCORD_BOT_TOKEN: mock-discord-bot-token
     GITHUB_APP_ID: '000000'
     GITHUB_APP_PRIVATE_KEY: mock-github-app-private-key
+    COMMUNITY_CREDENTIALS_ENCRYPTION_KEY: '${COMMUNITY_CREDENTIALS_ENCRYPTION_KEY:?missing COMMUNITY_CREDENTIALS_ENCRYPTION_KEY}'
 
 ################################################################################
 # Networks / volumes

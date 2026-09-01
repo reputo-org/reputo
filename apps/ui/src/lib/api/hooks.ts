@@ -12,6 +12,8 @@ import type {
   CreateAlgorithmPresetDto,
   CreateSnapshotDto,
   ListAdminsQueryParams,
+  MattermostConnectRequestDto,
+  MattermostValidateRequestDto,
   OAuthProviderId,
   SnapshotQueryParams,
   UpdateAlgorithmPresetDto,
@@ -233,6 +235,26 @@ export const useRecheckCommunityConnection = () => {
   return useMutation({
     mutationFn: (id: string) => communityApi.recheck(id),
     onSuccess: () => invalidateCommunityConnections(queryClient),
+  })
+}
+
+/** Stateless server-side check; nothing to invalidate on success. */
+export const useValidateMattermostConnection = () => {
+  return useMutation({
+    mutationFn: (payload: MattermostValidateRequestDto) =>
+      communityApi.validateMattermost(payload),
+  })
+}
+
+export const useConnectMattermostConnection = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (payload: MattermostConnectRequestDto) =>
+      communityApi.connectMattermost(payload),
+    // A failed probe still saves the connection in a broken state, so the
+    // list refreshes on failure too.
+    onSettled: () => invalidateCommunityConnections(queryClient),
   })
 }
 

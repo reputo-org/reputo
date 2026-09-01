@@ -51,13 +51,16 @@ jobs:
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-            - name: Generate per-deploy auth token encryption key
+            - name: Generate per-deploy encryption keys
               if: ${{ inputs.deployment }}
               id: gen_auth_key
               run: |
                   key="$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('hex'))")"
                   echo "::add-mask::$key"
                   echo "auth_token_encryption_key=$key" >> "$GITHUB_OUTPUT"
+                  community_key="$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('hex'))")"
+                  echo "::add-mask::$community_key"
+                  echo "community_credentials_encryption_key=$community_key" >> "$GITHUB_OUTPUT"
 
             - id: preview
               name: Deploy preview
@@ -76,6 +79,7 @@ jobs:
                   AWS_REGION: 'eu-central-1'
                   IMAGE_TAG: 'sha-${{ inputs.ref }}'
                   AUTH_TOKEN_ENCRYPTION_KEY: '${{ steps.gen_auth_key.outputs.auth_token_encryption_key }}'
+                  COMMUNITY_CREDENTIALS_ENCRYPTION_KEY: '${{ steps.gen_auth_key.outputs.community_credentials_encryption_key }}'
                   DEEPFUNDING_API_KEY: '${{ secrets.DEEPFUNDING_API_KEY }}'
                   ALCHEMY_API_KEY: '${{ secrets.ALCHEMY_API_KEY }}'
                   BLOCKFROST_API_KEY: '${{ secrets.BLOCKFROST_API_KEY }}'

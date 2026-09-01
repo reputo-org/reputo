@@ -22,6 +22,13 @@ Rules that outrank convenience here:
   logged. The transport logs a method, a query-stripped URL, and a status code.
 - The Discord bot asks for View Channels and Read Message History only, and no
   privileged intents — the probe verifies field availability under that limit.
+- Mattermost origins are user-entered, so every Mattermost call goes through
+  `src/shared/safe-fetch.ts`: DNS resolved once and pinned, private and
+  reserved addresses refused, HTTPS required off the allowlist, redirects
+  refused, response size capped. No call site may bypass it.
+- `src/shared/credentials.ts` seals platform tokens (AES-256-GCM `ccv1`
+  envelopes, AAD-bound to their connection, current + previous key). The
+  keyring is injected; this package never reads the environment.
 - The GitHub App private key never leaves the process: it signs a short-lived
   app JWT, which mints installation tokens that live in memory for the run. Only
   installation responses move the rate-limit snapshot the crawl throttles on;

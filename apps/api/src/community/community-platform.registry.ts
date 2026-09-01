@@ -1,8 +1,19 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { CommunityProbeResult, CommunityResource, DiscordClient, GitHubClient } from '@reputo/community-api';
+import {
+  CommunityAuthError,
+  type CommunityProbeResult,
+  type CommunityResource,
+  type DiscordClient,
+  type GitHubClient,
+  type MattermostClient,
+  type MattermostTeamTarget,
+  parseMattermostExternalId,
+} from '@reputo/community-api';
 import { CommunityPlatform } from '@reputo/contracts';
-import { DISCORD_CLIENT, GITHUB_CLIENT } from './community.constants';
+import { DISCORD_CLIENT, GITHUB_CLIENT, MATTERMOST_CLIENT } from './community.constants';
 import { CommunityPlatformUnsupportedException } from './community.exceptions';
+import { CommunityConnectionRepository } from './community-connection.repository';
+import { CommunityCredentialsService } from './community-credentials.service';
 
 /**
  * The platform-neutral operations every connected community supports, whatever
@@ -25,7 +36,13 @@ export interface CommunityPlatformClient {
 export class CommunityPlatformRegistry {
   private readonly clients: Partial<Record<CommunityPlatform, CommunityPlatformClient>>;
 
-  constructor(@Inject(DISCORD_CLIENT) discord: DiscordClient, @Inject(GITHUB_CLIENT) github: GitHubClient) {
+  constructor(
+    @Inject(DISCORD_CLIENT) discord: DiscordClient,
+    @Inject(GITHUB_CLIENT) github: GitHubClient,
+    @Inject(MATTERMOST_CLIENT) mattermost: MattermostClient,
+    private readonly connections: CommunityConnectionRepository,
+    private readonly credentials: CommunityCredentialsService,
+  ) {
     this.clients = {
       [CommunityPlatform.discord]: {
         listResources: (guildId) => discord.listResources(guildId),
@@ -36,6 +53,14 @@ export class CommunityPlatformRegistry {
         listResources: (installationId) => github.listResources(installationId),
         probe: (installationId) => github.probe(installationId),
         revokeAccess: (installationId) => github.deleteInstallation(installationId),
+      },
+      [CommunityPlatform.mattermost]: {
+        listResources: (externalId) =>
+          this.withMattermostTarget(externalId, (target) => mattermost.listResources(target)),
+        probe: (externalId) => this.withMattermostTarget(externalId, (target) => mattermost.probe(target)),
+        // The token belongs to the admin's own bot and stays valid; deleting
+        // the connection removes Reputo's only sealed copy of it.
+        revokeAccess: async () => undefined,
       },
     };
   }
@@ -51,5 +76,24 @@ export class CommunityPlatformRegistry {
       throw new CommunityPlatformUnsupportedException(platform);
     }
     return client;
+  }
+
+  /**
+   * Unseals the token immediately before the outbound call, per call — the
+   * plaintext lives in this stack frame and nowhere else.
+   */
+  private async withMattermostTarget<T>(
+    externalId: string,
+    operation: (target: MattermostTeamTarget) => Promise<T>,
+  ): Promise<T> {
+    const platform = CommunityPlatform.mattermost;
+    const ciphertext = await this.connections.findCredentialsCiphertext(platform, externalId);
+    if (ciphertext === null) {
+      throw new CommunityAuthError('No sealed token is stored for this connection. Reconnect the server.', 401);
+    }
+
+    const { serverUrl, teamId } = parseMattermostExternalId(externalId);
+    const token = this.credentials.open({ platform, externalId }, ciphertext);
+    return operation({ serverUrl, teamId, token });
   }
 }

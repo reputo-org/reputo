@@ -71,6 +71,7 @@ pnpm docker:down             # stop infrastructure when done
 | API reference | <http://localhost:3000/reference> |
 | Temporal UI | <http://localhost:8088> |
 | MinIO console | <http://localhost:9001> (login `minio` / `minio12345`) |
+| Mattermost | <http://localhost:8065> (create the first user, then a bot token, to try the connect flow) |
 | App Postgres | `psql postgresql://reputo_app:reputo_app@localhost:5434/reputo_app` |
 | Onchain Postgres | `psql postgresql://reputo_onchain:reputo_onchain@localhost:5433/reputo_onchain` |
 

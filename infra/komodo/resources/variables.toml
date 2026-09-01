@@ -302,6 +302,22 @@ description = "Staging GitHub App setup URL. GitHub has no redirect parameter fo
 is_secret = false
 
 [[variable]]
+name = "STAGING_COMMUNITY_CREDENTIALS_ENCRYPTION_KEY"
+description = "Staging secret sealing community platform tokens (Mattermost) at rest; 32+ chars, shared by the API and the community worker. Rotate by moving the old value to the _PREVIOUS variable."
+is_secret = true
+
+[[variable]]
+name = "STAGING_COMMUNITY_CREDENTIALS_ENCRYPTION_KEY_PREVIOUS"
+description = "Staging previous community sealing key. Set only during rotation so existing envelopes still open; clear it afterwards."
+is_secret = true
+
+[[variable]]
+name = "STAGING_COMMUNITY_MATTERMOST_ALLOWED_HOSTS"
+description = "Staging comma-separated hostnames exempt from the Mattermost outbound HTTPS/public-address policy. Leave empty (default-deny) unless an internal server is intentionally reachable."
+is_secret = false
+
+
+[[variable]]
 name = "PRODUCTION_TRAEFIK_DOMAIN"
 description = "Production Traefik dashboard host."
 is_secret = false
@@ -555,3 +571,19 @@ is_secret = false
 name = "PRODUCTION_GITHUB_APP_CALLBACK_URL"
 description = "Production GitHub App setup URL. GitHub has no redirect parameter for installs, so this must match the App's Setup URL exactly, e.g. https://<PRODUCTION_API_DOMAIN>/api/v1/community/connections/github/callback."
 is_secret = false
+
+[[variable]]
+name = "PRODUCTION_COMMUNITY_CREDENTIALS_ENCRYPTION_KEY"
+description = "Production secret sealing community platform tokens (Mattermost) at rest; 32+ chars, shared by the API and the community worker. Rotate by moving the old value to the _PREVIOUS variable."
+is_secret = true
+
+[[variable]]
+name = "PRODUCTION_COMMUNITY_CREDENTIALS_ENCRYPTION_KEY_PREVIOUS"
+description = "Production previous community sealing key. Set only during rotation so existing envelopes still open; clear it afterwards."
+is_secret = true
+
+[[variable]]
+name = "PRODUCTION_COMMUNITY_MATTERMOST_ALLOWED_HOSTS"
+description = "Production comma-separated hostnames exempt from the Mattermost outbound HTTPS/public-address policy. Leave empty (default-deny) unless an internal server is intentionally reachable."
+is_secret = false
+

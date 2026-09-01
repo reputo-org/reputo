@@ -41,6 +41,9 @@ export const AUTH_TEST_ENV = {
   GITHUB_APP_SLUG: 'reputo-community',
   GITHUB_APP_CALLBACK_URL: 'http://localhost:3000/api/v1/community/connections/github/callback',
   COMMUNITY_INSTALL_STATE_TTL_SECONDS: '600',
+  COMMUNITY_CREDENTIALS_ENCRYPTION_KEY: 'community-credentials-test-key-0123456789abcdef',
+  COMMUNITY_MATTERMOST_ALLOWED_HOSTS: '127.0.0.1',
+  COMMUNITY_MATTERMOST_MAX_RESPONSE_BYTES: '65536',
 } as const;
 
 export interface CreateAuthenticatedSessionOptions {

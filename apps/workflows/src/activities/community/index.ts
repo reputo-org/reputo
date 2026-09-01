@@ -1,4 +1,5 @@
 export { buildCommunityCohort, type CommunityCohortRow } from './cohort.js';
+export { openMattermostTarget } from './credentials.js';
 export {
   type CommunityDatasetManifest,
   type CommunityFetchCheckpoint,

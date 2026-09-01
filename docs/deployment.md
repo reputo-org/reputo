@@ -54,3 +54,22 @@ The pipelines need three things in Komodo (see [komodo.md](komodo.md) for the pl
 - Service selection is by stack membership — each of the four stacks ships its own compose file rather than sharing one filtered by `COMPOSE_PROFILES`.
 
 See [Environment variables](environment-variables.md) for the rules on adding or changing a variable.
+
+## Community credential configuration (one-time per environment)
+
+Mattermost connections store an admin-supplied bot token, sealed at rest. Two
+Komodo Variables carry the configuration for it:
+
+- `*_COMMUNITY_CREDENTIALS_ENCRYPTION_KEY` — 32+ character secret sealing those
+  tokens; the API and the workers must share the same value, and each
+  environment must have its own. Rotate by moving the old value to
+  `*_COMMUNITY_CREDENTIALS_ENCRYPTION_KEY_PREVIOUS`, setting a new current key,
+  and clearing the previous one after the next reconnect cycle — existing
+  connections keep working throughout.
+- `*_COMMUNITY_MATTERMOST_ALLOWED_HOSTS` — hostnames exempt from the outbound
+  HTTPS/public-address policy. Leave it empty (default-deny) unless an internal
+  Mattermost server is intentionally reachable.
+
+The workers need no database access of their own: the application database
+stays behind the API, which serves connection metadata and the still-sealed
+credential through the snapshot activities queue.

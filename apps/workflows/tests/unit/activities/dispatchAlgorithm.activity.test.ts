@@ -27,6 +27,7 @@ describe('dispatchAlgorithm activity', () => {
     process.env.DEEP_ID_APP_BASE_URL = 'https://app.staging.deep-id.ai';
     process.env.DEEP_ID_CLIENT_ID = 'test-deepid-client';
     process.env.DEEP_ID_CLIENT_SECRET = 'test-deepid-secret';
+    process.env.COMMUNITY_CREDENTIALS_ENCRYPTION_KEY = 'workflow-credentials-test-key-0123456789abcdef';
   });
 
   it('throws UnsupportedAlgorithmError for unknown algorithm keys', async () => {

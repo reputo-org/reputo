@@ -28,9 +28,10 @@ export class CommunityConnectionEntity {
   settings!: unknown;
 
   /**
-   * Sealed platform credential, for platforms that need one. Discord and GitHub
-   * authenticate with deployment config, so this stays null until Mattermost
-   * introduces sealing.
+   * Sealed platform credential (`ccv1` envelope), for platforms that need one.
+   * Discord and GitHub authenticate with deployment config, so theirs stays
+   * null; Mattermost seals the admin-pasted bot token here. Never leaves the
+   * persistence layer except through the dedicated ciphertext reader.
    */
   @Column({ type: 'text', nullable: true })
   credentialsCiphertext!: string | null;

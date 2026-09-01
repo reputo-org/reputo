@@ -13,6 +13,9 @@ import type {
   CreateAlgorithmPresetDto,
   CreateSnapshotDto,
   ListAdminsQueryParams,
+  MattermostConnectRequestDto,
+  MattermostValidateRequestDto,
+  MattermostValidationDto,
   OAuthProviderId,
   PaginatedAlgorithmPresetResponseDto,
   PaginatedSnapshotResponseDto,
@@ -245,6 +248,26 @@ export const communityApi = {
   recheck: async (id: string): Promise<CommunityHealthDto> => {
     const response = await api.get<CommunityHealthDto>(
       `/community/connections/${id}/health`
+    )
+    return response.data
+  },
+  /** Verifies a Mattermost URL + token and returns its teams. Stores nothing. */
+  validateMattermost: async (
+    payload: MattermostValidateRequestDto
+  ): Promise<MattermostValidationDto> => {
+    const response = await api.post<MattermostValidationDto>(
+      "/community/connections/mattermost/validate",
+      payload
+    )
+    return response.data
+  },
+  /** Connects a team; the API seals the token at rest and never returns it. */
+  connectMattermost: async (
+    payload: MattermostConnectRequestDto
+  ): Promise<CommunityConnectionDto> => {
+    const response = await api.post<CommunityConnectionDto>(
+      "/community/connections/mattermost/connect",
+      payload
     )
     return response.data
   },

@@ -4,10 +4,12 @@ import { CommunityConnectionStatus, type CommunityPlatform } from '@reputo/contr
 /** Injection tokens for the configured platform clients. */
 export const DISCORD_CLIENT = 'COMMUNITY_DISCORD_CLIENT';
 export const GITHUB_CLIENT = 'COMMUNITY_GITHUB_CLIENT';
+export const MATTERMOST_CLIENT = 'COMMUNITY_MATTERMOST_CLIENT';
 
 /** Privileged operations recorded in `community_connection_audit`. */
 export const CommunityAuditAction = {
   installUrl: 'install_url',
+  validate: 'validate',
   connect: 'connect',
   disconnect: 'disconnect',
   healthCheck: 'health_check',
@@ -31,6 +33,8 @@ export const CommunityLocalErrorCategory = {
   declined: 'declined',
   /** The install was requested but still needs an organization owner's approval. */
   approvalRequired: 'approval_required',
+  /** The token is valid but its bot is not a member of the selected team. */
+  teamNotFound: 'team_not_found',
 } as const;
 
 export type CommunityAuditErrorCategory =
@@ -40,12 +44,15 @@ export type CommunityAuditErrorCategory =
 /**
  * Lifecycle state a failed check leaves the connection in. Credential and
  * permission problems need an admin to reinstall the bot, so they are `broken`;
- * everything else is transient and only degrades the connection.
+ * an outbound-policy refusal means the stored server address itself is no
+ * longer acceptable; everything else is transient and only degrades the
+ * connection.
  */
 const BROKEN_CATEGORIES = new Set<string>([
   CommunityErrorCategory.authFailed,
   CommunityErrorCategory.permissionDenied,
   CommunityErrorCategory.notFound,
+  CommunityErrorCategory.outboundPolicy,
 ]);
 
 export function statusForFailure(category: CommunityAuditErrorCategory): CommunityConnectionStatus {
@@ -62,10 +69,13 @@ const REASON_BY_CATEGORY: Record<string, string> = {
   [CommunityErrorCategory.networkError]: 'The platform could not be reached. Try the check again shortly.',
   [CommunityErrorCategory.upstreamError]: 'The platform returned an error. Try the check again shortly.',
   [CommunityErrorCategory.contractViolation]: 'The platform returned an unexpected response.',
+  [CommunityErrorCategory.outboundPolicy]:
+    "The server address is blocked by Reputo's outbound network policy. Only public HTTPS hosts are allowed.",
   [CommunityLocalErrorCategory.invalidState]: 'The authorization link is no longer valid. Start again.',
   [CommunityLocalErrorCategory.declined]: 'The authorization was cancelled before Reputo was installed.',
   [CommunityLocalErrorCategory.approvalRequired]:
     'An organization owner still has to approve the install. Connect again once they have.',
+  [CommunityLocalErrorCategory.teamNotFound]: 'The bot is not a member of that team. Pick one of its teams.',
 };
 
 /** Wording that names what the admin must actually re-grant on that platform. */
@@ -78,6 +88,12 @@ const REASON_BY_PLATFORM: Partial<Record<CommunityPlatform, Record<string, strin
     [CommunityErrorCategory.permissionDenied]:
       'The GitHub App cannot read the repositories of this installation. Reconnect and grant read access to issues and pull requests.',
     [CommunityErrorCategory.notFound]: 'The GitHub App is no longer installed on this account.',
+  },
+  mattermost: {
+    [CommunityErrorCategory.authFailed]: 'Mattermost rejected the token. Reconnect with a valid bot token.',
+    [CommunityErrorCategory.permissionDenied]:
+      'The bot cannot read any channel of this team. Invite it to the channels it should read.',
+    [CommunityErrorCategory.notFound]: 'The server or team could not be found. Check the URL and reconnect.',
   },
 };
 

@@ -2,8 +2,11 @@ import {
   type AlgorithmPresetFrozenDto,
   type ApiSnapshotActivities,
   COMMUNITY_CONNECTION_NOT_FOUND_ERROR_TYPE,
+  COMMUNITY_CREDENTIAL_NOT_FOUND_ERROR_TYPE,
   type CommunityConnectionDto,
+  type CommunitySealedCredentialDto,
   type GetCommunityConnectionInput,
+  type GetCommunitySealedCredentialInput,
   type GetSnapshotInput,
   type RecordSnapshotPublicationInput,
   SNAPSHOT_NOT_FOUND_ERROR_TYPE,
@@ -117,6 +120,30 @@ export function createSnapshotActivities(
         createdAt: toRequiredIso(row.createdAt),
         updatedAt: toRequiredIso(row.updatedAt),
       };
+    },
+
+    /**
+     * The envelope is returned sealed. It is AAD-bound to its connection and
+     * only the workers' sealing key opens it, so the token itself never enters
+     * an activity result or workflow history.
+     */
+    async getCommunitySealedCredential(
+      input: GetCommunitySealedCredentialInput,
+    ): Promise<CommunitySealedCredentialDto> {
+      const logger = Context.current().log;
+      logger.info('Fetching community sealed credential', { connectionId: input.connectionId });
+
+      const credentialsCiphertext = await communityConnections.findCredentialsCiphertextById(input.connectionId);
+      if (credentialsCiphertext === null) {
+        logger.warn('Community connection stores no sealed credential', { connectionId: input.connectionId });
+        throw ApplicationFailure.create({
+          message: `Community connection ${input.connectionId} stores no sealed credential; reconnect it`,
+          type: COMMUNITY_CREDENTIAL_NOT_FOUND_ERROR_TYPE,
+          nonRetryable: true,
+        });
+      }
+
+      return { credentialsCiphertext };
     },
 
     async recordSnapshotPublication(input: RecordSnapshotPublicationInput): Promise<void> {
