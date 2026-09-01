@@ -1,9 +1,8 @@
 /**
  * Shared scoring engine for the community engagement algorithms
- * (`discord_engagement`, and later `github_engagement` /
- * `mattermost_engagement`). Platform specifics arrive as configuration: the
- * dataset prefix and the activity enum. The engine itself only ever sees the
- * frozen Parquet dataset.
+ * (`discord_engagement`, `github_engagement`, `mattermost_engagement`).
+ * Platform specifics arrive as configuration: the dataset prefix and the
+ * activity enum. The engine itself only ever sees the frozen Parquet dataset.
  */
 
 /** One configured activity row from the preset's `activities` input. */

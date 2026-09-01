@@ -5,6 +5,7 @@ import { computeContributionScore } from './algorithms/contribution-score/comput
 import { computeCustomScore } from './algorithms/custom-score/compute.js';
 import { computeDiscordEngagement } from './algorithms/discord-engagement/compute.js';
 import { computeGithubEngagement } from './algorithms/github-engagement/compute.js';
+import { computeMattermostEngagement } from './algorithms/mattermost-engagement/compute.js';
 import { computeProposalEngagement } from './algorithms/proposal-engagement/compute.js';
 import { computeTokenValueOverTime } from './algorithms/token-value-over-time/compute.js';
 import { computeVotingEngagement } from './algorithms/voting-engagement/compute.js';
@@ -17,6 +18,7 @@ const registry: Record<string, AlgorithmComputeFunction> = {
   custom_score: computeCustomScore,
   discord_engagement: computeDiscordEngagement,
   github_engagement: computeGithubEngagement,
+  mattermost_engagement: computeMattermostEngagement,
 };
 
 export function dispatchAlgorithm(storage: Storage) {

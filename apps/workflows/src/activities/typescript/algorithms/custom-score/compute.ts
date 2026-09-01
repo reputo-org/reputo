@@ -12,6 +12,7 @@ import {
 import { computeContributionScore } from '../contribution-score/compute.js';
 import { computeDiscordEngagement } from '../discord-engagement/compute.js';
 import { computeGithubEngagement } from '../github-engagement/compute.js';
+import { computeMattermostEngagement } from '../mattermost-engagement/compute.js';
 import { computeProposalEngagement } from '../proposal-engagement/compute.js';
 import { extractOptionalDidsKey } from '../shared/did-input.js';
 import { computeTokenValueOverTime } from '../token-value-over-time/compute.js';
@@ -26,6 +27,7 @@ const standaloneRegistry: Record<string, AlgorithmComputeFunction> = {
   token_value_over_time: computeTokenValueOverTime,
   discord_engagement: computeDiscordEngagement,
   github_engagement: computeGithubEngagement,
+  mattermost_engagement: computeMattermostEngagement,
 };
 
 const DETAILS_OUTPUT_KEY = 'custom_score_details';
@@ -51,7 +53,7 @@ function roundWeight(weight: number): number {
 }
 
 // Children keep the parent snapshot id: dependency artifacts are stored under it
-// (e.g. the run's single deepfunding.db or community_discord dataset, shared by
+// (e.g. the run's single deepfunding.db or community_<platform> dataset, shared by
 // every child that reads it), and unique child keys keep the output files apart.
 function buildChildSnapshot(snapshot: Snapshot, child: CustomScoreChild, didsKey: string | undefined): Snapshot {
   const inputs = child.inputs.filter((input) => input.key !== 'dids');

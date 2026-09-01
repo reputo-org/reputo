@@ -175,6 +175,32 @@ describe('createDeepIdPostScoresActivity', () => {
     });
   });
 
+  it('posts a mattermost_engagement snapshot idempotently: a forced retry repeats the same payload', async () => {
+    const csv = ['did,mattermost_engagement,message_points', `${DID_A},11,4`, `${DID_C},0,0`].join('\n');
+    const snapshot = makeSnapshot({
+      algorithmPresetFrozen: { key: 'mattermost_engagement', version: '1.0.0', inputs: [] },
+      outputs: { mattermost_engagement: 'snapshots/snap-1/mattermost_engagement.csv' },
+    });
+
+    mockPostScores.mockResolvedValue({
+      status: { ok: 2, failed: 0 },
+      results: { [DID_A]: { message: 'OK' }, [DID_C]: { message: 'OK' } },
+    });
+
+    const first = await makeActivity(csv)({ snapshot, timestamp: '2026-06-12T09:00:00.000Z' });
+    // The run timestamp is the workflow's, not a wall clock, so the retry's
+    // payload is identical and DeepID dedupes it.
+    const second = await makeActivity(csv)({ snapshot, timestamp: '2026-06-12T09:00:00.000Z' });
+
+    expect(first).toEqual({ attempted: true, posted: 2, ok: 2, failed: 0, dropped: 0, skipped: 0 });
+    expect(second).toEqual(first);
+    expect(mockPostScores.mock.calls[0]).toEqual(mockPostScores.mock.calls[1]);
+    expect(mockPostScores).toHaveBeenCalledWith({
+      [DID_A]: { score: 11, type: 'mattermost_engagement', timestamp: '2026-06-12T09:00:00.000Z' },
+      [DID_C]: { score: 0, type: 'mattermost_engagement', timestamp: '2026-06-12T09:00:00.000Z' },
+    });
+  });
+
   it('skips when the algorithm key is not a DeepID score type', async () => {
     const getObject = vi.fn();
     const activity = createDeepIdPostScoresActivity({
