@@ -134,11 +134,12 @@ function makeActivity(csvByKey: Record<string, string>) {
     }
     return Buffer.from(csv, 'utf8');
   });
+  const putObject = vi.fn().mockResolvedValue('etag');
   const activity = createSubmitCustomRawScoresActivity({
-    storage: { getObject } as never,
+    storage: { getObject, putObject } as never,
     storageConfig: { bucket: 'reputo', maxSizeBytes: 1024 },
   });
-  return { activity, getObject };
+  return { activity, getObject, putObject };
 }
 
 function okForAll(requestId?: string) {
@@ -156,9 +157,18 @@ describe('createSubmitCustomRawScoresActivity', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("posts each child's native rows verbatim by DID under its own score type with the run timestamp", async () => {
-    const { activity } = makeActivity({
+    const detailsKey = 'snapshots/snap-1/custom_score_details.json';
+    const { activity, putObject } = makeActivity({
       [VOTING_KEY]: ['did,voting_engagement', `${SUB_A},42.5`, `${SUB_B},0`].join('\n'),
       [TOKEN_KEY]: ['did,token_value', `${SUB_A},-3`, `${SUB_B},7`].join('\n'),
+      [detailsKey]: JSON.stringify({
+        snapshot_id: 'snap-1',
+        total_child_weight: 4,
+        children: [
+          { algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 1 },
+          { algorithm_key: 'token_value_over_time', algorithm_version: '1.0.0', weight: 3 },
+        ],
+      }),
     });
     okForAll();
 
@@ -166,7 +176,7 @@ describe('createSubmitCustomRawScoresActivity', () => {
       withChildren([child('voting_engagement', 1), child('token_value_over_time', 3)], {
         voting_engagement: VOTING_KEY,
         token_value_over_time: TOKEN_KEY,
-        custom_score_details: 'snapshots/snap-1/custom_score_details.json',
+        custom_score_details: detailsKey,
       }),
     );
 
@@ -205,6 +215,19 @@ describe('createSubmitCustomRawScoresActivity', () => {
           lastRequestId: undefined,
         },
       ],
+    });
+
+    // With nothing skipped the effective total equals the configured total.
+    expect(putObject).toHaveBeenCalledTimes(1);
+    const written = JSON.parse((putObject.mock.calls[0][0] as { body: string }).body);
+    expect(written.skipped_children).toEqual([]);
+    expect(written.effective_total_weight).toBe(4);
+    expect(written.children[0].submission).toEqual({
+      posted: 2,
+      ok: 2,
+      dropped: 0,
+      rejected: 0,
+      observation: { method: 'observed_min_max', min: 0, max: 42.5 },
     });
   });
 
@@ -350,7 +373,70 @@ describe('createSubmitCustomRawScoresActivity', () => {
     });
   });
 
-  it('fails when a selected child ends with no accepted rows', async () => {
+  it('skips a child with no accepted rows and reports it with a null observation', async () => {
+    const detailsKey = 'snapshots/snap-1/custom_score_details.json';
+    const { activity, putObject } = makeActivity({
+      [VOTING_KEY]: ['did,voting_engagement', `${SUB_A},4`, `${SUB_B},9`].join('\n'),
+      'snapshots/snap-1/contribution_score.csv': ['did,contribution_score', `${PLC_A},80`, `${PLC_B},20`].join('\n'),
+      [detailsKey]: JSON.stringify({
+        snapshot_id: 'snap-1',
+        total_child_weight: 4,
+        children: [
+          { algorithm_key: 'voting_engagement', algorithm_version: '1.0.0', weight: 1 },
+          { algorithm_key: 'contribution_score', algorithm_version: '1.0.0', weight: 3 },
+        ],
+      }),
+    });
+    // Voting rows are accepted; every contribution row is an unconsented user.
+    mockPostScores.mockImplementation(async (batch: Record<string, { type: string }>) => {
+      const dids = Object.keys(batch);
+      const accepted = Object.values(batch)[0]?.type === 'voting_engagement';
+      return {
+        status: { ok: accepted ? dids.length : 0, failed: accepted ? 0 : dids.length },
+        results: Object.fromEntries(dids.map((did) => [did, { message: accepted ? 'OK' : 'User not found' }])),
+      };
+    });
+
+    const result = await activity(
+      withChildren([child('voting_engagement', 1), child('contribution_score', 3)], {
+        voting_engagement: VOTING_KEY,
+        contribution_score: 'snapshots/snap-1/contribution_score.csv',
+        custom_score_details: detailsKey,
+      }),
+    );
+
+    expect(result.children[0]).toMatchObject({
+      scoreType: 'voting_engagement',
+      observation: { method: 'observed_min_max', min: 4, max: 9 },
+    });
+    expect(result.children[1]).toEqual({
+      scoreType: 'contribution_score',
+      csvKey: 'snapshots/snap-1/contribution_score.csv',
+      observation: null,
+      posted: 2,
+      ok: 0,
+      dropped: 2,
+      rejected: 0,
+      lastRequestId: undefined,
+    });
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      'Child algorithm has no accepted raw scores; skipping it in the encrypted aggregation',
+      expect.objectContaining({ scoreType: 'contribution_score', posted: 2, dropped: 2 }),
+    );
+
+    const written = JSON.parse((putObject.mock.calls[0][0] as { body: string }).body);
+    expect(written.skipped_children).toEqual(['contribution_score']);
+    expect(written.effective_total_weight).toBe(1);
+    expect(written.children[1].submission).toEqual({
+      posted: 2,
+      ok: 0,
+      dropped: 2,
+      rejected: 0,
+      observation: null,
+    });
+  });
+
+  it('fails when every selected child ends with no accepted rows', async () => {
     const { activity } = makeActivity({
       [VOTING_KEY]: ['did,voting_engagement', `${SUB_A},1`, `${SUB_B},2`].join('\n'),
     });
@@ -360,7 +446,7 @@ describe('createSubmitCustomRawScoresActivity', () => {
     });
 
     await expect(activity(makeInput())).rejects.toThrow(
-      'Child algorithm "voting_engagement" has no accepted raw scores: observed_min_max needs at least one OK entry',
+      'No child algorithm produced an accepted raw score; nothing to aggregate (voting_engagement: posted=2, dropped=2, rejected=0)',
     );
   });
 

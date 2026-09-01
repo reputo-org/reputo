@@ -86,6 +86,20 @@ class SnapshotOutputsDto {
   csv?: string;
 }
 
+class SnapshotErrorDto {
+  @ApiProperty({
+    description: 'Why the run failed or was cancelled',
+    example: 'Child algorithm "voting_engagement" result is missing a did value',
+  })
+  message: string;
+
+  @ApiPropertyOptional({
+    description: 'When the error was recorded (ISO 8601)',
+    example: '2025-10-13T19:12:44.600Z',
+  })
+  timestamp?: string;
+}
+
 export class SnapshotPublicationDto {
   @ApiProperty({
     description: 'Algorithm key the scores were published under',
@@ -170,6 +184,12 @@ export class SnapshotDto {
     type: SnapshotOutputsDto,
   })
   outputs?: SnapshotOutputsDto;
+
+  @ApiPropertyOptional({
+    description: 'Last run error, set when the snapshot failed or was cancelled',
+    type: SnapshotErrorDto,
+  })
+  error?: SnapshotErrorDto;
 
   @ApiPropertyOptional({
     description: 'DeepID publication status per algorithm key',

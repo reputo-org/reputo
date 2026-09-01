@@ -153,6 +153,17 @@ export const useDeleteSnapshot = () => {
   })
 }
 
+export const useCancelSnapshot = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) => snapshotsApi.cancel(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.snapshots.lists() })
+    },
+  })
+}
+
 export const useAdmins = (params: ListAdminsQueryParams = {}) => {
   return useQuery({
     queryKey: queryKeys.admins.list(params),

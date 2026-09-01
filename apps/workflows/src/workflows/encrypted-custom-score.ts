@@ -1,3 +1,4 @@
+import type { ScoreType } from '@reputo/deep-id-api';
 import * as workflow from '@temporalio/workflow';
 
 import { DEEP_ID_ENCRYPTION_DEADLINE_MS } from '../shared/constants/index.js';
@@ -15,6 +16,8 @@ export interface EncryptedCustomScoreLifecycleInput {
   algorithmPresetFrozen: AlgorithmPresetFrozen;
   /** Per-child observations from the raw submission's accepted rows. */
   observations: EncryptedChildObservation[];
+  /** Children the raw submission skipped; excluded from readiness and aggregation. */
+  skippedScoreTypes: ScoreType[];
   /** The fixed run timestamp — the same value every raw entry used. */
   timestamp: string;
   /** The proxied activities — injected so the caller owns their Temporal options. */
@@ -42,7 +45,7 @@ export interface EncryptedCustomScoreLifecycleOutcome {
 export async function runEncryptedCustomScoreLifecycle(
   input: EncryptedCustomScoreLifecycleInput,
 ): Promise<EncryptedCustomScoreLifecycleOutcome> {
-  const { snapshotId, algorithmPresetFrozen, observations, timestamp } = input;
+  const { snapshotId, algorithmPresetFrozen, observations, skippedScoreTypes, timestamp } = input;
 
   // Date.now() is the deterministic workflow clock inside the sandbox.
   const deadlineAtMs = Date.now() + DEEP_ID_ENCRYPTION_DEADLINE_MS;
@@ -51,6 +54,7 @@ export async function runEncryptedCustomScoreLifecycle(
     const readiness = await pollForEncryptionReadiness({
       snapshotId,
       algorithmPresetFrozen,
+      skippedScoreTypes,
       checkEncryptionReadiness: input.checkEncryptionReadiness,
       deadlineAtMs,
     });
@@ -68,6 +72,7 @@ export async function runEncryptedCustomScoreLifecycle(
       snapshotId,
       algorithmPresetFrozen,
       observations,
+      skippedScoreTypes,
       timestamp,
     });
 

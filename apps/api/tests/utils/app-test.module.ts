@@ -95,6 +95,7 @@ export async function createTestApp(options: TestAppOptions) {
     startRunSnapshotWorkflow: async (snapshotId: string) => ({ workflowId: `snapshot-${snapshotId}` }),
     describeSnapshotWorkflow: async () => ({ outcome: 'not_found' as const }),
     getAvailability: () => 'down' as const,
+    cancelWorkflow: async () => undefined,
     cancelSnapshotWorkflow: async () => undefined,
     terminateSnapshotWorkflow: async () => undefined,
     cancelSnapshotWorkflows: async () => undefined,

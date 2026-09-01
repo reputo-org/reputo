@@ -549,6 +549,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
     expect(checkEncryptionReadiness).toHaveBeenCalledWith({
       snapshotId: 'snapshot-1',
       algorithmPresetFrozen: expect.objectContaining({ key: 'custom_score' }),
+      skippedScoreTypes: [],
     });
   });
 

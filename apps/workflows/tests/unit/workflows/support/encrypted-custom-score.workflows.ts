@@ -1,3 +1,4 @@
+import type { ScoreType } from '@reputo/deep-id-api';
 import { proxyActivities } from '@temporalio/workflow';
 import type {
   AlgorithmPresetFrozen,
@@ -25,10 +26,12 @@ export async function encryptedCustomScoreLifecycleWorkflow(input: {
   snapshotId: string;
   algorithmPresetFrozen: AlgorithmPresetFrozen;
   observations: EncryptedChildObservation[];
+  skippedScoreTypes?: ScoreType[];
   timestamp: string;
 }): Promise<EncryptedCustomScoreLifecycleOutcome> {
   return runEncryptedCustomScoreLifecycle({
     ...input,
+    skippedScoreTypes: input.skippedScoreTypes ?? [],
     checkEncryptionReadiness,
     submitCustomEncryptedScores,
   });

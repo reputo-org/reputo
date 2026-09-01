@@ -273,8 +273,12 @@ function SubAlgorithmCard({
     return definition ? { definition } : null
   }, [selectedKey, selectedVersion])
 
+  // After a removal the watched row lags one render behind the field array;
+  // writing under that stale identity would clobber the surviving row, so
+  // both normalization effects bail until watch and store agree.
   useEffect(() => {
     if (!selectedKey) return
+    if (getValues(`${rowPrefix}.algorithm_key`) !== selectedKey) return
     if (selectedVersion && availableVersions.includes(selectedVersion)) return
     const latest = availableVersions[availableVersions.length - 1]
     if (latest) {
@@ -283,10 +287,22 @@ function SubAlgorithmCard({
         shouldValidate: true,
       })
     }
-  }, [availableVersions, rowPrefix, selectedKey, selectedVersion, setValue])
+  }, [
+    availableVersions,
+    getValues,
+    rowPrefix,
+    selectedKey,
+    selectedVersion,
+    setValue,
+  ])
 
   useEffect(() => {
     if (!childDefinition) {
+      return
+    }
+    if (
+      getValues(`${rowPrefix}.algorithm_key`) !== childDefinition.definition.key
+    ) {
       return
     }
     const expected = buildChildInputsArray(

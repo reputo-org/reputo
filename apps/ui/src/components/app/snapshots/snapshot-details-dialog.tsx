@@ -137,6 +137,28 @@ export function SnapshotDetailsDialog({
                 </h3>
                 <div className="mt-1">{getStatusBadge(snapshot.status)}</div>
               </div>
+              {snapshot.error?.message &&
+                (snapshot.status === "failed" ||
+                  snapshot.status === "cancelled") && (
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">
+                      {snapshot.status === "failed"
+                        ? "Failure reason"
+                        : "Cancellation reason"}
+                    </h3>
+                    <div className="mt-1 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                      <p className="text-sm break-words">
+                        {snapshot.error.message}
+                      </p>
+                      {snapshot.error.timestamp && (
+                        <p className="text-muted-foreground mt-1 text-xs">
+                          Recorded{" "}
+                          {new Date(snapshot.error.timestamp).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">
                   Preset

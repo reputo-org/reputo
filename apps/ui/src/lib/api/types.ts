@@ -80,6 +80,11 @@ export interface AlgorithmPresetFrozenDto {
   updatedAt: string
 }
 
+export interface SnapshotErrorDto {
+  message: string
+  timestamp?: string
+}
+
 export interface SnapshotPublicationDto {
   algorithmKey: string
   status: "pending" | "sent" | "failed"
@@ -102,6 +107,7 @@ export interface SnapshotResponseDto {
   algorithmPreset: string
   algorithmPresetFrozen?: AlgorithmPresetFrozenDto
   outputs?: Record<string, unknown>
+  error?: SnapshotErrorDto
   publications?: SnapshotPublicationDto[]
   startedAt?: string
   completedAt?: string

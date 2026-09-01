@@ -1,3 +1,4 @@
+import type { ScoreType } from '@reputo/deep-id-api';
 import * as workflow from '@temporalio/workflow';
 
 import {
@@ -16,6 +17,8 @@ import type {
 export interface EncryptionReadinessPollInput {
   snapshotId: string;
   algorithmPresetFrozen: AlgorithmPresetFrozen;
+  /** Children the raw submission skipped; excluded from the readiness cohort. */
+  skippedScoreTypes?: ScoreType[];
   /** The proxied readiness activity — injected so the caller owns its Temporal options. */
   checkEncryptionReadiness: DeepIdEncryptionReadinessActivities['checkEncryptionReadiness'];
   /**
@@ -46,7 +49,7 @@ export interface EncryptionReadinessPollOutcome {
 export async function pollForEncryptionReadiness(
   input: EncryptionReadinessPollInput,
 ): Promise<EncryptionReadinessPollOutcome> {
-  const { snapshotId, algorithmPresetFrozen, checkEncryptionReadiness } = input;
+  const { snapshotId, algorithmPresetFrozen, skippedScoreTypes, checkEncryptionReadiness } = input;
 
   // Date.now() is the deterministic workflow clock inside the sandbox.
   const submittedAtMs = Date.now();
@@ -58,7 +61,11 @@ export async function pollForEncryptionReadiness(
     const delayMs = DEEP_ID_READINESS_POLL_DELAYS_MS[pollIndex] ?? DEEP_ID_READINESS_STEADY_POLL_DELAY_MS;
     await workflow.sleep(Math.min(delayMs, deadlineAtMs - Date.now()));
 
-    const pass: CheckEncryptionReadinessResult = await checkEncryptionReadiness({ snapshotId, algorithmPresetFrozen });
+    const pass: CheckEncryptionReadinessResult = await checkEncryptionReadiness({
+      snapshotId,
+      algorithmPresetFrozen,
+      skippedScoreTypes,
+    });
     const elapsedMs = Date.now() - submittedAtMs;
     polledAtOffsetsMs.push(elapsedMs);
 

@@ -597,6 +597,7 @@ describe('OrchestratorWorkflow branches', () => {
     expect(activities.checkEncryptionReadiness).toHaveBeenCalledWith({
       snapshotId: 'snapshot-1',
       algorithmPresetFrozen: expect.objectContaining({ key: 'custom_score' }),
+      skippedScoreTypes: [],
     });
     const submitOrder = activities.submitCustomRawScores.mock.invocationCallOrder[0];
     const readinessOrder = activities.checkEncryptionReadiness.mock.invocationCallOrder[0];
@@ -663,8 +664,67 @@ describe('OrchestratorWorkflow branches', () => {
       snapshotId: 'snapshot-1',
       algorithmPresetFrozen: expect.objectContaining({ key: 'custom_score' }),
       observations: [{ scoreType: 'voting_engagement', observation: { method: 'observed_min_max', min: 0, max: 10 } }],
+      skippedScoreTypes: [],
       timestamp: '2026-07-22T10:00:00.000Z',
     });
+  });
+
+  it('excludes children the raw submission skipped from the encrypted lifecycle', async () => {
+    const { proxyActivities, isCancellation } = await loadWorkflowModule();
+    const activities = createProxyActivitiesMock({
+      getSnapshot: vi.fn().mockResolvedValue(combinedSnapshot()),
+      getAlgorithmDefinition: vi.fn().mockResolvedValue(combinedDefinition()),
+      runTypescriptAlgorithm: vi.fn().mockResolvedValue({
+        outputs: {
+          voting_engagement: 'snapshots/snapshot-1/voting_engagement.csv',
+          contribution_score: 'snapshots/snapshot-1/contribution_score.csv',
+        },
+      }),
+      submitCustomRawScores: vi.fn().mockResolvedValue({
+        children: [
+          {
+            scoreType: 'voting_engagement',
+            csvKey: 'snapshots/snapshot-1/voting_engagement.csv',
+            observation: { method: 'observed_min_max', min: 0, max: 10 },
+            posted: 3,
+            ok: 3,
+            dropped: 0,
+            rejected: 0,
+          },
+          {
+            scoreType: 'contribution_score',
+            csvKey: 'snapshots/snapshot-1/contribution_score.csv',
+            observation: null,
+            posted: 2,
+            ok: 0,
+            dropped: 2,
+            rejected: 0,
+          },
+        ],
+      }),
+    });
+    proxyActivities.mockImplementation(activities.implementation);
+    isCancellation.mockReturnValue(false);
+
+    const { OrchestratorWorkflow } = await import('../../../src/workflows/orchestrator.workflow.js');
+
+    await OrchestratorWorkflow({ snapshotId: 'snapshot-1' });
+
+    expect(activities.checkEncryptionReadiness).toHaveBeenCalledWith(
+      expect.objectContaining({ skippedScoreTypes: ['contribution_score'] }),
+    );
+    expect(activities.submitCustomEncryptedScores).toHaveBeenCalledWith(
+      expect.objectContaining({
+        observations: [
+          { scoreType: 'voting_engagement', observation: { method: 'observed_min_max', min: 0, max: 10 } },
+        ],
+        skippedScoreTypes: ['contribution_score'],
+      }),
+    );
+    expect(activities.updateSnapshot).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ snapshotId: 'snapshot-1', status: SnapshotStatus.completed }),
+    );
   });
 
   it('returns to readiness polling when the processing pass finds a pending selected score', async () => {

@@ -130,6 +130,11 @@ export const snapshotsApi = {
     await api.delete(`/snapshots/${id}`)
   },
 
+  cancel: async (id: string): Promise<SnapshotResponseDto> => {
+    const response = await api.post(`/snapshots/${id}/cancel`)
+    return response.data
+  },
+
   subscribeToEvents: (params?: { algorithmPreset?: string }): EventSource => {
     const url = new URL(
       `${API_BASE_PATH}/snapshots/events`,

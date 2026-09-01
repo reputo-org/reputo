@@ -4,7 +4,7 @@ import type { AlgorithmDefinition } from "@reputo/reputation-algorithms"
 import { getAlgorithmDefinition } from "@reputo/reputation-algorithms"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { useForm } from "react-hook-form"
+import { type Control, useForm, useWatch } from "react-hook-form"
 import { describe, expect, it } from "vitest"
 import { Form } from "@/components/ui/form"
 import { SubAlgorithmComposerField } from "@/core/fields"
@@ -38,6 +38,11 @@ const votingRow: ComposerRow = {
   inputs: [],
 }
 
+function FormValuesProbe({ control }: { control: Control<any> }) {
+  const values = useWatch({ control })
+  return <pre data-testid="form-values">{JSON.stringify(values)}</pre>
+}
+
 function TestForm({ rows }: { rows: ComposerRow[] }) {
   const form = useForm<any>({
     resolver: zodResolver(buildZodSchema(definition) as never),
@@ -59,6 +64,7 @@ function TestForm({ rows }: { rows: ComposerRow[] }) {
           <button type="submit" disabled={!form.formState.isValid}>
             Save preset
           </button>
+          <FormValuesProbe control={form.control} />
         </form>
       </Form>
     </FormUploadProvider>
@@ -176,6 +182,65 @@ describe("SubAlgorithmComposerField", () => {
     )
     expect(await screen.findByText(/no algorithms added/i)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Save preset" })).toBeDisabled()
+  })
+
+  it("keeps a later child's uploaded CSV values when an earlier child is removed", async () => {
+    const user = userEvent.setup()
+    renderComposerForm([
+      {
+        algorithm_key: "token_value_over_time",
+        algorithm_version: "1.0.0",
+        weight: 3,
+        inputs: [
+          { key: "maturation_threshold_days", value: 30 },
+          {
+            key: "selected_resources",
+            value: [{ chain: "ethereum", resource_key: "fet_token" }],
+          },
+        ],
+      },
+      {
+        algorithm_key: "voting_engagement",
+        algorithm_version: "1.0.0",
+        weight: 1,
+        inputs: [
+          { key: "votes", value: "uploads/aaa/votes.csv" },
+          {
+            key: "wallet_collections",
+            value: "uploads/bbb/wallet_collections.csv",
+          },
+        ],
+      },
+    ])
+
+    expect(await screen.findByText("uploads/aaa/votes.csv")).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole("button", { name: "Remove child algorithm 1" })
+    )
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Remove child algorithm 2" })
+      ).not.toBeInTheDocument()
+    )
+
+    const values = JSON.parse(
+      screen.getByTestId("form-values").textContent ?? "{}"
+    ) as { sub_algorithms: ComposerRow[] }
+    expect(values.sub_algorithms).toHaveLength(1)
+    expect(values.sub_algorithms[0].algorithm_key).toBe("voting_engagement")
+    expect(values.sub_algorithms[0].inputs).toEqual([
+      { key: "votes", value: "uploads/aaa/votes.csv" },
+      {
+        key: "wallet_collections",
+        value: "uploads/bbb/wallet_collections.csv",
+      },
+    ])
+
+    expect(screen.getByText("uploads/aaa/votes.csv")).toBeInTheDocument()
+    expect(
+      screen.getByText("uploads/bbb/wallet_collections.csv")
+    ).toBeInTheDocument()
   })
 
   it("surfaces the shared validator weight rules as accessible errors", async () => {

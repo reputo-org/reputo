@@ -2,6 +2,7 @@
 
 import {
   AlertCircle,
+  Ban,
   Eye,
   Loader2,
   MoreHorizontal,
@@ -48,6 +49,7 @@ import {
 import type { Algorithm } from "@/core/algorithms"
 import {
   useAlgorithmPresets,
+  useCancelSnapshot,
   useDeleteSnapshot,
   useSnapshots,
 } from "@/lib/api/hooks"
@@ -56,6 +58,7 @@ import type {
   SnapshotResponseDto,
 } from "@/lib/api/types"
 import { useAuthAwareSnapshotEvents } from "@/lib/api/use-snapshot-events"
+import { SnapshotCancelDialog } from "./snapshot-cancel-dialog"
 import { SnapshotDeleteDialog } from "./snapshot-delete-dialog"
 import { SnapshotDetailsDialog } from "./snapshot-details-dialog"
 
@@ -104,8 +107,10 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
     "all"
   )
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false)
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
   const [snapshotToDelete, setSnapshotToDelete] = useState<string | null>(null)
+  const [snapshotToCancel, setSnapshotToCancel] = useState<string | null>(null)
   const [snapshotToView, setSnapshotToView] =
     useState<SnapshotResponseDto | null>(null)
   const [deletingSnapshotId, setDeletingSnapshotId] = useState<string | null>(
@@ -142,6 +147,7 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
   })
 
   const deleteSnapshotMutation = useDeleteSnapshot()
+  const cancelSnapshotMutation = useCancelSnapshot()
 
   const newPresetUrl = algo
     ? `/dashboard/algorithms/${algo.id}/presets/new`
@@ -180,6 +186,24 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
       toast.error("Could not delete the snapshot. Try again.")
     } finally {
       setDeletingSnapshotId(null)
+    }
+  }
+
+  const handleCancelSnapshot = (snapshotId: string) => {
+    setSnapshotToCancel(snapshotId)
+    setIsCancelDialogOpen(true)
+  }
+
+  const confirmCancelSnapshot = async () => {
+    if (!snapshotToCancel) return
+
+    try {
+      await cancelSnapshotMutation.mutateAsync(snapshotToCancel)
+      setIsCancelDialogOpen(false)
+      setSnapshotToCancel(null)
+      toast.success("Cancellation requested")
+    } catch {
+      toast.error("Could not cancel the run. Try again.")
     }
   }
 
@@ -469,6 +493,16 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
                               <Eye className="mr-2 size-4" /> View details
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
+                            {(snapshot.status === "queued" ||
+                              snapshot.status === "running") && (
+                              <DropdownMenuItem
+                                onSelect={() =>
+                                  handleCancelSnapshot(snapshot._id)
+                                }
+                              >
+                                <Ban className="mr-2 size-4" /> Cancel run
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem
                               variant="destructive"
                               onSelect={() =>
@@ -503,6 +537,16 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
         }}
         onConfirm={confirmDeleteSnapshot}
         isLoading={deleteSnapshotMutation.isPending}
+      />
+
+      <SnapshotCancelDialog
+        isOpen={isCancelDialogOpen}
+        onClose={() => {
+          setIsCancelDialogOpen(false)
+          setSnapshotToCancel(null)
+        }}
+        onConfirm={confirmCancelSnapshot}
+        isLoading={cancelSnapshotMutation.isPending}
       />
     </div>
   )
