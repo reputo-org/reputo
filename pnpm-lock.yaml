@@ -285,7 +285,7 @@ importers:
         version: 11.4.5(@nestjs/common@11.1.28(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@5.5.0))(@nestjs/core@11.1.28)(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)
       '@nestjs/typeorm':
         specifier: 'catalog:'
-        version: 11.0.3(@nestjs/common@11.1.28(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@5.5.0))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)(typeorm@1.1.0(better-sqlite3@12.11.1)(pg@8.22.0)(ts-node@10.9.2(@swc/core@1.15.43)(@types/node@22.20.1)(typescript@5.9.2)))
+        version: 11.0.3(@nestjs/common@11.1.28(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@5.5.0))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)(typeorm@1.1.0(better-sqlite3@12.11.1)(pg@8.22.0)(supports-color@5.5.0)(ts-node@10.9.2(@swc/core@1.15.43)(@types/node@22.20.1)(typescript@5.9.2)))
       '@reputo/algorithm-validator':
         specifier: workspace:*
         version: link:../../packages/algorithm-validator
@@ -644,7 +644,7 @@ importers:
         version: link:../../packages/deep-id-api
       '@reputo/deepfunding-portal-api':
         specifier: workspace:*
-        version: file:packages/deepfunding-portal-api(pg@8.22.0)(ts-node@10.9.2(@swc/core@1.15.43)(@types/node@22.20.1)(typescript@5.9.2))
+        version: link:../../packages/deepfunding-portal-api
       '@reputo/onchain-data':
         specifier: workspace:*
         version: link:../../packages/onchain-data
@@ -675,6 +675,9 @@ importers:
       node-seal:
         specifier: 'catalog:'
         version: 7.0.0
+      pg:
+        specifier: 'catalog:'
+        version: 8.22.0
       pino:
         specifier: 'catalog:'
         version: 9.14.0
@@ -697,6 +700,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 22.20.1
+      '@types/pg':
+        specifier: 'catalog:'
+        version: 8.20.0
       concurrently:
         specifier: 'catalog:'
         version: 9.2.4
@@ -3072,9 +3078,6 @@ packages:
 
   '@radix-ui/rect@1.1.2':
     resolution: {integrity: sha512-xnXE7wG13PI+cxieVssYXlQJuYVRhH9NBoxt3KNwzghDIA69GMm7d4wXRouHIYjE+KvS6U/MsMO73NdS2MH9ZA==}
-
-  '@reputo/deepfunding-portal-api@file:packages/deepfunding-portal-api':
-    resolution: {directory: packages/deepfunding-portal-api, type: directory}
 
   '@rollup/pluginutils@5.4.0':
     resolution: {integrity: sha512-MfPp06CjRLfXQ3wY0R8vJDYBy/MvVcc9OulEfR0B8Iv9ko+GCNaRZ+EpJYFl27LhKsZK0o420sYCRHCjfCgeUg==}
@@ -9864,7 +9867,7 @@ snapshots:
     optionalDependencies:
       '@nestjs/platform-express': 11.1.28(@nestjs/common@11.1.28(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@5.5.0))(@nestjs/core@11.1.28)(supports-color@5.5.0)
 
-  '@nestjs/typeorm@11.0.3(@nestjs/common@11.1.28(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@5.5.0))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)(typeorm@1.1.0(better-sqlite3@12.11.1)(pg@8.22.0)(ts-node@10.9.2(@swc/core@1.15.43)(@types/node@22.20.1)(typescript@5.9.2)))':
+  '@nestjs/typeorm@11.0.3(@nestjs/common@11.1.28(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@5.5.0))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)(typeorm@1.1.0(better-sqlite3@12.11.1)(pg@8.22.0)(supports-color@5.5.0)(ts-node@10.9.2(@swc/core@1.15.43)(@types/node@22.20.1)(typescript@5.9.2)))':
     dependencies:
       '@nestjs/common': 11.1.28(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@5.5.0)
       '@nestjs/core': 11.1.28(@nestjs/common@11.1.28(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@5.5.0))(@nestjs/platform-express@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -10662,33 +10665,6 @@ snapshots:
       '@types/react-dom': 19.2.3(@types/react@19.2.17)
 
   '@radix-ui/rect@1.1.2': {}
-
-  '@reputo/deepfunding-portal-api@file:packages/deepfunding-portal-api(pg@8.22.0)(ts-node@10.9.2(@swc/core@1.15.43)(@types/node@22.20.1)(typescript@5.9.2))':
-    dependencies:
-      better-sqlite3: 12.11.1
-      p-limit: 7.3.1
-      pino: 9.14.0
-      reflect-metadata: 0.2.2
-      typeorm: 1.1.0(better-sqlite3@12.11.1)(pg@8.22.0)(supports-color@5.5.0)(ts-node@10.9.2(@swc/core@1.15.43)(@types/node@22.20.1)(typescript@5.9.2))
-      typeorm-naming-strategies: 4.1.0(typeorm@1.1.0(better-sqlite3@12.11.1)(pg@8.22.0)(ts-node@10.9.2(@swc/core@1.15.43)(@types/node@22.20.1)(typescript@5.9.2)))
-      undici: 7.28.0
-    transitivePeerDependencies:
-      - '@google-cloud/spanner'
-      - '@sap/hana-client'
-      - babel-plugin-macros
-      - ioredis
-      - mongodb
-      - mssql
-      - mysql2
-      - oracledb
-      - pg
-      - pg-native
-      - pg-query-stream
-      - redis
-      - sql.js
-      - supports-color
-      - ts-node
-      - typeorm-aurora-data-api-driver
 
   '@rollup/pluginutils@5.4.0(rollup@4.62.2)':
     dependencies:

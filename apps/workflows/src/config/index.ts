@@ -50,6 +50,11 @@ const config = {
     retryMaxAttempts: env.COMMUNITY_API_RETRY_MAX_ATTEMPTS,
     retryBaseDelayMs: env.COMMUNITY_API_RETRY_BASE_DELAY_MS,
     retryMaxDelayMs: env.COMMUNITY_API_RETRY_MAX_DELAY_MS,
+    appDatabaseUrl: env.APP_DATABASE_URL,
+    credentials: {
+      currentSecret: env.COMMUNITY_CREDENTIALS_ENCRYPTION_KEY,
+      previousSecret: env.COMMUNITY_CREDENTIALS_ENCRYPTION_KEY_PREVIOUS,
+    },
   },
   deepId: {
     identityBaseUrl: env.DEEP_ID_ISSUER_URL,

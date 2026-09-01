@@ -198,6 +198,27 @@ export const envSchema = z.object({
     })
     .describe('PostgreSQL connection URL for the onchain-data database'),
 
+  APP_DATABASE_URL: z
+    .string()
+    .url()
+    .refine((value) => value.startsWith('postgresql://') || value.startsWith('postgres://'), {
+      error: 'APP_DATABASE_URL must use the postgresql:// or postgres:// scheme',
+    })
+    .describe(
+      'PostgreSQL URL of the application database, as a READ-ONLY role; the community worker reads connection rows and sealed credentials through it',
+    ),
+  COMMUNITY_CREDENTIALS_ENCRYPTION_KEY: z
+    .string()
+    .min(32)
+    .describe('Secret that seals community platform tokens; must match the API value'),
+  COMMUNITY_CREDENTIALS_ENCRYPTION_KEY_PREVIOUS: z
+    .string()
+    .optional()
+    // Deployment variable shells arrive as empty strings; treat those as unset.
+    .transform((value) => (value === '' ? undefined : value))
+    .pipe(z.string().min(32).optional())
+    .describe('Previous sealing secret, kept during rotation so existing envelopes still open'),
+
   ALCHEMY_API_KEY: z.string().min(1).describe('Alchemy API key (required for the onchain-data worker)'),
   BLOCKFROST_API_KEY: z
     .string()

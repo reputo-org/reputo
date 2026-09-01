@@ -85,6 +85,7 @@
     "csv-parse": "^5.6.0",
     "csv-stringify": "^6.8.1",
     "node-seal": "catalog:",
+    "pg": "catalog:",
     "pino": "catalog:",
     "pino-pretty": "catalog:",
     "zod": "catalog:"
@@ -94,6 +95,7 @@
     "@temporalio/testing": "catalog:",
     "@testcontainers/postgresql": "catalog:",
     "@types/node": "catalog:",
+    "@types/pg": "catalog:",
     "concurrently": "catalog:",
     "nodemon": "catalog:",
     "tsx": "catalog:",
