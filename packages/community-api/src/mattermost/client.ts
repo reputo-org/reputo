@@ -1,7 +1,7 @@
-import { CommunityContractError, CommunityPermissionError } from '../shared/errors.js';
-import type { CommunityHttpObserver, CommunityLogger, HttpMethod, HttpResponse } from '../shared/http.js';
-import { executeSafeRequest } from '../shared/safe-fetch.js';
+import { CommunityPermissionError } from '../shared/errors.js';
+import type { CommunityLogger } from '../shared/http.js';
 import type { CommunityProbeResult, CommunityResource } from '../shared/types.js';
+import { createMattermostRequest } from './request.js';
 import {
   assertMattermostUser,
   countMattermostPosts,
@@ -9,16 +9,15 @@ import {
   toMattermostResources,
   toMattermostTeams,
 } from './transform.js';
-import {
-  MATTERMOST_API_PATH,
-  type MattermostClientConfig,
-  type MattermostConnectionTarget,
-  type MattermostRawChannel,
-  type MattermostRawPostList,
-  type MattermostRawTeam,
-  type MattermostRawUser,
-  type MattermostTeam,
-  type MattermostTeamTarget,
+import type {
+  MattermostClientConfig,
+  MattermostConnectionTarget,
+  MattermostRawChannel,
+  MattermostRawPostList,
+  MattermostRawTeam,
+  MattermostRawUser,
+  MattermostTeam,
+  MattermostTeamTarget,
 } from './types.js';
 
 /** Channels the probe will try before concluding that nothing is readable. */
@@ -41,36 +40,7 @@ export interface MattermostClient {
 }
 
 export function createMattermostClient(config: MattermostClientConfig, logger: CommunityLogger): MattermostClient {
-  // Every call funnels through here and thus through the safe outbound path;
-  // no method of this client can reach an unpoliced socket.
-  const call = async <T>(
-    target: MattermostConnectionTarget,
-    method: HttpMethod,
-    path: string,
-    observer?: CommunityHttpObserver,
-  ): Promise<HttpResponse<T>> => {
-    const origin = normalizeMattermostServerUrl(target.serverUrl);
-    try {
-      return await executeSafeRequest<T>(
-        logger,
-        config,
-        config.outbound,
-        {
-          method,
-          url: `${origin}${MATTERMOST_API_PATH}${path}`,
-          headers: { authorization: `Bearer ${target.token}` },
-        },
-        observer,
-      );
-    } catch (error) {
-      // A non-Mattermost server answers with HTML; surface that as a contract
-      // failure instead of a JSON parse error that quotes the body.
-      if (error instanceof SyntaxError) {
-        throw new CommunityContractError('The server did not answer with Mattermost API JSON; check the URL.');
-      }
-      throw error;
-    }
-  };
+  const call = createMattermostRequest(config, logger);
 
   const listRawChannels = async (target: MattermostTeamTarget): Promise<CommunityResource[]> => {
     const response = await call<MattermostRawChannel[]>(
