@@ -119,6 +119,20 @@ const GROUPS_BY_ALGORITHM: Record<string, GroupSpec[]> = {
       keys: ["lookback_days", "activities"],
     },
   ],
+  mattermost_engagement: [
+    {
+      id: "community",
+      title: "Community",
+      description: "Choose the connected Mattermost team and its channels.",
+      keys: ["community_connection_id", "resources"],
+    },
+    {
+      id: "scoring",
+      title: "Scoring",
+      description: "Set the time period and the points per activity.",
+      keys: ["lookback_days", "activities"],
+    },
+  ],
 }
 
 const DETAILS_KEYS = new Set(["name", "description"])

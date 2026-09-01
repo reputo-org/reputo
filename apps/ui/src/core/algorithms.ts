@@ -14,6 +14,7 @@ const DEPENDENCY_KEY_TO_LABEL: Record<string, string> = {
   "deep-id": "DeepID",
   "discord-activity": "Discord",
   "github-activity": "GitHub",
+  "mattermost-activity": "Mattermost",
 }
 
 /** Per-algorithm display metadata not derived from the definition itself */
@@ -24,6 +25,7 @@ const ALGORITHM_META: Record<string, { duration: string; level: string }> = {
   token_value_over_time: { duration: "4–8 min", level: "Intermediate" },
   discord_engagement: { duration: "5–20 min", level: "Beginner" },
   github_engagement: { duration: "5–20 min", level: "Beginner" },
+  mattermost_engagement: { duration: "5–20 min", level: "Beginner" },
 }
 
 const DEFAULT_META = { duration: "2–5 min", level: "Intermediate" }
