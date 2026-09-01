@@ -3,6 +3,7 @@
 import { Loader2, Plus } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
+import { ConnectMattermostDialog } from "@/components/community/connect-mattermost-dialog"
 import { ConnectionRow } from "@/components/community/connection-row"
 import { PlatformLogoTile } from "@/components/community/platform-logo"
 import { Badge } from "@/components/ui/badge"
@@ -18,6 +19,7 @@ import {
 import { ItemSeparator } from "@/components/ui/item"
 import { communityApi } from "@/lib/api/services"
 import type { CommunityConnectionDto } from "@/lib/api/types"
+import { mattermostServerUrlFromExternalId } from "@/lib/community/mattermost"
 import type { PlatformMeta } from "@/lib/community/platforms"
 import { cn } from "@/lib/utils"
 
@@ -28,14 +30,32 @@ interface PlatformCardProps {
 
 export function PlatformCard({ platform, connections }: PlatformCardProps) {
   const [isConnecting, setIsConnecting] = useState(false)
+  const [mattermostDialog, setMattermostDialog] = useState<{
+    open: boolean
+    serverUrl?: string
+  }>({ open: false })
 
-  /** Without a connection id this connects a new community; with one it reconnects that community. */
-  const startInstall = async (connectionId?: string) => {
+  /**
+   * Without a connection this connects a new community; with one it reconnects
+   * that community. Mattermost has no platform-side install page — its connect
+   * is the token dialog, prefilled with the server on a reconnect.
+   */
+  const startConnect = async (connection?: CommunityConnectionDto) => {
+    if (platform.id === "mattermost") {
+      setMattermostDialog({
+        open: true,
+        serverUrl: connection
+          ? mattermostServerUrlFromExternalId(connection.externalId)
+          : undefined,
+      })
+      return
+    }
+
     setIsConnecting(true)
     try {
       const { url } = await communityApi.getInstallUrl(
         platform.id,
-        connectionId
+        connection?.id
       )
       window.location.href = url
     } catch {
@@ -82,7 +102,7 @@ export function PlatformCard({ platform, connections }: PlatformCardProps) {
                   {index > 0 && <ItemSeparator />}
                   <ConnectionRow
                     connection={connection}
-                    onReconnect={() => startInstall(connection.id)}
+                    onReconnect={() => startConnect(connection)}
                     isReconnecting={isConnecting}
                   />
                 </div>
@@ -106,7 +126,7 @@ export function PlatformCard({ platform, connections }: PlatformCardProps) {
             className="w-full"
             variant={hasConnections ? "outline" : "default"}
             disabled={isConnecting}
-            onClick={() => startInstall()}
+            onClick={() => startConnect()}
           >
             {isConnecting ? (
               <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -118,6 +138,16 @@ export function PlatformCard({ platform, connections }: PlatformCardProps) {
               : `Connect ${platform.label}`}
           </Button>
         </CardFooter>
+      )}
+
+      {platform.id === "mattermost" && (
+        <ConnectMattermostDialog
+          open={mattermostDialog.open}
+          onOpenChange={(open) =>
+            setMattermostDialog((current) => ({ ...current, open }))
+          }
+          initialServerUrl={mattermostDialog.serverUrl}
+        />
       )}
     </Card>
   )

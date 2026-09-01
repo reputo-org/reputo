@@ -18,12 +18,14 @@ const ALL_STATUSES: CommunityConnectionStatus[] = [
 ]
 
 describe("COMMUNITY_PLATFORMS", () => {
-  it("offers Discord and GitHub and marks Mattermost as not yet available", () => {
+  it("offers every platform with a shipped connect flow", () => {
     const available = COMMUNITY_PLATFORMS.filter((entry) => entry.available)
-    const comingSoon = COMMUNITY_PLATFORMS.filter((entry) => !entry.available)
 
-    expect(available.map((entry) => entry.id)).toEqual(["discord", "github"])
-    expect(comingSoon.map((entry) => entry.id)).toEqual(["mattermost"])
+    expect(available.map((entry) => entry.id)).toEqual([
+      "discord",
+      "github",
+      "mattermost",
+    ])
   })
 })
 

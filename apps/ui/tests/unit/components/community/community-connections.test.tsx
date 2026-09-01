@@ -17,6 +17,14 @@ vi.mock("@/lib/api/hooks", () => ({
     isPending: false,
     mutateAsync: vi.fn(),
   }),
+  useValidateMattermostConnection: () => ({
+    isPending: false,
+    mutateAsync: vi.fn(),
+  }),
+  useConnectMattermostConnection: () => ({
+    isPending: false,
+    mutateAsync: vi.fn(),
+  }),
 }))
 
 const connection = (
@@ -77,19 +85,15 @@ describe("CommunityConnections", () => {
     expect(
       screen.getByText("No organization connected yet.")
     ).toBeInTheDocument()
+    expect(screen.getByText("No team connected yet.")).toBeInTheDocument()
     expect(
       screen.getByRole("button", { name: /Connect Discord/ })
     ).toBeEnabled()
     expect(screen.getByRole("button", { name: /Connect GitHub/ })).toBeEnabled()
-  })
-
-  it("marks unavailable platforms as coming soon without offering a dead button", () => {
-    renderWith({ data: [] })
-
-    expect(screen.getAllByText("Coming soon")).toHaveLength(1)
     expect(
-      screen.queryByRole("button", { name: /Connect Mattermost/ })
-    ).not.toBeInTheDocument()
+      screen.getByRole("button", { name: /Connect Mattermost/ })
+    ).toBeEnabled()
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument()
   })
 
   it("lists a connection with its status and switches the card action to a secondary one", () => {

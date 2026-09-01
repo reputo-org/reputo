@@ -244,3 +244,24 @@ export interface CommunityHealthDto {
 export interface CommunityInstallUrlDto {
   url: string
 }
+
+export interface MattermostTeamDto {
+  id: string
+  name: string
+  displayName: string
+}
+
+/** The token travels only in this request body and is never echoed back. */
+export interface MattermostValidateRequestDto {
+  serverUrl: string
+  token: string
+}
+
+export interface MattermostValidationDto {
+  teams: MattermostTeamDto[]
+}
+
+export interface MattermostConnectRequestDto
+  extends MattermostValidateRequestDto {
+  teamId: string
+}
