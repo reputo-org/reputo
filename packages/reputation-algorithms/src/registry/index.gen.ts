@@ -5,6 +5,7 @@ export const REGISTRY_INDEX = {
   contribution_score: ['1.0.0'],
   custom_score: ['1.0.0'],
   discord_engagement: ['1.0.0'],
+  github_engagement: ['1.0.0'],
   proposal_engagement: ['1.0.0'],
   token_value_over_time: ['1.0.0'],
   voting_engagement: ['1.0.0'],
@@ -13,6 +14,7 @@ export const REGISTRY_INDEX = {
 import _contribution_score_1_0_0 from './contribution_score/1.0.0.json' with { type: 'json' };
 import _custom_score_1_0_0 from './custom_score/1.0.0.json' with { type: 'json' };
 import _discord_engagement_1_0_0 from './discord_engagement/1.0.0.json' with { type: 'json' };
+import _github_engagement_1_0_0 from './github_engagement/1.0.0.json' with { type: 'json' };
 import _proposal_engagement_1_0_0 from './proposal_engagement/1.0.0.json' with { type: 'json' };
 import _token_value_over_time_1_0_0 from './token_value_over_time/1.0.0.json' with { type: 'json' };
 import _voting_engagement_1_0_0 from './voting_engagement/1.0.0.json' with { type: 'json' };
@@ -21,6 +23,7 @@ export const _DEFINITIONS: Record<string, unknown> = {
   'contribution_score@1.0.0': _contribution_score_1_0_0 as unknown,
   'custom_score@1.0.0': _custom_score_1_0_0 as unknown,
   'discord_engagement@1.0.0': _discord_engagement_1_0_0 as unknown,
+  'github_engagement@1.0.0': _github_engagement_1_0_0 as unknown,
   'proposal_engagement@1.0.0': _proposal_engagement_1_0_0 as unknown,
   'token_value_over_time@1.0.0': _token_value_over_time_1_0_0 as unknown,
   'voting_engagement@1.0.0': _voting_engagement_1_0_0 as unknown,

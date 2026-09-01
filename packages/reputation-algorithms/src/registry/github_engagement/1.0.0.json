@@ -1,0 +1,181 @@
+{
+    "key": "github_engagement",
+    "name": "GitHub Engagement",
+    "kind": "standalone",
+    "category": "Engagement",
+    "summary": "Scores GitHub development activity per consented user, with configurable points and daily caps per activity.",
+    "description": "### What it does\nScores each consented user's activity in the connected GitHub repositories during the snapshot window.\n\n### How it works\n- The snapshot freezes the selected repositories' activity for the lookback window into an immutable dataset.\n- Users who granted the `github` consent scope in DeepID are matched to their GitHub account by login. A user who cannot be matched receives an explicit `0` with a flag — never a guess.\n- Each enabled activity earns the points you set. Counts are capped per user, per activity, per UTC day by that activity's daily cap.\n- A merged pull request is credited to its author at its merge time; a review counts at its submission time; every other activity counts at its creation time.\n- The final score is the sum of the earned points. Scores stay raw — normalization and weighting happen only in Custom Score.\n- Bots are excluded from scoring. An activity without a row is disabled.\n\n### Outputs\n- CSV file with `did`, the raw `github_engagement` score, and the points earned per activity.\n- JSON file with per-user counts, match status, and repository coverage details.",
+    "version": "1.0.0",
+    "inputs": [
+        {
+            "key": "community_connection_id",
+            "label": "GitHub account",
+            "description": "The connected GitHub account to score. Connect one on the Communities page first.",
+            "type": "string",
+            "required": true,
+            "uiHint": {
+                "widget": "community_connection",
+                "platform": "github"
+            }
+        },
+        {
+            "key": "resources",
+            "label": "Repositories",
+            "description": "The repositories to include. Pull requests, issues, reviews, and comments in them are scored.",
+            "type": "array",
+            "minItems": 1,
+            "required": true,
+            "item": {
+                "type": "string"
+            },
+            "uiHint": {
+                "widget": "community_resources",
+                "dependsOn": "community_connection_id"
+            }
+        },
+        {
+            "key": "lookback_days",
+            "label": "Lookback period (days)",
+            "description": "How far back the snapshot fetches activity, counted from the moment the snapshot starts.",
+            "type": "integer",
+            "min": 1,
+            "max": 183,
+            "default": 90,
+            "step": 1,
+            "required": true,
+            "uiHint": {
+                "widget": "number",
+                "suffix": "days",
+                "presets": [7, 30, 90, 183]
+            }
+        },
+        {
+            "key": "activities",
+            "label": "Activity weights",
+            "description": "Points and daily caps per activity. Points must be above `0`; the daily cap bounds how much of one activity a user can earn per UTC day. Leave an activity out to disable it.",
+            "type": "array",
+            "minItems": 1,
+            "required": true,
+            "uniqueBy": ["activity"],
+            "item": {
+                "type": "object",
+                "properties": [
+                    {
+                        "key": "activity",
+                        "label": "Activity",
+                        "description": "The activity this row scores.",
+                        "type": "string",
+                        "required": true,
+                        "enum": [
+                            "pull_request_opened",
+                            "pull_request_merged",
+                            "pull_request_review",
+                            "issue_opened",
+                            "comment"
+                        ],
+                        "uiHint": {
+                            "widget": "select",
+                            "options": [
+                                { "value": "pull_request_opened", "label": "Pull request opened" },
+                                { "value": "pull_request_merged", "label": "Pull request merged" },
+                                { "value": "pull_request_review", "label": "Pull request review" },
+                                { "value": "issue_opened", "label": "Issue opened" },
+                                { "value": "comment", "label": "Comment" }
+                            ]
+                        }
+                    },
+                    {
+                        "key": "points",
+                        "label": "Points",
+                        "description": "Points per counted unit. Must be above `0`.",
+                        "type": "number",
+                        "min": 0,
+                        "exclusiveMin": true,
+                        "required": true
+                    },
+                    {
+                        "key": "daily_cap",
+                        "label": "Daily cap",
+                        "description": "Most units of this activity credited per user per UTC day.",
+                        "type": "integer",
+                        "min": 1,
+                        "required": true
+                    }
+                ]
+            },
+            "uiHint": {
+                "widget": "repeater",
+                "addButtonLabel": "Add activity",
+                "presets": [
+                    {
+                        "label": "Recommended weights",
+                        "value": [
+                            { "activity": "pull_request_opened", "points": 10, "daily_cap": 5 },
+                            { "activity": "pull_request_merged", "points": 15, "daily_cap": 5 },
+                            { "activity": "pull_request_review", "points": 5, "daily_cap": 10 },
+                            { "activity": "issue_opened", "points": 3, "daily_cap": 10 },
+                            { "activity": "comment", "points": 1, "daily_cap": 20 }
+                        ]
+                    }
+                ]
+            }
+        }
+    ],
+    "outputs": [
+        {
+            "key": "github_engagement",
+            "label": "GitHub engagement (CSV)",
+            "description": "One row per consented user with the raw score and the points earned per activity. Explicit zeros included.",
+            "type": "csv",
+            "csv": {
+                "hasHeader": true,
+                "delimiter": ",",
+                "columns": [
+                    {
+                        "key": "did",
+                        "type": "string",
+                        "description": "User DID (`did:sub`)."
+                    },
+                    {
+                        "key": "github_engagement",
+                        "type": "number",
+                        "description": "Raw engagement score: the sum of the per-activity points."
+                    },
+                    {
+                        "key": "pull_request_opened_points",
+                        "type": "number",
+                        "description": "Points earned from opened pull requests."
+                    },
+                    {
+                        "key": "pull_request_merged_points",
+                        "type": "number",
+                        "description": "Points earned from merged pull requests, credited to the author."
+                    },
+                    {
+                        "key": "pull_request_review_points",
+                        "type": "number",
+                        "description": "Points earned from submitted pull request reviews."
+                    },
+                    {
+                        "key": "issue_opened_points",
+                        "type": "number",
+                        "description": "Points earned from opened issues."
+                    },
+                    {
+                        "key": "comment_points",
+                        "type": "number",
+                        "description": "Points earned from comments."
+                    }
+                ]
+            }
+        },
+        {
+            "key": "github_engagement_details",
+            "label": "GitHub engagement details (JSON)",
+            "description": "Per-user activity counts, match status, and repository coverage for the snapshot window.",
+            "type": "json"
+        }
+    ],
+    "runtime": "typescript",
+    "dependencies": [{ "key": "github-activity" }]
+}
