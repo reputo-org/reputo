@@ -44,3 +44,28 @@ export interface CommunityHealthDto {
   /** Human-readable reason when the probe did not succeed. */
   reason?: string;
 }
+
+/** A Mattermost team the pasted token's bot account belongs to. */
+export interface MattermostTeamDto {
+  id: string;
+  name: string;
+  displayName: string;
+}
+
+/**
+ * `POST mattermost/validate` request. The token travels only in this body and
+ * is never stored by the endpoint; the response carries the teams to pick from.
+ */
+export interface MattermostValidateRequestDto {
+  serverUrl: string;
+  token: string;
+}
+
+export interface MattermostValidationDto {
+  teams: MattermostTeamDto[];
+}
+
+/** `POST mattermost/connect` request: validate again, seal the token, save. */
+export interface MattermostConnectRequestDto extends MattermostValidateRequestDto {
+  teamId: string;
+}
