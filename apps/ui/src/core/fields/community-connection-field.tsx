@@ -1,6 +1,8 @@
 "use client"
 
+import Link from "next/link"
 import type { Control } from "react-hook-form"
+import { Button } from "@/components/ui/button"
 import {
   FormControl,
   FormDescription,
@@ -17,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useCommunityConnections } from "@/lib/api/hooks"
+import { describeStatus } from "@/lib/community/platforms"
 import type { FormInput } from "../schema-builder"
 import { InlineMarkdown } from "./inline-markdown"
 
@@ -24,6 +27,14 @@ interface CommunityConnectionFieldProps {
   input: FormInput
   control: Control<any>
 }
+
+// New tab so a half-filled composer draft survives the detour; the
+// connections query refetches on window focus when the user returns.
+const communitiesLink = (
+  <Link href="/community" target="_blank" className="text-foreground underline">
+    Communities page
+  </Link>
+)
 
 /**
  * Definition-driven picker for a community connection. Offers only active
@@ -35,13 +46,19 @@ export function CommunityConnectionField({
   input,
   control,
 }: CommunityConnectionFieldProps) {
-  const { data: connections, isLoading } = useCommunityConnections()
+  const {
+    data: connections,
+    isLoading,
+    isError,
+    refetch,
+  } = useCommunityConnections()
 
-  const selectable = (connections ?? []).filter(
+  const forPlatform = (connections ?? []).filter(
     (connection) =>
-      (input.platform === undefined ||
-        connection.platform === input.platform) &&
-      connection.status === "active"
+      input.platform === undefined || connection.platform === input.platform
+  )
+  const selectable = forPlatform.filter(
+    (connection) => connection.status === "active"
   )
 
   return (
@@ -53,6 +70,9 @@ export function CommunityConnectionField({
           typeof field.value === "string" &&
           field.value !== "" &&
           !selectable.some((connection) => connection.id === field.value)
+        const storedConnection = storedUnavailable
+          ? forPlatform.find((connection) => connection.id === field.value)
+          : undefined
 
         return (
           <FormItem>
@@ -64,7 +84,12 @@ export function CommunityConnectionField({
             </FormLabel>
             <Select onValueChange={field.onChange} value={field.value ?? ""}>
               <FormControl>
-                <SelectTrigger className="w-full" disabled={isLoading}>
+                <SelectTrigger
+                  className="w-full"
+                  disabled={
+                    isLoading || (selectable.length === 0 && !storedUnavailable)
+                  }
+                >
                   <SelectValue
                     placeholder={
                       isLoading
@@ -78,7 +103,8 @@ export function CommunityConnectionField({
                 {storedUnavailable && (
                   <SelectItem value={field.value as string}>
                     <span className="text-muted-foreground">
-                      Unavailable connection ({field.value})
+                      Unavailable connection (
+                      {storedConnection?.name ?? field.value})
                     </span>
                   </SelectItem>
                 )}
@@ -89,10 +115,58 @@ export function CommunityConnectionField({
                 ))}
               </SelectContent>
             </Select>
-            {!isLoading && selectable.length === 0 && (
-              <FormDescription>
-                No active {input.platform ?? "community"} connection yet.
-                Connect one on the Communities page first.
+            {isError && (
+              <FormDescription className="flex items-center gap-2">
+                Could not load connections.
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => refetch()}
+                >
+                  Retry
+                </Button>
+              </FormDescription>
+            )}
+            {!isLoading &&
+              !isError &&
+              selectable.length === 0 &&
+              !storedUnavailable && (
+                <FormDescription>
+                  {forPlatform.length > 0 ? (
+                    <>
+                      Your {input.platform ?? "community"} connection is{" "}
+                      {describeStatus(
+                        forPlatform[0].status
+                      ).label.toLowerCase()}
+                      . Fix it on the {communitiesLink} first.
+                    </>
+                  ) : (
+                    <>
+                      No active {input.platform ?? "community"} connection yet.
+                      Connect one on the {communitiesLink} first.
+                    </>
+                  )}
+                </FormDescription>
+              )}
+            {!isLoading && !isError && storedUnavailable && (
+              <FormDescription className="text-destructive">
+                {storedConnection ? (
+                  <>
+                    This preset points at {storedConnection.name}, which is{" "}
+                    {describeStatus(
+                      storedConnection.status
+                    ).label.toLowerCase()}
+                    . Fix it on the {communitiesLink} before running a snapshot.
+                  </>
+                ) : (
+                  <>
+                    This preset points at a connection that no longer exists.
+                    Pick another one, or connect it again on the{" "}
+                    {communitiesLink}.
+                  </>
+                )}
               </FormDescription>
             )}
             {input.description && (

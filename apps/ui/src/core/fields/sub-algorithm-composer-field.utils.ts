@@ -5,6 +5,8 @@ import {
   getAlgorithmDefinitionKeys,
   getAlgorithmDefinitionVersions,
 } from "@reputo/reputation-algorithms"
+import type { CommunityPlatform } from "@/lib/api/types"
+import { getRequiredCommunityPlatform } from "../community-requirements"
 
 export interface ChildAlgorithmOption {
   key: string
@@ -13,6 +15,8 @@ export interface ChildAlgorithmOption {
   summary: string
   /** Latest registry version, pre-assigned when the child is added. */
   latestVersion: string
+  /** Platform this child needs an active connection for, when it is a community algorithm. */
+  communityPlatform?: CommunityPlatform
 }
 
 const NORMALIZATION_METHOD_LABELS: Record<string, string> = {
@@ -88,6 +92,7 @@ export function getSelectableChildAlgorithms(): ChildAlgorithmOption[] {
       label: definition.name,
       summary: definition.summary ?? "",
       latestVersion,
+      communityPlatform: getRequiredCommunityPlatform(key, latestVersion),
     })
   }
 

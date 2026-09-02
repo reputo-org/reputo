@@ -40,6 +40,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { useCommunityConnections } from "@/lib/api/hooks"
+import { COMMUNITY_PLATFORMS } from "@/lib/community/platforms"
 import { cn } from "@/lib/utils"
 import { renderScalarField } from "../render-field"
 import {
@@ -116,6 +118,28 @@ export function SubAlgorithmComposerField({
   const remainingOptions = childOptions.filter(
     (option) => !usedKeys.has(option.key)
   )
+
+  // While the query loads or fails nothing is disabled — a false negative
+  // would hide working algorithms, and the connection field still guards.
+  const {
+    data: connections,
+    isLoading: connectionsLoading,
+    isError: connectionsError,
+  } = useCommunityConnections({
+    enabled: childOptions.some((option) => option.communityPlatform),
+  })
+  const activePlatforms = new Set(
+    (connections ?? [])
+      .filter((connection) => connection.status === "active")
+      .map((connection) => connection.platform)
+  )
+  const optionLocked = (option: ChildAlgorithmOption) =>
+    option.communityPlatform !== undefined &&
+    !connectionsLoading &&
+    !connectionsError &&
+    connections !== undefined &&
+    !activePlatforms.has(option.communityPlatform)
+  const anyLocked = remainingOptions.some(optionLocked)
   const maxItems = input.maxItems
   const atMaxItems = maxItems !== undefined && fields.length >= maxItems
   const addDisabled = remainingOptions.length === 0 || atMaxItems
@@ -201,20 +225,41 @@ export function SubAlgorithmComposerField({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-80">
-          {remainingOptions.map((option) => (
-            <DropdownMenuItem
-              key={option.key}
-              onSelect={() => handleAdd(option)}
-              className="flex flex-col items-start gap-0.5 py-2"
-            >
-              <span className="text-sm font-medium">{option.label}</span>
-              {option.summary && (
-                <span className="text-muted-foreground line-clamp-2 text-xs">
-                  {option.summary}
-                </span>
-              )}
+          {remainingOptions.map((option) => {
+            const locked = optionLocked(option)
+            return (
+              <DropdownMenuItem
+                key={option.key}
+                disabled={locked}
+                onSelect={() => handleAdd(option)}
+                className="flex flex-col items-start gap-0.5 py-2"
+              >
+                <span className="text-sm font-medium">{option.label}</span>
+                {locked ? (
+                  <span className="text-muted-foreground text-xs">
+                    No active{" "}
+                    {COMMUNITY_PLATFORMS.find(
+                      (platform) => platform.id === option.communityPlatform
+                    )?.label ?? option.communityPlatform}{" "}
+                    connection
+                  </span>
+                ) : (
+                  option.summary && (
+                    <span className="text-muted-foreground line-clamp-2 text-xs">
+                      {option.summary}
+                    </span>
+                  )
+                )}
+              </DropdownMenuItem>
+            )
+          })}
+          {anyLocked && (
+            <DropdownMenuItem asChild className="text-muted-foreground text-xs">
+              <a href="/community" target="_blank" rel="noreferrer">
+                Connect communities on the Communities page
+              </a>
             </DropdownMenuItem>
-          ))}
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       {remainingOptions.length === 0 && fields.length > 0 && (

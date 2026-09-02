@@ -207,10 +207,19 @@ export const useRestoreAdmin = () => {
   })
 }
 
-export const useCommunityConnections = () => {
+export const useCommunityConnections = (options?: {
+  enabled?: boolean
+  /** Poll while mounted — the Communities page uses this so sweep-driven status changes appear on their own. */
+  refetchIntervalMs?: number
+}) => {
   return useQuery({
     queryKey: queryKeys.communityConnections.lists(),
     queryFn: () => communityApi.list(),
+    enabled: options?.enabled ?? true,
+    refetchInterval: options?.refetchIntervalMs,
+    // Connecting a community happens in another tab; refetch on return so
+    // the composer and pickers see it without a manual reload.
+    refetchOnWindowFocus: "always",
   })
 }
 
