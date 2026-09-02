@@ -4,6 +4,7 @@ import { MockActivityEnvironment } from '@temporalio/testing';
 import { DataSource } from 'typeorm';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { CommunityService } from '../../../src/community/community.service';
 import { CommunityConnectionRepository } from '../../../src/community/community-connection.repository';
 import { CommunityConnectionEntity, ENTITIES, SnapshotEntity, SnapshotOutputEntity } from '../../../src/persistence';
 import { SnapshotRepository } from '../../../src/snapshot/snapshot.repository';
@@ -77,6 +78,9 @@ describe('API snapshot activities (integration)', () => {
     activities = createSnapshotActivities(
       service,
       new CommunityConnectionRepository(dataSource.getRepository(CommunityConnectionEntity)),
+      // The write-back activity is covered by its unit tests and the
+      // health-sweep e2e; this suite never calls it.
+      { checkHealth: vi.fn() } as unknown as CommunityService,
     );
   }, 120_000);
 

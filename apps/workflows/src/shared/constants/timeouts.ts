@@ -7,6 +7,9 @@ export const ONCHAIN_DATA_DEPENDENCY_RESOLUTION_TIMEOUT = '2 hours';
 // Covers a full 6-month community crawl at platform rate limits plus the
 // DuckDB staging, Parquet export, and S3 moves of the freeze.
 export const COMMUNITY_DEPENDENCY_RESOLUTION_TIMEOUT = '2 hours';
+// A full capability probe reads up to ten resources at platform pace, which
+// can exceed the shared DB-activity timeout.
+export const COMMUNITY_HEALTH_WRITEBACK_TIMEOUT = '5 minutes';
 export const DEEP_ID_POST_SCORES_TIMEOUT = '15 minutes';
 export const DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT = '5 minutes';
 // Covers one readiness pass (bounded by DeepID's 5-minute cursor lifetime) plus its cursor restarts.
