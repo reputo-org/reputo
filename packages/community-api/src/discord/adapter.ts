@@ -4,12 +4,10 @@ import type { CommunityAdapter } from '../shared/records.js';
 import type { CommunityProbeResult, CommunityProfile, CommunityResource } from '../shared/types.js';
 import { createDiscordRecordIterator } from './fetch.js';
 import {
-  canReadDiscordChannel,
   findExactMemberId,
   hasRequiredMessageFields,
   toCommunityResources,
   toDiscordGuildProfile,
-  toDiscordPermissionContext,
 } from './transform.js';
 import {
   DISCORD_API_BASE_URL,
@@ -18,9 +16,7 @@ import {
   type DiscordRawGuild,
   type DiscordRawGuildMember,
   type DiscordRawMessage,
-  type DiscordRawRole,
   type DiscordRawThread,
-  type DiscordRawUser,
 } from './types.js';
 
 /** Channels the probe will try before concluding that nothing is readable. */
@@ -81,53 +77,6 @@ export function createDiscordAdapter(
     return response.data ?? [];
   };
 
-  const fetchPermissionContext = async (guildId: string) => {
-    const userResponse = await executeRequest<DiscordRawUser>(
-      logger,
-      config,
-      {
-        method: 'GET',
-        url: `${DISCORD_API_BASE_URL}/users/@me`,
-        headers: botHeaders,
-      },
-      observer,
-    );
-    const botUserId = userResponse.data?.id;
-    if (typeof botUserId !== 'string' || botUserId.length === 0) {
-      throw new CommunityContractError('Discord returned no bot user id for the permission check.');
-    }
-
-    const [memberResponse, rolesResponse] = await Promise.all([
-      executeRequest<DiscordRawGuildMember>(
-        logger,
-        config,
-        {
-          method: 'GET',
-          url: `${DISCORD_API_BASE_URL}/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(botUserId)}`,
-          headers: botHeaders,
-        },
-        observer,
-      ),
-      executeRequest<DiscordRawRole[]>(
-        logger,
-        config,
-        {
-          method: 'GET',
-          url: `${DISCORD_API_BASE_URL}/guilds/${encodeURIComponent(guildId)}/roles`,
-          headers: botHeaders,
-        },
-        observer,
-      ),
-    ]);
-
-    return toDiscordPermissionContext(
-      guildId,
-      userResponse.data ?? {},
-      memberResponse.data ?? {},
-      rolesResponse.data ?? [],
-    );
-  };
-
   return {
     platform: 'discord',
 
@@ -136,28 +85,9 @@ export function createDiscordAdapter(
     },
 
     async probe(guildId: string): Promise<CommunityProbeResult> {
-      const rawChannels = await listRawChannels(guildId);
-      const resources = toCommunityResources(rawChannels);
+      const resources = toCommunityResources(await listRawChannels(guildId));
 
-      if (resources.length === 0) {
-        throw new CommunityPermissionError(
-          'The bot can see no text, announcement, or forum channels in this server.',
-          403,
-        );
-      }
-
-      const permissionContext = await fetchPermissionContext(guildId);
-      const rawById = new Map(
-        rawChannels
-          .filter((channel): channel is DiscordRawChannel & { id: string } => typeof channel?.id === 'string')
-          .map((channel) => [channel.id, channel]),
-      );
-      const readableResources = resources.filter((resource) => {
-        const channel = rawById.get(resource.id);
-        return channel !== undefined && canReadDiscordChannel(channel, permissionContext);
-      });
-
-      for (const resource of readableResources.slice(0, PROBE_CHANNEL_LIMIT)) {
+      for (const resource of resources.slice(0, PROBE_CHANNEL_LIMIT)) {
         try {
           const response = await executeRequest<DiscordRawMessage[]>(
             logger,
@@ -193,7 +123,12 @@ export function createDiscordAdapter(
         }
       }
 
-      throw new CommunityPermissionError('The bot cannot read message history in any channel of this server.', 403);
+      throw new CommunityPermissionError(
+        resources.length === 0
+          ? 'The bot can see no text, announcement, or forum channels in this server.'
+          : 'The bot cannot read message history in any channel of this server.',
+        403,
+      );
     },
 
     iterateRecords,

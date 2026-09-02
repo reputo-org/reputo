@@ -18,10 +18,7 @@ import {
   type DiscordRawGuild,
   type DiscordRawGuildMember,
   type DiscordRawMessage,
-  type DiscordRawPermissionOverwrite,
-  type DiscordRawRole,
   type DiscordRawThread,
-  type DiscordRawUser,
   DiscordThreadType,
   type DiscordTokenResponse,
 } from './types.js';
@@ -44,128 +41,6 @@ const CHANNEL_KIND_BY_TYPE = new Map<number, CommunityResourceKind>([
   [DiscordChannelType.guildAnnouncement, 'announcement'],
   [DiscordChannelType.guildForum, 'forum'],
 ]);
-
-const DiscordPermission = {
-  administrator: 1n << 3n,
-  viewChannel: 1n << 10n,
-  readMessageHistory: 1n << 16n,
-} as const;
-
-const REQUIRED_CHANNEL_PERMISSIONS = DiscordPermission.viewChannel | DiscordPermission.readMessageHistory;
-
-export interface DiscordPermissionContext {
-  guildId: string;
-  botUserId: string;
-  botRoleIds: readonly string[];
-  roles: readonly DiscordRawRole[];
-}
-
-function permissionBits(value: unknown, field: string): bigint {
-  if (typeof value !== 'string' || !/^\d+$/.test(value)) {
-    throw new CommunityContractError(`Discord returned a malformed ${field} permission value.`);
-  }
-  return BigInt(value);
-}
-
-/** Narrows the identity and guild-member responses used by the permission resolver. */
-export function toDiscordPermissionContext(
-  guildId: string,
-  user: DiscordRawUser,
-  member: DiscordRawGuildMember,
-  roles: readonly DiscordRawRole[],
-): DiscordPermissionContext {
-  if (typeof user?.id !== 'string' || user.id.length === 0) {
-    throw new CommunityContractError('Discord returned no bot user id for the permission check.');
-  }
-  if (!Array.isArray(member?.roles) || !member.roles.every((roleId) => typeof roleId === 'string')) {
-    throw new CommunityContractError('Discord returned malformed bot role ids for the permission check.');
-  }
-  if (!Array.isArray(roles)) {
-    throw new CommunityContractError('Discord returned a malformed guild role listing.');
-  }
-
-  return { guildId, botUserId: user.id, botRoleIds: member.roles, roles };
-}
-
-function parsePermissionOverwrite(raw: unknown): DiscordRawPermissionOverwrite & {
-  id: string;
-  type: number;
-  allow: string;
-  deny: string;
-} {
-  if (
-    typeof raw !== 'object' ||
-    raw === null ||
-    typeof (raw as DiscordRawPermissionOverwrite).id !== 'string' ||
-    typeof (raw as DiscordRawPermissionOverwrite).type !== 'number' ||
-    typeof (raw as DiscordRawPermissionOverwrite).allow !== 'string' ||
-    typeof (raw as DiscordRawPermissionOverwrite).deny !== 'string'
-  ) {
-    throw new CommunityContractError('Discord returned a malformed channel permission overwrite.');
-  }
-  return raw as DiscordRawPermissionOverwrite & { id: string; type: number; allow: string; deny: string };
-}
-
-/**
- * Resolves Discord's role and channel-overwrite hierarchy for the two read
- * permissions Reputo needs. Discord can answer a history request with `200 []`
- * when View Channel is allowed but Read Message History is not, so the HTTP
- * status alone is not proof of access.
- */
-export function canReadDiscordChannel(channel: DiscordRawChannel, context: DiscordPermissionContext): boolean {
-  const roleById = new Map<string, DiscordRawRole>();
-  for (const role of context.roles) {
-    if (typeof role?.id !== 'string' || role.id.length === 0) {
-      throw new CommunityContractError('Discord returned a guild role without an id.');
-    }
-    roleById.set(role.id, role);
-  }
-
-  const everyone = roleById.get(context.guildId);
-  if (!everyone) {
-    throw new CommunityContractError('Discord returned no @everyone role for the permission check.');
-  }
-
-  let permissions = permissionBits(everyone.permissions, '@everyone');
-  for (const roleId of context.botRoleIds) {
-    const role = roleById.get(roleId);
-    if (!role) {
-      throw new CommunityContractError('Discord omitted one of the bot roles from the permission check.');
-    }
-    permissions |= permissionBits(role.permissions, 'role');
-  }
-
-  if ((permissions & DiscordPermission.administrator) !== 0n) return true;
-
-  const rawOverwrites = channel.permission_overwrites ?? [];
-  if (!Array.isArray(rawOverwrites)) {
-    throw new CommunityContractError('Discord returned malformed channel permission overwrites.');
-  }
-  const overwrites = rawOverwrites.map(parsePermissionOverwrite);
-  const apply = (overwrite: ReturnType<typeof parsePermissionOverwrite>) => {
-    permissions &= ~permissionBits(overwrite.deny, 'deny');
-    permissions |= permissionBits(overwrite.allow, 'allow');
-  };
-
-  const everyoneOverwrite = overwrites.find((overwrite) => overwrite.type === 0 && overwrite.id === context.guildId);
-  if (everyoneOverwrite) apply(everyoneOverwrite);
-
-  let roleDeny = 0n;
-  let roleAllow = 0n;
-  const memberRoles = new Set(context.botRoleIds);
-  for (const overwrite of overwrites) {
-    if (overwrite.type !== 0 || !memberRoles.has(overwrite.id)) continue;
-    roleDeny |= permissionBits(overwrite.deny, 'role deny');
-    roleAllow |= permissionBits(overwrite.allow, 'role allow');
-  }
-  permissions &= ~roleDeny;
-  permissions |= roleAllow;
-
-  const memberOverwrite = overwrites.find((overwrite) => overwrite.type === 1 && overwrite.id === context.botUserId);
-  if (memberOverwrite) apply(memberOverwrite);
-
-  return (permissions & REQUIRED_CHANNEL_PERMISSIONS) === REQUIRED_CHANNEL_PERMISSIONS;
-}
 
 /**
  * Bot-install authorization URL. `scope=bot` with exactly the read permissions
@@ -241,8 +116,8 @@ export function toDiscordGuildProfile(guildId: string, raw: DiscordRawGuild): Co
 /**
  * Whether a sampled page carries the fields the fetch depends on. The bot runs
  * without privileged intents, so the probe proves these arrive over REST before
- * a snapshot ever relies on them. An empty page has no malformed rows; the
- * probe verifies effective permissions separately.
+ * a snapshot ever relies on them. An empty page proves read permission and
+ * leaves the fields unverified, which counts as present.
  */
 export function hasRequiredMessageFields(messages: readonly DiscordRawMessage[]): boolean {
   return messages.every(

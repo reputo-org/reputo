@@ -67,7 +67,6 @@ export interface DiscordRawChannel {
   type?: unknown;
   position?: unknown;
   guild_id?: unknown;
-  permission_overwrites?: unknown;
 }
 
 export interface DiscordRawMessage {
@@ -86,23 +85,6 @@ export interface DiscordRawMessage {
 
 export interface DiscordRawGuildMember {
   user?: { id?: unknown; username?: unknown };
-  roles?: unknown;
-}
-
-export interface DiscordRawUser {
-  id?: unknown;
-}
-
-export interface DiscordRawRole {
-  id?: unknown;
-  permissions?: unknown;
-}
-
-export interface DiscordRawPermissionOverwrite {
-  id?: unknown;
-  type?: unknown;
-  allow?: unknown;
-  deny?: unknown;
 }
 
 export interface DiscordRawThread {
