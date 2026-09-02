@@ -2,6 +2,7 @@ import type { CommunityHttpConfig } from '../shared/types.js';
 
 export const DISCORD_API_BASE_URL = 'https://discord.com/api/v10';
 export const DISCORD_AUTHORIZE_URL = 'https://discord.com/oauth2/authorize';
+export const DISCORD_CDN_BASE_URL = 'https://cdn.discordapp.com';
 
 /**
  * View Channels (1 << 10) and Read Message History (1 << 16) — the only two
@@ -55,12 +56,18 @@ export interface DiscordTokenResponse {
   guild?: { id?: unknown; name?: unknown };
 }
 
+export interface DiscordRawGuild {
+  icon?: unknown;
+  approximate_member_count?: unknown;
+}
+
 export interface DiscordRawChannel {
   id?: unknown;
   name?: unknown;
   type?: unknown;
   position?: unknown;
   guild_id?: unknown;
+  permission_overwrites?: unknown;
 }
 
 export interface DiscordRawMessage {
@@ -79,6 +86,23 @@ export interface DiscordRawMessage {
 
 export interface DiscordRawGuildMember {
   user?: { id?: unknown; username?: unknown };
+  roles?: unknown;
+}
+
+export interface DiscordRawUser {
+  id?: unknown;
+}
+
+export interface DiscordRawRole {
+  id?: unknown;
+  permissions?: unknown;
+}
+
+export interface DiscordRawPermissionOverwrite {
+  id?: unknown;
+  type?: unknown;
+  allow?: unknown;
+  deny?: unknown;
 }
 
 export interface DiscordRawThread {

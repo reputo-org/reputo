@@ -9,10 +9,37 @@ vi.mock('undici', () => ({ request: vi.fn() }));
 const mockRequest = vi.mocked(request);
 const client = createDiscordClient(TEST_DISCORD_CONFIG, createStubLogger());
 
-const channel = (id: string, type = 0) => ({ id, name: `channel-${id}`, type, position: Number(id) });
+const channel = (id: string, type = 0, permissionOverwrites: unknown[] = []) => ({
+  id,
+  name: `channel-${id}`,
+  type,
+  position: Number(id),
+  permission_overwrites: permissionOverwrites,
+});
 const message = { id: 'm1', timestamp: '2026-08-01T00:00:00.000+00:00', author: { id: '42' } };
 
 const lastCall = () => mockRequest.mock.calls.at(-1) as [string, { headers?: Record<string, string>; body?: string }];
+
+function mockProbe(
+  channels: unknown[],
+  responses: Array<{ statusCode: number; body: unknown }>,
+  basePermissions = '66560',
+) {
+  mockRequest
+    .mockResolvedValueOnce(mockUndiciResponse(200, channels) as never)
+    .mockResolvedValueOnce(mockUndiciResponse(200, { id: 'bot-1' }) as never)
+    .mockResolvedValueOnce(mockUndiciResponse(200, { roles: ['bot-role'] }) as never)
+    .mockResolvedValueOnce(
+      mockUndiciResponse(200, [
+        { id: 'guild-1', permissions: '0' },
+        { id: 'bot-role', permissions: basePermissions },
+      ]) as never,
+    );
+
+  for (const response of responses) {
+    mockRequest.mockResolvedValueOnce(mockUndiciResponse(response.statusCode, response.body) as never);
+  }
+}
 
 describe('exchangeCode', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -100,9 +127,13 @@ describe('probe', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('reads a single page of history from the first readable channel', async () => {
-    mockRequest
-      .mockResolvedValueOnce(mockUndiciResponse(200, [channel('1'), channel('2')]) as never)
-      .mockResolvedValueOnce(mockUndiciResponse(200, [message]) as never);
+    mockProbe(
+      [channel('1'), channel('2')],
+      [
+        { statusCode: 200, body: [message] },
+        { statusCode: 200, body: { icon: 'abc123', approximate_member_count: 250 } },
+      ],
+    );
 
     const result = await client.probe('guild-1');
 
@@ -110,16 +141,40 @@ describe('probe', () => {
       resourceCount: 2,
       sampledResourceId: '1',
       sampledRecordCount: 1,
+      profile: {
+        avatarUrl: 'https://cdn.discordapp.com/icons/guild-1/abc123.png?size=128',
+        memberCount: 250,
+      },
     });
-    expect(lastCall()[0]).toBe('https://discord.com/api/v10/channels/1/messages?limit=1');
-    expect(mockRequest).toHaveBeenCalledTimes(2);
+    expect(mockRequest.mock.calls[4]?.[0]).toBe('https://discord.com/api/v10/channels/1/messages?limit=1');
+    expect(lastCall()[0]).toBe('https://discord.com/api/v10/guilds/guild-1?with_counts=true');
+    expect(mockRequest).toHaveBeenCalledTimes(6);
+  });
+
+  it('keeps the probe result when the guild profile lookup fails', async () => {
+    mockProbe(
+      [channel('1')],
+      [
+        { statusCode: 200, body: [message] },
+        { statusCode: 403, body: { message: 'Missing Access' } },
+      ],
+    );
+
+    const result = await client.probe('guild-1');
+
+    expect(result.sampledResourceId).toBe('1');
+    expect(result.profile).toBeUndefined();
   });
 
   it('skips channels the bot cannot read and samples the next one', async () => {
-    mockRequest
-      .mockResolvedValueOnce(mockUndiciResponse(200, [channel('1'), channel('2')]) as never)
-      .mockResolvedValueOnce(mockUndiciResponse(403, { message: 'Missing Access' }) as never)
-      .mockResolvedValueOnce(mockUndiciResponse(200, []) as never);
+    mockProbe(
+      [channel('1'), channel('2')],
+      [
+        { statusCode: 403, body: { message: 'Missing Access' } },
+        { statusCode: 200, body: [] },
+        { statusCode: 200, body: {} },
+      ],
+    );
 
     const result = await client.probe('guild-1');
 
@@ -128,19 +183,23 @@ describe('probe', () => {
   });
 
   it('rejects a sampled page that is missing the fields the fetch needs', async () => {
-    mockRequest
-      .mockResolvedValueOnce(mockUndiciResponse(200, [channel('1')]) as never)
-      .mockResolvedValueOnce(mockUndiciResponse(200, [{ id: 'm1', timestamp: '2026-08-01T00:00:00Z' }]) as never);
+    mockProbe([channel('1')], [{ statusCode: 200, body: [{ id: 'm1', timestamp: '2026-08-01T00:00:00Z' }] }]);
 
     await expect(client.probe('guild-1')).rejects.toBeInstanceOf(CommunityContractError);
   });
 
   it('fails when no channel in the guild is readable', async () => {
-    mockRequest
-      .mockResolvedValueOnce(mockUndiciResponse(200, [channel('1')]) as never)
-      .mockResolvedValueOnce(mockUndiciResponse(403, { message: 'Missing Access' }) as never);
+    mockProbe([channel('1')], [{ statusCode: 403, body: { message: 'Missing Access' } }]);
 
     await expect(client.probe('guild-1')).rejects.toBeInstanceOf(CommunityPermissionError);
+  });
+
+  it('does not mistake Discord 200 with an empty page for readable history', async () => {
+    const viewChannelOnly = [{ id: 'guild-1', type: 0, allow: '1024', deny: '0' }];
+    mockProbe([channel('1', 0, viewChannelOnly)], [], '0');
+
+    await expect(client.probe('guild-1')).rejects.toBeInstanceOf(CommunityPermissionError);
+    expect(mockRequest.mock.calls.some(([url]) => String(url).includes('/channels/1/messages'))).toBe(false);
   });
 
   it('fails when the bot can see no supported channel', async () => {
@@ -151,10 +210,10 @@ describe('probe', () => {
 
   it('stops after ten unreadable channels instead of walking the whole guild', async () => {
     const channels = Array.from({ length: 25 }, (_, index) => channel(String(index + 1)));
-    mockRequest.mockResolvedValueOnce(mockUndiciResponse(200, channels) as never);
+    mockProbe(channels, []);
     mockRequest.mockResolvedValue(mockUndiciResponse(403, { message: 'Missing Access' }) as never);
 
     await expect(client.probe('guild-1')).rejects.toBeInstanceOf(CommunityPermissionError);
-    expect(mockRequest).toHaveBeenCalledTimes(11);
+    expect(mockRequest).toHaveBeenCalledTimes(14);
   });
 });

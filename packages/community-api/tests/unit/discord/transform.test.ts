@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildInstallUrl,
+  canReadDiscordChannel,
   extractInstalledGuild,
   hasRequiredMessageFields,
   toCommunityResources,
+  toDiscordGuildProfile,
+  toDiscordPermissionContext,
 } from '../../../src/discord/transform.js';
 import { DISCORD_BOT_PERMISSIONS } from '../../../src/discord/types.js';
 import { CommunityContractError } from '../../../src/shared/errors.js';
@@ -137,6 +140,61 @@ describe('toCommunityResources', () => {
   });
 });
 
+describe('Discord effective read permissions', () => {
+  const context = (basePermissions: string, botPermissions = '0') =>
+    toDiscordPermissionContext('guild-1', { id: 'bot-1' }, { roles: ['bot-role'] }, [
+      { id: 'guild-1', permissions: basePermissions },
+      { id: 'bot-role', permissions: botPermissions },
+    ]);
+
+  it('accepts permissions granted by the base or bot role', () => {
+    expect(canReadDiscordChannel({ permission_overwrites: [] }, context('66560'))).toBe(true);
+    expect(canReadDiscordChannel({ permission_overwrites: [] }, context('0', '66560'))).toBe(true);
+  });
+
+  it('rejects the live regression: View Channel allowed but history missing', () => {
+    const channel = {
+      permission_overwrites: [{ id: 'guild-1', type: 0, allow: '1024', deny: '0' }],
+    };
+
+    expect(canReadDiscordChannel(channel, context('0'))).toBe(false);
+  });
+
+  it('applies role overwrites after @everyone and member overwrites last', () => {
+    const roleRestoresHistory = {
+      permission_overwrites: [
+        { id: 'guild-1', type: 0, allow: '1024', deny: '65536' },
+        { id: 'bot-role', type: 0, allow: '65536', deny: '0' },
+      ],
+    };
+    expect(canReadDiscordChannel(roleRestoresHistory, context('0'))).toBe(true);
+
+    const memberDeniesView = {
+      permission_overwrites: [
+        ...roleRestoresHistory.permission_overwrites,
+        { id: 'bot-1', type: 1, allow: '0', deny: '1024' },
+      ],
+    };
+    expect(canReadDiscordChannel(memberDeniesView, context('0'))).toBe(false);
+  });
+
+  it('lets Administrator bypass channel overwrites', () => {
+    const denyBoth = {
+      permission_overwrites: [{ id: 'guild-1', type: 0, allow: '0', deny: '66560' }],
+    };
+
+    expect(canReadDiscordChannel(denyBoth, context('8'))).toBe(true);
+  });
+
+  it('fails closed when Discord returns malformed permission data', () => {
+    expect(() => context('not-a-bitfield')).not.toThrow();
+    expect(() => canReadDiscordChannel({}, context('not-a-bitfield'))).toThrow(CommunityContractError);
+    expect(() => toDiscordPermissionContext('guild-1', { id: 'bot-1' }, { roles: 'bot-role' }, [])).toThrow(
+      CommunityContractError,
+    );
+  });
+});
+
 describe('hasRequiredMessageFields', () => {
   const message = { id: '1', timestamp: '2026-08-01T00:00:00.000+00:00', author: { id: '42' } };
 
@@ -144,7 +202,7 @@ describe('hasRequiredMessageFields', () => {
     expect(hasRequiredMessageFields([message])).toBe(true);
   });
 
-  it('treats an empty page as verified — read permission was still proven', () => {
+  it('accepts an empty page after the separate effective-permission check', () => {
     expect(hasRequiredMessageFields([])).toBe(true);
   });
 
@@ -178,5 +236,25 @@ describe('findExactMemberId', () => {
     const { findExactMemberId } = await import('../../../src/discord/transform.js');
 
     expect(() => findExactMemberId('nope' as never, 'alice')).toThrow(CommunityContractError);
+  });
+});
+
+describe('toDiscordGuildProfile', () => {
+  it('builds the CDN icon URL and passes the member count through', () => {
+    expect(toDiscordGuildProfile('guild-1', { icon: 'a_98ab', approximate_member_count: 321 })).toEqual({
+      avatarUrl: 'https://cdn.discordapp.com/icons/guild-1/a_98ab.png?size=128',
+      memberCount: 321,
+    });
+  });
+
+  it('leaves absent or malformed fields undefined', () => {
+    expect(toDiscordGuildProfile('guild-1', {})).toEqual({ avatarUrl: undefined, memberCount: undefined });
+    expect(toDiscordGuildProfile('guild-1', { icon: '', approximate_member_count: 'many' })).toEqual({
+      avatarUrl: undefined,
+      memberCount: undefined,
+    });
+    expect(
+      toDiscordGuildProfile('guild-1', { icon: 7, approximate_member_count: Number.NaN }).avatarUrl,
+    ).toBeUndefined();
   });
 });
