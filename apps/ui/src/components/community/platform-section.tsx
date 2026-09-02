@@ -12,7 +12,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -23,12 +22,24 @@ import { mattermostServerUrlFromExternalId } from "@/lib/community/mattermost"
 import type { PlatformMeta } from "@/lib/community/platforms"
 import { cn } from "@/lib/utils"
 
-interface PlatformCardProps {
+interface PlatformSectionProps {
   platform: PlatformMeta
+  /** Connections to render — already narrowed by the page's search/filter. */
   connections: CommunityConnectionDto[]
+  /** All connections of this platform, before the search/filter. */
+  totalCount: number
 }
 
-export function PlatformCard({ platform, connections }: PlatformCardProps) {
+/**
+ * Full-width section for one platform: logo, count, and connect action in the
+ * header; connection rows beneath. Sections stack vertically, so a platform
+ * with many connections grows down instead of cramping a grid card.
+ */
+export function PlatformSection({
+  platform,
+  connections,
+  totalCount,
+}: PlatformSectionProps) {
   const [isConnecting, setIsConnecting] = useState(false)
   const [mattermostDialog, setMattermostDialog] = useState<{
     open: boolean
@@ -66,36 +77,58 @@ export function PlatformCard({ platform, connections }: PlatformCardProps) {
     }
   }
 
-  const hasConnections = connections.length > 0
+  const hasConnections = totalCount > 0
 
   return (
-    <Card className="flex h-full flex-col gap-4">
+    <Card className="gap-4">
       <CardHeader className="gap-0">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <PlatformLogoTile platform={platform.id} />
-          <CardTitle className="text-[15px] font-semibold">
-            {platform.label}
-          </CardTitle>
-          {!platform.available && (
-            <Badge variant="outline" className="ml-auto font-normal">
-              Coming soon
-            </Badge>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-[15px] font-semibold">
+                {platform.label}
+              </CardTitle>
+              {hasConnections && (
+                <Badge variant="secondary" className="font-normal tabular-nums">
+                  {totalCount}
+                </Badge>
+              )}
+              {!platform.available && (
+                <Badge variant="outline" className="font-normal">
+                  Coming soon
+                </Badge>
+              )}
+            </div>
+            <CardDescription className="text-[13px] leading-relaxed">
+              {platform.description}
+            </CardDescription>
+          </div>
+          {platform.available && (
+            <Button
+              size="sm"
+              variant={hasConnections ? "outline" : "default"}
+              disabled={isConnecting}
+              onClick={() => startConnect()}
+            >
+              {isConnecting ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Plus className="size-4" aria-hidden="true" />
+              )}
+              {hasConnections
+                ? `Add another ${platform.resourceNoun}`
+                : `Connect ${platform.label}`}
+            </Button>
           )}
         </div>
       </CardHeader>
 
       <CardContent
-        className={cn(
-          "flex flex-1 flex-col gap-3",
-          !platform.available && "opacity-60"
-        )}
+        className={cn("flex flex-col", !platform.available && "opacity-60")}
       >
-        <CardDescription className="text-[13px] leading-relaxed">
-          {platform.description}
-        </CardDescription>
-
         {platform.available ? (
-          hasConnections ? (
+          connections.length > 0 ? (
             <div className="flex flex-col">
               {connections.map((connection, index) => (
                 <div key={connection.id}>
@@ -110,7 +143,9 @@ export function PlatformCard({ platform, connections }: PlatformCardProps) {
             </div>
           ) : (
             <p className="text-muted-foreground/70 text-[13px]">
-              No {platform.resourceNoun} connected yet.
+              {hasConnections
+                ? "No connections match."
+                : `No ${platform.resourceNoun} connected yet.`}
             </p>
           )
         ) : (
@@ -119,26 +154,6 @@ export function PlatformCard({ platform, connections }: PlatformCardProps) {
           </p>
         )}
       </CardContent>
-
-      {platform.available && (
-        <CardFooter>
-          <Button
-            className="w-full"
-            variant={hasConnections ? "outline" : "default"}
-            disabled={isConnecting}
-            onClick={() => startConnect()}
-          >
-            {isConnecting ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Plus className="size-4" aria-hidden="true" />
-            )}
-            {hasConnections
-              ? `Add another ${platform.resourceNoun}`
-              : `Connect ${platform.label}`}
-          </Button>
-        </CardFooter>
-      )}
 
       {platform.id === "mattermost" && (
         <ConnectMattermostDialog

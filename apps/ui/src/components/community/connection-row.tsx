@@ -35,6 +35,7 @@ import {
   useRecheckCommunityConnection,
 } from "@/lib/api/hooks"
 import type { CommunityConnectionDto } from "@/lib/api/types"
+import { mattermostServerUrlFromExternalId } from "@/lib/community/mattermost"
 import {
   canDisconnect,
   canRecheck,
@@ -50,16 +51,59 @@ interface ConnectionRowProps {
   isReconnecting: boolean
 }
 
+/** Platform-side identifier worth showing: guild/installation id, or the Mattermost host. */
+function identifierFor(connection: CommunityConnectionDto): string {
+  if (connection.platform === "mattermost") {
+    const serverUrl = mattermostServerUrlFromExternalId(connection.externalId)
+    if (serverUrl !== undefined) {
+      try {
+        return new URL(serverUrl).host
+      } catch {
+        return connection.externalId
+      }
+    }
+  }
+  return connection.externalId
+}
+
+/** One truncating line: identifier · counts · freshness. Absolute times live in the tooltip. */
+function metaLine(connection: CommunityConnectionDto): string {
+  const { memberCount, resourceCount } = connection.metadata ?? {}
+  return [
+    identifierFor(connection),
+    memberCount !== undefined
+      ? `${memberCount.toLocaleString()} members`
+      : undefined,
+    resourceCount !== undefined
+      ? `${resourceCount.toLocaleString()} ${connection.platform === "github" ? "repositories" : "channels"}`
+      : undefined,
+    connection.lastCheckedAt
+      ? `Checked ${formatRelativeFromNow(connection.lastCheckedAt)}`
+      : `Connected ${formatRelativeFromNow(connection.createdAt)}`,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+}
+
+function metaTooltip(connection: CommunityConnectionDto): string {
+  const connected = `Connected ${new Date(connection.createdAt).toLocaleString()}`
+  return connection.lastCheckedAt
+    ? `Checked ${new Date(connection.lastCheckedAt).toLocaleString()}\n${connected}`
+    : connected
+}
+
 export function ConnectionRow({
   connection,
   onReconnect,
   isReconnecting,
 }: ConnectionRowProps) {
   const [isConfirmingDisconnect, setIsConfirmingDisconnect] = useState(false)
+  const [avatarFailed, setAvatarFailed] = useState(false)
   const recheck = useRecheckCommunityConnection()
   const disconnect = useDisconnectCommunityConnection()
 
   const reconnectable = needsReconnect(connection.status)
+  const avatarUrl = avatarFailed ? undefined : connection.metadata?.avatarUrl
 
   const handleRecheck = async () => {
     try {
@@ -90,18 +134,29 @@ export function ConnectionRow({
   return (
     <div className="flex flex-col">
       <Item size="sm" className="px-0">
-        <ItemMedia className="bg-muted text-muted-foreground grid size-7 shrink-0 place-items-center rounded-md text-xs font-semibold">
-          {connection.name.trim().charAt(0).toUpperCase() || "?"}
+        <ItemMedia className="bg-muted text-muted-foreground grid size-7 shrink-0 place-items-center overflow-hidden rounded-md text-xs font-semibold">
+          {avatarUrl ? (
+            // biome-ignore lint/performance/noImgElement: tiny platform-CDN avatar; next/image would need a remotePatterns entry per platform host
+            <img
+              src={avatarUrl}
+              alt=""
+              className="size-7 object-cover"
+              onError={() => setAvatarFailed(true)}
+            />
+          ) : (
+            connection.name.trim().charAt(0).toUpperCase() || "?"
+          )}
         </ItemMedia>
 
         <ItemContent className="min-w-0 gap-0">
           <span className="truncate text-sm font-medium">
             {connection.name}
           </span>
-          <span className="text-muted-foreground/80 text-xs">
-            {connection.lastCheckedAt
-              ? `Checked ${formatRelativeFromNow(connection.lastCheckedAt)}`
-              : `Connected ${formatRelativeFromNow(connection.createdAt)}`}
+          <span
+            className="text-muted-foreground/80 truncate text-xs"
+            title={metaTooltip(connection)}
+          >
+            {metaLine(connection)}
           </span>
         </ItemContent>
 
