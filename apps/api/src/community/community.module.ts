@@ -18,6 +18,7 @@ import { CommunityService } from './community.service';
 import { CommunityAuditRepository } from './community-audit.repository';
 import { CommunityConnectionRepository } from './community-connection.repository';
 import { CommunityCredentialsService } from './community-credentials.service';
+import { CommunityHealthSweepService } from './community-health-sweep.service';
 import { CommunityInputValidationService } from './community-input-validation.service';
 import { CommunityInstallStateService } from './community-install-state.service';
 import { CommunityPlatformRegistry } from './community-platform.registry';
@@ -29,6 +30,7 @@ import { CommunityPlatformRegistry } from './community-platform.registry';
     CommunityConnectionRepository,
     CommunityAuditRepository,
     CommunityCredentialsService,
+    CommunityHealthSweepService,
     CommunityInstallStateService,
     CommunityInputValidationService,
     CommunityPlatformRegistry,
@@ -56,6 +58,6 @@ import { CommunityPlatformRegistry } from './community-platform.registry';
         ),
     },
   ],
-  exports: [CommunityConnectionRepository, CommunityInputValidationService],
+  exports: [CommunityConnectionRepository, CommunityInputValidationService, CommunityService],
 })
 export class CommunityModule {}

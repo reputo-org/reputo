@@ -200,6 +200,30 @@ export const envSchema = z
       .positive()
       .default(10_000)
       .describe('Maximum delay for community platform retry backoff'),
+    COMMUNITY_HEALTH_SWEEP_INTERVAL_MS: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(900_000)
+      .describe('Interval between community connection health sweep passes; 0 disables the sweep'),
+    COMMUNITY_HEALTH_ACTIVE_RECHECK_AFTER_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(21_600_000)
+      .describe('Age after which the sweep re-probes an active community connection'),
+    COMMUNITY_HEALTH_FAILED_RECHECK_AFTER_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(1_800_000)
+      .describe('Age after which the sweep re-probes a pending, degraded, or broken community connection'),
+    COMMUNITY_HEALTH_PROBE_SPACING_MS: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(2_000)
+      .describe('Pause between consecutive probes within one health sweep pass'),
 
     DATABASE_URL: z
       .string()

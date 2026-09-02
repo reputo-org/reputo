@@ -7,6 +7,7 @@ import { AlgorithmPresetModule } from '../../src/algorithm-preset/algorithm-pres
 import { AuthModule, AuthService } from '../../src/auth';
 import { OAuthAuthProviderService } from '../../src/auth/oauth-auth-provider.service';
 import { CommunityModule, DISCORD_CLIENT, GITHUB_CLIENT, MATTERMOST_CLIENT } from '../../src/community';
+import { CommunityHealthSweepService } from '../../src/community/community-health-sweep.service';
 import { configModules } from '../../src/config';
 import { setupSwagger } from '../../src/docs';
 import { HealthModule } from '../../src/health';
@@ -105,8 +106,8 @@ export async function createTestApp(options: TestAppOptions) {
     terminateSnapshotWorkflows: async () => undefined,
   };
 
-  // The reconciler would sweep rows the e2e tests seeded with old timestamps;
-  // its behavior is covered by unit tests.
+  // The reconciler and the health sweep would touch rows the e2e tests seeded
+  // with old timestamps; their behavior is covered by their own tests.
   const noopReconciler = {
     onApplicationBootstrap: () => undefined,
     onModuleDestroy: () => undefined,
@@ -198,6 +199,8 @@ export async function createTestApp(options: TestAppOptions) {
     .overrideProvider(TemporalService)
     .useValue(mockTemporalService)
     .overrideProvider(SnapshotReconcilerService)
+    .useValue(noopReconciler)
+    .overrideProvider(CommunityHealthSweepService)
     .useValue(noopReconciler);
 
   // 'real' keeps the configured client so the outbound policy itself is under test.

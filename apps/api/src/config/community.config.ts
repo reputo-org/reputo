@@ -9,6 +9,17 @@ import type {
 
 import { env } from './env';
 
+export interface CommunityHealthSweepConfig {
+  /** Milliseconds between sweep passes; 0 disables the sweep. */
+  intervalMs: number;
+  /** Age after which an active connection is re-probed. */
+  activeRecheckAfterMs: number;
+  /** Age after which a pending, degraded, or broken connection is re-probed. */
+  failedRecheckAfterMs: number;
+  /** Pause between consecutive probes within one pass. */
+  probeSpacingMs: number;
+}
+
 export interface CommunityConfig {
   http: CommunityHttpConfig;
   installStateTtlSeconds: number;
@@ -16,6 +27,7 @@ export interface CommunityConfig {
   github: GitHubClientConfig;
   mattermost: MattermostClientConfig;
   credentials: CommunityCredentialKeyring;
+  healthSweep: CommunityHealthSweepConfig;
 }
 
 export default registerAs('community', (): CommunityConfig => {
@@ -55,6 +67,12 @@ export default registerAs('community', (): CommunityConfig => {
     credentials: {
       currentSecret: env.COMMUNITY_CREDENTIALS_ENCRYPTION_KEY,
       previousSecret: env.COMMUNITY_CREDENTIALS_ENCRYPTION_KEY_PREVIOUS,
+    },
+    healthSweep: {
+      intervalMs: env.COMMUNITY_HEALTH_SWEEP_INTERVAL_MS,
+      activeRecheckAfterMs: env.COMMUNITY_HEALTH_ACTIVE_RECHECK_AFTER_MS,
+      failedRecheckAfterMs: env.COMMUNITY_HEALTH_FAILED_RECHECK_AFTER_MS,
+      probeSpacingMs: env.COMMUNITY_HEALTH_PROBE_SPACING_MS,
     },
   };
 });
