@@ -54,6 +54,11 @@ export interface MattermostRawTeam {
   delete_at?: unknown;
 }
 
+export interface MattermostRawTeamStats {
+  total_member_count?: unknown;
+  active_member_count?: unknown;
+}
+
 export interface MattermostRawChannel {
   id?: unknown;
   name?: unknown;

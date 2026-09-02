@@ -5,6 +5,7 @@ import {
   normalizeMattermostServerUrl,
   parseMattermostExternalId,
   toMattermostResources,
+  toMattermostTeamProfile,
   toMattermostTeams,
 } from '../../../src/mattermost/transform.js';
 import { CommunityContractError, CommunityOutboundPolicyError } from '../../../src/shared/errors.js';
@@ -107,5 +108,18 @@ describe('countMattermostPosts', () => {
 
   it('rejects a malformed page', () => {
     expect(() => countMattermostPosts({ order: 'p1' } as never)).toThrow(CommunityContractError);
+  });
+});
+
+describe('toMattermostTeamProfile', () => {
+  it('prefers the active member count and falls back to the total', () => {
+    expect(toMattermostTeamProfile({ total_member_count: 12, active_member_count: 9 })).toEqual({ memberCount: 9 });
+    expect(toMattermostTeamProfile({ total_member_count: 12 })).toEqual({ memberCount: 12 });
+  });
+
+  it('leaves absent or malformed counts undefined', () => {
+    expect(toMattermostTeamProfile({}).memberCount).toBeUndefined();
+    expect(toMattermostTeamProfile({ active_member_count: 'nine' }).memberCount).toBeUndefined();
+    expect(toMattermostTeamProfile({ total_member_count: Number.NaN }).memberCount).toBeUndefined();
   });
 });

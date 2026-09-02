@@ -5,7 +5,7 @@ import {
   isWithinWindow,
   toUtcIso,
 } from '../shared/records.js';
-import type { CommunityResource } from '../shared/types.js';
+import type { CommunityProfile, CommunityResource } from '../shared/types.js';
 import {
   CommunityGithubActivityType,
   GITHUB_APPS_BASE_URL,
@@ -34,6 +34,14 @@ export function buildGitHubInstallUrl({ slug, state }: BuildGitHubInstallUrlPara
   const url = new URL(`${GITHUB_APPS_BASE_URL}/${encodeURIComponent(slug)}/installations/new`);
   url.searchParams.set('state', state);
   return url.toString();
+}
+
+/** Display facts from the installation's account. A missing avatar stays undefined. */
+export function toGitHubAccountProfile(raw: GitHubRawInstallation): CommunityProfile {
+  const avatarUrl = raw?.account?.avatar_url;
+  return {
+    avatarUrl: typeof avatarUrl === 'string' && avatarUrl.length > 0 ? avatarUrl : undefined,
+  };
 }
 
 /** The installation an app-JWT confirmation returned, with the account it belongs to. */

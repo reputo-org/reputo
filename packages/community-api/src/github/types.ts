@@ -73,6 +73,7 @@ export interface GitHubRateLimit {
 /** Raw shapes, narrowed before use — the transforms own the validation. */
 export interface GitHubRawAccount {
   login?: unknown;
+  avatar_url?: unknown;
 }
 
 export interface GitHubRawInstallation {

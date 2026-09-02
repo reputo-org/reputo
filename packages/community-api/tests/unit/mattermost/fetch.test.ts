@@ -55,6 +55,11 @@ describe('mattermost record iterator', () => {
         return;
       }
 
+      if (url === '/api/v4/teams/team-1/stats') {
+        respond({ total_member_count: 12, active_member_count: 9 });
+        return;
+      }
+
       if (url.startsWith('/api/v4/users/ids') || url.startsWith('/api/v4/users/usernames')) {
         const requested = JSON.parse(Buffer.concat(chunks).toString('utf8') || '[]') as string[];
         const byId = url.includes('/ids');
@@ -256,6 +261,7 @@ describe('mattermost record iterator', () => {
       resourceCount: 1,
       sampledResourceId: 'chan-1',
       sampledRecordCount: 1,
+      profile: { memberCount: 9 },
     });
   });
 

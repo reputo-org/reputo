@@ -1,13 +1,20 @@
 import { CommunityContractError, CommunityHttpError, CommunityPermissionError } from '../shared/errors.js';
 import type { CommunityHttpObserver, CommunityLogger } from '../shared/http.js';
 import type { CommunityAdapter } from '../shared/records.js';
-import type { CommunityProbeResult, CommunityResource } from '../shared/types.js';
+import type { CommunityProbeResult, CommunityProfile, CommunityResource } from '../shared/types.js';
 import { createGitHubApi, type GitHubApi } from './auth.js';
 import { createGitHubRecordIterator } from './fetch.js';
-import { hasRequiredIssueFields, toIssueEnabledIds, toMatchedAccountId, toRepositoryResources } from './transform.js';
+import {
+  hasRequiredIssueFields,
+  toGitHubAccountProfile,
+  toIssueEnabledIds,
+  toMatchedAccountId,
+  toRepositoryResources,
+} from './transform.js';
 import type {
   GitHubAdapterConfig,
   GitHubRateLimit,
+  GitHubRawInstallation,
   GitHubRawIssue,
   GitHubRawRepositoriesResponse,
   GitHubRawUser,
@@ -64,13 +71,35 @@ export async function listInstallationRepositories(
   return (await readInstallationRepositories(api, installationId)).resources;
 }
 
+// Best-effort display facts; a failure here never fails the probe.
+async function fetchAccountProfile(
+  api: GitHubApi,
+  installationId: string,
+  logger?: CommunityLogger,
+): Promise<CommunityProfile | undefined> {
+  try {
+    const installation = await api.appRequest<GitHubRawInstallation>(
+      'GET',
+      `/app/installations/${encodeURIComponent(installationId)}`,
+    );
+    return toGitHubAccountProfile(installation);
+  } catch {
+    logger?.warn({ platform: 'github', message: 'Installation profile lookup failed; probe continues without it.' });
+    return undefined;
+  }
+}
+
 /**
  * Lists the installation's repositories and reads one issues page, proving both
  * the App's permissions and that the fields the crawl depends on arrive.
  * Candidates are the repositories whose tracker is on, so an installation whose
  * first repositories happen to have issues disabled still probes cleanly.
  */
-export async function probeInstallation(api: GitHubApi, installationId: string): Promise<CommunityProbeResult> {
+export async function probeInstallation(
+  api: GitHubApi,
+  installationId: string,
+  logger?: CommunityLogger,
+): Promise<CommunityProbeResult> {
   const { resources, probeCandidates } = await readInstallationRepositories(api, installationId);
 
   for (const resource of probeCandidates.slice(0, PROBE_REPOSITORY_LIMIT)) {
@@ -88,7 +117,12 @@ export async function probeInstallation(api: GitHubApi, installationId: string):
         );
       }
 
-      return { resourceCount: resources.length, sampledResourceId: resource.id, sampledRecordCount: page.length };
+      return {
+        resourceCount: resources.length,
+        sampledResourceId: resource.id,
+        sampledRecordCount: page.length,
+        profile: await fetchAccountProfile(api, installationId, logger),
+      };
     } catch (error) {
       // A repository with issues disabled or read access revoked is normal;
       // only an installation with no readable repository at all fails a probe.
@@ -139,7 +173,7 @@ export function createGitHubAdapter(
 
     listResources: (installationId) => listRepositories(installationId),
 
-    probe: (installationId) => probeInstallation(api, installationId),
+    probe: (installationId) => probeInstallation(api, installationId, logger),
 
     iterateRecords: createGitHubRecordIterator({
       api,

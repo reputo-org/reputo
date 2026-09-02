@@ -21,6 +21,17 @@ export interface CommunityResource {
 }
 
 /**
+ * Display facts about a connected community — counts and public asset URLs
+ * only, in keeping with the package rule of never touching content.
+ */
+export interface CommunityProfile {
+  /** Public HTTPS icon URL, when the platform serves one unauthenticated. */
+  avatarUrl?: string;
+  /** Approximate member count, when one cheap call provides it. */
+  memberCount?: number;
+}
+
+/**
  * Outcome of a successful capability probe: what the connection can list, and
  * which resource one page of history was read from. A probe that resolves has
  * already verified the fields the fetch will later need.
@@ -30,6 +41,8 @@ export interface CommunityProbeResult {
   /** Resource the probe read a page of history from, when one was readable. */
   sampledResourceId?: string;
   sampledRecordCount: number;
+  /** Best-effort display facts; absent when the extra call failed. */
+  profile?: CommunityProfile;
 }
 
 export const DEFAULT_HTTP_CONFIG: CommunityHttpConfig = {

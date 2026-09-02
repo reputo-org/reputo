@@ -5,13 +5,14 @@ import {
   type CommunityFetchWindow,
   isWithinWindow,
 } from '../shared/records.js';
-import type { CommunityResource } from '../shared/types.js';
+import type { CommunityProfile, CommunityResource } from '../shared/types.js';
 import type {
   MattermostRawChannel,
   MattermostRawPost,
   MattermostRawPostList,
   MattermostRawReaction,
   MattermostRawTeam,
+  MattermostRawTeamStats,
   MattermostRawUser,
   MattermostTeam,
 } from './types.js';
@@ -84,6 +85,20 @@ export function toMattermostTeams(teams: unknown): MattermostTeam[] {
 }
 
 /** Channels the bot is in, active only, alphabetical by shown name. */
+/**
+ * Display facts from the team stats. No avatar: the team image endpoint needs
+ * the bot token, so there is no URL a browser could load unauthenticated.
+ */
+export function toMattermostTeamProfile(raw: MattermostRawTeamStats): CommunityProfile {
+  const active = raw?.active_member_count;
+  const total = raw?.total_member_count;
+  const memberCount = typeof active === 'number' && Number.isFinite(active) ? active : total;
+
+  return {
+    memberCount: typeof memberCount === 'number' && Number.isFinite(memberCount) ? memberCount : undefined,
+  };
+}
+
 export function toMattermostResources(channels: unknown): CommunityResource[] {
   if (!Array.isArray(channels)) {
     throw new CommunityContractError('Mattermost channel listing was not an array.');

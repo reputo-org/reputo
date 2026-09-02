@@ -5,6 +5,7 @@ import {
   isPullRequest,
   pullRequestNumber,
   toCommentRecords,
+  toGitHubAccountProfile,
   toInstallation,
   toIssueRecords,
   toMatchedAccountId,
@@ -219,5 +220,19 @@ describe('toMatchedAccountId', () => {
     expect(toMatchedAccountId({ id: 7, login: 'octocat' }, 'octocat')).toBe('7');
     expect(toMatchedAccountId({ id: 7, login: 'Octocat' }, 'octocat')).toBeNull();
     expect(toMatchedAccountId(undefined, 'octocat')).toBeNull();
+  });
+});
+
+describe('toGitHubAccountProfile', () => {
+  it('passes the account avatar through', () => {
+    expect(toGitHubAccountProfile({ id: 55, account: { login: 'singnet', avatar_url: 'https://a.test/u/1' } })).toEqual(
+      { avatarUrl: 'https://a.test/u/1' },
+    );
+  });
+
+  it('leaves an absent or malformed avatar undefined', () => {
+    expect(toGitHubAccountProfile({ id: 55, account: { login: 'singnet' } }).avatarUrl).toBeUndefined();
+    expect(toGitHubAccountProfile({ id: 55, account: { avatar_url: '' } }).avatarUrl).toBeUndefined();
+    expect(toGitHubAccountProfile({ id: 55, account: null }).avatarUrl).toBeUndefined();
   });
 });

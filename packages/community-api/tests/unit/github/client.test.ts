@@ -65,13 +65,36 @@ describe('listResources and probe', () => {
       .mockResolvedValueOnce(mockUndiciResponse(200, REPOSITORIES, rateLimitHeaders(11_000)) as never)
       .mockResolvedValueOnce(
         mockUndiciResponse(200, [{ id: 10, created_at: '2026-07-01T00:00:00Z' }], rateLimitHeaders(10_999)) as never,
+      )
+      .mockResolvedValueOnce(
+        mockUndiciResponse(200, {
+          id: 55,
+          account: { login: 'singnet', avatar_url: 'https://avatars.githubusercontent.com/u/6000104' },
+        }) as never,
       );
 
     await expect(newClient().probe('55')).resolves.toEqual({
       resourceCount: 1,
       sampledResourceId: '1',
       sampledRecordCount: 1,
+      profile: { avatarUrl: 'https://avatars.githubusercontent.com/u/6000104' },
     });
+    expect(lastCall()[0]).toBe('https://api.github.com/app/installations/55');
+  });
+
+  it('keeps the probe result when the installation profile lookup fails', async () => {
+    mockRequest
+      .mockResolvedValueOnce(mockUndiciResponse(201, INSTALLATION_TOKEN_BODY) as never)
+      .mockResolvedValueOnce(mockUndiciResponse(200, REPOSITORIES, rateLimitHeaders(11_000)) as never)
+      .mockResolvedValueOnce(
+        mockUndiciResponse(200, [{ id: 10, created_at: '2026-07-01T00:00:00Z' }], rateLimitHeaders(10_999)) as never,
+      )
+      .mockResolvedValueOnce(mockUndiciResponse(403, { message: 'Forbidden' }) as never);
+
+    const result = await newClient().probe('55');
+
+    expect(result.sampledResourceId).toBe('1');
+    expect(result.profile).toBeUndefined();
   });
 
   it('fails the probe when no repository can be read', async () => {
@@ -100,11 +123,12 @@ describe('listResources and probe', () => {
       )
       .mockResolvedValueOnce(
         mockUndiciResponse(200, [{ id: 10, created_at: '2026-07-01T00:00:00Z' }], rateLimitHeaders(10_999)) as never,
-      );
+      )
+      .mockResolvedValueOnce(mockUndiciResponse(200, { id: 55, account: { login: 'singnet' } }) as never);
 
     // The tracker-less repository sorts first but is never read.
     await expect(newClient().probe('55')).resolves.toMatchObject({ resourceCount: 2, sampledResourceId: '1' });
-    expect(lastCall()[0]).toContain('/repos/singnet/snet/issues');
+    expect(mockRequest.mock.calls.at(-2)?.[0]).toContain('/repos/singnet/snet/issues');
   });
 
   it('reports an installation whose repositories all have issues disabled', async () => {

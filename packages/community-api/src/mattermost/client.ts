@@ -1,12 +1,13 @@
 import { CommunityPermissionError } from '../shared/errors.js';
 import type { CommunityLogger } from '../shared/http.js';
-import type { CommunityProbeResult, CommunityResource } from '../shared/types.js';
+import type { CommunityProbeResult, CommunityProfile, CommunityResource } from '../shared/types.js';
 import { createMattermostRequest } from './request.js';
 import {
   assertMattermostUser,
   countMattermostPosts,
   normalizeMattermostServerUrl,
   toMattermostResources,
+  toMattermostTeamProfile,
   toMattermostTeams,
 } from './transform.js';
 import type {
@@ -15,6 +16,7 @@ import type {
   MattermostRawChannel,
   MattermostRawPostList,
   MattermostRawTeam,
+  MattermostRawTeamStats,
   MattermostRawUser,
   MattermostTeam,
   MattermostTeamTarget,
@@ -41,6 +43,21 @@ export interface MattermostClient {
 
 export function createMattermostClient(config: MattermostClientConfig, logger: CommunityLogger): MattermostClient {
   const call = createMattermostRequest(config, logger);
+
+  // Best-effort display facts; a failure here never fails the probe.
+  const fetchTeamProfile = async (target: MattermostTeamTarget): Promise<CommunityProfile | undefined> => {
+    try {
+      const response = await call<MattermostRawTeamStats>(
+        target,
+        'GET',
+        `/teams/${encodeURIComponent(target.teamId)}/stats`,
+      );
+      return toMattermostTeamProfile(response.data ?? {});
+    } catch {
+      logger.warn({ platform: 'mattermost', message: 'Team stats lookup failed; probe continues without it.' });
+      return undefined;
+    }
+  };
 
   const listRawChannels = async (target: MattermostTeamTarget): Promise<CommunityResource[]> => {
     const response = await call<MattermostRawChannel[]>(
@@ -80,6 +97,7 @@ export function createMattermostClient(config: MattermostClientConfig, logger: C
             resourceCount: resources.length,
             sampledResourceId: resource.id,
             sampledRecordCount: countMattermostPosts(response.data ?? {}),
+            profile: await fetchTeamProfile(target),
           };
         } catch (error) {
           // A channel the bot cannot read is normal; only a team with no
