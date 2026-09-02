@@ -7,6 +7,19 @@ import type { CommunityConnectionStatus, CommunityPlatform, CommunityResourceKin
  * Credentials never appear here. The sealed credential column exists on the
  * entity only, and no field of this DTO is derived from it.
  */
+/**
+ * Display facts the last successful probe captured — counts and public asset
+ * URLs only, never content. Fields go stale together with `lastCheckedAt`.
+ */
+export interface CommunityConnectionMetadataDto {
+  /** Public HTTPS icon URL, when the platform serves one unauthenticated. */
+  avatarUrl?: string;
+  /** Approximate member count reported by the platform. */
+  memberCount?: number;
+  /** Selectable resources the probe counted — channels, repositories. */
+  resourceCount?: number;
+}
+
 export interface CommunityConnectionDto {
   id: string;
   platform: CommunityPlatform;
@@ -21,10 +34,12 @@ export interface CommunityConnectionDto {
   statusReason?: string;
   /**
    * When the platform last confirmed this state. Health is checked on connect,
-   * on demand, and per snapshot — never on a timer — so a status is only as
-   * current as this timestamp.
+   * on demand, per snapshot, and periodically by the API health sweep — so a
+   * status is at most one sweep interval behind the platform.
    */
   lastCheckedAt?: string;
+  /** Present once a probe has succeeded; kept across later failed probes. */
+  metadata?: CommunityConnectionMetadataDto;
   createdAt: string;
   updatedAt: string;
 }

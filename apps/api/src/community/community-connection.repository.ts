@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { CommunityConnectionStatus, type CommunityPlatform } from '@reputo/contracts';
+import {
+  type CommunityConnectionMetadataDto,
+  CommunityConnectionStatus,
+  type CommunityPlatform,
+} from '@reputo/contracts';
 import { QueryFailedError, Repository } from 'typeorm';
 import { CommunityConnectionEntity } from '../persistence';
 
@@ -10,6 +14,7 @@ export interface CommunityConnectionRow {
   externalId: string;
   name: string;
   status: CommunityConnectionStatus;
+  metadata?: CommunityConnectionMetadataDto;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,6 +31,19 @@ function isDuplicateKeyError(error: unknown): boolean {
   return error instanceof QueryFailedError && (error.driverError as { code?: string })?.code === '23505';
 }
 
+/** Stored settings are untyped jsonb; anything malformed reads as absent. */
+function readStoredMetadata(settings: unknown): CommunityConnectionMetadataDto | undefined {
+  const metadata = (settings as { metadata?: unknown } | null)?.metadata;
+  if (typeof metadata !== 'object' || metadata === null) return undefined;
+
+  const { avatarUrl, memberCount, resourceCount } = metadata as Record<string, unknown>;
+  return {
+    avatarUrl: typeof avatarUrl === 'string' ? avatarUrl : undefined,
+    memberCount: typeof memberCount === 'number' ? memberCount : undefined,
+    resourceCount: typeof resourceCount === 'number' ? resourceCount : undefined,
+  };
+}
+
 function mapRow(entity: CommunityConnectionEntity): CommunityConnectionRow {
   return {
     id: entity.id,
@@ -33,6 +51,7 @@ function mapRow(entity: CommunityConnectionEntity): CommunityConnectionRow {
     externalId: entity.externalId,
     name: entity.name,
     status: entity.status,
+    metadata: readStoredMetadata(entity.settings),
     createdAt: entity.createdAt,
     updatedAt: entity.updatedAt,
   };
@@ -78,11 +97,23 @@ export class CommunityConnectionRepository {
     }
   }
 
-  async updateStatus(id: string, status: CommunityConnectionStatus): Promise<CommunityConnectionRow | null> {
+  /**
+   * Metadata is written only when the caller has fresh probe facts, so a
+   * failing probe moves the status without wiping the last good metadata.
+   */
+  async updateStatus(
+    id: string,
+    status: CommunityConnectionStatus,
+    metadata?: CommunityConnectionMetadataDto,
+  ): Promise<CommunityConnectionRow | null> {
     const entity = await this.connections.findOne({ where: { id } });
     if (!entity) return null;
 
     entity.status = status;
+    if (metadata) {
+      const settings = typeof entity.settings === 'object' && entity.settings !== null ? entity.settings : {};
+      entity.settings = { ...settings, metadata };
+    }
     return mapRow(await this.connections.save(entity));
   }
 

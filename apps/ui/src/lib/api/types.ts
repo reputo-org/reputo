@@ -216,6 +216,13 @@ export type CommunityConnectionStatus =
   | "broken"
   | "disconnected"
 
+/** Display facts from the last successful probe. Kept across later failed probes. */
+export interface CommunityConnectionMetadataDto {
+  avatarUrl?: string
+  memberCount?: number
+  resourceCount?: number
+}
+
 export interface CommunityConnectionDto {
   id: string
   platform: CommunityPlatform
@@ -223,8 +230,9 @@ export interface CommunityConnectionDto {
   name: string
   status: CommunityConnectionStatus
   statusReason?: string
-  /** When the platform last confirmed this state; health is never checked on a timer. */
+  /** When the platform last confirmed this state; checked on connect, on demand, per snapshot, and by the periodic health sweep. */
   lastCheckedAt?: string
+  metadata?: CommunityConnectionMetadataDto
   createdAt: string
   updatedAt: string
 }

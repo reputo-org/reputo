@@ -270,6 +270,52 @@ describe('Community connections e2e', () => {
     });
   });
 
+  describe('metadata', () => {
+    const PROFILE_PROBE = {
+      ...PROBE,
+      profile: {
+        avatarUrl: 'https://cdn.discordapp.com/icons/974492421130127923/a1b2c3.png?size=128',
+        memberCount: 1874,
+      },
+    };
+
+    it('captures display metadata at connect and serves it on the list', async () => {
+      discord.probe.mockResolvedValue(PROFILE_PROBE);
+
+      const { connection } = await connect();
+
+      expect(connection.metadata).toEqual({
+        avatarUrl: PROFILE_PROBE.profile.avatarUrl,
+        memberCount: 1874,
+        resourceCount: 2,
+      });
+    });
+
+    it('serves counts alone when the probe carried no profile', async () => {
+      const { connection } = await connect();
+
+      expect(connection.metadata).toEqual({ resourceCount: 2 });
+    });
+
+    it('keeps the last good metadata across a failing probe and refreshes it on recovery', async () => {
+      discord.probe.mockResolvedValue(PROFILE_PROBE);
+      const { connection } = await connect();
+
+      discord.probe.mockRejectedValue(new CommunityAuthError('401: Unauthorized', 401));
+      await api(app, adminCookie).get(`/community/connections/${connection.id}/health`).expect(200);
+
+      const broken = await api(app, adminCookie).get('/community/connections').expect(200);
+      expect(broken.body[0].status).toBe('broken');
+      expect(broken.body[0].metadata).toMatchObject({ memberCount: 1874 });
+
+      discord.probe.mockResolvedValue({ ...PROBE, resourceCount: 5, profile: { memberCount: 2000 } });
+      await api(app, adminCookie).get(`/community/connections/${connection.id}/health`).expect(200);
+
+      const recovered = await api(app, adminCookie).get('/community/connections').expect(200);
+      expect(recovered.body[0].metadata).toEqual({ memberCount: 2000, resourceCount: 5 });
+    });
+  });
+
   describe('disconnect', () => {
     it('removes the bot from the community and deletes the connection', async () => {
       const { connection } = await connect();
@@ -416,6 +462,7 @@ describe('Community connections e2e', () => {
         'externalId',
         'id',
         'lastCheckedAt',
+        'metadata',
         'name',
         'platform',
         'status',

@@ -2,13 +2,14 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   buildMattermostExternalId,
+  type CommunityProbeResult,
   type DiscordClient,
   type GitHubClient,
   type MattermostClient,
   type MattermostTeam,
   toErrorCategory,
 } from '@reputo/community-api';
-import { CommunityConnectionStatus, CommunityPlatform } from '@reputo/contracts';
+import { type CommunityConnectionMetadataDto, CommunityConnectionStatus, CommunityPlatform } from '@reputo/contracts';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { throwNotFoundError } from '../shared/exceptions';
 import type { OAuthUserRow } from '../users';
@@ -47,6 +48,15 @@ const COMMUNITY_CONNECTION_ENTITY = 'CommunityConnection';
 
 /** GitHub sends this when an organization owner still has to approve the install. */
 const GITHUB_SETUP_ACTION_REQUEST = 'request';
+
+/** Display facts a successful probe carries, in the shape the row stores. */
+function toConnectionMetadata(probe: CommunityProbeResult): CommunityConnectionMetadataDto {
+  return {
+    avatarUrl: probe.profile?.avatarUrl,
+    memberCount: probe.profile?.memberCount,
+    resourceCount: probe.resourceCount,
+  };
+}
 
 @Injectable()
 export class CommunityService {
@@ -222,7 +232,11 @@ export class CommunityService {
 
     try {
       const probe = await this.platforms.get(platform).probe(externalId);
-      const active = await this.connections.updateStatus(connection.id, CommunityConnectionStatus.active);
+      const active = await this.connections.updateStatus(
+        connection.id,
+        CommunityConnectionStatus.active,
+        toConnectionMetadata(probe),
+      );
 
       await this.recordOutcome(actor, connection, CommunityAuditAction.connect);
       this.logger.info(
@@ -250,14 +264,18 @@ export class CommunityService {
     }
   }
 
-  /** On-demand probe. A failed probe is a reported state, not a failed request. */
-  async checkHealth(actor: OAuthUserRow, id: string): Promise<CommunityHealthDto> {
+  /**
+   * On-demand probe. A failed probe is a reported state, not a failed request.
+   * A null actor is a system check — the health sweep, or a snapshot failure
+   * write-back — and audits with no user.
+   */
+  async checkHealth(actor: OAuthUserRow | null, id: string): Promise<CommunityHealthDto> {
     const connection = await this.getUsableConnection(id);
     const checkedAt = new Date().toISOString();
 
     try {
-      await this.platforms.get(connection.platform).probe(connection.externalId);
-      await this.connections.updateStatus(connection.id, CommunityConnectionStatus.active);
+      const probe = await this.platforms.get(connection.platform).probe(connection.externalId);
+      await this.connections.updateStatus(connection.id, CommunityConnectionStatus.active, toConnectionMetadata(probe));
       await this.recordOutcome(actor, connection, CommunityAuditAction.healthCheck);
 
       return { status: CommunityConnectionStatus.active, checkedAt };
@@ -380,7 +398,7 @@ export class CommunityService {
       });
 
       const probe = await this.platforms.get(platform).probe(community.externalId);
-      await this.connections.updateStatus(connection.id, CommunityConnectionStatus.active);
+      await this.connections.updateStatus(connection.id, CommunityConnectionStatus.active, toConnectionMetadata(probe));
 
       await this.audit.record({
         connectionId: connection.id,
@@ -459,7 +477,7 @@ export class CommunityService {
   }
 
   private recordOutcome(
-    actor: OAuthUserRow,
+    actor: OAuthUserRow | null,
     connection: CommunityConnectionRow,
     action: CommunityAuditAction,
     errorCategory?: CommunityAuditErrorCategory,
@@ -467,7 +485,7 @@ export class CommunityService {
     return this.audit.record({
       connectionId: connection.id,
       platform: connection.platform,
-      actorUserId: actor._id,
+      actorUserId: actor?._id ?? null,
       action,
       outcome: errorCategory ? CommunityAuditOutcome.failure : CommunityAuditOutcome.success,
       errorCategory,
@@ -496,6 +514,7 @@ export class CommunityService {
           ? undefined
           : describeErrorCategory(failureCategory, row.platform),
       lastCheckedAt: verification?.checkedAt.toISOString(),
+      metadata: row.metadata,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
