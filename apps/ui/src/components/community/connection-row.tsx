@@ -49,6 +49,11 @@ interface ConnectionRowProps {
   /** Starts the platform install flow again, reviving this connection. */
   onReconnect: () => void
   isReconnecting: boolean
+  /**
+   * This platform pushes its changes right now, so the row is current and its
+   * freshness is not worth a line.
+   */
+  isLive: boolean
 }
 
 /** Platform-side identifier worth showing: guild/installation id, or the Mattermost host. */
@@ -82,8 +87,15 @@ function resourceSummary(
   return `${resourceCount.toLocaleString()} ${noun}`
 }
 
-/** One truncating line: identifier · counts · freshness. Absolute times live in the tooltip. */
-function metaLine(connection: CommunityConnectionDto): string {
+/**
+ * One truncating line: identifier · counts · freshness. Absolute times live in
+ * the tooltip.
+ *
+ * Freshness is shown only while the platform is being polled. With a live feed
+ * the row is current to the second, so "Checked 12 minutes ago" would describe
+ * the last probe rather than the data, and read as stale when nothing is.
+ */
+function metaLine(connection: CommunityConnectionDto, isLive: boolean): string {
   const { memberCount } = connection.metadata ?? {}
   return [
     identifierFor(connection),
@@ -91,12 +103,16 @@ function metaLine(connection: CommunityConnectionDto): string {
       ? `${memberCount.toLocaleString()} members`
       : undefined,
     resourceSummary(connection),
-    connection.lastCheckedAt
-      ? `Checked ${formatRelativeFromNow(connection.lastCheckedAt)}`
-      : `Connected ${formatRelativeFromNow(connection.createdAt)}`,
+    isLive ? undefined : freshness(connection),
   ]
     .filter(Boolean)
     .join(" · ")
+}
+
+function freshness(connection: CommunityConnectionDto): string {
+  return connection.lastCheckedAt
+    ? `Checked ${formatRelativeFromNow(connection.lastCheckedAt)}`
+    : `Connected ${formatRelativeFromNow(connection.createdAt)}`
 }
 
 function metaTooltip(connection: CommunityConnectionDto): string {
@@ -110,6 +126,7 @@ export function ConnectionRow({
   connection,
   onReconnect,
   isReconnecting,
+  isLive,
 }: ConnectionRowProps) {
   const [isConfirmingDisconnect, setIsConfirmingDisconnect] = useState(false)
   const [avatarFailed, setAvatarFailed] = useState(false)
@@ -170,7 +187,7 @@ export function ConnectionRow({
             className="text-muted-foreground/80 truncate text-xs"
             title={metaTooltip(connection)}
           >
-            {metaLine(connection)}
+            {metaLine(connection, isLive)}
           </span>
         </ItemContent>
 

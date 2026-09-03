@@ -7,9 +7,15 @@ import type { CommunityConnectionDto } from "@/lib/api/types"
 import type { CommunityLiveState } from "@/lib/api/use-community-events"
 
 const useCommunityConnections = vi.fn()
+const LIVE_FEEDS = {
+  discord: "live",
+  github: "live",
+  mattermost: "live",
+} as const
+
 const useCommunityLiveUpdates = vi.fn<() => CommunityLiveState>(() => ({
   connected: true,
-  watchIntervalMs: 30_000,
+  realtime: { feeds: { ...LIVE_FEEDS }, fallbackIntervalMs: 30_000 },
 }))
 
 vi.mock("@/lib/api/use-community-events", () => ({
@@ -67,7 +73,14 @@ function renderWith(state: {
 }
 
 describe("CommunityConnections", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Every feed live is the default; a test that needs a polled platform says so.
+    useCommunityLiveUpdates.mockReturnValue({
+      connected: true,
+      realtime: { feeds: { ...LIVE_FEEDS }, fallbackIntervalMs: 30_000 },
+    })
+  })
 
   it("shows a spinner while the connections load", () => {
     renderWith({ isLoading: true })
@@ -169,7 +182,28 @@ describe("CommunityConnections", () => {
     ).toBeEnabled()
   })
 
-  it("reports when the status was last confirmed, so a stale Active is visible as stale", () => {
+  it("hides the freshness line while the platform pushes its changes", () => {
+    // A live feed keeps the row current, so "Checked an hour ago" would date
+    // the last probe rather than the data, and read as stale when nothing is.
+    renderWith({
+      data: [
+        connection({
+          lastCheckedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+        }),
+      ],
+    })
+
+    expect(screen.queryByText(/Checked /)).not.toBeInTheDocument()
+  })
+
+  it("reports when the status was last confirmed once the platform is polled", () => {
+    useCommunityLiveUpdates.mockReturnValue({
+      connected: true,
+      realtime: {
+        feeds: { ...LIVE_FEEDS, discord: "down" },
+        fallbackIntervalMs: 30_000,
+      },
+    })
     renderWith({
       data: [
         connection({
@@ -181,24 +215,46 @@ describe("CommunityConnections", () => {
     expect(screen.getByText(/Checked /)).toBeInTheDocument()
   })
 
-  it("falls back to the connection time when the platform has never been checked", () => {
+  it("falls back to the connection time when a polled platform was never checked", () => {
+    useCommunityLiveUpdates.mockReturnValue({
+      connected: true,
+      realtime: {
+        feeds: { ...LIVE_FEEDS, discord: "down" },
+        fallbackIntervalMs: 30_000,
+      },
+    })
     renderWith({ data: [connection({ lastCheckedAt: undefined })] })
 
     expect(screen.getByText(/Connected /)).toBeInTheDocument()
   })
 
-  it("says the page is live and how often connections are re-checked", () => {
+  it("says changes arrive as they happen while every feed is live", () => {
     renderWith({ data: [connection()] })
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      /Live — every connection is re-checked every 30 s/
+      /Live — Discord changes appear as they happen/
+    )
+  })
+
+  it("names the platform that is polled while its feed is down", () => {
+    useCommunityLiveUpdates.mockReturnValue({
+      connected: true,
+      realtime: {
+        feeds: { ...LIVE_FEEDS, discord: "down" },
+        fallbackIntervalMs: 30_000,
+      },
+    })
+    renderWith({ data: [connection()] })
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /Live — Discord checked every 30 s while its feed reconnects/
     )
   })
 
   it("says it is reconnecting and polling while the stream is down", () => {
     useCommunityLiveUpdates.mockReturnValue({
       connected: false,
-      watchIntervalMs: undefined,
+      realtime: undefined,
     })
     renderWith({ data: [connection()] })
 

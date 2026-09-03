@@ -126,7 +126,10 @@ beforeEach(() => {
   })
   mockUseCommunityLiveUpdates.mockReturnValue({
     connected: true,
-    watchIntervalMs: 30_000,
+    realtime: {
+      feeds: { discord: "live", github: "live", mattermost: "live" },
+      fallbackIntervalMs: 30_000,
+    },
   })
 })
 

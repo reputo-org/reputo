@@ -15,7 +15,10 @@ vi.mock("@/lib/api/hooks", () => ({
 
 const useCommunityLiveUpdates = vi.fn((_options?: { enabled?: boolean }) => ({
   connected: true,
-  watchIntervalMs: 30_000,
+  realtime: {
+    feeds: { discord: "live", github: "live", mattermost: "live" },
+    fallbackIntervalMs: 30_000,
+  },
 }))
 
 vi.mock("@/lib/api/use-community-events", () => ({

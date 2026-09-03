@@ -275,8 +275,9 @@ export const communityApi = {
     await api.delete(`/community/connections/${id}`)
   },
   /**
-   * Live connection changes. While the stream is open the API re-probes every
-   * connection on its watch cadence, announced by the first event.
+   * Live connection changes, driven by each platform's own push transport. The
+   * first event carries the feed status: which platforms push their changes and
+   * which are polled for instead.
    */
   subscribeToEvents: (): EventSource => {
     const url = new URL(

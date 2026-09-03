@@ -33,11 +33,13 @@ const TOOLBAR_THRESHOLD = 6
 type StatusFilter = "all" | "attention" | "active"
 
 export function CommunityConnections() {
-  // The events stream pushes every probe's verdict; polling is the fallback
-  // while the stream is down and keeps "checked … ago" moving.
+  // Each platform's own feed drives the probes, and the events stream pushes
+  // every verdict here. Polling is only the fallback for a dropped stream —
+  // while it is open, refetching on a timer would just re-read what the stream
+  // has already delivered.
   const live = useCommunityLiveUpdates()
   const { data, isLoading, isError, refetch } = useCommunityConnections({
-    refetchIntervalMs: 60_000,
+    refetchIntervalMs: live.connected ? undefined : 60_000,
   })
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
@@ -76,6 +78,9 @@ export function CommunityConnections() {
   }
 
   const connections = data ?? []
+  const connectedPlatforms = COMMUNITY_PLATFORMS.map(
+    (platform) => platform.id
+  ).filter((id) => connections.some((connection) => connection.platform === id))
   const showToolbar = connections.length > TOOLBAR_THRESHOLD
   const normalizedSearch = search.trim().toLowerCase()
 
@@ -101,7 +106,9 @@ export function CommunityConnections() {
 
   return (
     <div className="flex flex-col gap-4">
-      {connections.length > 0 && <LiveStatus live={live} />}
+      {connections.length > 0 && (
+        <LiveStatus live={live} platforms={connectedPlatforms} />
+      )}
 
       {showToolbar && (
         <div className="flex flex-wrap items-center gap-2">
@@ -140,6 +147,9 @@ export function CommunityConnections() {
           platform={platform}
           connections={byPlatform(visible, platform.id)}
           totalCount={byPlatform(connections, platform.id).length}
+          isLive={
+            live.connected && live.realtime?.feeds[platform.id] === "live"
+          }
         />
       ))}
     </div>

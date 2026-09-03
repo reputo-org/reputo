@@ -45,7 +45,8 @@ function Probe({ enabled = true }: { enabled?: boolean }) {
   const live = useCommunityLiveUpdates({ enabled })
   return (
     <output>
-      {live.connected ? "connected" : "offline"}:{live.watchIntervalMs ?? "-"}
+      {live.connected ? "connected" : "offline"}:
+      {live.realtime?.feeds.discord ?? "-"}
     </output>
   )
 }
@@ -97,7 +98,7 @@ describe("useCommunityLiveUpdates", () => {
     expect(screen.getByRole("status")).toHaveTextContent("offline:-")
   })
 
-  it("reports the watch cadence and refetches what an event touches", () => {
+  it("reports the feed status and refetches what an event touches", () => {
     renderProbe(<Probe />)
     const source = sources[0] as FakeEventSource
 
@@ -110,10 +111,13 @@ describe("useCommunityLiveUpdates", () => {
     act(() =>
       source.emit({
         type: "community_connection:watch",
-        data: { intervalMs: 30_000 },
+        data: {
+          feeds: { discord: "live", github: "live", mattermost: "down" },
+          fallbackIntervalMs: 30_000,
+        },
       })
     )
-    expect(screen.getByRole("status")).toHaveTextContent("connected:30000")
+    expect(screen.getByRole("status")).toHaveTextContent("connected:live")
 
     act(() => {
       source.emit({

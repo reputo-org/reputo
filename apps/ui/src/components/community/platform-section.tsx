@@ -28,6 +28,8 @@ interface PlatformSectionProps {
   connections: CommunityConnectionDto[]
   /** All connections of this platform, before the search/filter. */
   totalCount: number
+  /** This platform pushes its changes right now, so its rows need no freshness line. */
+  isLive: boolean
 }
 
 /**
@@ -39,6 +41,7 @@ export function PlatformSection({
   platform,
   connections,
   totalCount,
+  isLive,
 }: PlatformSectionProps) {
   const [isConnecting, setIsConnecting] = useState(false)
   const [mattermostDialog, setMattermostDialog] = useState<{
@@ -137,6 +140,7 @@ export function PlatformSection({
                     connection={connection}
                     onReconnect={() => startConnect(connection)}
                     isReconnecting={isConnecting}
+                    isLive={isLive}
                   />
                 </div>
               ))}

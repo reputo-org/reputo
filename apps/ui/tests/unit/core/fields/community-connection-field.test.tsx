@@ -15,7 +15,13 @@ vi.mock("@/lib/api/hooks", () => ({
 }))
 
 vi.mock("@/lib/api/use-community-events", () => ({
-  useCommunityLiveUpdates: () => ({ connected: true, watchIntervalMs: 30_000 }),
+  useCommunityLiveUpdates: () => ({
+    connected: true,
+    realtime: {
+      feeds: { discord: "live", github: "live", mattermost: "live" },
+      fallbackIntervalMs: 30_000,
+    },
+  }),
 }))
 
 const connectionInput: FormInput = {

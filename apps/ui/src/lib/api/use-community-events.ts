@@ -4,13 +4,19 @@ import { type QueryClient, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useSyncExternalStore } from "react"
 import { queryKeys } from "./hooks"
 import { communityApi, handleAuthFailure } from "./services"
-import type { CommunityConnectionEventDto } from "./types"
+import type {
+  CommunityConnectionEventDto,
+  CommunityRealtimeStatusDto,
+} from "./types"
 
 export interface CommunityLiveState {
   /** The events stream is open right now. */
   connected: boolean
-  /** How often the API re-probes every connection while the stream is open; 0 when disabled. */
-  watchIntervalMs: number | undefined
+  /**
+   * Which platforms push their changes and which the API polls for instead.
+   * Undefined until the stream's first event says.
+   */
+  realtime: CommunityRealtimeStatusDto | undefined
 }
 
 const RECONNECT_DELAY_MS = 5_000
@@ -27,15 +33,15 @@ const WATCHDOG_INTERVAL_MS = 10_000
 /**
  * One events stream per page, shared by every component that wants live
  * connection updates: the first subscriber opens it, the last closes it. The
- * API counts open streams to decide whether to run its watch cadence, so a
- * page never holds more than one.
+ * API counts open streams to decide whether a platform without a live feed
+ * needs polling, so a page never holds more than one.
  */
 let subscribers = 0
 let source: EventSource | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let watchdog: ReturnType<typeof setInterval> | null = null
 let lastMessageAt = 0
-let state: CommunityLiveState = { connected: false, watchIntervalMs: undefined }
+let state: CommunityLiveState = { connected: false, realtime: undefined }
 const listeners = new Set<() => void>()
 const pendingResourceRefetches = new Map<
   string,
@@ -82,7 +88,7 @@ function handleEvent(
     case "community_connection:heartbeat":
       return
     case "community_connection:watch":
-      setState({ watchIntervalMs: event.data.intervalMs })
+      setState({ realtime: event.data })
       return
     case "community_connection:updated":
       invalidateConnections(client)
@@ -187,15 +193,15 @@ function release(): void {
   pendingResourceRefetches.clear()
   source?.close()
   source = null
-  setState({ connected: false, watchIntervalMs: undefined })
+  setState({ connected: false, realtime: undefined })
 }
 
 /**
- * Keeps the community connection queries live: a change on the platform that
- * a probe catches — the sweep, the watch cadence, a Re-check, a snapshot
- * failure — refetches the connections and the affected resources without a
- * reload, in every open tab. Mount it wherever connections or their resources
- * are shown; the stream is shared.
+ * Keeps the community connection queries live: whenever a platform reports a
+ * change — its live feed, a Re-check, the reconciliation sweep, a snapshot
+ * failure — this refetches the connections and the affected connection's
+ * resources without a reload, in every open tab. Mount it wherever connections
+ * or their resources are shown; the stream is shared.
  */
 export function useCommunityLiveUpdates(options?: {
   enabled?: boolean
