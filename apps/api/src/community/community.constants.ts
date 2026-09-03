@@ -83,6 +83,11 @@ const REASON_BY_PLATFORM: Partial<Record<CommunityPlatform, Record<string, strin
   discord: {
     [CommunityErrorCategory.permissionDenied]:
       'The bot is no longer in this server, or it is missing View Channels or Read Message History in every channel. Reconnect and grant both.',
+    // A kicked bot is answered with 404 as often as with 403, so this has to
+    // read as a kick first: the generic wording blames a deleted server and
+    // never tells the admin that reconnecting is the fix.
+    [CommunityErrorCategory.notFound]:
+      'The bot is no longer in this server, or the server no longer exists. Reconnect to add it again.',
   },
   github: {
     [CommunityErrorCategory.authFailed]:
