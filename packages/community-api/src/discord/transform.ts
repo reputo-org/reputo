@@ -1,4 +1,5 @@
 import { CommunityContractError } from '../shared/errors.js';
+import { CommunitySignalKind } from '../shared/realtime.js';
 import {
   type CommunityActivityRecord,
   CommunityChatActivityType,
@@ -525,4 +526,68 @@ export function toChannelMeta(channel: DiscordRawChannel): DiscordChannelMeta | 
     guildId: channel.guild_id,
     kind: CHANNEL_KIND_BY_TYPE.get(channel.type) as CommunityResourceKind,
   };
+}
+
+/**
+ * What one Gateway dispatch means for a connected community, before the
+ * caller's own session state is taken into account. Kept pure so the mapping is
+ * tested without a socket; the gateway adds the session bookkeeping.
+ */
+export type DiscordDispatchMeaning =
+  | { type: 'ignored' }
+  /** The guild became available: a fresh install, or a session replaying what it already had. */
+  | { type: 'available'; guildId: string }
+  /** Discord reported an outage for the guild. The bot has lost nothing; the guild will come back. */
+  | { type: 'outage'; guildId: string }
+  /** Something the next probe would see differently. */
+  | { type: 'changed'; guildId: string; kind: CommunitySignalKind };
+
+/**
+ * Guild-scoped dispatches that change what a probe would find. Channel and role
+ * events move the effective read access of a channel; the guild's own update
+ * moves the community.
+ */
+const DISPATCH_KIND: Record<string, CommunitySignalKind> = {
+  GUILD_UPDATE: CommunitySignalKind.community,
+  CHANNEL_CREATE: CommunitySignalKind.resources,
+  CHANNEL_UPDATE: CommunitySignalKind.resources,
+  CHANNEL_DELETE: CommunitySignalKind.resources,
+  GUILD_ROLE_CREATE: CommunitySignalKind.resources,
+  GUILD_ROLE_UPDATE: CommunitySignalKind.resources,
+  GUILD_ROLE_DELETE: CommunitySignalKind.resources,
+};
+
+/** Dispatches whose payload *is* the guild, so the guild id is its own `id`. */
+const GUILD_SCOPED_EVENTS = new Set(['GUILD_UPDATE']);
+
+export function readDiscordDispatch(event: string, payload: unknown): DiscordDispatchMeaning {
+  const data = (payload ?? {}) as Record<string, unknown>;
+
+  if (event === 'GUILD_CREATE') {
+    const guildId = readDiscordId(data.id);
+    return guildId === undefined ? { type: 'ignored' } : { type: 'available', guildId };
+  }
+
+  if (event === 'GUILD_DELETE') {
+    const guildId = readDiscordId(data.id);
+    if (guildId === undefined) return { type: 'ignored' };
+    // `unavailable: true` is a Discord outage, not a removal: the guild returns
+    // with a GUILD_CREATE and the bot's access never changed.
+    return data.unavailable === true
+      ? { type: 'outage', guildId }
+      : { type: 'changed', guildId, kind: CommunitySignalKind.revoked };
+  }
+
+  const kind = DISPATCH_KIND[event];
+  if (kind === undefined) return { type: 'ignored' };
+
+  // A channel payload has an `id` of its own, so the guild is read from
+  // `guild_id` for anything but a dispatch that *is* the guild — otherwise a
+  // channel id would be signalled as a community id.
+  const guildId = GUILD_SCOPED_EVENTS.has(event) ? readDiscordId(data.id) : readDiscordId(data.guild_id);
+  return guildId === undefined ? { type: 'ignored' } : { type: 'changed', guildId, kind };
+}
+
+function readDiscordId(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }

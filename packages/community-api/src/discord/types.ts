@@ -10,6 +10,14 @@ export const DISCORD_CDN_BASE_URL = 'https://cdn.discordapp.com';
  */
 export const DISCORD_BOT_PERMISSIONS = String((1 << 10) | (1 << 16));
 
+/**
+ * `GUILDS` (1 << 0) — the only intent the Gateway feed subscribes to, and a
+ * non-privileged one, in keeping with the read-only install. It delivers guild,
+ * channel, and role lifecycle events; it deliberately excludes message content
+ * and the privileged member intent.
+ */
+export const DISCORD_GATEWAY_INTENTS = 1 << 0;
+
 /** Channel types the community pipeline reads. Threads are enumerated per channel at fetch time. */
 export const DiscordChannelType = {
   guildText: 0,
