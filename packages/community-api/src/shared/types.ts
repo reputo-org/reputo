@@ -79,15 +79,18 @@ export interface CommunityProbeResult {
 
 /**
  * Order-independent fingerprint of a resource listing: which resources exist,
- * what they are called, and which the pipeline can read. The digest is what
- * tells a consumer that a listing changed without holding the listing, so it
- * has to cover everything a picker shows — a renamed channel is a change a
- * client must see. It is a one-way hash: names go in, nothing comes out.
+ * what they are called, which the pipeline can read, and what blocks the rest.
+ * The digest is what tells a consumer that a listing changed without holding
+ * the listing, so it has to cover everything a picker shows — a renamed
+ * channel, or an unreadable one whose remediation is now a different
+ * permission, is a change a client must see. It is a one-way hash: names go in,
+ * nothing comes out.
  */
 export function digestCommunityResources(resources: readonly CommunityResource[]): string {
   const hash = createHash('sha256');
   for (const resource of [...resources].sort((a, b) => a.id.localeCompare(b.id))) {
-    hash.update(`${resource.id}:${resource.kind}:${resource.name}:${resource.readable ? 1 : 0}\n`);
+    const verdict = resource.readable ? '1' : `0:${resource.accessIssue ?? ''}`;
+    hash.update(`${resource.id}:${resource.kind}:${resource.name}:${verdict}\n`);
   }
   return hash.digest('hex').slice(0, 16);
 }
