@@ -1,8 +1,8 @@
 # Community connections
 
 How Reputo connects to community platforms (Discord, GitHub, Mattermost), how it decides which
-channels or repositories the bot can read, how it keeps those connections healthy in real time,
-and how to verify the health checks by hand.
+channels or repositories the bot can read, how each platform pushes its changes to Reputo in real
+time, and how to verify the health checks by hand.
 
 ## What a connection is
 
@@ -62,37 +62,97 @@ snapshot fetch needs. It runs:
    re-checks that connection through the API, so a kicked bot flips its row to `broken` the
    moment a run hits it. Kicked-bot categories also fail the run on the first attempt instead
    of burning the full retry budget.
-4. **Periodically** — the API runs a health sweep so nobody has to press Re-check. Each pass
-   re-probes connections whose last check is older than a status-dependent threshold.
-   Non-active connections are re-probed sooner, so a fix on the platform side recovers the row
-   to `active` quickly on its own.
-5. **Live, while someone is looking** — the Communities page and every community preset
-   composer open the events stream (`GET /community/connections/events`, Server-Sent Events).
-   While at least one stream is open, the sweep switches to its **watch cadence** and re-probes
-   every connection every `COMMUNITY_HEALTH_WATCH_INTERVAL_MS`. A permission change on the
-   platform — a channel hidden from the bot, the bot kicked, a repository's issues turned off —
-   shows up on the open page within that interval, no click needed. The cadence stops with the
-   last client.
+4. **Whenever a platform says something changed** — see the next section. This is the normal
+   case: a permission change on the platform reaches an open page in about a second, with
+   nobody polling anything.
+5. **Periodically** — a reconciliation sweep re-probes connections whose last check is older
+   than a status-dependent threshold, as the safety net behind the live feeds. Non-active
+   connections are re-probed sooner, so a fix on the platform side recovers the row to `active`
+   on its own even if no event ever arrives.
 
 Listing resources (`GET /community/connections/:id/resources`) and preset validation are health
 signals too: a platform failure there moves the row like a failed probe would.
 
-The sweep is configured by five optional variables (see `.env.example`):
+## Live feeds: how each platform pushes its changes
+
+Every platform has exactly one transport that reports configuration changes, and Reputo follows
+it. None of them is optional-but-equivalent — there is no second way to hear about a hidden
+channel or an uninstalled App.
+
+| Platform | Transport | What it reports |
+| --- | --- | --- |
+| Discord | Gateway WebSocket, one socket for the whole bot. Discord publishes no webhook for guild state. | `CHANNEL_CREATE/UPDATE/DELETE`, `GUILD_ROLE_CREATE/UPDATE/DELETE`, `GUILD_UPDATE`, `GUILD_CREATE` (a fresh install), `GUILD_DELETE` (kicked). |
+| GitHub | App webhook deliveries to `POST /community/webhooks/github`. | `installation` (removed, suspended, restored, re-scoped), `installation_repositories` (a repository added or removed), `repository` (renamed, deleted, made private, issue tracker turned off). |
+| Mattermost | WebSocket API, one socket per connected team. Outgoing webhooks fire on messages, not on configuration. | `channel_created/deleted/restored/updated/converted`, the bot being added to or removed from a channel, and team-level changes. |
+
+A platform event is treated as a **hint, never as a fact**. Reputo does not try to replay
+Discord's permission model from deltas: an event only says "this community changed", and the
+answer comes from the same probe an on-demand Re-check runs. So the row a client sees is always
+what the platform's REST API actually returns — the view a snapshot fetch depends on — and a
+duplicate or out-of-order event costs nothing.
+
+Signals are coalesced twice. Events for one community inside
+`COMMUNITY_REALTIME_DEBOUNCE_MS` collapse into one probe, because a single admin action fans out
+into several events. An event that arrives while that connection's probe is already running
+schedules exactly one more, so the stored state is never the stale answer. Probes run one at a
+time.
+
+The feeds follow what is connected: the Gateway socket opens while any Discord community is
+connected and closes when the last one goes, and a Mattermost team gets its socket the moment it
+is connected — no restart. Reputo learns about that from the same PostgreSQL `NOTIFY` channel
+that drives the SSE stream, so it works on every replica. Mattermost tokens are unsealed per
+connection attempt rather than held for the life of the socket, and reach the server as an
+upgrade header, never as a frame.
+
+### What the live feeds cannot see
+
+Two gaps are covered by the sweep rather than papered over:
+
+- **Discord**: a role being *added to or removed from the bot itself* arrives as
+  `GUILD_MEMBER_UPDATE`, which needs the privileged `GUILD_MEMBERS` intent. Reputo runs on the
+  non-privileged `GUILDS` intent, in keeping with its read-only install, so this one case waits
+  for the sweep. A change to the *permissions of a role the bot holds* does arrive, and that is
+  the common case.
+- **GitHub**: GitHub does not retry a failed delivery. A delivery lost while the API was down is
+  gone, and the sweep is what corrects the row.
+
+### Operator setup
+
+- **GitHub**: set the App's Webhook URL to `{API public URL}/api/v1/community/webhooks/github`,
+  set its secret, and put the same value in `GITHUB_APP_WEBHOOK_SECRET`. Subscribe the App to
+  the **Installation**, **Installation target**, and **Repository** events. The endpoint is the
+  one community route without a session: GitHub authenticates by signing every delivery, and the
+  signature is verified against the raw request bytes in constant time. A missing, wrong, or
+  unverifiable signature is refused with `401` and identical wording, so nothing about the
+  secret leaks. Without the secret the endpoint refuses everything and GitHub connections fall
+  back to polling — they keep working, just less promptly.
+- **Discord** and **Mattermost**: nothing to configure. The bot token and the sealed team tokens
+  already in use are what the sockets authenticate with.
+
+### Cost and fallback
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `COMMUNITY_HEALTH_SWEEP_INTERVAL_MS` | `900000` (15 min) | Time between sweep passes. `0` disables the sweep. |
+| `COMMUNITY_REALTIME_ENABLED` | `true` | Follow the platforms' live feeds. `false` leaves everything to the sweep. |
+| `COMMUNITY_REALTIME_DEBOUNCE_MS` | `750` | Window in which repeated signals for one community collapse into a single probe. |
+| `GITHUB_APP_WEBHOOK_SECRET` | — | Secret on the App's webhook. Unset means GitHub deliveries are refused. |
+| `COMMUNITY_HEALTH_SWEEP_INTERVAL_MS` | `900000` (15 min) | Time between reconciliation passes. `0` disables the sweep. |
 | `COMMUNITY_HEALTH_ACTIVE_RECHECK_AFTER_MS` | `21600000` (6 h) | Age after which an `active` connection is re-probed. |
 | `COMMUNITY_HEALTH_FAILED_RECHECK_AFTER_MS` | `1800000` (30 min) | Age after which a `pending`/`degraded`/`broken` connection is re-probed. |
-| `COMMUNITY_HEALTH_PROBE_SPACING_MS` | `2000` | Pause between probes inside one pass, to stay friendly to rate limits. |
-| `COMMUNITY_HEALTH_WATCH_INTERVAL_MS` | `30000` (30 s) | Re-probe cadence for every connection while a client follows the events stream. `0` disables the watch cadence. |
+| `COMMUNITY_HEALTH_PROBE_SPACING_MS` | `2000` | Pause between probes inside one sweep pass. |
+| `COMMUNITY_HEALTH_WATCH_INTERVAL_MS` | `30000` (30 s) | Fallback poll cadence, used **only** for a platform whose live feed is down, while a client follows the events stream. `0` disables the fallback. |
 
-A healthy connection that nobody is looking at costs at most four probes per day. On the watch
-cadence a Discord probe is five requests (channels, bot member, roles, one history page, the
-guild), a GitHub probe three, a Mattermost probe about five; probes still run one at a time with
-the spacing pause, so a pass can never burst against a platform. If the API ever runs as more
-than one replica, each replica sweeps independently and every replica's events reach every
-client, because changes travel over PostgreSQL `NOTIFY`.
+A healthy connection nobody is looking at costs at most four probes per day, plus one probe per
+actual change on the platform. Idle sockets cost no requests at all: the old behaviour — every
+connection re-probed every 30 s while a page was open — is gone, so a page left open all day
+now costs nothing instead of ~2 900 probes.
+
+Polling only comes back when a feed cannot do its job. While at least one client follows the
+events stream, the connections of any platform whose feed is not live are re-probed on the
+fallback cadence, so an open page is never *less* fresh than it was before the feeds existed.
+Platforms with a live feed are left alone. Each replica opens its own sockets and receives its
+own webhook deliveries; a probe by any replica reaches every client, because changes travel over
+PostgreSQL `NOTIFY`.
 
 ## How changes reach the browser
 
@@ -101,13 +161,21 @@ on every insert and delete, and on an update that changes what a client can see:
 name, or the stored settings other than the check timestamp. The API listens on a dedicated
 connection, reloads the row, and fans it out to every subscribed SSE client as
 `community_connection:updated` (or `community_connection:removed`). The first event of a stream
-is `community_connection:watch`, announcing the watch cadence, which the Communities page shows
-as its "Live" line.
+is `community_connection:watch`, carrying the **feed status**: which platforms are pushing their
+changes and which are being polled instead, plus the fallback cadence. It is sent again whenever
+a feed changes state, and the Communities page turns it into its "Live" line — "Discord changes
+appear as they happen", or "GitHub checked every 30 s while its feed reconnects".
 
 The UI keeps one stream per page, shared by every component that shows connections. On an event
 it refetches the connection list and the affected connection's resources, so the composer's
 channel picker updates while it is open. If the stream drops, the page falls back to polling
-once a minute and reconnects.
+once a minute and reconnects; while the stream is open it does not poll at all, because the
+stream has already delivered whatever a refetch would find.
+
+A connection row shows *when it was last checked* only while its platform is being polled. Under
+a live feed the row is current to the second, so a "Checked 12 minutes ago" line would date the
+last probe rather than the data, and read as stale when nothing is. The absolute timestamps stay
+in the row's tooltip either way.
 
 Two safeguards keep this honest behind proxies. The API sends a `community_connection:heartbeat`
 every 15 s, so a reverse proxy or the Next.js rewrite (whose upstream inactivity timeout is 30 s
@@ -125,10 +193,10 @@ the connection DTO come from there, so a row is never fresher than its last real
 answer, and every replica sees every replica's checks.
 
 The audit log (`community_connection_audit`) records every human action — connect, Re-check,
-listing resources, disconnect — and every **transition** a system check causes: a sweep, watch,
-or snapshot-failure probe writes a row, with a null actor, only when it changes the status or
-the failure category. That is how you tell a system check from a human one, and why the watch
-cadence leaves a transition history rather than a heartbeat log.
+listing resources, disconnect — and every **transition** a system check causes: a live-feed
+probe, a sweep pass, or a snapshot-failure write-back writes a row, with a null actor, only when
+it changes the status or the failure category. That is how you tell a system check from a human
+one, and why a busy community leaves a transition history rather than a heartbeat log.
 
 ## Display metadata
 
@@ -144,8 +212,8 @@ the connection row:
 
 Metadata is counts and public URLs only — never content. A failed probe keeps the last good
 metadata; the next successful probe replaces it wholesale. The probe also stores a fingerprint of
-the listing and its verdicts, so a change in which channels are readable moves the row — and
-reaches open pages — even when the counts stay the same.
+the listing — the ids, the names, and the read verdicts — so a channel being renamed or hidden
+moves the row, and reaches open pages, even when the counts stay the same.
 
 ## The resource picker
 
@@ -160,9 +228,14 @@ entry. The list is live through the events stream.
 ## Manual verification playbook
 
 Use this to prove end to end that a platform-side change is caught. Keep the Communities page
-(or a community preset composer) open: that turns the watch cadence on, so each expectation
-lands within `COMMUNITY_HEALTH_WATCH_INTERVAL_MS` (30 s by default) without pressing Re-check.
-Press Re-check to skip the wait.
+(or a community preset composer) open and watch the "Live" line: while the platform's feed is
+live, each expectation below lands within a second or two of the change on the platform, with no
+click. If the line says a platform is being polled instead, its expectations land within
+`COMMUNITY_HEALTH_WATCH_INTERVAL_MS` (30 s by default). Press Re-check to skip any wait.
+
+For GitHub, check the App's **Advanced → Recent Deliveries** page if nothing arrives: a `401`
+there means `GITHUB_APP_WEBHOOK_SECRET` does not match the App's secret, and a connection error
+means the Webhook URL is not reachable from GitHub (a localhost API needs a tunnel).
 
 | Platform | Do this | Expect |
 | --- | --- | --- |
@@ -170,15 +243,15 @@ Press Re-check to skip the wait.
 | Discord | Remove View Channels from every channel the bot can see | `broken` — permission reason naming both permissions |
 | Discord | Hide one channel from the bot (deny View Channel in that channel) | Still `active`; the row shows "n of m channels readable"; in the composer the channel moves under "No access" as "Can't view" and cannot be selected |
 | Discord | Deny Read Message History on one channel | Same, as "No history" |
-| Discord | Grant the permission back | The channel returns to the readable list within one watch interval |
-| Discord | Re-invite the bot (Reconnect) | `active` within one watch interval |
+| Discord | Grant the permission back | The channel returns to the readable list right away |
+| Discord | Re-invite the bot (Reconnect) | `active` right away |
 | GitHub | Uninstall the App from the account | `broken` — the App is no longer installed |
 | GitHub | Suspend the App on the account | `broken` — uninstalled or suspended |
 | GitHub | Turn issues off in one repository | Still `active`; the repository is listed under "No access" as "Issues off" |
 | GitHub | Narrow the App to repositories without issues | `broken` — no repository with its issue tracker on |
 | Mattermost | Disable or revoke the bot token | `broken` — token rejected |
 | Mattermost | Remove the bot from every channel of the team | `broken` — no readable channel (unless the server lets team members read public channels) |
-| Mattermost | Invite the bot to a public channel it was not in | The channel appears (or turns readable) within one watch interval |
+| Mattermost | Invite the bot to a public channel it was not in | The channel appears (or turns readable) right away |
 | Any | Fix the platform side, wait or Re-check | back to `active`, metadata refreshed |
 
 While a connection is not `active`: the composer blocks creating a new preset for that platform
@@ -187,5 +260,7 @@ the connection field; the API rejects preset saves and snapshot creation that us
 that selects an unreadable resource is rejected too, naming the resource and the missing access.
 
 The automated equivalents of these scenarios live in
-`apps/api/tests/e2e/community/health-sweep.test.ts`, `apps/api/tests/e2e/community/events.test.ts`,
-and the platform probe tests in `packages/community-api`.
+`apps/api/tests/e2e/community/realtime.test.ts` (a platform event or a signed delivery through to
+an SSE event), `apps/api/tests/e2e/community/health-sweep.test.ts`,
+`apps/api/tests/e2e/community/events.test.ts`, and the event-mapping and probe tests in
+`packages/community-api`.
