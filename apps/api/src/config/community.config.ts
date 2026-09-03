@@ -18,6 +18,8 @@ export interface CommunityHealthSweepConfig {
   failedRecheckAfterMs: number;
   /** Pause between consecutive probes within one pass. */
   probeSpacingMs: number;
+  /** Re-probe cadence for every connection while a client follows the events stream; 0 disables it. */
+  watchIntervalMs: number;
 }
 
 export interface CommunityConfig {
@@ -73,6 +75,7 @@ export default registerAs('community', (): CommunityConfig => {
       activeRecheckAfterMs: env.COMMUNITY_HEALTH_ACTIVE_RECHECK_AFTER_MS,
       failedRecheckAfterMs: env.COMMUNITY_HEALTH_FAILED_RECHECK_AFTER_MS,
       probeSpacingMs: env.COMMUNITY_HEALTH_PROBE_SPACING_MS,
+      watchIntervalMs: env.COMMUNITY_HEALTH_WATCH_INTERVAL_MS,
     },
   };
 });

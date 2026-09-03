@@ -1,10 +1,12 @@
 import type { ConfigService } from '@nestjs/config';
+import { BehaviorSubject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommunityService } from '../../../src/community/community.service';
 import type {
   CommunityConnectionRepository,
   CommunityConnectionRow,
 } from '../../../src/community/community-connection.repository';
+import type { CommunityEventsService } from '../../../src/community/community-events.service';
 import { CommunityHealthSweepService } from '../../../src/community/community-health-sweep.service';
 
 const HOUR_MS = 3_600_000;
@@ -33,6 +35,7 @@ describe('CommunityHealthSweepService', () => {
 
   let connections: { findAll: ReturnType<typeof vi.fn> };
   let communityService: { checkHealth: ReturnType<typeof vi.fn> };
+  let watchers: BehaviorSubject<number>;
 
   const makeService = (values: Record<string, number> = {}) => {
     const configService = {
@@ -43,6 +46,7 @@ describe('CommunityHealthSweepService', () => {
             'community.healthSweep.activeRecheckAfterMs': 6 * HOUR_MS,
             'community.healthSweep.failedRecheckAfterMs': HOUR_MS / 2,
             'community.healthSweep.probeSpacingMs': 0,
+            'community.healthSweep.watchIntervalMs': 30_000,
             ...values,
           })[key],
       ),
@@ -52,6 +56,7 @@ describe('CommunityHealthSweepService', () => {
       mockLogger as never,
       connections as unknown as CommunityConnectionRepository,
       communityService as unknown as CommunityService,
+      { watcherCount$: watchers.asObservable() } as unknown as CommunityEventsService,
       configService,
     );
   };
@@ -60,6 +65,7 @@ describe('CommunityHealthSweepService', () => {
     vi.clearAllMocks();
     connections = { findAll: vi.fn().mockResolvedValue([]) };
     communityService = { checkHealth: vi.fn().mockResolvedValue({ status: 'active', checkedAt: '' }) };
+    watchers = new BehaviorSubject<number>(0);
   });
 
   it('stays off when the interval is 0', async () => {
@@ -182,5 +188,85 @@ describe('CommunityHealthSweepService', () => {
       expect.objectContaining({ connectionId: 'kicked', from: 'active', to: 'broken' }),
       expect.stringContaining('moved'),
     );
+  });
+
+  describe('watch cadence', () => {
+    it('re-probes every connection on the watch cadence while a client follows the events stream', async () => {
+      vi.useFakeTimers();
+      try {
+        // Checked 20 s ago: fresh for the periodic sweep, due on a 30 s watch.
+        connections.findAll.mockResolvedValue([
+          makeRow({ id: 'watched', lastCheckedAt: new Date(Date.now() - 20_000) }),
+        ]);
+        const service = makeService({ 'community.healthSweep.intervalMs': 0 });
+        service.onApplicationBootstrap();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(communityService.checkHealth).not.toHaveBeenCalled();
+
+        watchers.next(1);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(service.isWatching).toBe(true);
+        expect(communityService.checkHealth).toHaveBeenCalledTimes(1);
+
+        connections.findAll.mockResolvedValue([
+          makeRow({ id: 'watched', lastCheckedAt: new Date(Date.now() - 20_000) }),
+        ]);
+        await vi.advanceTimersByTimeAsync(30_000);
+        expect(communityService.checkHealth).toHaveBeenCalledTimes(2);
+
+        service.onModuleDestroy();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('skips a connection checked less than half a watch interval ago', async () => {
+      connections.findAll.mockResolvedValue([
+        makeRow({ id: 'just-checked', lastCheckedAt: new Date(Date.now() - 5_000) }),
+      ]);
+      const service = makeService({ 'community.healthSweep.intervalMs': 0 });
+      service.onApplicationBootstrap();
+
+      watchers.next(1);
+      await vi.waitFor(() => expect(service.isWatching).toBe(true));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(communityService.checkHealth).not.toHaveBeenCalled();
+      service.onModuleDestroy();
+    });
+
+    it('stops the cadence with the last client and never starts it when disabled', async () => {
+      vi.useFakeTimers();
+      try {
+        connections.findAll.mockResolvedValue([
+          makeRow({ id: 'watched', lastCheckedAt: new Date(Date.now() - 20_000) }),
+        ]);
+        const service = makeService({ 'community.healthSweep.intervalMs': 0 });
+        service.onApplicationBootstrap();
+
+        watchers.next(2);
+        await vi.advanceTimersByTimeAsync(0);
+        watchers.next(1);
+        watchers.next(0);
+        expect(service.isWatching).toBe(false);
+
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(communityService.checkHealth).toHaveBeenCalledTimes(1);
+        service.onModuleDestroy();
+
+        const disabled = makeService({
+          'community.healthSweep.intervalMs': 0,
+          'community.healthSweep.watchIntervalMs': 0,
+        });
+        disabled.onApplicationBootstrap();
+        watchers.next(1);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(disabled.isWatching).toBe(false);
+        expect(communityService.checkHealth).toHaveBeenCalledTimes(1);
+        disabled.onModuleDestroy();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });

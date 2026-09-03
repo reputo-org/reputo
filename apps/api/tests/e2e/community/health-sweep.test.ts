@@ -5,6 +5,7 @@ import type { DataSource } from 'typeorm';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommunityService } from '../../../src/community/community.service';
 import { CommunityConnectionRepository } from '../../../src/community/community-connection.repository';
+import { CommunityEventsService } from '../../../src/community/community-events.service';
 import { CommunityHealthSweepService } from '../../../src/community/community-health-sweep.service';
 import { CommunityConnectionAuditEntity, CommunityConnectionEntity } from '../../../src/persistence';
 import { createTestApp } from '../../utils/app-test.module';
@@ -36,6 +37,8 @@ describe('Community health sweep e2e', () => {
   let dataSource: DataSource;
   let adminCookie: string;
   let sweep: CommunityHealthSweepService;
+  let events: CommunityEventsService;
+  let makeSweep: (thresholds: Record<string, number>) => CommunityHealthSweepService;
 
   async function connect() {
     const installUrl = await api(app, adminCookie).get('/community/connections/discord/install-url').expect(200);
@@ -58,22 +61,29 @@ describe('Community health sweep e2e', () => {
     // real service over the real repositories. Thresholds are negative so a
     // connection is always due, even when the container Postgres clock runs
     // slightly ahead of this process.
-    sweep = new CommunityHealthSweepService(
-      noopLogger as never,
-      boot.moduleRef.get(CommunityConnectionRepository),
-      boot.moduleRef.get(CommunityService),
-      {
-        get: vi.fn(
-          (key: string) =>
-            ({
-              'community.healthSweep.intervalMs': 60_000,
-              'community.healthSweep.probeSpacingMs': 0,
-              'community.healthSweep.activeRecheckAfterMs': -3_600_000,
-              'community.healthSweep.failedRecheckAfterMs': -3_600_000,
-            })[key],
-        ),
-      } as unknown as ConfigService,
-    );
+    events = boot.moduleRef.get(CommunityEventsService);
+    makeSweep = (thresholds) =>
+      new CommunityHealthSweepService(
+        noopLogger as never,
+        boot.moduleRef.get(CommunityConnectionRepository),
+        boot.moduleRef.get(CommunityService),
+        events,
+        {
+          get: vi.fn(
+            (key: string) =>
+              ({
+                'community.healthSweep.intervalMs': 60_000,
+                'community.healthSweep.probeSpacingMs': 0,
+                'community.healthSweep.watchIntervalMs': 60_000,
+                ...thresholds,
+              })[key],
+          ),
+        } as unknown as ConfigService,
+      );
+    sweep = makeSweep({
+      'community.healthSweep.activeRecheckAfterMs': -3_600_000,
+      'community.healthSweep.failedRecheckAfterMs': -3_600_000,
+    });
   });
 
   beforeEach(() => {
@@ -141,6 +151,34 @@ describe('Community health sweep e2e', () => {
       .getRepository(CommunityConnectionAuditEntity)
       .find({ where: { action: 'health_check' } });
     expect(audits).toHaveLength(1);
+  });
+
+  it('re-probes on the watch cadence while a client follows the events stream', async () => {
+    const connection = await connect();
+    // Checked ten minutes ago: fresh for the periodic thresholds, stale for a 60 s watch.
+    await dataSource.query(
+      `UPDATE community_connections SET settings = jsonb_set(settings, '{lastCheck,at}', to_jsonb($1::text)) WHERE id = $2`,
+      [new Date(Date.now() - 10 * 60_000).toISOString(), connection.id],
+    );
+    discord.probe.mockClear();
+    const periodic = makeSweep({
+      'community.healthSweep.activeRecheckAfterMs': 6 * 3_600_000,
+      'community.healthSweep.failedRecheckAfterMs': 1_800_000,
+    });
+
+    periodic.onApplicationBootstrap();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(discord.probe).not.toHaveBeenCalled();
+
+    const subscription = events.subscribe().subscribe();
+    try {
+      await vi.waitFor(() => expect(discord.probe).toHaveBeenCalledTimes(1));
+      expect(periodic.isWatching).toBe(true);
+    } finally {
+      subscription.unsubscribe();
+      periodic.onModuleDestroy();
+    }
+    expect(periodic.isWatching).toBe(false);
   });
 
   it('never probes a disconnected connection', async () => {

@@ -224,6 +224,14 @@ export const envSchema = z
       .nonnegative()
       .default(2_000)
       .describe('Pause between consecutive probes within one health sweep pass'),
+    COMMUNITY_HEALTH_WATCH_INTERVAL_MS: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(30_000)
+      .describe(
+        'Re-probe cadence for every community connection while a client follows the events stream; 0 disables it',
+      ),
 
     DATABASE_URL: z
       .string()
