@@ -1,12 +1,10 @@
-import type { CommunityConnectionStatus, CommunityPlatform, CommunityResourceKind } from '../enums/community.js';
+import type {
+  CommunityConnectionStatus,
+  CommunityPlatform,
+  CommunityResourceAccessIssue,
+  CommunityResourceKind,
+} from '../enums/community.js';
 
-/**
- * Wire DTO for a community connection. JSON-serializable; dates are ISO 8601
- * strings.
- *
- * Credentials never appear here. The sealed credential column exists on the
- * entity only, and no field of this DTO is derived from it.
- */
 /**
  * Display facts the last successful probe captured — counts and public asset
  * URLs only, never content. Fields go stale together with `lastCheckedAt`.
@@ -18,8 +16,17 @@ export interface CommunityConnectionMetadataDto {
   memberCount?: number;
   /** Selectable resources the probe counted — channels, repositories. */
   resourceCount?: number;
+  /** Of those, the resources the pipeline can read under the bot's current access. */
+  readableResourceCount?: number;
 }
 
+/**
+ * Wire DTO for a community connection. JSON-serializable; dates are ISO 8601
+ * strings.
+ *
+ * Credentials never appear here. The sealed credential column exists on the
+ * entity only, and no field of this DTO is derived from it.
+ */
 export interface CommunityConnectionDto {
   id: string;
   platform: CommunityPlatform;
@@ -28,14 +35,14 @@ export interface CommunityConnectionDto {
   name: string;
   status: CommunityConnectionStatus;
   /**
-   * Safe category of the most recent failed operation, present while the
+   * Safe category of the most recent failed check, present while the
    * connection is not active. Never carries a platform response body.
    */
   statusReason?: string;
   /**
    * When the platform last confirmed this state. Health is checked on connect,
-   * on demand, per snapshot, and periodically by the API health sweep — so a
-   * status is at most one sweep interval behind the platform.
+   * on demand, per snapshot, periodically by the API health sweep, and every
+   * watch interval while a client follows the events stream.
    */
   lastCheckedAt?: string;
   /** Present once a probe has succeeded; kept across later failed probes. */
@@ -44,12 +51,20 @@ export interface CommunityConnectionDto {
   updatedAt: string;
 }
 
-/** One selectable resource inside a connected community — a Discord channel, a GitHub repository. */
+/**
+ * One selectable resource inside a connected community — a Discord channel, a
+ * GitHub repository. Unreadable resources are listed too, with the issue that
+ * blocks them, so a preset can show what the bot cannot reach.
+ */
 export interface CommunityResourceDto {
   id: string;
   name: string;
   /** Canonical resource kind, platform-neutral. */
   kind: CommunityResourceKind;
+  /** Whether the pipeline can read this resource under the bot's current access. */
+  readable: boolean;
+  /** Why the resource is unreadable; absent when it is readable. */
+  accessIssue?: CommunityResourceAccessIssue;
 }
 
 /** Result of an on-demand capability probe. */
@@ -59,6 +74,45 @@ export interface CommunityHealthDto {
   /** Human-readable reason when the probe did not succeed. */
   reason?: string;
 }
+
+/** A connection row changed — status, reason, metadata, or name. */
+export interface CommunityConnectionUpdatedEventDto {
+  type: 'community_connection:updated';
+  data: CommunityConnectionDto;
+}
+
+/** A connection row was deleted. */
+export interface CommunityConnectionRemovedEventDto {
+  type: 'community_connection:removed';
+  data: { id: string };
+}
+
+/**
+ * Sent once when a client subscribes: how often the API re-probes every
+ * connection while at least one client is subscribed. `0` when the watch
+ * cadence is disabled.
+ */
+export interface CommunityConnectionWatchEventDto {
+  type: 'community_connection:watch';
+  data: { intervalMs: number };
+}
+
+/**
+ * Sent every few seconds while nothing else happens, so proxies with idle
+ * timeouts keep the stream open and a client can tell a quiet stream from a
+ * dead one.
+ */
+export interface CommunityConnectionHeartbeatEventDto {
+  type: 'community_connection:heartbeat';
+  data: { at: string };
+}
+
+/** Payloads of the `community/connections/events` SSE stream. */
+export type CommunityConnectionEventDto =
+  | CommunityConnectionUpdatedEventDto
+  | CommunityConnectionRemovedEventDto
+  | CommunityConnectionWatchEventDto
+  | CommunityConnectionHeartbeatEventDto;
 
 /** A Mattermost team the pasted token's bot account belongs to. */
 export interface MattermostTeamDto {

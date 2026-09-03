@@ -44,3 +44,23 @@ export const CommunityResourceKind = {
 export type CommunityResourceKind = (typeof CommunityResourceKind)[keyof typeof CommunityResourceKind];
 
 export const COMMUNITY_RESOURCE_KINDS = Object.values(CommunityResourceKind);
+
+/**
+ * Why the pipeline cannot read a listed resource. The UI turns each value into
+ * the fix the admin has to make on the platform.
+ */
+export const CommunityResourceAccessIssue = {
+  /** Discord: the bot lacks View Channel on this channel. */
+  missingViewChannel: 'missing_view_channel',
+  /** Discord: the bot can see the channel but lacks Read Message History. */
+  missingReadHistory: 'missing_read_history',
+  /** GitHub: the repository has its issue tracker disabled, so there is nothing to score. */
+  issuesDisabled: 'issues_disabled',
+  /** Mattermost: the bot is not in the channel and the server refuses reads without membership. */
+  notMember: 'not_member',
+} as const;
+
+export type CommunityResourceAccessIssue =
+  (typeof CommunityResourceAccessIssue)[keyof typeof CommunityResourceAccessIssue];
+
+export const COMMUNITY_RESOURCE_ACCESS_ISSUES = Object.values(CommunityResourceAccessIssue);
