@@ -4,8 +4,17 @@ import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { CommunityConnections } from "@/components/community/community-connections"
 import type { CommunityConnectionDto } from "@/lib/api/types"
+import type { CommunityLiveState } from "@/lib/api/use-community-events"
 
 const useCommunityConnections = vi.fn()
+const useCommunityLiveUpdates = vi.fn<() => CommunityLiveState>(() => ({
+  connected: true,
+  watchIntervalMs: 30_000,
+}))
+
+vi.mock("@/lib/api/use-community-events", () => ({
+  useCommunityLiveUpdates: () => useCommunityLiveUpdates(),
+}))
 
 vi.mock("@/lib/api/hooks", () => ({
   useCommunityConnections: () => useCommunityConnections(),
@@ -176,6 +185,36 @@ describe("CommunityConnections", () => {
     renderWith({ data: [connection({ lastCheckedAt: undefined })] })
 
     expect(screen.getByText(/Connected /)).toBeInTheDocument()
+  })
+
+  it("says the page is live and how often connections are re-checked", () => {
+    renderWith({ data: [connection()] })
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /Live — every connection is re-checked every 30 s/
+    )
+  })
+
+  it("says it is reconnecting and polling while the stream is down", () => {
+    useCommunityLiveUpdates.mockReturnValue({
+      connected: false,
+      watchIntervalMs: undefined,
+    })
+    renderWith({ data: [connection()] })
+
+    expect(screen.getByRole("status")).toHaveTextContent(/Reconnecting/)
+  })
+
+  it("shows how many channels the bot can read once it is shut out of some", () => {
+    renderWith({
+      data: [
+        connection({
+          metadata: { resourceCount: 12, readableResourceCount: 10 },
+        }),
+      ],
+    })
+
+    expect(screen.getByText(/10 of 12 channels readable/)).toBeInTheDocument()
   })
 
   it("shows the community avatar and probe metadata on a row", () => {

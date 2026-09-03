@@ -2,6 +2,7 @@
 
 import { Search, TriangleAlert } from "lucide-react"
 import { useState } from "react"
+import { LiveStatus } from "@/components/community/live-status"
 import { PlatformSection } from "@/components/community/platform-section"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,6 +24,7 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { useCommunityConnections } from "@/lib/api/hooks"
 import type { CommunityConnectionDto } from "@/lib/api/types"
+import { useCommunityLiveUpdates } from "@/lib/api/use-community-events"
 import { COMMUNITY_PLATFORMS } from "@/lib/community/platforms"
 
 /** Below this the toolbar is noise — every connection fits on one screen. */
@@ -31,7 +33,9 @@ const TOOLBAR_THRESHOLD = 6
 type StatusFilter = "all" | "attention" | "active"
 
 export function CommunityConnections() {
-  // Polling keeps sweep-driven status changes visible while the page is open.
+  // The events stream pushes every probe's verdict; polling is the fallback
+  // while the stream is down and keeps "checked … ago" moving.
+  const live = useCommunityLiveUpdates()
   const { data, isLoading, isError, refetch } = useCommunityConnections({
     refetchIntervalMs: 60_000,
   })
@@ -97,6 +101,8 @@ export function CommunityConnections() {
 
   return (
     <div className="flex flex-col gap-4">
+      {connections.length > 0 && <LiveStatus live={live} />}
+
       {showToolbar && (
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-56 flex-1">

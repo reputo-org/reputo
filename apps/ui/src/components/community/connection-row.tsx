@@ -66,17 +66,31 @@ function identifierFor(connection: CommunityConnectionDto): string {
   return connection.externalId
 }
 
+/** "12 channels", or "10 of 12 channels readable" once the bot is shut out of some. */
+function resourceSummary(
+  connection: CommunityConnectionDto
+): string | undefined {
+  const { resourceCount, readableResourceCount } = connection.metadata ?? {}
+  if (resourceCount === undefined) return undefined
+  const noun = connection.platform === "github" ? "repositories" : "channels"
+  if (
+    readableResourceCount !== undefined &&
+    readableResourceCount < resourceCount
+  ) {
+    return `${readableResourceCount.toLocaleString()} of ${resourceCount.toLocaleString()} ${noun} readable`
+  }
+  return `${resourceCount.toLocaleString()} ${noun}`
+}
+
 /** One truncating line: identifier · counts · freshness. Absolute times live in the tooltip. */
 function metaLine(connection: CommunityConnectionDto): string {
-  const { memberCount, resourceCount } = connection.metadata ?? {}
+  const { memberCount } = connection.metadata ?? {}
   return [
     identifierFor(connection),
     memberCount !== undefined
       ? `${memberCount.toLocaleString()} members`
       : undefined,
-    resourceCount !== undefined
-      ? `${resourceCount.toLocaleString()} ${connection.platform === "github" ? "repositories" : "channels"}`
-      : undefined,
+    resourceSummary(connection),
     connection.lastCheckedAt
       ? `Checked ${formatRelativeFromNow(connection.lastCheckedAt)}`
       : `Connected ${formatRelativeFromNow(connection.createdAt)}`,
