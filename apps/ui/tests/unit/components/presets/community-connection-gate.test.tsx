@@ -13,6 +13,16 @@ vi.mock("@/lib/api/hooks", () => ({
     useCommunityConnections(options),
 }))
 
+const useCommunityLiveUpdates = vi.fn((_options?: { enabled?: boolean }) => ({
+  connected: true,
+  watchIntervalMs: 30_000,
+}))
+
+vi.mock("@/lib/api/use-community-events", () => ({
+  useCommunityLiveUpdates: (options?: { enabled?: boolean }) =>
+    useCommunityLiveUpdates(options),
+}))
+
 const discordAlgo = {
   id: "discord_engagement",
   title: "Discord engagement",
@@ -40,6 +50,18 @@ describe("CommunityConnectionGate", () => {
       isError: false,
       refetch,
     })
+  })
+
+  it("keeps the events stream closed for algorithms without a community requirement", () => {
+    renderGate(votingAlgo)
+
+    expect(useCommunityLiveUpdates).toHaveBeenCalledWith({ enabled: false })
+  })
+
+  it("follows live connection changes while gating a community algorithm", () => {
+    renderGate(discordAlgo)
+
+    expect(useCommunityLiveUpdates).toHaveBeenCalledWith({ enabled: true })
   })
 
   it("passes through for algorithms without a community requirement", () => {

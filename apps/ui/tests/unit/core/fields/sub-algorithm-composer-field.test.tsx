@@ -16,7 +16,17 @@ const useCommunityConnections = vi.fn()
 vi.mock("@/lib/api/hooks", () => ({
   useCommunityConnections: (options?: unknown) =>
     useCommunityConnections(options),
-  useCommunityResources: () => ({ data: [], isLoading: false }),
+  useCommunityResources: () => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  }),
+}))
+
+vi.mock("@/lib/api/use-community-events", () => ({
+  useCommunityLiveUpdates: () => ({ connected: true, watchIntervalMs: 30_000 }),
 }))
 
 /** Every platform active by default, so community children stay selectable. */

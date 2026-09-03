@@ -221,6 +221,8 @@ export interface CommunityConnectionMetadataDto {
   avatarUrl?: string
   memberCount?: number
   resourceCount?: number
+  /** Of the listed resources, the ones the pipeline can read under the bot's current access. */
+  readableResourceCount?: number
 }
 
 export interface CommunityConnectionDto {
@@ -237,11 +239,29 @@ export interface CommunityConnectionDto {
   updatedAt: string
 }
 
+/** Why the pipeline cannot read a listed resource. */
+export type CommunityResourceAccessIssue =
+  | "missing_view_channel"
+  | "missing_read_history"
+  | "issues_disabled"
+  | "not_member"
+
 export interface CommunityResourceDto {
   id: string
   name: string
   kind: "text" | "announcement" | "forum" | "repository"
+  /** Whether the pipeline can read this resource under the bot's current access. */
+  readable: boolean
+  /** Why the resource is unreadable; absent when it is readable. */
+  accessIssue?: CommunityResourceAccessIssue
 }
+
+/** Payloads of the `community/connections/events` SSE stream. */
+export type CommunityConnectionEventDto =
+  | { type: "community_connection:updated"; data: CommunityConnectionDto }
+  | { type: "community_connection:removed"; data: { id: string } }
+  | { type: "community_connection:watch"; data: { intervalMs: number } }
+  | { type: "community_connection:heartbeat"; data: { at: string } }
 
 export interface CommunityHealthDto {
   status: CommunityConnectionStatus

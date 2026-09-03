@@ -274,6 +274,17 @@ export const communityApi = {
   disconnect: async (id: string): Promise<void> => {
     await api.delete(`/community/connections/${id}`)
   },
+  /**
+   * Live connection changes. While the stream is open the API re-probes every
+   * connection on its watch cadence, announced by the first event.
+   */
+  subscribeToEvents: (): EventSource => {
+    const url = new URL(
+      `${API_BASE_PATH}/community/connections/events`,
+      window.location.href
+    )
+    return new EventSource(url.toString())
+  },
 }
 
 export { api }

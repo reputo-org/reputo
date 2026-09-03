@@ -16,6 +16,7 @@ import type { Algorithm } from "@/core/algorithms"
 import { getRequiredCommunityPlatform } from "@/core/community-requirements"
 import { useCommunityConnections } from "@/lib/api/hooks"
 import type { CommunityConnectionDto } from "@/lib/api/types"
+import { useCommunityLiveUpdates } from "@/lib/api/use-community-events"
 import { COMMUNITY_PLATFORMS, describeStatus } from "@/lib/community/platforms"
 
 interface CommunityConnectionGateProps {
@@ -38,6 +39,8 @@ export function CommunityConnectionGate({
   children,
 }: CommunityConnectionGateProps) {
   const platform = getRequiredCommunityPlatform(algo.id)
+  // Live, so fixing the bot on the platform unblocks the composer on its own.
+  useCommunityLiveUpdates({ enabled: platform !== undefined })
   const { data, isLoading, isError, refetch } = useCommunityConnections({
     enabled: platform !== undefined,
   })

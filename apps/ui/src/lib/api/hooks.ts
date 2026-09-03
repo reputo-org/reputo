@@ -228,6 +228,9 @@ export const useCommunityResources = (id: string, enabled = true) => {
     queryKey: queryKeys.communityConnections.resources(id),
     queryFn: () => communityApi.listResources(id),
     enabled: Boolean(id) && enabled,
+    // Access is granted on the platform in another tab; a returning user
+    // should see the channel they just opened up without a manual refresh.
+    refetchOnWindowFocus: "always",
   })
 }
 

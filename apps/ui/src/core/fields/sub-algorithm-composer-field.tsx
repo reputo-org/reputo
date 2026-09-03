@@ -41,6 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useCommunityConnections } from "@/lib/api/hooks"
+import { useCommunityLiveUpdates } from "@/lib/api/use-community-events"
 import { COMMUNITY_PLATFORMS } from "@/lib/community/platforms"
 import { cn } from "@/lib/utils"
 import { renderScalarField } from "../render-field"
@@ -121,13 +122,15 @@ export function SubAlgorithmComposerField({
 
   // While the query loads or fails nothing is disabled — a false negative
   // would hide working algorithms, and the connection field still guards.
+  const needsConnections = childOptions.some(
+    (option) => option.communityPlatform
+  )
+  useCommunityLiveUpdates({ enabled: needsConnections })
   const {
     data: connections,
     isLoading: connectionsLoading,
     isError: connectionsError,
-  } = useCommunityConnections({
-    enabled: childOptions.some((option) => option.communityPlatform),
-  })
+  } = useCommunityConnections({ enabled: needsConnections })
   const activePlatforms = new Set(
     (connections ?? [])
       .filter((connection) => connection.status === "active")
