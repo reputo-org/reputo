@@ -18,6 +18,11 @@ Rules that outrank convenience here:
 
 - Never fetch or store message content. The probe reads one page to verify
   permission and keeps only counts and field presence.
+- Every listed resource carries the platform's own read verdict (`readable`,
+  plus the blocking `accessIssue`): Discord from the effective-permission
+  model, GitHub from the issue tracker flag, Mattermost from membership and one
+  sampled read of an unjoined public channel. The probe samples readable
+  resources only.
 - Bot tokens and client secrets are arguments, never persisted and never
   logged. The transport logs a method, a query-stripped URL, and a status code.
 - The Discord bot asks for View Channels and Read Message History only, and no

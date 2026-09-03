@@ -79,6 +79,10 @@ export interface GitHubRawAccount {
 export interface GitHubRawInstallation {
   id?: unknown;
   account?: GitHubRawAccount | null;
+  /** Set while the account has suspended the App; every installation call fails until it is lifted. */
+  suspended_at?: unknown;
+  /** Permission levels the installation accepted, keyed by permission name (`issues: 'read'`). */
+  permissions?: unknown;
 }
 
 export interface GitHubRawRepository {

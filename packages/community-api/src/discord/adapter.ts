@@ -1,13 +1,19 @@
 import { CommunityContractError, CommunityPermissionError } from '../shared/errors.js';
 import { type CommunityHttpObserver, type CommunityLogger, executeRequest } from '../shared/http.js';
 import type { CommunityAdapter } from '../shared/records.js';
-import type { CommunityProbeResult, CommunityProfile, CommunityResource } from '../shared/types.js';
+import {
+  type CommunityProbeResult,
+  type CommunityProfile,
+  type CommunityResource,
+  digestCommunityResources,
+} from '../shared/types.js';
 import { createDiscordRecordIterator } from './fetch.js';
 import {
   findExactMemberId,
   hasRequiredMessageFields,
   toCommunityResources,
   toDiscordGuildProfile,
+  toDiscordPermissionContext,
 } from './transform.js';
 import {
   DISCORD_API_BASE_URL,
@@ -16,10 +22,12 @@ import {
   type DiscordRawGuild,
   type DiscordRawGuildMember,
   type DiscordRawMessage,
+  type DiscordRawRole,
   type DiscordRawThread,
+  type DiscordRawUser,
 } from './types.js';
 
-/** Channels the probe will try before concluding that nothing is readable. */
+/** Readable channels the probe will try before concluding that nothing is readable. */
 const PROBE_CHANNEL_LIMIT = 10;
 
 /**
@@ -43,63 +51,76 @@ export function createDiscordAdapter(
   const activeThreadsByGuild = new Map<string, Promise<DiscordRawThread[]>>();
   const iterateRecords = createDiscordRecordIterator({ config, logger, observer }, activeThreadsByGuild);
 
+  const get = async <T>(path: string): Promise<T> => {
+    const response = await executeRequest<T>(
+      logger,
+      config,
+      { method: 'GET', url: `${DISCORD_API_BASE_URL}${path}`, headers: botHeaders },
+      observer,
+    );
+    return response.data;
+  };
+
+  // The bot's own id never changes for a token; one lookup serves every guild
+  // this adapter reads. A failed lookup is evicted so the next call retries.
+  let botUserId: Promise<string> | undefined;
+  const fetchBotUserId = (): Promise<string> => {
+    if (!botUserId) {
+      const pending = get<DiscordRawUser>('/users/@me').then((user) => {
+        if (typeof user?.id !== 'string' || user.id.length === 0) {
+          throw new CommunityContractError('Discord returned no bot user id for the permission check.');
+        }
+        return user.id;
+      });
+      pending.catch(() => {
+        botUserId = undefined;
+      });
+      botUserId = pending;
+    }
+    return botUserId;
+  };
+
   // Best-effort display facts; a failure here never fails the probe.
   const fetchGuildProfile = async (guildId: string): Promise<CommunityProfile | undefined> => {
     try {
-      const response = await executeRequest<DiscordRawGuild>(
-        logger,
-        config,
-        {
-          method: 'GET',
-          url: `${DISCORD_API_BASE_URL}/guilds/${encodeURIComponent(guildId)}?with_counts=true`,
-          headers: botHeaders,
-        },
-        observer,
-      );
-      return toDiscordGuildProfile(guildId, response.data ?? {});
+      const guild = await get<DiscordRawGuild>(`/guilds/${encodeURIComponent(guildId)}?with_counts=true`);
+      return toDiscordGuildProfile(guildId, guild ?? {});
     } catch {
       logger.warn({ platform: 'discord', message: 'Guild profile lookup failed; probe continues without it.' });
       return undefined;
     }
   };
 
-  const listRawChannels = async (guildId: string): Promise<DiscordRawChannel[]> => {
-    const response = await executeRequest<DiscordRawChannel[]>(
-      logger,
-      config,
-      {
-        method: 'GET',
-        url: `${DISCORD_API_BASE_URL}/guilds/${encodeURIComponent(guildId)}/channels`,
-        headers: botHeaders,
-      },
-      observer,
-    );
-    return response.data ?? [];
+  /**
+   * Every readable-kind channel of the guild with the bot's effective access
+   * resolved from the guild roles and the channel overwrites. Discord lists
+   * channels the bot cannot see, so the listing alone would offer private
+   * channels as if they were readable.
+   */
+  const listChannels = async (guildId: string): Promise<CommunityResource[]> => {
+    const botId = await fetchBotUserId();
+    const guildPath = `/guilds/${encodeURIComponent(guildId)}`;
+    const [channels, member, roles] = await Promise.all([
+      get<DiscordRawChannel[]>(`${guildPath}/channels`),
+      get<DiscordRawGuildMember>(`${guildPath}/members/${encodeURIComponent(botId)}`),
+      get<DiscordRawRole[]>(`${guildPath}/roles`),
+    ]);
+    return toCommunityResources(channels ?? [], toDiscordPermissionContext(guildId, botId, member ?? {}, roles ?? []));
   };
 
   return {
     platform: 'discord',
 
-    async listResources(guildId: string): Promise<CommunityResource[]> {
-      return toCommunityResources(await listRawChannels(guildId));
-    },
+    listResources: listChannels,
 
     async probe(guildId: string): Promise<CommunityProbeResult> {
-      const resources = toCommunityResources(await listRawChannels(guildId));
+      const resources = await listChannels(guildId);
+      const readable = resources.filter((resource) => resource.readable);
 
-      for (const resource of resources.slice(0, PROBE_CHANNEL_LIMIT)) {
+      for (const resource of readable.slice(0, PROBE_CHANNEL_LIMIT)) {
         try {
-          const response = await executeRequest<DiscordRawMessage[]>(
-            logger,
-            config,
-            {
-              method: 'GET',
-              url: `${DISCORD_API_BASE_URL}/channels/${encodeURIComponent(resource.id)}/messages?limit=1`,
-              headers: botHeaders,
-            },
-            observer,
-          );
-          const messages = response.data ?? [];
+          const messages =
+            (await get<DiscordRawMessage[]>(`/channels/${encodeURIComponent(resource.id)}/messages?limit=1`)) ?? [];
 
           // The bot runs without privileged intents, so the probe proves the
           // fetch's fields arrive over REST before a snapshot depends on them.
@@ -111,13 +132,15 @@ export function createDiscordAdapter(
 
           return {
             resourceCount: resources.length,
+            readableResourceCount: readable.length,
+            resourcesDigest: digestCommunityResources(resources),
             sampledResourceId: resource.id,
             sampledRecordCount: messages.length,
             profile: await fetchGuildProfile(guildId),
           };
         } catch (error) {
-          // A channel the bot cannot read is normal; only a guild with no
-          // readable channel at all is a failed probe.
+          // Discord can lag a permission change by a moment; a channel the
+          // resolver expected to be readable but the API refuses is skipped.
           if (error instanceof CommunityPermissionError) continue;
           throw error;
         }
@@ -126,7 +149,9 @@ export function createDiscordAdapter(
       throw new CommunityPermissionError(
         resources.length === 0
           ? 'The bot can see no text, announcement, or forum channels in this server.'
-          : 'The bot cannot read message history in any channel of this server.',
+          : readable.length === 0
+            ? `The bot has View Channel and Read Message History in none of the ${resources.length} channels of this server.`
+            : 'The bot cannot read message history in any channel of this server.',
         403,
       );
     },
@@ -137,17 +162,10 @@ export function createDiscordAdapter(
     // no privileged intent; full member enumeration would need one.
     async searchMemberId(guildId: string, username: string): Promise<string | null> {
       const query = new URLSearchParams({ query: username, limit: String(MEMBER_SEARCH_LIMIT) });
-      const response = await executeRequest<DiscordRawGuildMember[]>(
-        logger,
-        config,
-        {
-          method: 'GET',
-          url: `${DISCORD_API_BASE_URL}/guilds/${encodeURIComponent(guildId)}/members/search?${query.toString()}`,
-          headers: botHeaders,
-        },
-        observer,
+      const members = await get<DiscordRawGuildMember[]>(
+        `/guilds/${encodeURIComponent(guildId)}/members/search?${query.toString()}`,
       );
-      return findExactMemberId(response.data ?? [], username);
+      return findExactMemberId(members ?? [], username);
     },
   };
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assertInstallationUsable,
   buildGitHubInstallUrl,
   hasRequiredIssueFields,
   isPullRequest,
@@ -12,7 +13,7 @@ import {
   toRepositoryResources,
   toReviewRecords,
 } from '../../../src/github/transform.js';
-import { CommunityContractError } from '../../../src/shared/errors.js';
+import { CommunityAuthError, CommunityContractError, CommunityPermissionError } from '../../../src/shared/errors.js';
 
 const WINDOW = { start: '2026-06-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' };
 const REPO = '4242';
@@ -51,13 +52,45 @@ describe('toRepositoryResources', () => {
     ]);
 
     expect(resources).toEqual([
-      { id: '1', name: 'singnet/snet-a', kind: 'repository' },
-      { id: '2', name: 'singnet/snet-b', kind: 'repository' },
+      { id: '1', name: 'singnet/snet-a', kind: 'repository', readable: true },
+      { id: '2', name: 'singnet/snet-b', kind: 'repository', readable: true },
+    ]);
+  });
+
+  it('marks a repository with its issue tracker off as unreadable', () => {
+    const resources = toRepositoryResources([{ id: 1, name: 'snet', full_name: 'singnet/snet', has_issues: false }]);
+
+    expect(resources).toEqual([
+      { id: '1', name: 'singnet/snet', kind: 'repository', readable: false, accessIssue: 'issues_disabled' },
     ]);
   });
 
   it('rejects a listing that is not an array', () => {
     expect(() => toRepositoryResources({ repositories: [] })).toThrow(CommunityContractError);
+  });
+});
+
+describe('assertInstallationUsable', () => {
+  const usable = { id: 55, permissions: { issues: 'read', pull_requests: 'write', metadata: 'read' } };
+
+  it('accepts an installation with the three read permissions, at any level', () => {
+    expect(() => assertInstallationUsable(usable)).not.toThrow();
+    expect(() => assertInstallationUsable({ id: 55 })).not.toThrow();
+  });
+
+  it('refuses a suspended installation as a credential failure', () => {
+    expect(() => assertInstallationUsable({ ...usable, suspended_at: '2026-08-30T10:00:00Z' })).toThrow(
+      CommunityAuthError,
+    );
+  });
+
+  it('refuses an installation missing a permission the crawl needs, naming it', () => {
+    expect(() => assertInstallationUsable({ ...usable, permissions: { issues: 'read', metadata: 'read' } })).toThrow(
+      /pull_requests/,
+    );
+    expect(() => assertInstallationUsable({ ...usable, permissions: { issues: 'none' } })).toThrow(
+      CommunityPermissionError,
+    );
   });
 });
 

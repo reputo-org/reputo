@@ -80,8 +80,19 @@ describe('toMattermostResources', () => {
     ]);
 
     expect(resources).toEqual([
-      { id: 'c1', name: 'Backstage', kind: 'text' },
-      { id: 'c2', name: 'Town Square', kind: 'text' },
+      { id: 'c1', name: 'Backstage', kind: 'text', readable: true },
+      { id: 'c2', name: 'Town Square', kind: 'text', readable: true },
+    ]);
+  });
+
+  it('stamps every channel of a listing with the verdict the caller established', () => {
+    const resources = toMattermostResources(
+      [{ id: 'c1', name: 'announcements', display_name: 'Announcements', type: 'O', delete_at: 0 }],
+      { readable: false, accessIssue: 'not_member' },
+    );
+
+    expect(resources).toEqual([
+      { id: 'c1', name: 'Announcements', kind: 'text', readable: false, accessIssue: 'not_member' },
     ]);
   });
 });

@@ -1,11 +1,11 @@
-import { CommunityContractError } from '../shared/errors.js';
+import { CommunityAuthError, CommunityContractError, CommunityPermissionError } from '../shared/errors.js';
 import {
   type CommunityActivityRecord,
   type CommunityFetchWindow,
   isWithinWindow,
   toUtcIso,
 } from '../shared/records.js';
-import type { CommunityProfile, CommunityResource } from '../shared/types.js';
+import { type CommunityProfile, type CommunityResource, CommunityResourceAccessIssue } from '../shared/types.js';
 import {
   CommunityGithubActivityType,
   GITHUB_APPS_BASE_URL,
@@ -72,24 +72,47 @@ function listedRepositories(repositories: unknown): Array<GitHubRawRepository & 
 /**
  * Repositories the installation can read, keyed by their stable numeric id so a
  * rename cannot invalidate a saved preset. The full name is the display label.
+ * The installation grants its permissions to every repository it lists, so the
+ * one thing that still blocks a listed repository is a disabled issue tracker:
+ * the crawl reads `/issues`, which such a repository answers with `410 Gone`.
  */
 export function toRepositoryResources(repositories: unknown): CommunityResource[] {
   return listedRepositories(repositories)
-    .map((repository) => ({ id: String(repository.id), name: repository.full_name, kind: 'repository' as const }))
+    .map((repository): CommunityResource => {
+      const resource = { id: String(repository.id), name: repository.full_name, kind: 'repository' as const };
+      return repository.has_issues === false
+        ? { ...resource, readable: false, accessIssue: CommunityResourceAccessIssue.issuesDisabled }
+        : { ...resource, readable: true };
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** Installation permissions the crawl needs, as the App requests them. */
+const REQUIRED_INSTALLATION_PERMISSIONS = ['issues', 'pull_requests', 'metadata'] as const;
+const GRANTED_PERMISSION_LEVELS = new Set(['read', 'write', 'admin']);
+
 /**
- * Ids of the listed repositories whose issue tracker is still on. The probe
- * reads an issues page, which a repository with issues disabled answers with
- * `410 Gone` however healthy the installation is.
+ * Refuses an installation the crawl cannot use: one the account suspended, or
+ * one whose accepted permissions no longer cover issues, pull requests, and
+ * metadata. Both take an admin on the account side to fix, so they surface as
+ * the categories the API marks `broken`. A payload without a permissions map
+ * is left to the issues read to judge.
  */
-export function toIssueEnabledIds(repositories: unknown): Set<string> {
-  return new Set(
-    listedRepositories(repositories)
-      .filter((repository) => repository.has_issues !== false)
-      .map((repository) => String(repository.id)),
+export function assertInstallationUsable(raw: GitHubRawInstallation): void {
+  if (typeof raw?.suspended_at === 'string' && raw.suspended_at.length > 0) {
+    throw new CommunityAuthError('The GitHub App installation is suspended on this account.', 403);
+  }
+
+  const permissions = raw?.permissions;
+  if (typeof permissions !== 'object' || permissions === null) {
+    return;
+  }
+  const missing = REQUIRED_INSTALLATION_PERMISSIONS.filter(
+    (name) => !GRANTED_PERMISSION_LEVELS.has(String((permissions as Record<string, unknown>)[name])),
   );
+  if (missing.length > 0) {
+    throw new CommunityPermissionError(`The GitHub App installation lacks read access to ${missing.join(', ')}.`, 403);
+  }
 }
 
 /**

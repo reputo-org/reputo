@@ -55,6 +55,11 @@ describe('mattermost record iterator', () => {
         return;
       }
 
+      if (url.startsWith('/api/v4/teams/team-1/channels?')) {
+        respond([]);
+        return;
+      }
+
       if (url === '/api/v4/teams/team-1/stats') {
         respond({ total_member_count: 12, active_member_count: 9 });
         return;
@@ -256,9 +261,13 @@ describe('mattermost record iterator', () => {
   it('lists and probes through the connect client, so a connection is judged by the same code', async () => {
     history.set('chan-1', [post({ id: 'p1' })]);
 
-    expect(await adapter().listResources('irrelevant')).toEqual([{ id: 'chan-1', name: 'Town Square', kind: 'text' }]);
+    expect(await adapter().listResources('irrelevant')).toEqual([
+      { id: 'chan-1', name: 'Town Square', kind: 'text', readable: true },
+    ]);
     expect(await adapter().probe('irrelevant')).toEqual({
       resourceCount: 1,
+      readableResourceCount: 1,
+      resourcesDigest: expect.stringMatching(/^[0-9a-f]{16}$/),
       sampledResourceId: 'chan-1',
       sampledRecordCount: 1,
       profile: { memberCount: 9 },

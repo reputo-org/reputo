@@ -53,7 +53,7 @@ export function createGitHubClient(config: GitHubClientConfig, logger: Community
     },
 
     probe(installationId) {
-      return probeInstallation(api, installationId, logger);
+      return probeInstallation(api, installationId);
     },
 
     async deleteInstallation(installationId) {

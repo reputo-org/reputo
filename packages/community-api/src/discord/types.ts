@@ -30,6 +30,12 @@ export const DiscordMessageType = {
   reply: 19,
 } as const;
 
+/** Permission-overwrite targets, as Discord types them. */
+export const DiscordOverwriteType = {
+  role: 0,
+  member: 1,
+} as const;
+
 /**
  * What the read side (adapter) needs: the bot credential and transport
  * settings. The OAuth application credentials belong to the connect flow only.
@@ -61,12 +67,20 @@ export interface DiscordRawGuild {
   approximate_member_count?: unknown;
 }
 
+export interface DiscordRawPermissionOverwrite {
+  id?: unknown;
+  type?: unknown;
+  allow?: unknown;
+  deny?: unknown;
+}
+
 export interface DiscordRawChannel {
   id?: unknown;
   name?: unknown;
   type?: unknown;
   position?: unknown;
   guild_id?: unknown;
+  permission_overwrites?: unknown;
 }
 
 export interface DiscordRawMessage {
@@ -83,8 +97,18 @@ export interface DiscordRawMessage {
   } | null;
 }
 
+export interface DiscordRawUser {
+  id?: unknown;
+}
+
+export interface DiscordRawRole {
+  id?: unknown;
+  permissions?: unknown;
+}
+
 export interface DiscordRawGuildMember {
   user?: { id?: unknown; username?: unknown };
+  roles?: unknown;
 }
 
 export interface DiscordRawThread {

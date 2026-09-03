@@ -20,6 +20,11 @@ const CHANNELS = [
   { id: 'chan-1', name: 'town-square', display_name: 'Town Square', type: 'O', delete_at: 0 },
   { id: 'chan-2', name: 'private', display_name: 'Backstage', type: 'P', delete_at: 0 },
 ];
+/** The team's public channels: the joined town square plus one the bot never joined. */
+const PUBLIC_CHANNELS = [
+  CHANNELS[0],
+  { id: 'chan-3', name: 'announcements', display_name: 'Announcements', type: 'O', delete_at: 0 },
+];
 const POSTS = {
   order: ['p1'],
   posts: { p1: { id: 'p1', user_id: 'u1', create_at: 1700000000000, message: 'never read' } },
@@ -38,7 +43,7 @@ describe('createMattermostClient', () => {
   let server: Server;
   let serverUrl: string;
   const requests: RecordedRequest[] = [];
-  const deny = { auth: false, channelPosts: new Set<string>(), htmlEverything: false };
+  const deny = { auth: false, channelPosts: new Set<string>(), htmlEverything: false, publicListing: false };
 
   const client = () =>
     createMattermostClient(
@@ -78,6 +83,13 @@ describe('createMattermostClient', () => {
       respond(TEAMS);
     } else if (url === '/api/v4/users/me/teams/team-1/channels') {
       respond(CHANNELS);
+    } else if (url.startsWith('/api/v4/teams/team-1/channels?')) {
+      if (deny.publicListing) {
+        response.statusCode = 403;
+        response.end(JSON.stringify({ id: 'api.context.permissions.app_error' }));
+      } else {
+        respond(PUBLIC_CHANNELS);
+      }
     } else if (url.startsWith('/api/v4/channels/') && url.includes('/posts')) {
       const channelId = url.split('/')[4];
       if (deny.channelPosts.has(channelId)) {
@@ -106,6 +118,7 @@ describe('createMattermostClient', () => {
     requests.length = 0;
     deny.auth = false;
     deny.htmlEverything = false;
+    deny.publicListing = false;
     deny.channelPosts.clear();
   });
 
@@ -159,13 +172,37 @@ describe('createMattermostClient', () => {
   });
 
   describe('listResources', () => {
-    it('lists the channels the bot is in', async () => {
+    it('lists the channels the bot is in plus unjoined public channels it may still read', async () => {
       const resources = await client().listResources(teamTarget());
 
       expect(resources).toEqual([
-        { id: 'chan-2', name: 'Backstage', kind: 'text' },
-        { id: 'chan-1', name: 'Town Square', kind: 'text' },
+        { id: 'chan-3', name: 'Announcements', kind: 'text', readable: true },
+        { id: 'chan-2', name: 'Backstage', kind: 'text', readable: true },
+        { id: 'chan-1', name: 'Town Square', kind: 'text', readable: true },
       ]);
+      expect(requests.map((entry) => entry.url)).toEqual([
+        '/api/v4/users/me/teams/team-1/channels',
+        '/api/v4/teams/team-1/channels?page=0&per_page=200',
+        '/api/v4/channels/chan-3/posts?page=0&per_page=1',
+      ]);
+    });
+
+    it('marks unjoined public channels unreadable when the server refuses reads without membership', async () => {
+      deny.channelPosts.add('chan-3');
+
+      const resources = await client().listResources(teamTarget());
+
+      expect(resources).toEqual([
+        { id: 'chan-3', name: 'Announcements', kind: 'text', readable: false, accessIssue: 'not_member' },
+        { id: 'chan-2', name: 'Backstage', kind: 'text', readable: true },
+        { id: 'chan-1', name: 'Town Square', kind: 'text', readable: true },
+      ]);
+    });
+
+    it('surfaces a refused public-channel listing instead of guessing', async () => {
+      deny.publicListing = true;
+
+      await expect(client().listResources(teamTarget())).rejects.toBeInstanceOf(CommunityPermissionError);
     });
   });
 
@@ -173,10 +210,26 @@ describe('createMattermostClient', () => {
     it('lists channels, reads one page of posts, and keeps only counts', async () => {
       const probe = await client().probe(teamTarget());
 
-      expect(probe).toEqual({ resourceCount: 2, sampledResourceId: 'chan-2', sampledRecordCount: 1 });
+      expect(probe).toEqual({
+        resourceCount: 3,
+        readableResourceCount: 3,
+        resourcesDigest: expect.stringMatching(/^[0-9a-f]{16}$/),
+        sampledResourceId: 'chan-3',
+        sampledRecordCount: 1,
+      });
+    });
+
+    it('never samples a channel the listing marked unreadable', async () => {
+      deny.channelPosts.add('chan-3');
+
+      const probe = await client().probe(teamTarget());
+
+      expect(probe.sampledResourceId).toBe('chan-2');
+      expect(probe.readableResourceCount).toBe(2);
     });
 
     it('moves past a channel it cannot read', async () => {
+      deny.channelPosts.add('chan-3');
       deny.channelPosts.add('chan-2');
 
       const probe = await client().probe(teamTarget());
@@ -187,6 +240,7 @@ describe('createMattermostClient', () => {
     it('fails as a permission problem when no channel is readable', async () => {
       deny.channelPosts.add('chan-1');
       deny.channelPosts.add('chan-2');
+      deny.channelPosts.add('chan-3');
 
       await expect(client().probe(teamTarget())).rejects.toBeInstanceOf(CommunityPermissionError);
     });

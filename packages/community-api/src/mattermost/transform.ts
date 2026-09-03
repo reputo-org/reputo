@@ -5,7 +5,7 @@ import {
   type CommunityFetchWindow,
   isWithinWindow,
 } from '../shared/records.js';
-import type { CommunityProfile, CommunityResource } from '../shared/types.js';
+import type { CommunityProfile, CommunityResource, CommunityResourceAccessIssue } from '../shared/types.js';
 import type {
   MattermostRawChannel,
   MattermostRawPost,
@@ -84,7 +84,6 @@ export function toMattermostTeams(teams: unknown): MattermostTeam[] {
     });
 }
 
-/** Channels the bot is in, active only, alphabetical by shown name. */
 /**
  * Display facts from the team stats. No avatar: the team image endpoint needs
  * the bot token, so there is no URL a browser could load unauthenticated.
@@ -99,7 +98,16 @@ export function toMattermostTeamProfile(raw: MattermostRawTeamStats): CommunityP
   };
 }
 
-export function toMattermostResources(channels: unknown): CommunityResource[] {
+/** The verdict a whole channel listing shares — the caller knows how it was listed. */
+export type MattermostChannelAccess =
+  | { readable: true }
+  | { readable: false; accessIssue: CommunityResourceAccessIssue };
+
+/** Open and private channels of one listing, active only, alphabetical by shown name, each carrying `access`. */
+export function toMattermostResources(
+  channels: unknown,
+  access: MattermostChannelAccess = { readable: true },
+): CommunityResource[] {
   if (!Array.isArray(channels)) {
     throw new CommunityContractError('Mattermost channel listing was not an array.');
   }
@@ -112,14 +120,17 @@ export function toMattermostResources(channels: unknown): CommunityResource[] {
         READABLE_CHANNEL_TYPES.has(channel.type) &&
         !(typeof channel.delete_at === 'number' && channel.delete_at > 0),
     )
-    .map((channel) => {
+    .map((channel): CommunityResource => {
       const displayName = typeof channel.display_name === 'string' && channel.display_name.length > 0;
       const name = displayName ? (channel.display_name as string) : channel.name;
-      return {
+      const resource = {
         id: channel.id,
         name: typeof name === 'string' && name.length > 0 ? name : channel.id,
         kind: 'text' as const,
       };
+      return access.readable
+        ? { ...resource, readable: true }
+        : { ...resource, readable: false, accessIssue: access.accessIssue };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 }

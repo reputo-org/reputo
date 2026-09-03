@@ -6,7 +6,12 @@ import {
   isWithinWindow,
   toUtcIso,
 } from '../shared/records.js';
-import type { CommunityProfile, CommunityResource, CommunityResourceKind } from '../shared/types.js';
+import {
+  type CommunityProfile,
+  type CommunityResource,
+  CommunityResourceAccessIssue,
+  type CommunityResourceKind,
+} from '../shared/types.js';
 import {
   DISCORD_AUTHORIZE_URL,
   DISCORD_BOT_PERMISSIONS,
@@ -14,10 +19,13 @@ import {
   DiscordChannelType,
   type DiscordInstalledGuild,
   DiscordMessageType,
+  DiscordOverwriteType,
   type DiscordRawChannel,
   type DiscordRawGuild,
   type DiscordRawGuildMember,
   type DiscordRawMessage,
+  type DiscordRawPermissionOverwrite,
+  type DiscordRawRole,
   type DiscordRawThread,
   DiscordThreadType,
   type DiscordTokenResponse,
@@ -41,6 +49,161 @@ const CHANNEL_KIND_BY_TYPE = new Map<number, CommunityResourceKind>([
   [DiscordChannelType.guildAnnouncement, 'announcement'],
   [DiscordChannelType.guildForum, 'forum'],
 ]);
+
+const DiscordPermission = {
+  administrator: 1n << 3n,
+  viewChannel: 1n << 10n,
+  readMessageHistory: 1n << 16n,
+} as const;
+
+/**
+ * The guild-level facts Discord's effective-permission algorithm starts from,
+ * narrowed once per guild and reused for every channel of the listing.
+ */
+export interface DiscordPermissionContext {
+  guildId: string;
+  botUserId: string;
+  botRoleIds: readonly string[];
+  /** Base permission bitfield of every guild role, the @everyone role included under the guild id. */
+  permissionsByRoleId: ReadonlyMap<string, bigint>;
+}
+
+/** The bot's read access to one channel, with the blocking issue when it has none. */
+export type DiscordChannelAccess =
+  | { readable: true }
+  | { readable: false; accessIssue: typeof CommunityResourceAccessIssue.missingViewChannel }
+  | { readable: false; accessIssue: typeof CommunityResourceAccessIssue.missingReadHistory };
+
+function permissionBits(value: unknown, field: string): bigint {
+  if (typeof value !== 'string' || !/^\d+$/.test(value)) {
+    throw new CommunityContractError(`Discord returned a malformed ${field} permission value.`);
+  }
+  return BigInt(value);
+}
+
+/** Narrows the bot's guild member and the guild's roles into the resolver's context. Fails closed on anything malformed. */
+export function toDiscordPermissionContext(
+  guildId: string,
+  botUserId: string,
+  member: DiscordRawGuildMember,
+  roles: readonly DiscordRawRole[],
+): DiscordPermissionContext {
+  if (botUserId.length === 0) {
+    throw new CommunityContractError('Discord returned no bot user id for the permission check.');
+  }
+  if (!Array.isArray(member?.roles) || !member.roles.every((roleId) => typeof roleId === 'string')) {
+    throw new CommunityContractError('Discord returned malformed bot role ids for the permission check.');
+  }
+  if (!Array.isArray(roles)) {
+    throw new CommunityContractError('Discord returned a malformed guild role listing.');
+  }
+
+  const permissionsByRoleId = new Map<string, bigint>();
+  for (const role of roles) {
+    if (typeof role?.id !== 'string' || role.id.length === 0) {
+      throw new CommunityContractError('Discord returned a guild role without an id.');
+    }
+    permissionsByRoleId.set(role.id, permissionBits(role.permissions, 'role'));
+  }
+  if (!permissionsByRoleId.has(guildId)) {
+    throw new CommunityContractError('Discord returned no @everyone role for the permission check.');
+  }
+  for (const roleId of member.roles) {
+    if (!permissionsByRoleId.has(roleId)) {
+      throw new CommunityContractError('Discord omitted one of the bot roles from the permission check.');
+    }
+  }
+
+  return { guildId, botUserId, botRoleIds: member.roles, permissionsByRoleId };
+}
+
+interface DiscordOverwrite {
+  id: string;
+  type: number;
+  allow: bigint;
+  deny: bigint;
+}
+
+function parseOverwrites(raw: unknown): DiscordOverwrite[] {
+  if (raw === undefined || raw === null) {
+    return [];
+  }
+  if (!Array.isArray(raw)) {
+    throw new CommunityContractError('Discord returned malformed channel permission overwrites.');
+  }
+
+  return raw.map((entry) => {
+    const overwrite = entry as DiscordRawPermissionOverwrite | null;
+    if (typeof overwrite?.id !== 'string' || typeof overwrite.type !== 'number') {
+      throw new CommunityContractError('Discord returned a malformed channel permission overwrite.');
+    }
+    return {
+      id: overwrite.id,
+      type: overwrite.type,
+      allow: permissionBits(overwrite.allow, 'allow'),
+      deny: permissionBits(overwrite.deny, 'deny'),
+    };
+  });
+}
+
+/**
+ * Discord's effective-permission algorithm for one channel: the @everyone role
+ * and every role the bot holds, Administrator short-circuiting, then the
+ * channel overwrites in Discord's order — @everyone, the bot's roles (denies
+ * before allows), the bot member itself. Discord answers a history request
+ * with `200 []` when View Channel is allowed but Read Message History is not,
+ * so the HTTP status of a read alone is never proof of access.
+ */
+export function resolveDiscordChannelAccess(
+  channel: DiscordRawChannel,
+  context: DiscordPermissionContext,
+): DiscordChannelAccess {
+  let permissions = context.permissionsByRoleId.get(context.guildId) ?? 0n;
+  for (const roleId of context.botRoleIds) {
+    permissions |= context.permissionsByRoleId.get(roleId) ?? 0n;
+  }
+  if ((permissions & DiscordPermission.administrator) !== 0n) {
+    return { readable: true };
+  }
+
+  const overwrites = parseOverwrites(channel?.permission_overwrites);
+  const apply = (allow: bigint, deny: bigint) => {
+    permissions = (permissions & ~deny) | allow;
+  };
+
+  const everyone = overwrites.find(
+    (overwrite) => overwrite.type === DiscordOverwriteType.role && overwrite.id === context.guildId,
+  );
+  if (everyone) {
+    apply(everyone.allow, everyone.deny);
+  }
+
+  const botRoles = new Set(context.botRoleIds);
+  let roleAllow = 0n;
+  let roleDeny = 0n;
+  for (const overwrite of overwrites) {
+    if (overwrite.type === DiscordOverwriteType.role && botRoles.has(overwrite.id)) {
+      roleAllow |= overwrite.allow;
+      roleDeny |= overwrite.deny;
+    }
+  }
+  apply(roleAllow, roleDeny);
+
+  const member = overwrites.find(
+    (overwrite) => overwrite.type === DiscordOverwriteType.member && overwrite.id === context.botUserId,
+  );
+  if (member) {
+    apply(member.allow, member.deny);
+  }
+
+  if ((permissions & DiscordPermission.viewChannel) === 0n) {
+    return { readable: false, accessIssue: CommunityResourceAccessIssue.missingViewChannel };
+  }
+  if ((permissions & DiscordPermission.readMessageHistory) === 0n) {
+    return { readable: false, accessIssue: CommunityResourceAccessIssue.missingReadHistory };
+  }
+  return { readable: true };
+}
 
 /**
  * Bot-install authorization URL. `scope=bot` with exactly the read permissions
@@ -76,8 +239,16 @@ export function extractInstalledGuild(response: DiscordTokenResponse): DiscordIn
   return { id, name: typeof name === 'string' && name.length > 0 ? name : id };
 }
 
-/** Channels the pipeline can read, in the order Discord shows them. */
-export function toCommunityResources(channels: readonly DiscordRawChannel[]): CommunityResource[] {
+/**
+ * Channels the pipeline could read, in the order Discord shows them, each
+ * carrying the bot's effective read access. The guild listing returns every
+ * channel whether or not the bot can see it, so the verdict is what keeps a
+ * private channel from being offered as readable.
+ */
+export function toCommunityResources(
+  channels: readonly DiscordRawChannel[],
+  context: DiscordPermissionContext,
+): CommunityResource[] {
   if (!Array.isArray(channels)) {
     throw new CommunityContractError('Discord channel listing was not an array.');
   }
@@ -92,11 +263,17 @@ export function toCommunityResources(channels: readonly DiscordRawChannel[]): Co
       const positionB = typeof b.position === 'number' ? b.position : Number.MAX_SAFE_INTEGER;
       return positionA === positionB ? a.id.localeCompare(b.id) : positionA - positionB;
     })
-    .map((channel) => ({
-      id: channel.id,
-      name: typeof channel.name === 'string' && channel.name.length > 0 ? channel.name : channel.id,
-      kind: CHANNEL_KIND_BY_TYPE.get(channel.type) as CommunityResourceKind,
-    }));
+    .map((channel) => {
+      const resource = {
+        id: channel.id,
+        name: typeof channel.name === 'string' && channel.name.length > 0 ? channel.name : channel.id,
+        kind: CHANNEL_KIND_BY_TYPE.get(channel.type) as CommunityResourceKind,
+      };
+      const access = resolveDiscordChannelAccess(channel, context);
+      return access.readable
+        ? { ...resource, readable: true }
+        : { ...resource, readable: false, accessIssue: access.accessIssue };
+    });
 }
 
 /** Display facts from the guild object. A missing icon or count stays undefined. */
@@ -116,8 +293,8 @@ export function toDiscordGuildProfile(guildId: string, raw: DiscordRawGuild): Co
 /**
  * Whether a sampled page carries the fields the fetch depends on. The bot runs
  * without privileged intents, so the probe proves these arrive over REST before
- * a snapshot ever relies on them. An empty page proves read permission and
- * leaves the fields unverified, which counts as present.
+ * a snapshot ever relies on them. An empty page has no malformed rows; read
+ * access itself is resolved from the permission model, not from the page.
  */
 export function hasRequiredMessageFields(messages: readonly DiscordRawMessage[]): boolean {
   return messages.every(

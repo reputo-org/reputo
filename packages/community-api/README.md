@@ -11,9 +11,11 @@ Today it ships the **Discord** and **GitHub** clients and adapters.
 - `buildInstallUrl` — bot-install authorization URL (`scope=bot`, permissions
   limited to View Channels and Read Message History).
 - `exchangeCode` — exchanges the callback code and returns the installed guild.
-- `listResources` — text, announcement, and forum channels of a guild.
-- `probe` — lists channels and reads one page of history to verify the granted
-  permissions, keeping counts only.
+- `listResources` — text, announcement, and forum channels of a guild, each
+  marked readable or not from the bot's effective permissions (guild roles
+  plus channel overwrites), so a private channel is never offered as readable.
+- `probe` — lists channels and reads one page of history from a readable one
+  to verify the granted permissions, keeping counts only.
 - `createDiscordAdapter` — the read side alone (bot token only). Besides
   `listResources` and `probe` it adds `iterateRecords`, which streams one
   channel's window — messages, active and public archived threads, forum
@@ -27,9 +29,11 @@ Today it ships the **Discord** and **GitHub** clients and adapters.
 - `confirmInstallation` — confirms a callback's `installation_id` with the app
   JWT and returns the account it belongs to.
 - `listResources` — repositories the installation can read, keyed by their
-  stable numeric id so a rename cannot invalidate a saved preset.
-- `probe` — lists repositories and reads one issues page to verify the App's
-  permissions.
+  stable numeric id so a rename cannot invalidate a saved preset. A repository
+  with its issue tracker off is listed as unreadable.
+- `probe` — confirms the installation (not uninstalled, not suspended, still
+  granting issues, pull requests, and metadata), lists repositories, and reads
+  one issues page to verify the App's permissions.
 - `deleteInstallation` — uninstalls the App; already-gone installations succeed.
 - `createGitHubAdapter` — the read side alone, bound to one installation.
   `iterateRecords` streams a repository's window as canonical, content-free
