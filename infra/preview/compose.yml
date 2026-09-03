@@ -94,12 +94,7 @@ x-api-environment: &api-environment
     GITHUB_APP_PRIVATE_KEY: mock-github-app-private-key
     GITHUB_APP_SLUG: mock-reputo-community
     GITHUB_APP_CALLBACK_URL: '${PULLPREVIEW_URL:?missing PULLPREVIEW_URL}/api/v1/community/connections/github/callback'
-    # Optional: without it the GitHub webhook endpoint refuses every delivery
-    # and GitHub connections fall back to polling.
-    GITHUB_APP_WEBHOOK_SECRET:
-    # The community credentials above are mocks, so a live feed could only
-    # retry against a platform that will never accept it.
-    COMMUNITY_REALTIME_ENABLED: 'false'
+    GITHUB_APP_WEBHOOK_SECRET: mock-github-app-webhook-secret
     COMMUNITY_CREDENTIALS_ENCRYPTION_KEY: '${COMMUNITY_CREDENTIALS_ENCRYPTION_KEY:?missing COMMUNITY_CREDENTIALS_ENCRYPTION_KEY}'
     COMMUNITY_MATTERMOST_ALLOWED_HOSTS: ''
     DATABASE_URL: postgresql://reputo_app:reputo_app@postgres:5432/reputo_preview
