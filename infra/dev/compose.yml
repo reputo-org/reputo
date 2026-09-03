@@ -113,6 +113,7 @@ x-api-env: &api-env
     COMMUNITY_HEALTH_ACTIVE_RECHECK_AFTER_MS:
     COMMUNITY_HEALTH_FAILED_RECHECK_AFTER_MS:
     COMMUNITY_HEALTH_PROBE_SPACING_MS:
+    COMMUNITY_HEALTH_WATCH_INTERVAL_MS:
     DATABASE_URL: postgresql://reputo_app:reputo_app@postgres:5432/reputo_app
     AWS_REGION: '${AWS_REGION:?missing AWS_REGION}'
     # Dev stack uses in-stack MinIO; credentials match `minio` service below.
