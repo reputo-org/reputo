@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { BehaviorSubject, Observable, Subject, type Subscription } from 'rxjs';
 import { CommunityConnectionListenerService } from '../persistence';
 import { CommunityService } from './community.service';
 import type { CommunityConnectionEventDto } from './dto';
+import { CommunityRealtimeService } from './realtime';
 
 /** What the `community_connections` triggers put on the NOTIFY channel. */
 interface ConnectionNotification {
@@ -23,28 +23,31 @@ export const COMMUNITY_EVENTS_HEARTBEAT_MS = 15_000;
 /**
  * Fans community connection changes out to SSE clients and counts them. The
  * changes arrive from PostgreSQL `NOTIFY`, so a probe run by any API replica —
- * the sweep, a Re-check, a snapshot write-back — reaches every open page.
+ * a live feed's signal, a Re-check, the sweep, a snapshot write-back — reaches
+ * every open page.
  *
- * The client count is what turns the health sweep's watch cadence on: while
- * someone is looking, every connection is re-probed on that cadence and the
- * first event of a subscription tells the client how often.
+ * Each stream also carries the feed status: which platforms are pushing their
+ * changes and which are being polled instead. It is sent when the client
+ * subscribes and again whenever a feed changes state, so an open page can say
+ * how fresh it actually is rather than assuming.
+ *
+ * The client count is what turns the sweep's fallback polling on, for the
+ * platforms whose feed cannot cover them.
  */
 @Injectable()
 export class CommunityEventsService implements OnModuleInit, OnModuleDestroy {
   private readonly clients = new Map<string, Subject<CommunityConnectionEventDto>>();
   private readonly watchers = new BehaviorSubject<number>(0);
-  private readonly watchIntervalMs: number;
   private notificationSubscription: Subscription | null = null;
+  private statusSubscription: Subscription | null = null;
 
   constructor(
     @InjectPinoLogger(CommunityEventsService.name)
     private readonly logger: PinoLogger,
     private readonly listener: CommunityConnectionListenerService,
     private readonly communityService: CommunityService,
-    configService: ConfigService,
-  ) {
-    this.watchIntervalMs = configService.get<number>('community.healthSweep.watchIntervalMs') ?? 30_000;
-  }
+    private readonly realtime: CommunityRealtimeService,
+  ) {}
 
   onModuleInit(): void {
     this.notificationSubscription = this.listener.notifications$.subscribe({
@@ -55,11 +58,18 @@ export class CommunityEventsService implements OnModuleInit, OnModuleDestroy {
         this.logger.error({ err: error }, 'Community connection listener stream errored');
       },
     });
+    // A feed going down or coming back changes how fresh an open page is, so
+    // clients are told rather than left to infer it from the update rate.
+    this.statusSubscription = this.realtime.status$.subscribe((status) => {
+      this.broadcast({ type: 'community_connection:watch', data: status });
+    });
   }
 
   onModuleDestroy(): void {
     this.notificationSubscription?.unsubscribe();
     this.notificationSubscription = null;
+    this.statusSubscription?.unsubscribe();
+    this.statusSubscription = null;
     for (const [clientId, subject] of this.clients) {
       subject.complete();
       this.clients.delete(clientId);
@@ -78,9 +88,9 @@ export class CommunityEventsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Subscribes one client. The first event announces the watch cadence; every
-   * later one is a change or a heartbeat. Unsubscribing drops the client from
-   * the count.
+   * Subscribes one client. The first event announces the feed status; every
+   * later one is a change, a feed status update, or a heartbeat. Unsubscribing
+   * drops the client from the count.
    */
   subscribe(): Observable<CommunityConnectionEventDto> {
     return new Observable<CommunityConnectionEventDto>((subscriber) => {
@@ -90,7 +100,7 @@ export class CommunityEventsService implements OnModuleInit, OnModuleDestroy {
       this.watchers.next(this.clients.size);
       this.logger.debug({ clientId, clients: this.clients.size }, 'Community events client subscribed');
 
-      subscriber.next({ type: 'community_connection:watch', data: { intervalMs: this.watchIntervalMs } });
+      subscriber.next({ type: 'community_connection:watch', data: this.realtime.status });
       const subscription = subject.subscribe(subscriber);
       const heartbeat = setInterval(
         () => subscriber.next({ type: 'community_connection:heartbeat', data: { at: new Date().toISOString() } }),

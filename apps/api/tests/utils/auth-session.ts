@@ -44,6 +44,10 @@ export const AUTH_TEST_ENV = {
   COMMUNITY_CREDENTIALS_ENCRYPTION_KEY: 'community-credentials-test-key-0123456789abcdef',
   COMMUNITY_MATTERMOST_ALLOWED_HOSTS: '127.0.0.1',
   COMMUNITY_MATTERMOST_MAX_RESPONSE_BYTES: '65536',
+  GITHUB_APP_WEBHOOK_SECRET: 'github-app-webhook-test-secret',
+  // Feeds are exercised through injected doubles, so no probe is ever debounced
+  // behind a timer in a test.
+  COMMUNITY_REALTIME_DEBOUNCE_MS: '0',
 } as const;
 
 export interface CreateAuthenticatedSessionOptions {

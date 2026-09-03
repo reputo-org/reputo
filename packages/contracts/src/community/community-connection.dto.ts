@@ -1,5 +1,6 @@
 import type {
   CommunityConnectionStatus,
+  CommunityFeedState,
   CommunityPlatform,
   CommunityResourceAccessIssue,
   CommunityResourceKind,
@@ -41,8 +42,8 @@ export interface CommunityConnectionDto {
   statusReason?: string;
   /**
    * When the platform last confirmed this state. Health is checked on connect,
-   * on demand, per snapshot, periodically by the API health sweep, and every
-   * watch interval while a client follows the events stream.
+   * on demand, per snapshot, whenever the platform's live feed reports a change,
+   * and by the reconciliation sweep.
    */
   lastCheckedAt?: string;
   /** Present once a probe has succeeded; kept across later failed probes. */
@@ -88,13 +89,26 @@ export interface CommunityConnectionRemovedEventDto {
 }
 
 /**
- * Sent once when a client subscribes: how often the API re-probes every
- * connection while at least one client is subscribed. `0` when the watch
- * cadence is disabled.
+ * How changes are reaching this stream: one feed state per platform, plus the
+ * cadence a platform without a live feed is polled at instead.
+ */
+export interface CommunityRealtimeStatusDto {
+  /** Every platform, so a client can render a feed it has no connection for as well. */
+  feeds: Record<CommunityPlatform, CommunityFeedState>;
+  /**
+   * Poll cadence applied to a platform whose feed is not live, while at least
+   * one client follows this stream. `0` when that fallback is disabled.
+   */
+  fallbackIntervalMs: number;
+}
+
+/**
+ * Sent when a client subscribes, and again whenever a feed changes state, so an
+ * open page can say whether it is being pushed to or polled for.
  */
 export interface CommunityConnectionWatchEventDto {
   type: 'community_connection:watch';
-  data: { intervalMs: number };
+  data: CommunityRealtimeStatusDto;
 }
 
 /**

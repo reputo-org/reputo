@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { CommunityService } from '../../../src/community/community.service';
 import { CommunityEventsService } from '../../../src/community/community-events.service';
 import type { CommunityConnectionEventDto } from '../../../src/community/dto';
+import { CommunityRealtimeService } from '../../../src/community/realtime';
 import { CommunityConnectionListenerService } from '../../../src/persistence';
 import { createTestApp } from '../../utils/app-test.module';
 import { createAuthenticatedSession } from '../../utils/auth-session';
@@ -68,9 +69,12 @@ describe('Community connection events via PostgreSQL LISTEN/NOTIFY', () => {
       get: vi.fn((key: string) => (key === 'database.url' ? getSharedDatabaseUrl() : undefined)),
     } as unknown as ConfigService);
     await listener.onModuleInit();
-    events = new CommunityEventsService(noopLogger as never, listener, boot.moduleRef.get(CommunityService), {
-      get: vi.fn(() => 30_000),
-    } as unknown as ConfigService);
+    events = new CommunityEventsService(
+      noopLogger as never,
+      listener,
+      boot.moduleRef.get(CommunityService),
+      boot.moduleRef.get(CommunityRealtimeService),
+    );
     events.onModuleInit();
   }, 120_000);
 
@@ -90,10 +94,16 @@ describe('Community connection events via PostgreSQL LISTEN/NOTIFY', () => {
     await app.close();
   });
 
-  it('announces the watch cadence to every new subscriber', async () => {
+  it('announces the feed status to every new subscriber', async () => {
     const hello = await firstValueFrom(events.subscribe().pipe(take(1)));
 
-    expect(hello).toEqual({ type: 'community_connection:watch', data: { intervalMs: 30_000 } });
+    expect(hello).toMatchObject({
+      type: 'community_connection:watch',
+      data: {
+        feeds: { discord: expect.any(String), github: expect.any(String), mattermost: expect.any(String) },
+        fallbackIntervalMs: 30_000,
+      },
+    });
   });
 
   it('pushes a connect, a state change, and a removal to a subscriber within ~1s', async () => {

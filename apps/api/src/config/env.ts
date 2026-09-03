@@ -133,6 +133,15 @@ export const envSchema = z
       .transform((value) => value.replace(/\\n/g, '\n'))
       .describe('PEM-encoded GitHub App private key; signs the app JWT and is never persisted'),
     GITHUB_APP_SLUG: z.string().trim().min(1).describe('GitHub App URL slug used to build the install redirect'),
+    GITHUB_APP_WEBHOOK_SECRET: z
+      .string()
+      .optional()
+      // Deployment variable shells arrive as empty strings; treat those as unset.
+      .transform((value) => (value === '' ? undefined : value))
+      .pipe(z.string().min(16).optional())
+      .describe(
+        "Secret configured on the GitHub App's webhook; signs every delivery. Without it the webhook endpoint refuses everything and GitHub connections fall back to polling.",
+      ),
     GITHUB_APP_CALLBACK_URL: z
       .string()
       .url()
@@ -230,8 +239,20 @@ export const envSchema = z
       .nonnegative()
       .default(30_000)
       .describe(
-        'Re-probe cadence for every community connection while a client follows the events stream; 0 disables it',
+        'Fallback re-probe cadence, used only for a platform whose live feed is down while a client follows the events stream; 0 disables it',
       ),
+    COMMUNITY_REALTIME_ENABLED: z
+      .stringbool()
+      .default(true)
+      .describe(
+        "Follow the platforms' live feeds (Discord Gateway, GitHub App webhooks, Mattermost WebSocket). Disabling it falls back to the health sweep alone.",
+      ),
+    COMMUNITY_REALTIME_DEBOUNCE_MS: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(750)
+      .describe('Window in which repeated live signals for one community collapse into a single re-probe'),
 
     DATABASE_URL: z
       .string()

@@ -9,3 +9,10 @@ export { CommunityCredentialsService } from './community-credentials.service';
 export { CommunityEventsService } from './community-events.service';
 export { CommunityInstallStateService } from './community-install-state.service';
 export { type CommunityPlatformClient, CommunityPlatformRegistry } from './community-platform.registry';
+export {
+  COMMUNITY_REALTIME_SOURCES,
+  CommunityRealtimeService,
+  type CommunityRealtimeSourceFactory,
+  CommunityRefreshService,
+  CommunityWebhooksController,
+} from './realtime';

@@ -9,6 +9,19 @@ import type {
 
 import { env } from './env';
 
+/** How the API follows the platforms' own live feeds. */
+export interface CommunityRealtimeConfig {
+  enabled: boolean;
+  /** Window in which repeated signals for one community collapse into a single re-probe. */
+  debounceMs: number;
+  /**
+   * Secret the GitHub App signs its deliveries with. Absent means the webhook
+   * endpoint refuses every delivery and GitHub connections keep polling — it
+   * belongs to the feed, not to the API client, which never sees it.
+   */
+  githubWebhookSecret?: string;
+}
+
 export interface CommunityHealthSweepConfig {
   /** Milliseconds between sweep passes; 0 disables the sweep. */
   intervalMs: number;
@@ -18,7 +31,10 @@ export interface CommunityHealthSweepConfig {
   failedRecheckAfterMs: number;
   /** Pause between consecutive probes within one pass. */
   probeSpacingMs: number;
-  /** Re-probe cadence for every connection while a client follows the events stream; 0 disables it. */
+  /**
+   * Fallback re-probe cadence while a client follows the events stream, applied
+   * only to platforms whose live feed is down; 0 disables it.
+   */
   watchIntervalMs: number;
 }
 
@@ -30,6 +46,7 @@ export interface CommunityConfig {
   mattermost: MattermostClientConfig;
   credentials: CommunityCredentialKeyring;
   healthSweep: CommunityHealthSweepConfig;
+  realtime: CommunityRealtimeConfig;
 }
 
 export default registerAs('community', (): CommunityConfig => {
@@ -76,6 +93,11 @@ export default registerAs('community', (): CommunityConfig => {
       failedRecheckAfterMs: env.COMMUNITY_HEALTH_FAILED_RECHECK_AFTER_MS,
       probeSpacingMs: env.COMMUNITY_HEALTH_PROBE_SPACING_MS,
       watchIntervalMs: env.COMMUNITY_HEALTH_WATCH_INTERVAL_MS,
+    },
+    realtime: {
+      enabled: env.COMMUNITY_REALTIME_ENABLED,
+      debounceMs: env.COMMUNITY_REALTIME_DEBOUNCE_MS,
+      githubWebhookSecret: env.GITHUB_APP_WEBHOOK_SECRET,
     },
   };
 });

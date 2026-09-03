@@ -1,10 +1,15 @@
-import type { ConfigService } from '@nestjs/config';
-import { Subject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommunityService } from '../../../src/community/community.service';
 import { CommunityEventsService } from '../../../src/community/community-events.service';
 import type { CommunityConnectionEventDto } from '../../../src/community/dto';
+import type { CommunityRealtimeService } from '../../../src/community/realtime';
 import type { CommunityConnectionListenerService } from '../../../src/persistence';
+
+const FEED_STATUS = {
+  feeds: { discord: 'live', github: 'live', mattermost: 'live' },
+  fallbackIntervalMs: 30_000,
+} as const;
 
 const CONNECTION = {
   id: '01940000-0000-7000-8000-000000000001',
@@ -20,6 +25,7 @@ const CONNECTION = {
 describe('CommunityEventsService', () => {
   const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), setContext: vi.fn() };
   let notifications$: Subject<string>;
+  let feedStatus: BehaviorSubject<typeof FEED_STATUS>;
   let findById: ReturnType<typeof vi.fn>;
   let service: CommunityEventsService;
 
@@ -31,17 +37,21 @@ describe('CommunityEventsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     notifications$ = new Subject<string>();
+    feedStatus = new BehaviorSubject(FEED_STATUS);
     findById = vi.fn().mockResolvedValue(CONNECTION);
     service = new CommunityEventsService(
       logger as never,
       { notifications$: notifications$.asObservable() } as unknown as CommunityConnectionListenerService,
       { findById } as unknown as CommunityService,
-      { get: vi.fn(() => 30_000) } as unknown as ConfigService,
+      {
+        status: feedStatus.value,
+        status$: feedStatus.asObservable(),
+      } as unknown as CommunityRealtimeService,
     );
     service.onModuleInit();
   });
 
-  it('announces the watch cadence first, then relays a changed row as an update', async () => {
+  it('announces the feed status first, then relays a changed row as an update', async () => {
     const events: CommunityConnectionEventDto[] = [];
     service.subscribe().subscribe((event) => events.push(event));
 
@@ -50,7 +60,7 @@ describe('CommunityEventsService', () => {
 
     expect(findById).toHaveBeenCalledWith(CONNECTION.id);
     expect(events).toEqual([
-      { type: 'community_connection:watch', data: { intervalMs: 30_000 } },
+      { type: 'community_connection:watch', data: FEED_STATUS },
       { type: 'community_connection:updated', data: CONNECTION },
     ]);
   });

@@ -118,6 +118,25 @@ export class CommunityConnectionRepository {
   }
 
   /**
+   * Resolves a platform's own community id to the connection. This is the
+   * lookup a live signal arrives with: platforms name a guild, an installation,
+   * or a team — never Reputo's connection id.
+   */
+  async findByPlatformExternalId(
+    platform: CommunityPlatform,
+    externalId: string,
+  ): Promise<CommunityConnectionRow | null> {
+    const entity = await this.connections.findOne({ where: { platform, externalId } });
+    return entity ? mapRow(entity) : null;
+  }
+
+  /** Every connection of one platform, so a feed can be supervised per platform. */
+  async findByPlatform(platform: CommunityPlatform): Promise<CommunityConnectionRow[]> {
+    const entities = await this.connections.find({ where: { platform }, order: { createdAt: 'DESC' } });
+    return entities.map(mapRow);
+  }
+
+  /**
    * Installs are idempotent per community: reconnecting the same guild revives
    * the existing row — including one an admin had disconnected — keeping its id
    * instead of creating a second connection for it.
