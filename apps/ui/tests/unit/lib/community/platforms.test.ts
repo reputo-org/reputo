@@ -4,9 +4,11 @@ import {
   COMMUNITY_PLATFORMS,
   canDisconnect,
   canRecheck,
+  describeAccessIssue,
   describeConnectOutcome,
   describeStatus,
   needsReconnect,
+  RESOURCE_ACCESS_RULE,
 } from "@/lib/community/platforms"
 
 const ALL_STATUSES: CommunityConnectionStatus[] = [
@@ -122,5 +124,39 @@ describe("describeConnectOutcome", () => {
       kind: "error",
       message: "The connection attempt did not finish.",
     })
+  })
+})
+
+describe("describeAccessIssue", () => {
+  it("names what blocks the bot and what the admin changes, for every issue", () => {
+    for (const issue of [
+      "missing_view_channel",
+      "missing_read_history",
+      "issues_disabled",
+      "not_member",
+    ] as const) {
+      const meta = describeAccessIssue(issue)
+      expect(meta.label).not.toBe("No access")
+      expect(meta.description.length).toBeGreaterThan(20)
+    }
+    expect(describeAccessIssue("missing_view_channel").description).toContain(
+      "View Channel"
+    )
+    expect(describeAccessIssue("issues_disabled").description).toContain(
+      "Issues"
+    )
+  })
+
+  it("falls back to a generic verdict for an unknown or missing issue", () => {
+    expect(describeAccessIssue(undefined).label).toBe("No access")
+    expect(describeAccessIssue("something_new" as never).label).toBe(
+      "No access"
+    )
+  })
+
+  it("states the readability rule of every platform", () => {
+    for (const platform of ["discord", "github", "mattermost"] as const) {
+      expect(RESOURCE_ACCESS_RULE[platform]).toMatch(/readable when/)
+    }
   })
 })

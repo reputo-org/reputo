@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { zodResolver } from "@hookform/resolvers/zod"
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useForm } from "react-hook-form"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -9,16 +9,25 @@ import { CommunityConnectionField } from "@/core/fields/community-connection-fie
 import { CommunityResourcesField } from "@/core/fields/community-resources-field"
 import { buildZodSchema, type FormInput } from "@/core/schema-builder"
 
-const { mockUseCommunityConnections, mockUseCommunityResources } = vi.hoisted(
-  () => ({
-    mockUseCommunityConnections: vi.fn(),
-    mockUseCommunityResources: vi.fn(),
-  })
-)
+const {
+  mockUseCommunityConnections,
+  mockUseCommunityResources,
+  mockUseCommunityLiveUpdates,
+  refetchResources,
+} = vi.hoisted(() => ({
+  mockUseCommunityConnections: vi.fn(),
+  mockUseCommunityResources: vi.fn(),
+  mockUseCommunityLiveUpdates: vi.fn(),
+  refetchResources: vi.fn(),
+}))
 
 vi.mock("@/lib/api/hooks", () => ({
   useCommunityConnections: mockUseCommunityConnections,
   useCommunityResources: mockUseCommunityResources,
+}))
+
+vi.mock("@/lib/api/use-community-events", () => ({
+  useCommunityLiveUpdates: mockUseCommunityLiveUpdates,
 }))
 
 const connection = (overrides: Record<string, unknown> = {}) => ({
@@ -52,6 +61,18 @@ const RESOURCES_INPUT: FormInput = {
   required: true,
 }
 
+const CHANNELS = [
+  { id: "c1", name: "general", kind: "text", readable: true },
+  { id: "c2", name: "dev-forum", kind: "forum", readable: true },
+  {
+    id: "c3",
+    name: "staff",
+    kind: "text",
+    readable: false,
+    accessIssue: "missing_view_channel",
+  },
+]
+
 function TestForm({
   defaultValues,
   children,
@@ -76,6 +97,16 @@ function TestForm({
   return <Form {...form}>{children(form.control)}</Form>
 }
 
+function renderResources(defaultValues: Record<string, unknown>) {
+  return render(
+    <TestForm defaultValues={defaultValues}>
+      {(control) => (
+        <CommunityResourcesField input={RESOURCES_INPUT} control={control} />
+      )}
+    </TestForm>
+  )
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   mockUseCommunityConnections.mockReturnValue({
@@ -87,11 +118,15 @@ beforeEach(() => {
     isLoading: false,
   })
   mockUseCommunityResources.mockReturnValue({
-    data: [
-      { id: "c1", name: "general", kind: "text" },
-      { id: "c2", name: "dev-forum", kind: "forum" },
-    ],
+    data: CHANNELS,
     isLoading: false,
+    isError: false,
+    isFetching: false,
+    refetch: refetchResources,
+  })
+  mockUseCommunityLiveUpdates.mockReturnValue({
+    connected: true,
+    watchIntervalMs: 30_000,
   })
 })
 
@@ -114,6 +149,7 @@ describe("CommunityConnectionField", () => {
     expect(await screen.findByText("SNET")).toBeInTheDocument()
     expect(screen.queryByText("Broken")).not.toBeInTheDocument()
     expect(screen.queryByText("Hub")).not.toBeInTheDocument()
+    expect(mockUseCommunityLiveUpdates).toHaveBeenCalled()
   })
 
   it("keeps a stored id visible as unavailable when it no longer qualifies", async () => {
@@ -160,86 +196,171 @@ describe("CommunityConnectionField", () => {
 })
 
 describe("CommunityResourcesField", () => {
-  it("stays disabled until the connection input has a value", () => {
-    render(
-      <TestForm defaultValues={{ community_connection_id: "", resources: [] }}>
-        {(control) => (
-          <CommunityResourcesField input={RESOURCES_INPUT} control={control} />
-        )}
-      </TestForm>
-    )
+  it("shows a placeholder and keeps the stream closed until a connection is chosen", () => {
+    renderResources({ community_connection_id: "", resources: [] })
 
-    expect(screen.getByRole("combobox", { name: /Channels/ })).toBeDisabled()
+    expect(
+      screen.getByText("Select a connection first to list its channels.")
+    ).toBeInTheDocument()
     expect(mockUseCommunityResources).toHaveBeenCalledWith("", false)
+    expect(mockUseCommunityLiveUpdates).toHaveBeenCalledWith({ enabled: false })
   })
 
-  it("lists the connection's channels with search and toggles selections", async () => {
+  it("lists every channel with its read verdict and toggles selections", async () => {
     const user = userEvent.setup()
-    render(
-      <TestForm
-        defaultValues={{ community_connection_id: "conn-1", resources: [] }}
-      >
-        {(control) => (
-          <CommunityResourcesField input={RESOURCES_INPUT} control={control} />
-        )}
-      </TestForm>
-    )
+    renderResources({ community_connection_id: "conn-1", resources: [] })
 
     expect(mockUseCommunityResources).toHaveBeenCalledWith("conn-1", true)
+    expect(mockUseCommunityLiveUpdates).toHaveBeenCalledWith({ enabled: true })
+    expect(screen.getByText("2 of 3 channels readable")).toBeInTheDocument()
+    expect(screen.getByText(/No access · 1/)).toBeInTheDocument()
 
-    await user.click(screen.getByRole("combobox", { name: /Channels/ }))
-    await user.type(screen.getByPlaceholderText("Search channels…"), "gen")
-    await waitFor(() =>
-      expect(screen.queryByText("#dev-forum")).not.toBeInTheDocument()
+    await user.click(screen.getByRole("checkbox", { name: "#general" }))
+    expect(screen.getByText("1 selected")).toBeInTheDocument()
+    expect(screen.getByRole("checkbox", { name: "#general" })).toBeChecked()
+
+    await user.click(screen.getByRole("checkbox", { name: "#general" }))
+    expect(screen.getByText("0 selected")).toBeInTheDocument()
+  })
+
+  it("locks a channel the bot cannot read and explains what to grant", () => {
+    renderResources({ community_connection_id: "conn-1", resources: [] })
+
+    const staff = screen.getByRole("checkbox", { name: "#staff" })
+    expect(staff).toBeDisabled()
+    expect(screen.getByText("Can't view")).toBeInTheDocument()
+    expect(
+      screen.getByText(/The bot lacks View Channel here/)
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/A channel is readable when the Reputo role has/)
+    ).toBeInTheDocument()
+  })
+
+  it("selects every readable channel at once and clears the selection", async () => {
+    const user = userEvent.setup()
+    renderResources({ community_connection_id: "conn-1", resources: [] })
+
+    await user.click(
+      screen.getByRole("button", { name: "Select all readable" })
     )
 
-    await user.click(screen.getByText("#general"))
+    expect(screen.getByText("2 selected")).toBeInTheDocument()
+    expect(screen.getByRole("checkbox", { name: "#general" })).toBeChecked()
+    expect(screen.getByRole("checkbox", { name: "#dev-forum" })).toBeChecked()
+    expect(screen.getByRole("checkbox", { name: "#staff" })).not.toBeChecked()
+    expect(
+      screen.getByRole("button", { name: "Select all readable" })
+    ).toBeDisabled()
+
+    await user.click(screen.getByRole("button", { name: "Clear" }))
+    expect(screen.getByText("0 selected")).toBeInTheDocument()
+  })
+
+  it("filters the list by search without touching the selection", async () => {
+    const user = userEvent.setup()
+    renderResources({ community_connection_id: "conn-1", resources: ["c1"] })
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Search channels" }),
+      "forum"
+    )
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("checkbox", { name: "#general" })
+      ).not.toBeInTheDocument()
+    )
+    expect(
+      screen.getByRole("checkbox", { name: "#dev-forum" })
+    ).toBeInTheDocument()
+    expect(screen.getByText("1 selected")).toBeInTheDocument()
+
+    await user.clear(screen.getByRole("textbox", { name: "Search channels" }))
+    await user.type(
+      screen.getByRole("textbox", { name: "Search channels" }),
+      "zzz"
+    )
+    expect(
+      await screen.findByText('No channels match "zzz".')
+    ).toBeInTheDocument()
+  })
+
+  it("labels repositories by name without the channel `#` prefix and hides the kind", () => {
+    mockUseCommunityResources.mockReturnValue({
+      data: [
+        { id: "9001", name: "snet/reputo", kind: "repository", readable: true },
+      ],
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: refetchResources,
+    })
+    renderResources({ community_connection_id: "conn-3", resources: [] })
+
+    expect(
+      screen.getByRole("checkbox", { name: "snet/reputo" })
+    ).toBeInTheDocument()
+    expect(screen.queryByText("#snet/reputo")).not.toBeInTheDocument()
+    expect(screen.queryByText("repository")).not.toBeInTheDocument()
+  })
+
+  it("flags a stored selection the bot can no longer read and removes it on request", async () => {
+    const user = userEvent.setup()
+    renderResources({
+      community_connection_id: "conn-1",
+      resources: ["c1", "c3"],
+    })
+
+    const alert = screen.getByRole("alert")
+    expect(alert).toHaveTextContent("The bot cannot read #staff")
+    expect(screen.getByRole("checkbox", { name: "#staff" })).toBeChecked()
+    expect(screen.getByRole("checkbox", { name: "#staff" })).not.toBeDisabled()
+
+    await user.click(
+      within(alert).getByRole("button", { name: "Remove unreadable" })
+    )
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
     expect(screen.getByText("1 selected")).toBeInTheDocument()
   })
 
-  it("labels repositories by name without the channel `#` prefix", async () => {
+  it("shows stored ids the connection no longer lists as removable entries", async () => {
     const user = userEvent.setup()
-    mockUseCommunityResources.mockReturnValue({
-      data: [{ id: "9001", name: "snet/reputo", kind: "repository" }],
-      isLoading: false,
+    renderResources({
+      community_connection_id: "conn-1",
+      resources: ["c1", "deleted-channel"],
     })
-    render(
-      <TestForm
-        defaultValues={{ community_connection_id: "conn-3", resources: [] }}
-      >
-        {(control) => (
-          <CommunityResourcesField input={RESOURCES_INPUT} control={control} />
-        )}
-      </TestForm>
-    )
 
-    await user.click(screen.getByRole("combobox", { name: /Channels/ }))
-
-    expect(await screen.findByText("snet/reputo")).toBeInTheDocument()
-    expect(screen.queryByText("#snet/reputo")).not.toBeInTheDocument()
-  })
-
-  it("shows stored ids the connection no longer lists as removable raw-id badges", async () => {
-    const user = userEvent.setup()
-    render(
-      <TestForm
-        defaultValues={{
-          community_connection_id: "conn-1",
-          resources: ["c1", "deleted-channel"],
-        }}
-      >
-        {(control) => (
-          <CommunityResourcesField input={RESOURCES_INPUT} control={control} />
-        )}
-      </TestForm>
-    )
-
-    expect(screen.getByText("#general")).toBeInTheDocument()
+    expect(screen.getByText(/No longer listed · 1/)).toBeInTheDocument()
     expect(screen.getByText("deleted-channel")).toBeInTheDocument()
 
     await user.click(
       screen.getByRole("button", { name: "Remove deleted-channel" })
     )
+
     expect(screen.queryByText("deleted-channel")).not.toBeInTheDocument()
+    expect(screen.getByText("1 selected")).toBeInTheDocument()
+  })
+
+  it("refetches on demand and reports a failed listing with a retry", async () => {
+    const user = userEvent.setup()
+    mockUseCommunityResources.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      isFetching: false,
+      refetch: refetchResources,
+    })
+    renderResources({ community_connection_id: "conn-1", resources: [] })
+
+    expect(
+      screen.getByText("The channels could not be loaded.")
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Try again" }))
+    await user.click(screen.getByRole("button", { name: "Refresh channels" }))
+
+    expect(refetchResources).toHaveBeenCalledTimes(2)
   })
 })

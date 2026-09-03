@@ -14,6 +14,10 @@ vi.mock("@/lib/api/hooks", () => ({
   useCommunityConnections: () => useCommunityConnections(),
 }))
 
+vi.mock("@/lib/api/use-community-events", () => ({
+  useCommunityLiveUpdates: () => ({ connected: true, watchIntervalMs: 30_000 }),
+}))
+
 const connectionInput: FormInput = {
   key: "community_connection_id",
   label: "Discord server",

@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useCommunityConnections } from "@/lib/api/hooks"
+import { useCommunityLiveUpdates } from "@/lib/api/use-community-events"
 import { describeStatus } from "@/lib/community/platforms"
 import type { FormInput } from "../schema-builder"
 import { InlineMarkdown } from "./inline-markdown"
@@ -40,12 +41,15 @@ const communitiesLink = (
  * Definition-driven picker for a community connection. Offers only active
  * connections of the widget's platform — the API rejects anything else — and
  * keeps a stored id visible as unavailable when it no longer qualifies, so an
- * old preset shows what it points at instead of a blank control.
+ * old preset shows what it points at instead of a blank control. The list is
+ * live: a connection that breaks or recovers moves in and out of the picker
+ * as the API's probes see it.
  */
 export function CommunityConnectionField({
   input,
   control,
 }: CommunityConnectionFieldProps) {
+  useCommunityLiveUpdates()
   const {
     data: connections,
     isLoading,
