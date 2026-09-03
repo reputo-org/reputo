@@ -1,12 +1,14 @@
 import type { INestApplication } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import { CommunityAuthError } from '@reputo/community-api';
+import { BehaviorSubject } from 'rxjs';
 import type { DataSource } from 'typeorm';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommunityService } from '../../../src/community/community.service';
 import { CommunityConnectionRepository } from '../../../src/community/community-connection.repository';
 import { CommunityEventsService } from '../../../src/community/community-events.service';
 import { CommunityHealthSweepService } from '../../../src/community/community-health-sweep.service';
+import type { CommunityRealtimeService } from '../../../src/community/realtime';
 import { CommunityConnectionAuditEntity, CommunityConnectionEntity } from '../../../src/persistence';
 import { createTestApp } from '../../utils/app-test.module';
 import { createAuthenticatedSession } from '../../utils/auth-session';
@@ -32,12 +34,18 @@ const discord = {
 
 const noopLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), setContext: vi.fn() };
 
+const feedStatus = (overrides: Partial<Record<string, string>> = {}) => ({
+  feeds: { discord: 'live', github: 'live', mattermost: 'live', ...overrides },
+  fallbackIntervalMs: 60_000,
+});
+
 describe('Community health sweep e2e', () => {
   let app: INestApplication;
   let dataSource: DataSource;
   let adminCookie: string;
   let sweep: CommunityHealthSweepService;
   let events: CommunityEventsService;
+  let feeds: BehaviorSubject<ReturnType<typeof feedStatus>>;
   let makeSweep: (thresholds: Record<string, number>) => CommunityHealthSweepService;
 
   async function connect() {
@@ -62,12 +70,16 @@ describe('Community health sweep e2e', () => {
     // connection is always due, even when the container Postgres clock runs
     // slightly ahead of this process.
     events = boot.moduleRef.get(CommunityEventsService);
+    // Feed status is driven by hand here, so a fallback-polling assertion does
+    // not depend on when a feed happened to connect.
+    feeds = new BehaviorSubject(feedStatus());
     makeSweep = (thresholds) =>
       new CommunityHealthSweepService(
         noopLogger as never,
         boot.moduleRef.get(CommunityConnectionRepository),
         boot.moduleRef.get(CommunityService),
         events,
+        { status$: feeds.asObservable() } as unknown as CommunityRealtimeService,
         {
           get: vi.fn(
             (key: string) =>
@@ -139,7 +151,7 @@ describe('Community health sweep e2e', () => {
     expect(list.body[0].metadata).toEqual({ memberCount: 42, resourceCount: 3, readableResourceCount: 2 });
   });
 
-  it('records only transitions for system checks, so a watch loop leaves no heartbeat log', async () => {
+  it('records only transitions for system checks, so a repeated check leaves no heartbeat log', async () => {
     await connect();
     discord.probe.mockRejectedValue(new CommunityAuthError('401: Unauthorized', 401));
 
@@ -153,9 +165,9 @@ describe('Community health sweep e2e', () => {
     expect(audits).toHaveLength(1);
   });
 
-  it('re-probes on the watch cadence while a client follows the events stream', async () => {
+  it('polls a platform whose live feed is down while a client follows the events stream', async () => {
     const connection = await connect();
-    // Checked ten minutes ago: fresh for the periodic thresholds, stale for a 60 s watch.
+    // Checked ten minutes ago: fresh for the reconciliation thresholds, stale for a 60 s fallback.
     await dataSource.query(
       `UPDATE community_connections SET settings = jsonb_set(settings, '{lastCheck,at}', to_jsonb($1::text)) WHERE id = $2`,
       [new Date(Date.now() - 10 * 60_000).toISOString(), connection.id],
@@ -172,13 +184,19 @@ describe('Community health sweep e2e', () => {
 
     const subscription = events.subscribe().subscribe();
     try {
+      // A watching client alone changes nothing: the gateway is carrying the
+      // changes, so polling would be pure waste.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(discord.probe).not.toHaveBeenCalled();
+
+      feeds.next(feedStatus({ discord: 'down' }));
       await vi.waitFor(() => expect(discord.probe).toHaveBeenCalledTimes(1));
-      expect(periodic.isWatching).toBe(true);
+      expect([...periodic.polledPlatforms]).toEqual(['discord']);
     } finally {
       subscription.unsubscribe();
       periodic.onModuleDestroy();
     }
-    expect(periodic.isWatching).toBe(false);
+    expect(periodic.polledPlatforms.size).toBe(0);
   });
 
   it('never probes a disconnected connection', async () => {

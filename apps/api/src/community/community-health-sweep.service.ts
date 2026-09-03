@@ -1,29 +1,32 @@
 import { Injectable, type OnApplicationBootstrap, type OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CommunityConnectionStatus } from '@reputo/contracts';
+import { CommunityConnectionStatus, CommunityFeedState, type CommunityPlatform } from '@reputo/contracts';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { distinctUntilChanged, map, type Subscription } from 'rxjs';
+import { combineLatest, distinctUntilChanged, map, type Subscription } from 'rxjs';
 import { CommunityService } from './community.service';
 import { CommunityConnectionRepository, type CommunityConnectionRow } from './community-connection.repository';
 import { CommunityEventsService } from './community-events.service';
+import { CommunityRealtimeService } from './realtime';
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Periodic health sweep over the community connections, so a kicked bot or a
- * revoked token surfaces without anyone pressing Re-check.
+ * Reconciliation sweep over the community connections — the safety net behind
+ * the live feeds.
  *
- * Each pass re-probes the connections whose last platform check is older than
- * a status-dependent threshold: active connections age slowly, non-active
- * ones are re-probed sooner so a fix on the platform side recovers the row
- * fast (`checkHealth` already writes `active` on a passing probe).
- * Disconnected connections are never probed. Probes run sequentially with a
- * pause between them, so one pass cannot burst against platform rate limits.
+ * The feeds carry a platform-side change to open pages within a second, but no
+ * push transport is complete. A delivery GitHub does not retry, a socket that
+ * was down while an admin edited a role, and the one Discord case the
+ * non-privileged intent cannot see (a role added to or removed from the bot
+ * itself) all leave a row that no event will ever correct. So the sweep keeps
+ * re-probing on age: `active` connections slowly, non-active ones sooner, so a
+ * fix on the platform side recovers the row on its own.
  *
- * While at least one client follows the connection events stream the sweep
- * switches to its watch cadence: every connection is re-probed every watch
- * interval, so a permission change on the platform shows up on the open page
- * within that interval. The cadence stops with the last client.
+ * It also covers a feed that is not carrying anything. While at least one client
+ * follows the events stream, the connections of any platform whose feed is not
+ * live are re-probed on the fallback cadence, so a page stays as fresh as it was
+ * before the feeds existed — never worse. Platforms with a live feed are left
+ * alone: their changes already arrive by push.
  *
  * Freshness is read from the row itself — the same source `lastCheckedAt` is
  * served from — so every replica sees every replica's checks.
@@ -34,11 +37,12 @@ export class CommunityHealthSweepService implements OnApplicationBootstrap, OnMo
   private readonly activeRecheckAfterMs: number;
   private readonly failedRecheckAfterMs: number;
   private readonly probeSpacingMs: number;
-  private readonly watchIntervalMs: number;
+  private readonly fallbackIntervalMs: number;
   private timer: NodeJS.Timeout | null = null;
-  private watchTimer: NodeJS.Timeout | null = null;
-  private watcherSubscription: Subscription | null = null;
-  private watching = false;
+  private fallbackTimer: NodeJS.Timeout | null = null;
+  private fallbackSubscription: Subscription | null = null;
+  /** Platforms currently polled on the fallback cadence: watched, and not live. */
+  private polled: ReadonlySet<CommunityPlatform> = new Set();
   private running = false;
   private stopping = false;
 
@@ -48,13 +52,14 @@ export class CommunityHealthSweepService implements OnApplicationBootstrap, OnMo
     private readonly connections: CommunityConnectionRepository,
     private readonly communityService: CommunityService,
     private readonly events: CommunityEventsService,
+    private readonly realtime: CommunityRealtimeService,
     configService: ConfigService,
   ) {
     this.intervalMs = configService.get<number>('community.healthSweep.intervalMs') ?? 900_000;
     this.activeRecheckAfterMs = configService.get<number>('community.healthSweep.activeRecheckAfterMs') ?? 21_600_000;
     this.failedRecheckAfterMs = configService.get<number>('community.healthSweep.failedRecheckAfterMs') ?? 1_800_000;
     this.probeSpacingMs = configService.get<number>('community.healthSweep.probeSpacingMs') ?? 2_000;
-    this.watchIntervalMs = configService.get<number>('community.healthSweep.watchIntervalMs') ?? 30_000;
+    this.fallbackIntervalMs = configService.get<number>('community.healthSweep.watchIntervalMs') ?? 30_000;
   }
 
   onApplicationBootstrap(): void {
@@ -68,16 +73,26 @@ export class CommunityHealthSweepService implements OnApplicationBootstrap, OnMo
       void this.sweep();
     }
 
-    if (this.watchIntervalMs <= 0) {
-      this.logger.warn('Community health watch cadence disabled (COMMUNITY_HEALTH_WATCH_INTERVAL_MS=0)');
+    if (this.fallbackIntervalMs <= 0) {
+      this.logger.warn('Community health fallback polling disabled (COMMUNITY_HEALTH_WATCH_INTERVAL_MS=0)');
       return;
     }
-    this.watcherSubscription = this.events.watcherCount$
+    // Poll a platform only while somebody is looking *and* its feed cannot tell
+    // them: a live feed makes the fallback pure waste.
+    this.fallbackSubscription = combineLatest([this.events.watcherCount$, this.realtime.status$])
       .pipe(
-        map((count) => count > 0),
-        distinctUntilChanged(),
+        map(([watchers, status]) =>
+          watchers > 0
+            ? new Set(
+                (Object.keys(status.feeds) as CommunityPlatform[]).filter(
+                  (platform) => status.feeds[platform] !== CommunityFeedState.live,
+                ),
+              )
+            : new Set<CommunityPlatform>(),
+        ),
+        distinctUntilChanged(sameSet),
       )
-      .subscribe((watched) => (watched ? this.startWatching() : this.stopWatching()));
+      .subscribe((platforms) => this.setPolledPlatforms(platforms));
   }
 
   onModuleDestroy(): void {
@@ -86,14 +101,14 @@ export class CommunityHealthSweepService implements OnApplicationBootstrap, OnMo
       clearInterval(this.timer);
       this.timer = null;
     }
-    this.watcherSubscription?.unsubscribe();
-    this.watcherSubscription = null;
-    this.stopWatching();
+    this.fallbackSubscription?.unsubscribe();
+    this.fallbackSubscription = null;
+    this.stopFallback();
   }
 
-  /** Whether a client is following the events stream, so the watch cadence is on. */
-  get isWatching(): boolean {
-    return this.watching;
+  /** Platforms being polled on the fallback cadence right now. */
+  get polledPlatforms(): ReadonlySet<CommunityPlatform> {
+    return this.polled;
   }
 
   async sweep(): Promise<void> {
@@ -116,28 +131,31 @@ export class CommunityHealthSweepService implements OnApplicationBootstrap, OnMo
     }
   }
 
-  private startWatching(): void {
-    if (this.watching || this.stopping) return;
-    this.watching = true;
+  private setPolledPlatforms(platforms: ReadonlySet<CommunityPlatform>): void {
+    if (this.stopping) return;
+    this.polled = platforms;
+
+    if (platforms.size === 0) {
+      this.stopFallback();
+      return;
+    }
     this.logger.info(
-      { intervalMs: this.watchIntervalMs },
-      'Community health watch started: a client follows the events stream',
+      { platforms: [...platforms], intervalMs: this.fallbackIntervalMs },
+      'Community health fallback polling covers platforms without a live feed',
     );
-    this.watchTimer = setInterval(() => void this.sweep(), this.watchIntervalMs);
-    this.watchTimer.unref?.();
+    if (this.fallbackTimer) return;
+    this.fallbackTimer = setInterval(() => void this.sweep(), this.fallbackIntervalMs);
+    this.fallbackTimer.unref?.();
     // The first pass runs at once, so a freshly opened page settles on the
     // platform's current answer rather than on the last periodic check.
     void this.sweep();
   }
 
-  private stopWatching(): void {
-    if (!this.watching) return;
-    this.watching = false;
-    if (this.watchTimer) {
-      clearInterval(this.watchTimer);
-      this.watchTimer = null;
-    }
-    this.logger.info('Community health watch stopped: no client follows the events stream');
+  private stopFallback(): void {
+    if (!this.fallbackTimer) return;
+    clearInterval(this.fallbackTimer);
+    this.fallbackTimer = null;
+    this.logger.info('Community health fallback polling stopped');
   }
 
   private async findDueConnections(): Promise<CommunityConnectionRow[]> {
@@ -147,15 +165,16 @@ export class CommunityHealthSweepService implements OnApplicationBootstrap, OnMo
     return rows.filter((row) => {
       if (row.status === CommunityConnectionStatus.disconnected) return false;
       const lastChecked = row.lastCheckedAt ?? row.createdAt;
-      // Half the cadence, so a probe that landed just after the previous tick
-      // does not push the connection past the next one.
-      const threshold = this.watching
-        ? this.watchIntervalMs / 2
-        : row.status === CommunityConnectionStatus.active
-          ? this.activeRecheckAfterMs
-          : this.failedRecheckAfterMs;
-      return now - lastChecked.getTime() >= threshold;
+      return now - lastChecked.getTime() >= this.thresholdFor(row);
     });
+  }
+
+  /** How stale a row may get before this pass re-probes it. */
+  private thresholdFor(row: CommunityConnectionRow): number {
+    // Half the cadence, so a probe that landed just after the previous tick does
+    // not push the connection past the next one.
+    if (this.polled.has(row.platform)) return this.fallbackIntervalMs / 2;
+    return row.status === CommunityConnectionStatus.active ? this.activeRecheckAfterMs : this.failedRecheckAfterMs;
   }
 
   private async checkRow(row: CommunityConnectionRow): Promise<void> {
@@ -176,4 +195,8 @@ export class CommunityHealthSweepService implements OnApplicationBootstrap, OnMo
       );
     }
   }
+}
+
+function sameSet<T>(a: ReadonlySet<T>, b: ReadonlySet<T>): boolean {
+  return a.size === b.size && [...a].every((value) => b.has(value));
 }

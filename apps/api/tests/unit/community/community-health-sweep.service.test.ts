@@ -8,8 +8,14 @@ import type {
 } from '../../../src/community/community-connection.repository';
 import type { CommunityEventsService } from '../../../src/community/community-events.service';
 import { CommunityHealthSweepService } from '../../../src/community/community-health-sweep.service';
+import type { CommunityRealtimeService } from '../../../src/community/realtime';
 
 const HOUR_MS = 3_600_000;
+
+const liveFeeds = (overrides: Partial<Record<string, string>> = {}) => ({
+  feeds: { discord: 'live', github: 'live', mattermost: 'live', ...overrides },
+  fallbackIntervalMs: 30_000,
+});
 
 function makeRow(overrides: Partial<CommunityConnectionRow> = {}): CommunityConnectionRow {
   return {
@@ -36,6 +42,7 @@ describe('CommunityHealthSweepService', () => {
   let connections: { findAll: ReturnType<typeof vi.fn> };
   let communityService: { checkHealth: ReturnType<typeof vi.fn> };
   let watchers: BehaviorSubject<number>;
+  let feedStatus: BehaviorSubject<ReturnType<typeof liveFeeds>>;
 
   const makeService = (values: Record<string, number> = {}) => {
     const configService = {
@@ -57,6 +64,7 @@ describe('CommunityHealthSweepService', () => {
       connections as unknown as CommunityConnectionRepository,
       communityService as unknown as CommunityService,
       { watcherCount$: watchers.asObservable() } as unknown as CommunityEventsService,
+      { status$: feedStatus.asObservable() } as unknown as CommunityRealtimeService,
       configService,
     );
   };
@@ -66,6 +74,7 @@ describe('CommunityHealthSweepService', () => {
     connections = { findAll: vi.fn().mockResolvedValue([]) };
     communityService = { checkHealth: vi.fn().mockResolvedValue({ status: 'active', checkedAt: '' }) };
     watchers = new BehaviorSubject<number>(0);
+    feedStatus = new BehaviorSubject(liveFeeds());
   });
 
   it('stays off when the interval is 0', async () => {
@@ -190,11 +199,31 @@ describe('CommunityHealthSweepService', () => {
     );
   });
 
-  describe('watch cadence', () => {
-    it('re-probes every connection on the watch cadence while a client follows the events stream', async () => {
+  describe('fallback polling', () => {
+    it('leaves a platform alone while its feed is live, however many clients watch', async () => {
       vi.useFakeTimers();
       try {
-        // Checked 20 s ago: fresh for the periodic sweep, due on a 30 s watch.
+        // Checked 20 s ago: fresh for the reconciliation pass, due on a 30 s fallback.
+        connections.findAll.mockResolvedValue([
+          makeRow({ id: 'watched', lastCheckedAt: new Date(Date.now() - 20_000) }),
+        ]);
+        const service = makeService({ 'community.healthSweep.intervalMs': 0 });
+        service.onApplicationBootstrap();
+
+        watchers.next(1);
+        await vi.advanceTimersByTimeAsync(60_000);
+
+        expect(service.polledPlatforms.size).toBe(0);
+        expect(communityService.checkHealth).not.toHaveBeenCalled();
+        service.onModuleDestroy();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('polls the connections of a platform whose feed is down while a client watches', async () => {
+      vi.useFakeTimers();
+      try {
         connections.findAll.mockResolvedValue([
           makeRow({ id: 'watched', lastCheckedAt: new Date(Date.now() - 20_000) }),
         ]);
@@ -204,8 +233,9 @@ describe('CommunityHealthSweepService', () => {
         expect(communityService.checkHealth).not.toHaveBeenCalled();
 
         watchers.next(1);
+        feedStatus.next(liveFeeds({ discord: 'down' }));
         await vi.advanceTimersByTimeAsync(0);
-        expect(service.isWatching).toBe(true);
+        expect([...service.polledPlatforms]).toEqual(['discord']);
         expect(communityService.checkHealth).toHaveBeenCalledTimes(1);
 
         connections.findAll.mockResolvedValue([
@@ -220,7 +250,7 @@ describe('CommunityHealthSweepService', () => {
       }
     });
 
-    it('skips a connection checked less than half a watch interval ago', async () => {
+    it('skips a connection checked less than half a fallback interval ago', async () => {
       connections.findAll.mockResolvedValue([
         makeRow({ id: 'just-checked', lastCheckedAt: new Date(Date.now() - 5_000) }),
       ]);
@@ -228,14 +258,15 @@ describe('CommunityHealthSweepService', () => {
       service.onApplicationBootstrap();
 
       watchers.next(1);
-      await vi.waitFor(() => expect(service.isWatching).toBe(true));
+      feedStatus.next(liveFeeds({ discord: 'down' }));
+      await vi.waitFor(() => expect(service.polledPlatforms.size).toBe(1));
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(communityService.checkHealth).not.toHaveBeenCalled();
       service.onModuleDestroy();
     });
 
-    it('stops the cadence with the last client and never starts it when disabled', async () => {
+    it('stops polling when the feed recovers, and never polls when the fallback is disabled', async () => {
       vi.useFakeTimers();
       try {
         connections.findAll.mockResolvedValue([
@@ -244,12 +275,13 @@ describe('CommunityHealthSweepService', () => {
         const service = makeService({ 'community.healthSweep.intervalMs': 0 });
         service.onApplicationBootstrap();
 
-        watchers.next(2);
-        await vi.advanceTimersByTimeAsync(0);
         watchers.next(1);
-        watchers.next(0);
-        expect(service.isWatching).toBe(false);
+        feedStatus.next(liveFeeds({ discord: 'down' }));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(communityService.checkHealth).toHaveBeenCalledTimes(1);
 
+        feedStatus.next(liveFeeds());
+        expect(service.polledPlatforms.size).toBe(0);
         await vi.advanceTimersByTimeAsync(60_000);
         expect(communityService.checkHealth).toHaveBeenCalledTimes(1);
         service.onModuleDestroy();
@@ -260,10 +292,37 @@ describe('CommunityHealthSweepService', () => {
         });
         disabled.onApplicationBootstrap();
         watchers.next(1);
-        await vi.advanceTimersByTimeAsync(0);
-        expect(disabled.isWatching).toBe(false);
+        feedStatus.next(liveFeeds({ discord: 'down' }));
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(disabled.polledPlatforms.size).toBe(0);
         expect(communityService.checkHealth).toHaveBeenCalledTimes(1);
         disabled.onModuleDestroy();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('stops polling with the last client', async () => {
+      vi.useFakeTimers();
+      try {
+        connections.findAll.mockResolvedValue([
+          makeRow({ id: 'watched', lastCheckedAt: new Date(Date.now() - 20_000) }),
+        ]);
+        const service = makeService({ 'community.healthSweep.intervalMs': 0 });
+        service.onApplicationBootstrap();
+
+        feedStatus.next(liveFeeds({ discord: 'down' }));
+        watchers.next(2);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(communityService.checkHealth).toHaveBeenCalledTimes(1);
+
+        watchers.next(1);
+        watchers.next(0);
+        expect(service.polledPlatforms.size).toBe(0);
+
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(communityService.checkHealth).toHaveBeenCalledTimes(1);
+        service.onModuleDestroy();
       } finally {
         vi.useRealTimers();
       }
