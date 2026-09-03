@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { CommunityConnectionStatus } from '@reputo/contracts';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { CommunityService } from './community.service';
-import { CommunityAuditRepository } from './community-audit.repository';
 import { CommunityConnectionRepository, type CommunityConnectionRow } from './community-connection.repository';
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -12,16 +11,15 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
  * Periodic health sweep over the community connections, so a kicked bot or a
  * revoked token surfaces without anyone pressing Re-check.
  *
- * Each pass re-probes the connections whose last platform verification is
- * older than a status-dependent threshold: active connections age slowly,
- * non-active ones are re-probed sooner so a fix on the platform side recovers
- * the row fast (`checkHealth` already writes `active` on a passing probe).
+ * Each pass re-probes the connections whose last platform check is older than
+ * a status-dependent threshold: active connections age slowly, non-active
+ * ones are re-probed sooner so a fix on the platform side recovers the row
+ * fast (`checkHealth` already writes `active` on a passing probe).
  * Disconnected connections are never probed. Probes run sequentially with a
  * pause between them, so one pass cannot burst against platform rate limits.
  *
- * Freshness is read from the audit log — the same source `lastCheckedAt` is
- * served from — and every probe writes its own audit row with a null actor,
- * so sweep checks are visible and the next pass sees them.
+ * Freshness is read from the row itself — the same source `lastCheckedAt` is
+ * served from — so every replica sees every replica's checks.
  */
 @Injectable()
 export class CommunityHealthSweepService implements OnApplicationBootstrap, OnModuleDestroy {
@@ -37,7 +35,6 @@ export class CommunityHealthSweepService implements OnApplicationBootstrap, OnMo
     @InjectPinoLogger(CommunityHealthSweepService.name)
     private readonly logger: PinoLogger,
     private readonly connections: CommunityConnectionRepository,
-    private readonly audit: CommunityAuditRepository,
     private readonly communityService: CommunityService,
     configService: ConfigService,
   ) {
@@ -89,12 +86,11 @@ export class CommunityHealthSweepService implements OnApplicationBootstrap, OnMo
 
   private async findDueConnections(): Promise<CommunityConnectionRow[]> {
     const rows = await this.connections.findAll();
-    const candidates = rows.filter((row) => row.status !== CommunityConnectionStatus.disconnected);
-    const verifications = await this.audit.findLatestVerification(candidates.map((row) => row.id));
     const now = Date.now();
 
-    return candidates.filter((row) => {
-      const lastChecked = verifications.get(row.id)?.checkedAt ?? row.createdAt;
+    return rows.filter((row) => {
+      if (row.status === CommunityConnectionStatus.disconnected) return false;
+      const lastChecked = row.lastCheckedAt ?? row.createdAt;
       const threshold =
         row.status === CommunityConnectionStatus.active ? this.activeRecheckAfterMs : this.failedRecheckAfterMs;
       return now - lastChecked.getTime() >= threshold;

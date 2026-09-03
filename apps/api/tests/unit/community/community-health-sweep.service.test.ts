@@ -1,7 +1,6 @@
 import type { ConfigService } from '@nestjs/config';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommunityService } from '../../../src/community/community.service';
-import type { CommunityAuditRepository } from '../../../src/community/community-audit.repository';
 import type {
   CommunityConnectionRepository,
   CommunityConnectionRow,
@@ -33,7 +32,6 @@ describe('CommunityHealthSweepService', () => {
   };
 
   let connections: { findAll: ReturnType<typeof vi.fn> };
-  let audit: { findLatestVerification: ReturnType<typeof vi.fn> };
   let communityService: { checkHealth: ReturnType<typeof vi.fn> };
 
   const makeService = (values: Record<string, number> = {}) => {
@@ -53,7 +51,6 @@ describe('CommunityHealthSweepService', () => {
     return new CommunityHealthSweepService(
       mockLogger as never,
       connections as unknown as CommunityConnectionRepository,
-      audit as unknown as CommunityAuditRepository,
       communityService as unknown as CommunityService,
       configService,
     );
@@ -62,7 +59,6 @@ describe('CommunityHealthSweepService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     connections = { findAll: vi.fn().mockResolvedValue([]) };
-    audit = { findLatestVerification: vi.fn().mockResolvedValue(new Map()) };
     communityService = { checkHealth: vi.fn().mockResolvedValue({ status: 'active', checkedAt: '' }) };
   });
 
@@ -84,9 +80,9 @@ describe('CommunityHealthSweepService', () => {
     service.onModuleDestroy();
   });
 
-  it('probes only connections whose verification is older than their threshold', async () => {
-    const stale = makeRow({ id: 'stale' });
-    const fresh = makeRow({ id: 'fresh', createdAt: new Date(Date.now() - HOUR_MS) });
+  it('probes only connections whose last check is older than their threshold', async () => {
+    const stale = makeRow({ id: 'stale', lastCheckedAt: new Date(Date.now() - 7 * HOUR_MS) });
+    const fresh = makeRow({ id: 'fresh', lastCheckedAt: new Date(Date.now() - HOUR_MS) });
     connections.findAll.mockResolvedValue([stale, fresh]);
 
     await makeService().sweep();
@@ -96,7 +92,7 @@ describe('CommunityHealthSweepService', () => {
   });
 
   it('re-probes non-active connections on the shorter threshold', async () => {
-    const broken = makeRow({ id: 'broken', status: 'broken', createdAt: new Date(Date.now() - HOUR_MS) });
+    const broken = makeRow({ id: 'broken', status: 'broken', lastCheckedAt: new Date(Date.now() - HOUR_MS) });
     connections.findAll.mockResolvedValue([broken]);
 
     await makeService().sweep();
@@ -109,16 +105,11 @@ describe('CommunityHealthSweepService', () => {
 
     await makeService().sweep();
 
-    expect(audit.findLatestVerification).toHaveBeenCalledWith([]);
     expect(communityService.checkHealth).not.toHaveBeenCalled();
   });
 
-  it('reads freshness from the latest verification, not the row age', async () => {
-    const row = makeRow({ id: 'checked' });
-    connections.findAll.mockResolvedValue([row]);
-    audit.findLatestVerification.mockResolvedValue(
-      new Map([['checked', { checkedAt: new Date(Date.now() - HOUR_MS), failureCategory: null }]]),
-    );
+  it('falls back to the row age when a connection was never checked', async () => {
+    connections.findAll.mockResolvedValue([makeRow({ id: 'unchecked', createdAt: new Date(Date.now() - HOUR_MS) })]);
 
     await makeService().sweep();
 

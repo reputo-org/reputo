@@ -4,7 +4,6 @@ import { CommunityAuthError } from '@reputo/community-api';
 import type { DataSource } from 'typeorm';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommunityService } from '../../../src/community/community.service';
-import { CommunityAuditRepository } from '../../../src/community/community-audit.repository';
 import { CommunityConnectionRepository } from '../../../src/community/community-connection.repository';
 import { CommunityHealthSweepService } from '../../../src/community/community-health-sweep.service';
 import { CommunityConnectionAuditEntity, CommunityConnectionEntity } from '../../../src/persistence';
@@ -14,7 +13,13 @@ import { getTestDataSource } from '../../utils/db';
 import { api } from '../../utils/request';
 
 const GUILD = { id: '974492421130127923', name: 'SingularityNET' };
-const PROBE = { resourceCount: 2, sampledResourceId: '1', sampledRecordCount: 1 };
+const PROBE = {
+  resourceCount: 2,
+  readableResourceCount: 2,
+  resourcesDigest: 'digest-2',
+  sampledResourceId: '1',
+  sampledRecordCount: 1,
+};
 
 const discord = {
   buildInstallUrl: vi.fn((state: string) => `https://discord.com/oauth2/authorize?scope=bot&state=${state}`),
@@ -53,23 +58,21 @@ describe('Community health sweep e2e', () => {
     // real service over the real repositories. Thresholds are negative so a
     // connection is always due, even when the container Postgres clock runs
     // slightly ahead of this process.
-    const alwaysDue = {
-      get: vi.fn(
-        (key: string) =>
-          ({
-            'community.healthSweep.intervalMs': 60_000,
-            'community.healthSweep.activeRecheckAfterMs': -3_600_000,
-            'community.healthSweep.failedRecheckAfterMs': -3_600_000,
-            'community.healthSweep.probeSpacingMs': 0,
-          })[key],
-      ),
-    } as unknown as ConfigService;
     sweep = new CommunityHealthSweepService(
       noopLogger as never,
       boot.moduleRef.get(CommunityConnectionRepository),
-      boot.moduleRef.get(CommunityAuditRepository),
       boot.moduleRef.get(CommunityService),
-      alwaysDue,
+      {
+        get: vi.fn(
+          (key: string) =>
+            ({
+              'community.healthSweep.intervalMs': 60_000,
+              'community.healthSweep.probeSpacingMs': 0,
+              'community.healthSweep.activeRecheckAfterMs': -3_600_000,
+              'community.healthSweep.failedRecheckAfterMs': -3_600_000,
+            })[key],
+        ),
+      } as unknown as ConfigService,
     );
   });
 
@@ -123,7 +126,21 @@ describe('Community health sweep e2e', () => {
     const list = await api(app, adminCookie).get('/community/connections').expect(200);
     expect(list.body[0]).toMatchObject({ id: connection.id, status: 'active' });
     expect(list.body[0].statusReason).toBeUndefined();
-    expect(list.body[0].metadata).toEqual({ memberCount: 42, resourceCount: 3 });
+    expect(list.body[0].metadata).toEqual({ memberCount: 42, resourceCount: 3, readableResourceCount: 2 });
+  });
+
+  it('records only transitions for system checks, so a watch loop leaves no heartbeat log', async () => {
+    await connect();
+    discord.probe.mockRejectedValue(new CommunityAuthError('401: Unauthorized', 401));
+
+    await sweep.sweep();
+    await sweep.sweep();
+    await sweep.sweep();
+
+    const audits = await dataSource
+      .getRepository(CommunityConnectionAuditEntity)
+      .find({ where: { action: 'health_check' } });
+    expect(audits).toHaveLength(1);
   });
 
   it('never probes a disconnected connection', async () => {

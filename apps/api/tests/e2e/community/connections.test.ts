@@ -15,10 +15,16 @@ import { api } from '../../utils/request';
 
 const GUILD = { id: '974492421130127923', name: 'SingularityNET' };
 const CHANNELS = [
-  { id: '1', name: 'general', kind: 'text' as const },
-  { id: '2', name: 'proposals', kind: 'forum' as const },
+  { id: '1', name: 'general', kind: 'text' as const, readable: true },
+  { id: '2', name: 'proposals', kind: 'forum' as const, readable: true },
 ];
-const PROBE = { resourceCount: 2, sampledResourceId: '1', sampledRecordCount: 1 };
+const PROBE = {
+  resourceCount: 2,
+  readableResourceCount: 2,
+  resourcesDigest: 'digest-2',
+  sampledResourceId: '1',
+  sampledRecordCount: 1,
+};
 
 /** `lastCheckedAt` is stamped by the Postgres clock, which can drift a little from this process's. */
 const DB_CLOCK_SKEW_MS = 5_000;
@@ -196,6 +202,24 @@ describe('Community connections e2e', () => {
       expect(discord.listResources).toHaveBeenCalledWith(GUILD.id);
     });
 
+    it('lists channels the bot cannot read too, with the issue that blocks each', async () => {
+      const { connection } = await connect();
+      discord.listResources.mockResolvedValue([
+        CHANNELS[0],
+        { id: '3', name: 'staff', kind: 'text', readable: false, accessIssue: 'missing_view_channel' },
+      ]);
+
+      const response = await api(app, adminCookie).get(`/community/connections/${connection.id}/resources`).expect(200);
+
+      expect(response.body[1]).toEqual({
+        id: '3',
+        name: 'staff',
+        kind: 'text',
+        readable: false,
+        accessIssue: 'missing_view_channel',
+      });
+    });
+
     it('breaks the connection and reports a bad gateway when the bot was revoked', async () => {
       const { connection } = await connect();
       discord.listResources.mockRejectedValue(new CommunityAuthError('401: Unauthorized', 401));
@@ -288,13 +312,14 @@ describe('Community connections e2e', () => {
         avatarUrl: PROFILE_PROBE.profile.avatarUrl,
         memberCount: 1874,
         resourceCount: 2,
+        readableResourceCount: 2,
       });
     });
 
     it('serves counts alone when the probe carried no profile', async () => {
       const { connection } = await connect();
 
-      expect(connection.metadata).toEqual({ resourceCount: 2 });
+      expect(connection.metadata).toEqual({ resourceCount: 2, readableResourceCount: 2 });
     });
 
     it('keeps the last good metadata across a failing probe and refreshes it on recovery', async () => {
@@ -308,11 +333,16 @@ describe('Community connections e2e', () => {
       expect(broken.body[0].status).toBe('broken');
       expect(broken.body[0].metadata).toMatchObject({ memberCount: 1874 });
 
-      discord.probe.mockResolvedValue({ ...PROBE, resourceCount: 5, profile: { memberCount: 2000 } });
+      discord.probe.mockResolvedValue({
+        ...PROBE,
+        resourceCount: 5,
+        readableResourceCount: 4,
+        profile: { memberCount: 2000 },
+      });
       await api(app, adminCookie).get(`/community/connections/${connection.id}/health`).expect(200);
 
       const recovered = await api(app, adminCookie).get('/community/connections').expect(200);
-      expect(recovered.body[0].metadata).toEqual({ memberCount: 2000, resourceCount: 5 });
+      expect(recovered.body[0].metadata).toEqual({ memberCount: 2000, resourceCount: 5, readableResourceCount: 4 });
     });
   });
 
