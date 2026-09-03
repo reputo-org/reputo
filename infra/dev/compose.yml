@@ -98,6 +98,9 @@ x-api-env: &api-env
     GITHUB_APP_PRIVATE_KEY: '${GITHUB_APP_PRIVATE_KEY:?missing GITHUB_APP_PRIVATE_KEY}'
     GITHUB_APP_SLUG: '${GITHUB_APP_SLUG:?missing GITHUB_APP_SLUG}'
     GITHUB_APP_CALLBACK_URL: '${GITHUB_APP_CALLBACK_URL:?missing GITHUB_APP_CALLBACK_URL}'
+    # Optional: without it the GitHub webhook endpoint refuses every delivery
+    # and GitHub connections fall back to polling.
+    GITHUB_APP_WEBHOOK_SECRET:
     COMMUNITY_CREDENTIALS_ENCRYPTION_KEY: '${COMMUNITY_CREDENTIALS_ENCRYPTION_KEY:?missing COMMUNITY_CREDENTIALS_ENCRYPTION_KEY}'
     COMMUNITY_CREDENTIALS_ENCRYPTION_KEY_PREVIOUS:
     # In-network hostname of the dev Mattermost container; from the host use
@@ -114,6 +117,8 @@ x-api-env: &api-env
     COMMUNITY_HEALTH_FAILED_RECHECK_AFTER_MS:
     COMMUNITY_HEALTH_PROBE_SPACING_MS:
     COMMUNITY_HEALTH_WATCH_INTERVAL_MS:
+    COMMUNITY_REALTIME_ENABLED:
+    COMMUNITY_REALTIME_DEBOUNCE_MS:
     DATABASE_URL: postgresql://reputo_app:reputo_app@postgres:5432/reputo_app
     AWS_REGION: '${AWS_REGION:?missing AWS_REGION}'
     # Dev stack uses in-stack MinIO; credentials match `minio` service below.
