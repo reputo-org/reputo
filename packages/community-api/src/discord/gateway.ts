@@ -60,8 +60,8 @@ interface GatewayBotResponse {
  * bot's read-only install — which delivers channel, role, and guild lifecycle
  * events. A change to which *roles the bot itself holds* arrives as
  * `GUILD_MEMBER_UPDATE`, which needs the privileged `GUILD_MEMBERS` intent, so
- * that one case is left to the reconciliation sweep rather than bought with a
- * privileged intent.
+ * that one case waits for a Re-check rather than being bought with a privileged
+ * intent.
  *
  * The source emits signals only; it never resolves permissions itself. A probe
  * decides what a signal meant, so the Gateway cannot drift from the REST view

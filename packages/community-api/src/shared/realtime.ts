@@ -43,7 +43,7 @@ export interface CommunitySignal {
 
 /**
  * Where a source's transport stands. `live` is the only state in which the
- * consumer may stop polling that platform; `fatal` means the credential or
+ * platform's changes are actually arriving; `fatal` means the credential or
  * configuration is wrong and reconnecting cannot fix it.
  */
 export const CommunityRealtimeState = {

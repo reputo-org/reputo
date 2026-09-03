@@ -209,8 +209,8 @@ const SEALED_CREDENTIAL_PLATFORMS = new Set<CommunityPlatform>([CommunityPlatfor
  * Runs the community dependency and, when the fetch fails for any reason but
  * cancellation, re-checks the connection through the API before rethrowing —
  * so a kicked bot flips its row to `broken` the moment a snapshot hits it,
- * instead of the row claiming `active` until the next sweep. The probe is the
- * arbiter: a transient blip probes clean and changes nothing.
+ * instead of the row claiming `active` until the platform says otherwise. The
+ * probe is the arbiter: a transient blip probes clean and changes nothing.
  */
 async function resolveCommunityDependencyWithWriteback(
   resolve: DependencyResolverActivities['resolveDependency'],

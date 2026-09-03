@@ -65,10 +65,9 @@ snapshot fetch needs. It runs:
 4. **Whenever a platform says something changed** — see the next section. This is the normal
    case: a permission change on the platform reaches an open page in about a second, with
    nobody polling anything.
-5. **Periodically** — a reconciliation sweep re-probes connections whose last check is older
-   than a status-dependent threshold, as the safety net behind the live feeds. Non-active
-   connections are re-probed sooner, so a fix on the platform side recovers the row to `active`
-   on its own even if no event ever arrives.
+
+Nothing re-probes on a timer. A connection is read when a platform says it changed, when a
+snapshot uses it, or when an admin presses Re-check — and never otherwise.
 
 Listing resources (`GET /community/connections/:id/resources`) and preset validation are health
 signals too: a platform failure there moves the row like a failed probe would.
@@ -106,15 +105,15 @@ upgrade header, never as a frame.
 
 ### What the live feeds cannot see
 
-Two gaps are covered by the sweep rather than papered over:
+These two cases reach no feed, so the row keeps its previous answer until a Re-check, the next
+snapshot run, or the next event that does arrive:
 
 - **Discord**: a role being *added to or removed from the bot itself* arrives as
   `GUILD_MEMBER_UPDATE`, which needs the privileged `GUILD_MEMBERS` intent. Reputo runs on the
-  non-privileged `GUILDS` intent, in keeping with its read-only install, so this one case waits
-  for the sweep. A change to the *permissions of a role the bot holds* does arrive, and that is
-  the common case.
+  non-privileged `GUILDS` intent, in keeping with its read-only install. A change to the
+  *permissions of a role the bot holds* does arrive, and that is the common case.
 - **GitHub**: GitHub does not retry a failed delivery. A delivery lost while the API was down is
-  gone, and the sweep is what corrects the row.
+  gone.
 
 ### Operator setup
 
@@ -124,35 +123,25 @@ Two gaps are covered by the sweep rather than papered over:
   one community route without a session: GitHub authenticates by signing every delivery, and the
   signature is verified against the raw request bytes in constant time. A missing, wrong, or
   unverifiable signature is refused with `401` and identical wording, so nothing about the
-  secret leaks. Without the secret the endpoint refuses everything and GitHub connections fall
-  back to polling — they keep working, just less promptly.
+  secret leaks. `GITHUB_APP_WEBHOOK_SECRET` is required — the API refuses to start without it,
+  because a GitHub change reaches Reputo no other way.
 - **Discord** and **Mattermost**: nothing to configure. The bot token and the sealed team tokens
   already in use are what the sockets authenticate with.
 
-### Cost and fallback
+### Cost
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `COMMUNITY_REALTIME_ENABLED` | `true` | Follow the platforms' live feeds. `false` leaves everything to the sweep. |
+| `GITHUB_APP_WEBHOOK_SECRET` | — | **Required.** Secret on the App's webhook; every delivery is signed with it. |
 | `COMMUNITY_REALTIME_DEBOUNCE_MS` | `750` | Window in which repeated signals for one community collapse into a single probe. |
-| `GITHUB_APP_WEBHOOK_SECRET` | — | Secret on the App's webhook. Unset means GitHub deliveries are refused. |
-| `COMMUNITY_HEALTH_SWEEP_INTERVAL_MS` | `900000` (15 min) | Time between reconciliation passes. `0` disables the sweep. |
-| `COMMUNITY_HEALTH_ACTIVE_RECHECK_AFTER_MS` | `21600000` (6 h) | Age after which an `active` connection is re-probed. |
-| `COMMUNITY_HEALTH_FAILED_RECHECK_AFTER_MS` | `1800000` (30 min) | Age after which a `pending`/`degraded`/`broken` connection is re-probed. |
-| `COMMUNITY_HEALTH_PROBE_SPACING_MS` | `2000` | Pause between probes inside one sweep pass. |
-| `COMMUNITY_HEALTH_WATCH_INTERVAL_MS` | `30000` (30 s) | Fallback poll cadence, used **only** for a platform whose live feed is down, while a client follows the events stream. `0` disables the fallback. |
 
-A healthy connection nobody is looking at costs at most four probes per day, plus one probe per
-actual change on the platform. Idle sockets cost no requests at all: the old behaviour — every
-connection re-probed every 30 s while a page was open — is gone, so a page left open all day
-now costs nothing instead of ~2 900 probes.
+A connection costs one probe per actual change on the platform, plus one on connect, one per
+Re-check, and one per snapshot that uses it. An idle community costs nothing at all: the sockets
+sit open without spending requests, and no timer re-probes anything, so a page left open all day
+adds no platform traffic.
 
-Polling only comes back when a feed cannot do its job. While at least one client follows the
-events stream, the connections of any platform whose feed is not live are re-probed on the
-fallback cadence, so an open page is never *less* fresh than it was before the feeds existed.
-Platforms with a live feed are left alone. Each replica opens its own sockets and receives its
-own webhook deliveries; a probe by any replica reaches every client, because changes travel over
-PostgreSQL `NOTIFY`.
+Each replica opens its own sockets and receives its own webhook deliveries; a probe by any
+replica reaches every client, because changes travel over PostgreSQL `NOTIFY`.
 
 ## How changes reach the browser
 
@@ -162,18 +151,18 @@ name, or the stored settings other than the check timestamp. The API listens on 
 connection, reloads the row, and fans it out to every subscribed SSE client as
 `community_connection:updated` (or `community_connection:removed`). The first event of a stream
 is `community_connection:watch`, carrying the **feed status**: which platforms are pushing their
-changes and which are being polled instead, plus the fallback cadence. It is sent again whenever
-a feed changes state, and the Communities page turns it into its "Live" line — "Discord changes
-appear as they happen", or "GitHub checked every 30 s while its feed reconnects".
+changes right now. It is sent again whenever a feed changes state, and the Communities page turns
+it into its "Live" line — "Discord changes appear as they happen", or "Not live — the GitHub feed
+is reconnecting; Re-check to see changes now".
 
 The UI keeps one stream per page, shared by every component that shows connections. On an event
 it refetches the connection list and the affected connection's resources, so the composer's
-channel picker updates while it is open. If the stream drops, the page falls back to polling
-once a minute and reconnects; while the stream is open it does not poll at all, because the
-stream has already delivered whatever a refetch would find.
+channel picker updates while it is open. If the stream drops it reconnects and refetches on the
+way back in; the page never polls, because the stream has already delivered whatever a refetch
+would find.
 
-A connection row shows *when it was last checked* only while its platform is being polled. Under
-a live feed the row is current to the second, so a "Checked 12 minutes ago" line would date the
+A connection row shows *when it was last checked* only while its platform's feed is down. Under a
+live feed the row is current to the second, so a "Checked 12 minutes ago" line would date the
 last probe rather than the data, and read as stale when nothing is. The absolute timestamps stay
 in the row's tooltip either way.
 
@@ -194,7 +183,7 @@ answer, and every replica sees every replica's checks.
 
 The audit log (`community_connection_audit`) records every human action — connect, Re-check,
 listing resources, disconnect — and every **transition** a system check causes: a live-feed
-probe, a sweep pass, or a snapshot-failure write-back writes a row, with a null actor, only when
+probe or a snapshot-failure write-back writes a row, with a null actor, only when
 it changes the status or the failure category. That is how you tell a system check from a human
 one, and why a busy community leaves a transition history rather than a heartbeat log.
 
@@ -230,8 +219,8 @@ entry. The list is live through the events stream.
 Use this to prove end to end that a platform-side change is caught. Keep the Communities page
 (or a community preset composer) open and watch the "Live" line: while the platform's feed is
 live, each expectation below lands within a second or two of the change on the platform, with no
-click. If the line says a platform is being polled instead, its expectations land within
-`COMMUNITY_HEALTH_WATCH_INTERVAL_MS` (30 s by default). Press Re-check to skip any wait.
+click. If the line says a feed is reconnecting, nothing lands for that platform until it is back
+— press Re-check to read the platform now.
 
 For GitHub, check the App's **Advanced → Recent Deliveries** page if nothing arrives: a `401`
 there means `GITHUB_APP_WEBHOOK_SECRET` does not match the App's secret, and a connection error
@@ -261,6 +250,5 @@ that selects an unreadable resource is rejected too, naming the resource and the
 
 The automated equivalents of these scenarios live in
 `apps/api/tests/e2e/community/realtime.test.ts` (a platform event or a signed delivery through to
-an SSE event), `apps/api/tests/e2e/community/health-sweep.test.ts`,
-`apps/api/tests/e2e/community/events.test.ts`, and the event-mapping and probe tests in
-`packages/community-api`.
+an SSE event), `apps/api/tests/e2e/community/events.test.ts`, and the event-mapping and probe
+tests in `packages/community-api`.
