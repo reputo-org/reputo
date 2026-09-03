@@ -1,4 +1,3 @@
-import type { ConfigService } from '@nestjs/config';
 import type {
   CommunityRealtimeSource,
   CommunityRealtimeState,
@@ -84,7 +83,7 @@ describe('CommunityRealtimeService', () => {
   let findCredentialsCiphertext: ReturnType<typeof vi.fn>;
   let service: CommunityRealtimeService;
 
-  const makeService = (config: Record<string, unknown> = {}) => {
+  const makeService = () => {
     const connections = {
       findAll: vi.fn(async () => rows),
       findByPlatformExternalId: vi.fn(
@@ -113,17 +112,6 @@ describe('CommunityRealtimeService', () => {
           return source;
         },
       },
-      {
-        get: vi.fn(
-          (key: string) =>
-            ({
-              'community.realtime.enabled': true,
-              'community.realtime.githubWebhookSecret': 'a-secret',
-              'community.healthSweep.watchIntervalMs': 30_000,
-              ...config,
-            })[key],
-        ),
-      } as unknown as ConfigService,
     );
   };
 
@@ -224,16 +212,6 @@ describe('CommunityRealtimeService', () => {
       expect(discordSources).toHaveLength(1);
       expect(mattermostSources.size).toBe(1);
     });
-
-    it('opens nothing at all when live feeds are turned off', async () => {
-      rows = [row()];
-      service = makeService({ 'community.realtime.enabled': false });
-      service.onApplicationBootstrap();
-      await settle();
-
-      expect(discordSources).toHaveLength(0);
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('disabled'));
-    });
   });
 
   describe('what it does with a signal', () => {
@@ -307,16 +285,6 @@ describe('CommunityRealtimeService', () => {
       await settle();
 
       expect(service.status.feeds).toEqual({ discord: 'live', github: 'live', mattermost: 'live' });
-      expect(service.isLive('discord')).toBe(true);
-    });
-
-    it('reports GitHub as down without a webhook secret, because nothing would be accepted', async () => {
-      service = makeService({ 'community.realtime.githubWebhookSecret': undefined });
-      service.onApplicationBootstrap();
-      await settle();
-
-      expect(service.status.feeds.github).toBe('down');
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('GITHUB_APP_WEBHOOK_SECRET'));
     });
 
     it('reports a reconnecting gateway as connecting, and pushes the change to subscribers', async () => {
@@ -350,14 +318,6 @@ describe('CommunityRealtimeService', () => {
       await settle();
 
       expect(service.status.feeds.mattermost).toBe('down');
-    });
-
-    it('carries the fallback cadence, so a client can say how often a dead feed is polled', async () => {
-      service = makeService();
-      service.onApplicationBootstrap();
-      await settle();
-
-      expect(service.status.fallbackIntervalMs).toBe(30_000);
     });
   });
 

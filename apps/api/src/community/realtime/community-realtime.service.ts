@@ -1,5 +1,4 @@
 import { Inject, Injectable, type OnApplicationBootstrap, type OnModuleDestroy } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import {
   CommunityAuthError,
   type CommunityRealtimeSource,
@@ -33,7 +32,7 @@ const FEED_STATE_BY_SOURCE_STATE: Record<CommunityRealtimeState, CommunityFeedSt
 
 /**
  * Follows the platforms' own live feeds so a change on a platform reaches open
- * pages as it happens, instead of being discovered by the next poll.
+ * pages as it happens.
  *
  * Each platform pushes through the only transport it offers: Discord over a
  * Gateway socket, Mattermost over a WebSocket per connected team, GitHub over
@@ -47,15 +46,13 @@ const FEED_STATE_BY_SOURCE_STATE: Record<CommunityRealtimeState, CommunityFeedSt
  * connection change, which arrives on the same `NOTIFY` channel that drives the
  * SSE stream. A connect therefore starts following its team without a restart.
  *
- * Feeds never gate correctness. A source that is down leaves its platform on
- * the reconciliation sweep's polling, and `status$` says which platforms are in
- * which mode, so an open page can tell the operator the truth.
+ * The feeds are the only thing that carries a platform-side change, so a source
+ * that is down is a gap rather than a slower path. `status$` publishes each
+ * platform's feed state for exactly that reason: an open page says which
+ * platforms it is currently hearing from, and a Re-check covers the rest.
  */
 @Injectable()
 export class CommunityRealtimeService implements OnApplicationBootstrap, OnModuleDestroy {
-  private readonly enabled: boolean;
-  private readonly githubWebhookSecret?: string;
-  private readonly fallbackIntervalMs: number;
   private discord: CommunityRealtimeSource | null = null;
   /** One Mattermost source per connection external id. */
   private readonly mattermost = new Map<string, CommunityRealtimeSource>();
@@ -74,25 +71,11 @@ export class CommunityRealtimeService implements OnApplicationBootstrap, OnModul
     private readonly listener: CommunityConnectionListenerService,
     @Inject(COMMUNITY_REALTIME_SOURCES)
     private readonly sources: CommunityRealtimeSourceFactory,
-    configService: ConfigService,
   ) {
-    this.enabled = configService.get<boolean>('community.realtime.enabled') ?? true;
-    this.githubWebhookSecret = configService.get<string>('community.realtime.githubWebhookSecret');
-    this.fallbackIntervalMs = configService.get<number>('community.healthSweep.watchIntervalMs') ?? 30_000;
     this.statusSubject = new BehaviorSubject<CommunityRealtimeStatusDto>(this.buildStatus());
   }
 
   onApplicationBootstrap(): void {
-    if (!this.enabled) {
-      this.logger.warn('Community live feeds disabled (COMMUNITY_REALTIME_ENABLED=false); the sweep polls instead');
-      return;
-    }
-    if (this.githubWebhookSecret === undefined) {
-      this.logger.warn(
-        'No GITHUB_APP_WEBHOOK_SECRET: GitHub deliveries are refused and GitHub connections fall back to polling',
-      );
-    }
-
     // A connect, disconnect, or removal changes which feeds are needed, and it
     // reaches every replica on this channel already.
     this.connectionsSubscription = this.listener.notifications$.subscribe({
@@ -119,18 +102,13 @@ export class CommunityRealtimeService implements OnApplicationBootstrap, OnModul
     this.statusSubject.complete();
   }
 
-  /** Feed state per platform, and the cadence a platform without a feed is polled at. */
+  /** Feed state per platform. */
   get status(): CommunityRealtimeStatusDto {
     return this.statusSubject.value;
   }
 
   get status$(): Observable<CommunityRealtimeStatusDto> {
     return this.statusSubject.asObservable();
-  }
-
-  /** Whether this platform's changes are arriving by push right now. */
-  isLive(platform: CommunityPlatform): boolean {
-    return this.status.feeds[platform] === CommunityFeedState.live;
   }
 
   /**
@@ -140,7 +118,6 @@ export class CommunityRealtimeService implements OnApplicationBootstrap, OnModul
    * is dropped.
    */
   async ingestGitHubDelivery(event: string, payload: unknown): Promise<void> {
-    if (!this.enabled) return;
     const signal = toGitHubWebhookSignal(event, payload);
     if (signal === null) return;
     await this.handleSignal(signal);
@@ -169,7 +146,7 @@ export class CommunityRealtimeService implements OnApplicationBootstrap, OnModul
     try {
       rows = await this.connections.findAll();
     } catch (error) {
-      // The next notification or the next boot retries; the sweep covers the gap.
+      // The next connection change, or the next boot, retries.
       this.logger.error({ err: error }, 'Could not read the connections to supervise their live feeds');
       return;
     }
@@ -304,9 +281,7 @@ export class CommunityRealtimeService implements OnApplicationBootstrap, OnModul
     if (this.stopped) return;
     const next = this.buildStatus();
     const current = this.statusSubject.value;
-    const changed =
-      next.fallbackIntervalMs !== current.fallbackIntervalMs ||
-      COMMUNITY_PLATFORM_LIST.some((platform) => next.feeds[platform] !== current.feeds[platform]);
+    const changed = COMMUNITY_PLATFORM_LIST.some((platform) => next.feeds[platform] !== current.feeds[platform]);
     if (changed) {
       this.statusSubject.next(next);
     }
@@ -316,30 +291,22 @@ export class CommunityRealtimeService implements OnApplicationBootstrap, OnModul
     return {
       feeds: {
         [CommunityPlatform.discord]: this.discordFeedState(),
-        [CommunityPlatform.github]: this.githubFeedState(),
+        // GitHub pushes rather than holding a socket, so there is nothing to
+        // observe: the signed webhook the API requires is the live state, and
+        // delivering to it is GitHub's job.
+        [CommunityPlatform.github]: CommunityFeedState.live,
         [CommunityPlatform.mattermost]: this.mattermostFeedState(),
       },
-      fallbackIntervalMs: this.fallbackIntervalMs,
     };
   }
 
   private discordFeedState(): CommunityFeedState {
-    if (!this.enabled || this.discord === null) return CommunityFeedState.down;
+    if (this.discord === null) return CommunityFeedState.down;
     return FEED_STATE_BY_SOURCE_STATE[this.discord.state];
-  }
-
-  /**
-   * GitHub pushes rather than holding a socket, so there is nothing to observe:
-   * a configured, signed webhook is the live state. Delivery is GitHub's job,
-   * and the sweep still reconciles whatever a delivery missed.
-   */
-  private githubFeedState(): CommunityFeedState {
-    return this.enabled && this.githubWebhookSecret !== undefined ? CommunityFeedState.live : CommunityFeedState.down;
   }
 
   /** Live only when every supervised team has an open socket — one broken team is a gap. */
   private mattermostFeedState(): CommunityFeedState {
-    if (!this.enabled) return CommunityFeedState.down;
     const states = [...this.mattermost.values()].map((source) => FEED_STATE_BY_SOURCE_STATE[source.state]);
     if (states.length === 0) return CommunityFeedState.live;
     if (states.every((state) => state === CommunityFeedState.live)) return CommunityFeedState.live;

@@ -67,16 +67,16 @@ export const COMMUNITY_RESOURCE_ACCESS_ISSUES = Object.values(CommunityResourceA
 
 /**
  * State of a platform's live feed — the Discord Gateway socket, GitHub App
- * webhook deliveries, a Mattermost WebSocket. A feed that is not `live` is
- * covered by polling, so the connection view stays correct either way; the
- * difference is only how fast a platform-side change shows up.
+ * webhook deliveries, a Mattermost WebSocket. The feed is the only thing that
+ * carries a platform-side change, so anything but `live` means changes for that
+ * platform wait until it is back or somebody re-checks the connection.
  */
 export const CommunityFeedState = {
-  /** The platform pushes its changes; nothing is polled for it. */
+  /** The platform is pushing its changes. */
   live: 'live',
   /** Handshaking or reconnecting. Transient. */
   connecting: 'connecting',
-  /** No live feed — turned off, unconfigured, or refused. Polling covers it. */
+  /** No live feed — stopped, or refused by the platform. */
   down: 'down',
 } as const;
 

@@ -8,7 +8,6 @@ import type { CommunityConnectionListenerService } from '../../../src/persistenc
 
 const FEED_STATUS = {
   feeds: { discord: 'live', github: 'live', mattermost: 'live' },
-  fallbackIntervalMs: 30_000,
 } as const;
 
 const CONNECTION = {
@@ -119,19 +118,6 @@ describe('CommunityEventsService', () => {
     }
   });
 
-  it('counts subscribed clients so the sweep knows when someone is watching', () => {
-    const counts: number[] = [];
-    service.watcherCount$.subscribe((count) => counts.push(count));
-
-    const first = service.subscribe().subscribe();
-    const second = service.subscribe().subscribe();
-    first.unsubscribe();
-    second.unsubscribe();
-
-    expect(counts).toEqual([0, 1, 2, 1, 0]);
-    expect(service.watcherCount).toBe(0);
-  });
-
   it('completes every client stream on shutdown', () => {
     const completed = vi.fn();
     service.subscribe().subscribe({ complete: completed });
@@ -139,6 +125,5 @@ describe('CommunityEventsService', () => {
     service.onModuleDestroy();
 
     expect(completed).toHaveBeenCalledOnce();
-    expect(service.watcherCount).toBe(0);
   });
 });

@@ -23,7 +23,6 @@ import {
   GITHUB_CLIENT,
   MATTERMOST_CLIENT,
 } from '../../src/community';
-import { CommunityHealthSweepService } from '../../src/community/community-health-sweep.service';
 import { configModules } from '../../src/config';
 import { setupSwagger } from '../../src/docs';
 import { HealthModule } from '../../src/health';
@@ -201,8 +200,8 @@ export async function createTestApp(options: TestAppOptions) {
     terminateSnapshotWorkflows: async () => undefined,
   };
 
-  // The reconciler and the health sweep would touch rows the e2e tests seeded
-  // with old timestamps; their behavior is covered by their own tests.
+  // The reconciler would touch rows the e2e tests seeded with old timestamps;
+  // its behavior is covered by its own tests.
   const noopReconciler = {
     onApplicationBootstrap: () => undefined,
     onModuleDestroy: () => undefined,
@@ -294,8 +293,6 @@ export async function createTestApp(options: TestAppOptions) {
     .overrideProvider(TemporalService)
     .useValue(mockTemporalService)
     .overrideProvider(SnapshotReconcilerService)
-    .useValue(noopReconciler)
-    .overrideProvider(CommunityHealthSweepService)
     .useValue(noopReconciler)
     .overrideProvider(COMMUNITY_REALTIME_SOURCES)
     .useValue(options.realtimeSources ?? new FakeRealtimeSources());

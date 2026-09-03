@@ -81,8 +81,8 @@ export class CommunityController {
     description:
       'Opens a Server-Sent Events stream of connection changes: status, reason, metadata, name, and removals. ' +
       "Changes are driven by each platform's own live feed, so a permission change on the platform arrives " +
-      'within about a second. The first event carries the feed status — which platforms push and which are ' +
-      'polled for instead — and it is sent again whenever a feed changes state.',
+      'within about a second. The first event carries the feed status — which platforms are pushing right ' +
+      'now — and it is sent again whenever a feed changes state.',
   })
   @ApiOkResponse({ description: 'SSE stream established.', type: CommunityConnectionEventDto })
   subscribeToEvents(): Observable<MessageEvent> {

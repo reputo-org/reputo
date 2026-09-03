@@ -101,7 +101,6 @@ describe('Community connection events via PostgreSQL LISTEN/NOTIFY', () => {
       type: 'community_connection:watch',
       data: {
         feeds: { discord: expect.any(String), github: expect.any(String), mattermost: expect.any(String) },
-        fallbackIntervalMs: 30_000,
       },
     });
   });

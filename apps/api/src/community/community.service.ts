@@ -293,8 +293,8 @@ export class CommunityService {
 
   /**
    * On-demand probe. A failed probe is a reported state, not a failed request.
-   * A null actor is a system check — the health sweep, the watch loop, or a
-   * snapshot failure write-back — and audits only what changes the row.
+   * A null actor is a system check — a live feed's re-probe or a snapshot
+   * failure write-back — and audits only what changes the row.
    */
   async checkHealth(actor: OAuthUserRow | null, id: string): Promise<CommunityHealthDto> {
     const connection = await this.getUsableConnection(id);
@@ -540,11 +540,10 @@ export class CommunityService {
   }
 
   /**
-   * Human actions are always on the record. System checks — the sweep, the
-   * watch loop, a snapshot write-back, preset validation — are recorded only
-   * when they change what the row says, so a watch loop probing every half
-   * minute leaves a transition history rather than a heartbeat log. The row
-   * itself carries the freshness.
+   * Human actions are always on the record. System checks — a live feed's
+   * re-probe, a snapshot write-back, preset validation — are recorded only when
+   * they change what the row says, so a busy community leaves a transition
+   * history rather than a heartbeat log. The row itself carries the freshness.
    */
   private recordOutcome(
     actor: OAuthUserRow | null,

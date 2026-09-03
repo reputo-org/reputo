@@ -44,7 +44,7 @@ const MAX_DELIVERY_BYTES = 5 * 1024 * 1024;
 @Public()
 @Controller(COMMUNITY_WEBHOOKS_ROUTE)
 export class CommunityWebhooksController {
-  private readonly secret?: string;
+  private readonly secret: string;
 
   constructor(
     @InjectPinoLogger(CommunityWebhooksController.name)
@@ -52,7 +52,7 @@ export class CommunityWebhooksController {
     private readonly realtime: CommunityRealtimeService,
     configService: ConfigService,
   ) {
-    this.secret = configService.get<string>('community.realtime.githubWebhookSecret');
+    this.secret = configService.get<string>('community.realtime.githubWebhookSecret') as string;
   }
 
   @Post(GITHUB_WEBHOOK_ROUTE)
@@ -74,10 +74,6 @@ export class CommunityWebhooksController {
     const event = header(request, GITHUB_EVENT_HEADER) ?? '';
     const delivery = header(request, GITHUB_DELIVERY_HEADER);
 
-    if (this.secret === undefined) {
-      this.logger.warn({ delivery, event }, 'Refused a GitHub delivery: no webhook secret is configured');
-      throw new CommunityWebhookRejectedException();
-    }
     if (!rawBody || rawBody.byteLength === 0 || rawBody.byteLength > MAX_DELIVERY_BYTES) {
       this.logger.warn({ delivery, event }, 'Refused a GitHub delivery with no readable body');
       throw new CommunityWebhookRejectedException();

@@ -135,12 +135,10 @@ export const envSchema = z
     GITHUB_APP_SLUG: z.string().trim().min(1).describe('GitHub App URL slug used to build the install redirect'),
     GITHUB_APP_WEBHOOK_SECRET: z
       .string()
-      .optional()
-      // Deployment variable shells arrive as empty strings; treat those as unset.
-      .transform((value) => (value === '' ? undefined : value))
-      .pipe(z.string().min(16).optional())
+      .trim()
+      .min(16)
       .describe(
-        "Secret configured on the GitHub App's webhook; signs every delivery. Without it the webhook endpoint refuses everything and GitHub connections fall back to polling.",
+        "Secret configured on the GitHub App's webhook; signs every delivery, which is how GitHub changes arrive",
       ),
     GITHUB_APP_CALLBACK_URL: z
       .string()
@@ -209,44 +207,6 @@ export const envSchema = z
       .positive()
       .default(10_000)
       .describe('Maximum delay for community platform retry backoff'),
-    COMMUNITY_HEALTH_SWEEP_INTERVAL_MS: z.coerce
-      .number()
-      .int()
-      .nonnegative()
-      .default(900_000)
-      .describe('Interval between community connection health sweep passes; 0 disables the sweep'),
-    COMMUNITY_HEALTH_ACTIVE_RECHECK_AFTER_MS: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(21_600_000)
-      .describe('Age after which the sweep re-probes an active community connection'),
-    COMMUNITY_HEALTH_FAILED_RECHECK_AFTER_MS: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(1_800_000)
-      .describe('Age after which the sweep re-probes a pending, degraded, or broken community connection'),
-    COMMUNITY_HEALTH_PROBE_SPACING_MS: z.coerce
-      .number()
-      .int()
-      .nonnegative()
-      .default(2_000)
-      .describe('Pause between consecutive probes within one health sweep pass'),
-    COMMUNITY_HEALTH_WATCH_INTERVAL_MS: z.coerce
-      .number()
-      .int()
-      .nonnegative()
-      .default(30_000)
-      .describe(
-        'Fallback re-probe cadence, used only for a platform whose live feed is down while a client follows the events stream; 0 disables it',
-      ),
-    COMMUNITY_REALTIME_ENABLED: z
-      .stringbool()
-      .default(true)
-      .describe(
-        "Follow the platforms' live feeds (Discord Gateway, GitHub App webhooks, Mattermost WebSocket). Disabling it falls back to the health sweep alone.",
-      ),
     COMMUNITY_REALTIME_DEBOUNCE_MS: z.coerce
       .number()
       .int()

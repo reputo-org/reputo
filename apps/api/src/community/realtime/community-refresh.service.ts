@@ -5,9 +5,8 @@ import { CommunityService } from '../community.service';
 
 /**
  * Pause between two probes of different connections. A live signal should reach
- * the browser fast, so this is far shorter than the sweep's spacing; it exists
- * only so a change touching many communities at once cannot burst against a
- * platform's rate limit.
+ * the browser fast, so this stays short; it exists only so a change touching
+ * many communities at once cannot burst against a platform's rate limit.
  */
 const PROBE_SPACING_MS = 250;
 
@@ -118,7 +117,7 @@ export class CommunityRefreshService implements OnModuleDestroy {
       );
     } catch (error) {
       // The connection was deleted or disconnected between the signal and the
-      // probe. Nothing to recover: the next signal or sweep pass reads the row.
+      // probe. Nothing to recover: the next signal reads the row as it is.
       this.logger.debug(
         { connectionId, reason },
         `Live signal skipped a community connection: ${(error as Error).message}`,

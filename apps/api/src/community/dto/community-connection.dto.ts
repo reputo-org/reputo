@@ -65,7 +65,7 @@ export class CommunityConnectionDto implements CommunityConnectionContract {
 
   @ApiPropertyOptional({
     description:
-      'When the platform last confirmed this state. Health is checked on connect, on demand, per snapshot, periodically by the API health sweep, and every watch interval while a client follows the events stream.',
+      "When the platform last confirmed this state. Health is checked on connect, on demand, per snapshot, and whenever the platform's live feed reports a change.",
     example: '2026-08-26T10:00:00.000Z',
   })
   lastCheckedAt?: string;
@@ -112,7 +112,7 @@ export class CommunityConnectionEventDto {
 
   @ApiProperty({
     description:
-      'Event payload: the connection for `updated`, `{ id }` for `removed`, `{ intervalMs }` for `watch` — the re-probe cadence while a client is subscribed, `0` when disabled — and `{ at }` for the periodic `heartbeat`.',
+      "Event payload: the connection for `updated`, `{ id }` for `removed`, `{ feeds }` for `watch` — each platform's live feed state — and `{ at }` for the periodic `heartbeat`.",
     type: 'object',
     additionalProperties: true,
   })

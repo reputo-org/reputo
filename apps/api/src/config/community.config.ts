@@ -11,31 +11,13 @@ import { env } from './env';
 
 /** How the API follows the platforms' own live feeds. */
 export interface CommunityRealtimeConfig {
-  enabled: boolean;
   /** Window in which repeated signals for one community collapse into a single re-probe. */
   debounceMs: number;
   /**
-   * Secret the GitHub App signs its deliveries with. Absent means the webhook
-   * endpoint refuses every delivery and GitHub connections keep polling — it
-   * belongs to the feed, not to the API client, which never sees it.
+   * Secret the GitHub App signs its deliveries with. It belongs to the feed,
+   * not to the API client, which never sees it.
    */
-  githubWebhookSecret?: string;
-}
-
-export interface CommunityHealthSweepConfig {
-  /** Milliseconds between sweep passes; 0 disables the sweep. */
-  intervalMs: number;
-  /** Age after which an active connection is re-probed. */
-  activeRecheckAfterMs: number;
-  /** Age after which a pending, degraded, or broken connection is re-probed. */
-  failedRecheckAfterMs: number;
-  /** Pause between consecutive probes within one pass. */
-  probeSpacingMs: number;
-  /**
-   * Fallback re-probe cadence while a client follows the events stream, applied
-   * only to platforms whose live feed is down; 0 disables it.
-   */
-  watchIntervalMs: number;
+  githubWebhookSecret: string;
 }
 
 export interface CommunityConfig {
@@ -45,7 +27,6 @@ export interface CommunityConfig {
   github: GitHubClientConfig;
   mattermost: MattermostClientConfig;
   credentials: CommunityCredentialKeyring;
-  healthSweep: CommunityHealthSweepConfig;
   realtime: CommunityRealtimeConfig;
 }
 
@@ -87,15 +68,7 @@ export default registerAs('community', (): CommunityConfig => {
       currentSecret: env.COMMUNITY_CREDENTIALS_ENCRYPTION_KEY,
       previousSecret: env.COMMUNITY_CREDENTIALS_ENCRYPTION_KEY_PREVIOUS,
     },
-    healthSweep: {
-      intervalMs: env.COMMUNITY_HEALTH_SWEEP_INTERVAL_MS,
-      activeRecheckAfterMs: env.COMMUNITY_HEALTH_ACTIVE_RECHECK_AFTER_MS,
-      failedRecheckAfterMs: env.COMMUNITY_HEALTH_FAILED_RECHECK_AFTER_MS,
-      probeSpacingMs: env.COMMUNITY_HEALTH_PROBE_SPACING_MS,
-      watchIntervalMs: env.COMMUNITY_HEALTH_WATCH_INTERVAL_MS,
-    },
     realtime: {
-      enabled: env.COMMUNITY_REALTIME_ENABLED,
       debounceMs: env.COMMUNITY_REALTIME_DEBOUNCE_MS,
       githubWebhookSecret: env.GITHUB_APP_WEBHOOK_SECRET,
     },

@@ -25,13 +25,12 @@ describe('CommunityWebhooksController', () => {
   const body = JSON.stringify({ action: 'added', installation: { id: 42 } });
   let ingestGitHubDelivery: ReturnType<typeof vi.fn>;
 
-  const withSecret = (secret: string | undefined) =>
+  const makeController = () =>
     new CommunityWebhooksController(
       logger as never,
       { ingestGitHubDelivery } as unknown as CommunityRealtimeService,
-      { get: vi.fn(() => secret) } as unknown as ConfigService,
+      { get: vi.fn(() => SECRET) } as unknown as ConfigService,
     );
-  const makeController = () => withSecret(SECRET);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -67,13 +66,6 @@ describe('CommunityWebhooksController', () => {
     const unsigned = delivery(body, { 'x-hub-signature-256': undefined });
 
     expect(() => makeController().receiveGitHubDelivery(unsigned)).toThrow(CommunityWebhookRejectedException);
-  });
-
-  it('refuses every delivery while no secret is configured', () => {
-    expect(() => withSecret(undefined).receiveGitHubDelivery(delivery(body))).toThrow(
-      CommunityWebhookRejectedException,
-    );
-    expect(ingestGitHubDelivery).not.toHaveBeenCalled();
   });
 
   it('refuses a delivery whose raw bytes are unavailable', () => {

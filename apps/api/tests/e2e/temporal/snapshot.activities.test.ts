@@ -78,8 +78,8 @@ describe('API snapshot activities (integration)', () => {
     activities = createSnapshotActivities(
       service,
       new CommunityConnectionRepository(dataSource.getRepository(CommunityConnectionEntity)),
-      // The write-back activity is covered by its unit tests and the
-      // health-sweep e2e; this suite never calls it.
+      // The write-back activity is covered by its own unit tests; this suite
+      // never calls it.
       { checkHealth: vi.fn() } as unknown as CommunityService,
     );
   }, 120_000);

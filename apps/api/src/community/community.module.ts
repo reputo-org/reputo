@@ -19,7 +19,6 @@ import { CommunityAuditRepository } from './community-audit.repository';
 import { CommunityConnectionRepository } from './community-connection.repository';
 import { CommunityCredentialsService } from './community-credentials.service';
 import { CommunityEventsService } from './community-events.service';
-import { CommunityHealthSweepService } from './community-health-sweep.service';
 import { CommunityInputValidationService } from './community-input-validation.service';
 import { CommunityInstallStateService } from './community-install-state.service';
 import { CommunityPlatformRegistry } from './community-platform.registry';
@@ -39,7 +38,6 @@ import {
     CommunityAuditRepository,
     CommunityCredentialsService,
     CommunityEventsService,
-    CommunityHealthSweepService,
     CommunityInstallStateService,
     CommunityInputValidationService,
     CommunityPlatformRegistry,
