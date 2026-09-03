@@ -26,8 +26,9 @@ describe('POST /api/v1/algorithm-presets (discord_engagement)', () => {
   beforeEach(async () => {
     listResources.mockReset();
     listResources.mockResolvedValue([
-      { id: 'c1', name: 'general', kind: 'text' },
-      { id: 'c2', name: 'dev', kind: 'forum' },
+      { id: 'c1', name: 'general', kind: 'text', readable: true },
+      { id: 'c2', name: 'dev', kind: 'forum', readable: true },
+      { id: 'c3', name: 'staff', kind: 'text', readable: false, accessIssue: 'missing_view_channel' },
     ]);
     const repo = dataSource.getRepository(CommunityConnectionEntity);
     const saved = await repo.save(
@@ -83,6 +84,15 @@ describe('POST /api/v1/algorithm-presets (discord_engagement)', () => {
       .expect(400);
 
     expect(JSON.stringify(res.body)).toContain('deleted-channel');
+  });
+
+  it('rejects a channel the bot cannot read (400), naming it and why', async () => {
+    const res = await api(app, authCookie)
+      .post('/algorithm-presets')
+      .send(withInput('resources', ['c1', 'c3']))
+      .expect(400);
+
+    expect(JSON.stringify(res.body)).toContain('#staff (the bot lacks View Channel)');
   });
 
   it('rejects a lookback beyond 183 days (400)', async () => {
