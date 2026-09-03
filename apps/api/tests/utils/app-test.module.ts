@@ -11,7 +11,7 @@ import { CommunityHealthSweepService } from '../../src/community/community-healt
 import { configModules } from '../../src/config';
 import { setupSwagger } from '../../src/docs';
 import { HealthModule } from '../../src/health';
-import { PersistenceModule, SnapshotListenerService } from '../../src/persistence';
+import { CommunityConnectionListenerService, PersistenceModule, SnapshotListenerService } from '../../src/persistence';
 import { HttpExceptionFilter } from '../../src/shared/filters/http-exception.filter';
 import { SnapshotModule } from '../../src/snapshot/snapshot.module';
 import { SnapshotReconcilerService } from '../../src/snapshot/snapshot-reconciler.service';
@@ -191,6 +191,8 @@ export async function createTestApp(options: TestAppOptions) {
     .overrideProvider(GITHUB_CLIENT)
     .useValue(options.githubClient ?? unreachableGitHubClient)
     .overrideProvider(SnapshotListenerService)
+    .useValue(noopListener)
+    .overrideProvider(CommunityConnectionListenerService)
     .useValue(noopListener)
     .overrideProvider(OAuthAuthProviderService)
     .useValue(mockOAuthService)
