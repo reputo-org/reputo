@@ -1,16 +1,32 @@
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import type { DiscordClient, GitHubClient, MattermostClient } from '@reputo/community-api';
+import type {
+  CommunityRealtimeSource,
+  CommunityRealtimeState,
+  CommunitySignal,
+  CommunitySignalListener,
+  DiscordClient,
+  GitHubClient,
+  MattermostClient,
+  MattermostSocketTarget,
+} from '@reputo/community-api';
 import { LoggerModule } from 'nestjs-pino';
 import { AlgorithmPresetModule } from '../../src/algorithm-preset/algorithm-preset.module';
 import { AuthModule, AuthService } from '../../src/auth';
 import { OAuthAuthProviderService } from '../../src/auth/oauth-auth-provider.service';
-import { CommunityModule, DISCORD_CLIENT, GITHUB_CLIENT, MATTERMOST_CLIENT } from '../../src/community';
+import {
+  COMMUNITY_REALTIME_SOURCES,
+  CommunityModule,
+  type CommunityRealtimeSourceFactory,
+  DISCORD_CLIENT,
+  GITHUB_CLIENT,
+  MATTERMOST_CLIENT,
+} from '../../src/community';
 import { configModules } from '../../src/config';
 import { setupSwagger } from '../../src/docs';
 import { HealthModule } from '../../src/health';
-import { PersistenceModule, SnapshotListenerService } from '../../src/persistence';
+import { CommunityConnectionListenerService, PersistenceModule, SnapshotListenerService } from '../../src/persistence';
 import { HttpExceptionFilter } from '../../src/shared/filters/http-exception.filter';
 import { SnapshotModule } from '../../src/snapshot/snapshot.module';
 import { SnapshotReconcilerService } from '../../src/snapshot/snapshot-reconciler.service';
@@ -27,6 +43,16 @@ export interface TestAppOptions {
   /** Captures every log line, so a suite can grep them for leaked secrets. */
   logStream?: { write: (line: string) => void };
   includeSwagger?: boolean;
+  /**
+   * Platform feeds under the suite's control. Defaults to feeds that connect
+   * but never receive anything, so no test opens a socket to a real platform.
+   */
+  realtimeSources?: FakeRealtimeSources;
+  /**
+   * Pass 'real' to keep the PostgreSQL LISTEN connection, so a suite exercises
+   * the actual path from a row change to the services that react to it.
+   */
+  connectionListener?: 'real';
   oauthProviderService?: Pick<
     OAuthAuthProviderService,
     | 'buildAuthorizationUrl'
@@ -36,6 +62,75 @@ export interface TestAppOptions {
     | 'getScopes'
     | 'refreshTokens'
   >;
+}
+
+/**
+ * A feed a test drives by hand. `emit` stands in for the platform pushing an
+ * event; `setState` stands in for the socket going down and coming back.
+ */
+export class FakeRealtimeSource implements CommunityRealtimeSource {
+  private readonly signalListeners = new Set<CommunitySignalListener>();
+  private readonly stateListeners = new Set<(state: CommunityRealtimeState) => void>();
+  private current: CommunityRealtimeState = 'stopped';
+  started = false;
+  stopped = false;
+
+  constructor(
+    readonly platform: CommunitySignal['platform'],
+    readonly key: string,
+  ) {}
+
+  get state(): CommunityRealtimeState {
+    return this.current;
+  }
+
+  start(): void {
+    this.started = true;
+    this.setState('live');
+  }
+
+  async stop(): Promise<void> {
+    this.stopped = true;
+    this.setState('stopped');
+  }
+
+  onSignal(listener: CommunitySignalListener): () => void {
+    this.signalListeners.add(listener);
+    return () => this.signalListeners.delete(listener);
+  }
+
+  onStateChange(listener: (state: CommunityRealtimeState) => void): () => void {
+    this.stateListeners.add(listener);
+    return () => this.stateListeners.delete(listener);
+  }
+
+  setState(state: CommunityRealtimeState): void {
+    this.current = state;
+    for (const listener of this.stateListeners) listener(state);
+  }
+
+  emit(signal: Omit<CommunitySignal, 'at'>): void {
+    for (const listener of this.signalListeners) listener({ ...signal, at: new Date() });
+  }
+}
+
+/** The feeds one test app handed out, so a suite can push events into them. */
+export class FakeRealtimeSources implements CommunityRealtimeSourceFactory {
+  discordSource: FakeRealtimeSource | null = null;
+  readonly mattermostSources = new Map<string, FakeRealtimeSource>();
+
+  discord(): CommunityRealtimeSource {
+    const source = new FakeRealtimeSource('discord', 'bot');
+    this.discordSource = source;
+    return source;
+  }
+
+  mattermost(target: MattermostSocketTarget): CommunityRealtimeSource {
+    const key = `${target.serverUrl}/${target.teamId}`;
+    const source = new FakeRealtimeSource('mattermost', key);
+    this.mattermostSources.set(key, source);
+    return source;
+  }
 }
 
 export async function createTestApp(options: TestAppOptions) {
@@ -105,8 +200,8 @@ export async function createTestApp(options: TestAppOptions) {
     terminateSnapshotWorkflows: async () => undefined,
   };
 
-  // The reconciler would sweep rows the e2e tests seeded with old timestamps;
-  // its behavior is covered by unit tests.
+  // The reconciler would touch rows the e2e tests seeded with old timestamps;
+  // its behavior is covered by its own tests.
   const noopReconciler = {
     onApplicationBootstrap: () => undefined,
     onModuleDestroy: () => undefined,
@@ -198,7 +293,13 @@ export async function createTestApp(options: TestAppOptions) {
     .overrideProvider(TemporalService)
     .useValue(mockTemporalService)
     .overrideProvider(SnapshotReconcilerService)
-    .useValue(noopReconciler);
+    .useValue(noopReconciler)
+    .overrideProvider(COMMUNITY_REALTIME_SOURCES)
+    .useValue(options.realtimeSources ?? new FakeRealtimeSources());
+
+  if (options.connectionListener !== 'real') {
+    builder.overrideProvider(CommunityConnectionListenerService).useValue(noopListener);
+  }
 
   // 'real' keeps the configured client so the outbound policy itself is under test.
   if (options.mattermostClient !== 'real') {
@@ -207,7 +308,11 @@ export async function createTestApp(options: TestAppOptions) {
 
   const moduleRef = await builder.compile();
 
-  const app = moduleRef.createNestApplication();
+  // `rawBody` mirrors the real bootstrap, so the GitHub webhook route can
+  // verify a delivery's signature over the exact bytes it received.
+  // Options go in the first argument: the testing module reads the second one
+  // only when the first is an http server.
+  const app = moduleRef.createNestApplication({ rawBody: true });
 
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalPipes(

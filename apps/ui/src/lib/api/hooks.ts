@@ -207,10 +207,14 @@ export const useRestoreAdmin = () => {
   })
 }
 
-export const useCommunityConnections = () => {
+export const useCommunityConnections = (options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: queryKeys.communityConnections.lists(),
     queryFn: () => communityApi.list(),
+    enabled: options?.enabled ?? true,
+    // Connecting a community happens in another tab; refetch on return so
+    // the composer and pickers see it without a manual reload.
+    refetchOnWindowFocus: "always",
   })
 }
 
@@ -219,6 +223,9 @@ export const useCommunityResources = (id: string, enabled = true) => {
     queryKey: queryKeys.communityConnections.resources(id),
     queryFn: () => communityApi.listResources(id),
     enabled: Boolean(id) && enabled,
+    // Access is granted on the platform in another tab; a returning user
+    // should see the channel they just opened up without a manual refresh.
+    refetchOnWindowFocus: "always",
   })
 }
 

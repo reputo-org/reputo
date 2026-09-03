@@ -1,4 +1,4 @@
-import { CommunityErrorCategory } from '@reputo/community-api';
+import { CommunityErrorCategory, CommunityResourceAccessIssue } from '@reputo/community-api';
 import { CommunityConnectionStatus, type CommunityPlatform } from '@reputo/contracts';
 
 /** Injection tokens for the configured platform clients. */
@@ -82,9 +82,16 @@ const REASON_BY_CATEGORY: Record<string, string> = {
 const REASON_BY_PLATFORM: Partial<Record<CommunityPlatform, Record<string, string>>> = {
   discord: {
     [CommunityErrorCategory.permissionDenied]:
-      'The bot is missing View Channels or Read Message History. Reconnect and grant both.',
+      'The bot is no longer in this server, or it is missing View Channels or Read Message History in every channel. Reconnect and grant both.',
+    // A kicked bot is answered with 404 as often as with 403, so this has to
+    // read as a kick first: the generic wording blames a deleted server and
+    // never tells the admin that reconnecting is the fix.
+    [CommunityErrorCategory.notFound]:
+      'The bot is no longer in this server, or the server no longer exists. Reconnect to add it again.',
   },
   github: {
+    [CommunityErrorCategory.authFailed]:
+      'GitHub no longer accepts the App on this account: it was uninstalled or suspended. Reconnect and install it again.',
     [CommunityErrorCategory.permissionDenied]:
       'The GitHub App cannot read the repositories of this installation. Reconnect and grant read access to issues and pull requests.',
     [CommunityErrorCategory.notFound]: 'The GitHub App is no longer installed on this account.',
@@ -100,4 +107,21 @@ const REASON_BY_PLATFORM: Partial<Record<CommunityPlatform, Record<string, strin
 export function describeErrorCategory(category: string, platform?: CommunityPlatform): string {
   const override = platform === undefined ? undefined : REASON_BY_PLATFORM[platform]?.[category];
   return override ?? REASON_BY_CATEGORY[category] ?? 'The last check did not succeed.';
+}
+
+/** Why the bot cannot read one listed resource, as a clause: "the bot lacks View Channel". */
+const ACCESS_ISSUE_REASON: Record<string, string> = {
+  [CommunityResourceAccessIssue.missingViewChannel]: 'the bot lacks View Channel',
+  [CommunityResourceAccessIssue.missingReadHistory]: 'the bot lacks Read Message History',
+  [CommunityResourceAccessIssue.issuesDisabled]: 'its issue tracker is disabled',
+  [CommunityResourceAccessIssue.notMember]: 'the bot is not a member of it',
+};
+
+export function describeAccessIssue(issue: string | undefined): string {
+  return ACCESS_ISSUE_REASON[issue ?? ''] ?? 'the bot cannot read it';
+}
+
+/** How a resource is named to a human: channels keep the `#` convention, repositories their full name. */
+export function formatResourceName(resource: { name: string; kind: string }): string {
+  return resource.kind === 'repository' ? resource.name : `#${resource.name}`;
 }

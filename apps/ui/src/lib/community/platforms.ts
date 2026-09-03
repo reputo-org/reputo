@@ -1,6 +1,7 @@
 import type {
   CommunityConnectionStatus,
   CommunityPlatform,
+  CommunityResourceAccessIssue,
 } from "@/lib/api/types"
 
 export interface PlatformMeta {
@@ -101,6 +102,61 @@ export function canDisconnect(status: CommunityConnectionStatus): boolean {
  */
 export function needsReconnect(status: CommunityConnectionStatus): boolean {
   return status === "broken" || status === "disconnected"
+}
+
+export interface AccessIssueMeta {
+  /** Two or three words for a badge next to the resource. */
+  label: string
+  /** What blocks the bot and what the admin changes on the platform to fix it. */
+  description: string
+}
+
+const ACCESS_ISSUE_META: Record<CommunityResourceAccessIssue, AccessIssueMeta> =
+  {
+    missing_view_channel: {
+      label: "Can't view",
+      description:
+        "The bot lacks View Channel here. Allow it for the Reputo role in the channel's permission settings.",
+    },
+    missing_read_history: {
+      label: "No history",
+      description:
+        "The bot lacks Read Message History here. Allow it for the Reputo role in the channel's permission settings.",
+    },
+    issues_disabled: {
+      label: "Issues off",
+      description:
+        "Issues are disabled for this repository, so there is nothing to score. Enable them in the repository settings.",
+    },
+    not_member: {
+      label: "Not a member",
+      description:
+        "The bot is not in this channel. Invite it from the channel's member list.",
+    },
+  }
+
+const UNKNOWN_ACCESS_ISSUE: AccessIssueMeta = {
+  label: "No access",
+  description: "The bot cannot read this right now.",
+}
+
+/** Why a listed resource is unreadable, in the admin's terms. */
+export function describeAccessIssue(
+  issue: CommunityResourceAccessIssue | undefined
+): AccessIssueMeta {
+  return issue === undefined
+    ? UNKNOWN_ACCESS_ISSUE
+    : (ACCESS_ISSUE_META[issue] ?? UNKNOWN_ACCESS_ISSUE)
+}
+
+/** The rule that makes a resource readable on each platform, shown under the picker. */
+export const RESOURCE_ACCESS_RULE: Record<CommunityPlatform, string> = {
+  discord:
+    "A channel is readable when the Reputo role has View Channel and Read Message History in it.",
+  github:
+    "A repository is readable when the App installation includes it and its issue tracker is on.",
+  mattermost:
+    "A channel is readable when the bot is a member of it, or when the server lets team members read public channels.",
 }
 
 const CONNECT_ERROR_MESSAGES: Record<string, string> = {

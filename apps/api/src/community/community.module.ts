@@ -18,22 +18,38 @@ import { CommunityService } from './community.service';
 import { CommunityAuditRepository } from './community-audit.repository';
 import { CommunityConnectionRepository } from './community-connection.repository';
 import { CommunityCredentialsService } from './community-credentials.service';
+import { CommunityEventsService } from './community-events.service';
 import { CommunityInputValidationService } from './community-input-validation.service';
 import { CommunityInstallStateService } from './community-install-state.service';
 import { CommunityPlatformRegistry } from './community-platform.registry';
+import {
+  COMMUNITY_REALTIME_SOURCES,
+  CommunityRealtimeService,
+  CommunityRefreshService,
+  CommunityWebhooksController,
+  createCommunityRealtimeSources,
+} from './realtime';
 
 @Module({
   imports: [TypeOrmModule.forFeature([CommunityConnectionEntity, CommunityConnectionAuditEntity])],
-  controllers: [CommunityController],
+  controllers: [CommunityController, CommunityWebhooksController],
   providers: [
     CommunityConnectionRepository,
     CommunityAuditRepository,
     CommunityCredentialsService,
+    CommunityEventsService,
     CommunityInstallStateService,
     CommunityInputValidationService,
     CommunityPlatformRegistry,
+    CommunityRealtimeService,
+    CommunityRefreshService,
     CommunityService,
     RolesGuard,
+    {
+      provide: COMMUNITY_REALTIME_SOURCES,
+      inject: [ConfigService, PinoLogger],
+      useFactory: createCommunityRealtimeSources,
+    },
     {
       provide: DISCORD_CLIENT,
       inject: [ConfigService, PinoLogger],
@@ -56,6 +72,6 @@ import { CommunityPlatformRegistry } from './community-platform.registry';
         ),
     },
   ],
-  exports: [CommunityConnectionRepository, CommunityInputValidationService],
+  exports: [CommunityConnectionRepository, CommunityInputValidationService, CommunityRealtimeService, CommunityService],
 })
 export class CommunityModule {}

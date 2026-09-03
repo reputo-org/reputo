@@ -47,7 +47,7 @@ function scriptedAdapter(script: Record<string, ResourceScript>) {
   const adapter: CommunityAdapter = {
     platform: 'testplat',
     listResources: async () => [],
-    probe: async () => ({ resourceCount: 0, sampledRecordCount: 0 }),
+    probe: async () => ({ resourceCount: 0, readableResourceCount: 0, resourcesDigest: '', sampledRecordCount: 0 }),
     searchMemberId: async () => null,
     // eslint-disable-next-line require-yield
     async *iterateRecords({ resourceId, cursor }) {

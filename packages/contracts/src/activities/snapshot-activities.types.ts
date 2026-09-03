@@ -1,4 +1,4 @@
-import type { CommunityConnectionDto } from '../community/community-connection.dto.js';
+import type { CommunityConnectionDto, CommunityHealthDto } from '../community/community-connection.dto.js';
 import type { SnapshotPublicationStatus } from '../enums/snapshot-publication.js';
 import type { SnapshotStatus } from '../enums/snapshot-status.js';
 import type { SnapshotDto, SnapshotError, SnapshotOutputs, SnapshotTemporalInfo } from '../snapshot/snapshot.dto.js';
@@ -53,6 +53,10 @@ export interface GetCommunitySealedCredentialInput {
   connectionId: string;
 }
 
+export interface CheckCommunityConnectionHealthInput {
+  connectionId: string;
+}
+
 /**
  * A connection's platform credential, still sealed. The envelope crosses the
  * activity boundary encrypted and AAD-bound to its connection; only the
@@ -103,5 +107,13 @@ export interface ApiSnapshotActivities {
    * envelope and opens it at the outbound call.
    */
   getCommunitySealedCredential(input: GetCommunitySealedCredentialInput): Promise<CommunitySealedCredentialDto>;
+  /**
+   * Runs the capability probe and persists the resulting connection state, so
+   * a snapshot that failed on a community fetch leaves the connection row
+   * telling the truth. A failed probe resolves with the reported state; only a
+   * missing or disconnected connection throws (non-retryable,
+   * `CommunityConnectionNotFoundError`).
+   */
+  checkCommunityConnectionHealth(input: CheckCommunityConnectionHealthInput): Promise<CommunityHealthDto>;
   recordSnapshotPublication(input: RecordSnapshotPublicationInput): Promise<void>;
 }

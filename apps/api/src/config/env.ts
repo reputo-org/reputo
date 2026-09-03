@@ -133,6 +133,13 @@ export const envSchema = z
       .transform((value) => value.replace(/\\n/g, '\n'))
       .describe('PEM-encoded GitHub App private key; signs the app JWT and is never persisted'),
     GITHUB_APP_SLUG: z.string().trim().min(1).describe('GitHub App URL slug used to build the install redirect'),
+    GITHUB_APP_WEBHOOK_SECRET: z
+      .string()
+      .trim()
+      .min(16)
+      .describe(
+        "Secret configured on the GitHub App's webhook; signs every delivery, which is how GitHub changes arrive",
+      ),
     GITHUB_APP_CALLBACK_URL: z
       .string()
       .url()
@@ -200,6 +207,12 @@ export const envSchema = z
       .positive()
       .default(10_000)
       .describe('Maximum delay for community platform retry backoff'),
+    COMMUNITY_REALTIME_DEBOUNCE_MS: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(750)
+      .describe('Window in which repeated live signals for one community collapse into a single re-probe'),
 
     DATABASE_URL: z
       .string()

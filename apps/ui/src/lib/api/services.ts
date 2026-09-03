@@ -274,6 +274,17 @@ export const communityApi = {
   disconnect: async (id: string): Promise<void> => {
     await api.delete(`/community/connections/${id}`)
   },
+  /**
+   * Live connection changes, driven by each platform's own push transport. The
+   * first event carries the feed status: which platforms are pushing right now.
+   */
+  subscribeToEvents: (): EventSource => {
+    const url = new URL(
+      `${API_BASE_PATH}/community/connections/events`,
+      window.location.href
+    )
+    return new EventSource(url.toString())
+  },
 }
 
 export { api }

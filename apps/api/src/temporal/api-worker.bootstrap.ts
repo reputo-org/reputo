@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { API_SNAPSHOT_ACTIVITIES_TASK_QUEUE } from '@reputo/contracts';
 import { NativeConnection, Worker } from '@temporalio/worker';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { CommunityService } from '../community/community.service';
 import { CommunityConnectionRepository } from '../community/community-connection.repository';
 import { SnapshotService } from '../snapshot/snapshot.service';
 import { ApiWorkerStatus } from './api-worker.status';
@@ -43,6 +44,7 @@ export class ApiWorkerBootstrap implements OnApplicationBootstrap, OnApplication
     private readonly configService: ConfigService,
     private readonly snapshotService: SnapshotService,
     private readonly communityConnections: CommunityConnectionRepository,
+    private readonly communityService: CommunityService,
     private readonly workerStatus: ApiWorkerStatus,
   ) {}
 
@@ -79,7 +81,7 @@ export class ApiWorkerBootstrap implements OnApplicationBootstrap, OnApplication
         connection: this.connection,
         namespace,
         taskQueue,
-        activities: createSnapshotActivities(this.snapshotService, this.communityConnections),
+        activities: createSnapshotActivities(this.snapshotService, this.communityConnections, this.communityService),
       });
       if (this.shuttingDown) {
         this.worker = null;

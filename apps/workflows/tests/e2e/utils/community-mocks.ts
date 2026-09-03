@@ -37,6 +37,27 @@ export function sharedUndiciModuleMock() {
   };
 }
 
+/** Stand-in for `@temporalio/activity`'s ApplicationFailure in the module mocks. */
+export class MockApplicationFailure extends Error {
+  type?: string;
+  nonRetryable?: boolean;
+
+  static create({
+    message,
+    type,
+    nonRetryable,
+  }: {
+    message: string;
+    type?: string;
+    nonRetryable?: boolean;
+  }): MockApplicationFailure {
+    const failure = new MockApplicationFailure(message);
+    failure.type = type;
+    failure.nonRetryable = nonRetryable;
+    return failure;
+  }
+}
+
 /** Heartbeats the faked Temporal activity Context recorded, and the details a retry resumes from. */
 export interface CommunityActivityHarness {
   heartbeats: unknown[];

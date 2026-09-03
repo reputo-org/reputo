@@ -22,6 +22,7 @@ describe('CommunityController access control', () => {
     const reflector = new Reflector();
     const routes = [
       'list',
+      'subscribeToEvents',
       'getDiscordInstallUrl',
       'handleDiscordCallback',
       'listResources',

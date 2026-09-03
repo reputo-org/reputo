@@ -30,8 +30,9 @@ vi.mock('@reputo/deep-id-api', async (importOriginal) => {
 });
 
 vi.mock('@temporalio/activity', async () => {
-  const { communityActivityHarness: shared } = await import('../utils/community-mocks.js');
+  const { communityActivityHarness: shared, MockApplicationFailure } = await import('../utils/community-mocks.js');
   return {
+    ApplicationFailure: MockApplicationFailure,
     Context: {
       current: () => ({
         log: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },

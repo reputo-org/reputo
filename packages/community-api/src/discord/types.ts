@@ -2,12 +2,21 @@ import type { CommunityHttpConfig } from '../shared/types.js';
 
 export const DISCORD_API_BASE_URL = 'https://discord.com/api/v10';
 export const DISCORD_AUTHORIZE_URL = 'https://discord.com/oauth2/authorize';
+export const DISCORD_CDN_BASE_URL = 'https://cdn.discordapp.com';
 
 /**
  * View Channels (1 << 10) and Read Message History (1 << 16) — the only two
  * permissions the bot asks for. Anything wider would let it act in the guild.
  */
 export const DISCORD_BOT_PERMISSIONS = String((1 << 10) | (1 << 16));
+
+/**
+ * `GUILDS` (1 << 0) — the only intent the Gateway feed subscribes to, and a
+ * non-privileged one, in keeping with the read-only install. It delivers guild,
+ * channel, and role lifecycle events; it deliberately excludes message content
+ * and the privileged member intent.
+ */
+export const DISCORD_GATEWAY_INTENTS = 1 << 0;
 
 /** Channel types the community pipeline reads. Threads are enumerated per channel at fetch time. */
 export const DiscordChannelType = {
@@ -27,6 +36,12 @@ export const DiscordThreadType = {
 export const DiscordMessageType = {
   default: 0,
   reply: 19,
+} as const;
+
+/** Permission-overwrite targets, as Discord types them. */
+export const DiscordOverwriteType = {
+  role: 0,
+  member: 1,
 } as const;
 
 /**
@@ -55,12 +70,25 @@ export interface DiscordTokenResponse {
   guild?: { id?: unknown; name?: unknown };
 }
 
+export interface DiscordRawGuild {
+  icon?: unknown;
+  approximate_member_count?: unknown;
+}
+
+export interface DiscordRawPermissionOverwrite {
+  id?: unknown;
+  type?: unknown;
+  allow?: unknown;
+  deny?: unknown;
+}
+
 export interface DiscordRawChannel {
   id?: unknown;
   name?: unknown;
   type?: unknown;
   position?: unknown;
   guild_id?: unknown;
+  permission_overwrites?: unknown;
 }
 
 export interface DiscordRawMessage {
@@ -77,8 +105,18 @@ export interface DiscordRawMessage {
   } | null;
 }
 
+export interface DiscordRawUser {
+  id?: unknown;
+}
+
+export interface DiscordRawRole {
+  id?: unknown;
+  permissions?: unknown;
+}
+
 export interface DiscordRawGuildMember {
   user?: { id?: unknown; username?: unknown };
+  roles?: unknown;
 }
 
 export interface DiscordRawThread {

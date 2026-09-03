@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/empty"
 import type { Algorithm } from "@/core/algorithms"
 import { useAlgorithmPreset } from "@/lib/api/hooks"
+import { CommunityConnectionGate } from "./community-connection-gate"
 import {
   duplicatePresetName,
   suggestPresetDescription,
@@ -79,13 +80,17 @@ export function PresetComposerCreate({ algo }: PresetComposerCreateProps) {
 
   const base = fromId && sourceMatches ? sourcePreset : null
 
+  // Create only: editing an existing preset must stay possible even while
+  // its connection is unhealthy, so the edit route is never gated.
   return (
-    <PresetComposer
-      algo={algo}
-      mode="create"
-      basePreset={base}
-      initialName={base ? duplicatePresetName(base.name) : suggestedName}
-      initialDescription={suggestedDescription}
-    />
+    <CommunityConnectionGate algo={algo}>
+      <PresetComposer
+        algo={algo}
+        mode="create"
+        basePreset={base}
+        initialName={base ? duplicatePresetName(base.name) : suggestedName}
+        initialDescription={suggestedDescription}
+      />
+    </CommunityConnectionGate>
   )
 }
