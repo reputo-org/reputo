@@ -91,7 +91,7 @@ function resourceSummary(
  * One truncating line: identifier · counts · freshness. Absolute times live in
  * the tooltip.
  *
- * Freshness is shown only while the platform is being polled. With a live feed
+ * Freshness is shown only while the platform's feed is down. With a live feed
  * the row is current to the second, so "Checked 12 minutes ago" would describe
  * the last probe rather than the data, and read as stale when nothing is.
  */

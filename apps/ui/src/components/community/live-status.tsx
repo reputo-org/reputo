@@ -24,15 +24,15 @@ function list(platforms: readonly CommunityPlatform[]): string {
  * One line that says how this page stays fresh. Each platform pushes its own
  * changes — Discord over its gateway, GitHub over App webhooks, Mattermost over
  * its socket — so a permission change usually shows up here within a second. A
- * platform whose feed is down is named, with the cadence it is checked at
- * instead, because that is the difference the reader can actually feel.
+ * platform whose feed is down is named, because nothing brings its changes in
+ * until the feed is back or somebody re-checks the connection.
  */
 function describe(
   live: CommunityLiveState,
   platforms: readonly CommunityPlatform[]
 ): string {
   if (!live.connected) {
-    return "Reconnecting to live updates — refreshing every minute meanwhile"
+    return "Reconnecting to live updates"
   }
 
   const feeds = live.realtime?.feeds
@@ -41,22 +41,18 @@ function describe(
   }
 
   const pushed = platforms.filter((platform) => feeds[platform] === "live")
-  const polled = platforms.filter((platform) => feeds[platform] !== "live")
-  if (polled.length === 0) {
+  const down = platforms.filter((platform) => feeds[platform] !== "live")
+  if (down.length === 0) {
     return `Live — ${list(pushed)} changes appear as they happen`
   }
 
-  const seconds = Math.round((live.realtime?.fallbackIntervalMs ?? 0) / 1000)
-  const reconnecting =
-    polled.length === 1 ? "its feed reconnects" : "their feeds reconnect"
-  const fallback =
-    seconds > 0
-      ? `checked every ${seconds} s while ${reconnecting}`
-      : "checked by the next sweep"
-
+  const stalled =
+    down.length === 1
+      ? `the ${list(down)} feed is reconnecting`
+      : `the ${list(down)} feeds are reconnecting`
   return pushed.length === 0
-    ? `Live — ${list(polled)} ${fallback}`
-    : `Live — ${list(pushed)} changes appear as they happen; ${list(polled)} ${fallback}`
+    ? `Not live — ${stalled}; Re-check to see changes now`
+    : `Live — ${list(pushed)} changes appear as they happen; ${stalled}`
 }
 
 export function LiveStatus({ live, platforms }: LiveStatusProps) {

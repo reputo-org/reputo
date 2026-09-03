@@ -276,8 +276,7 @@ export const communityApi = {
   },
   /**
    * Live connection changes, driven by each platform's own push transport. The
-   * first event carries the feed status: which platforms push their changes and
-   * which are polled for instead.
+   * first event carries the feed status: which platforms are pushing right now.
    */
   subscribeToEvents: (): EventSource => {
     const url = new URL(

@@ -128,7 +128,6 @@ beforeEach(() => {
     connected: true,
     realtime: {
       feeds: { discord: "live", github: "live", mattermost: "live" },
-      fallbackIntervalMs: 30_000,
     },
   })
 })

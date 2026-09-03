@@ -15,7 +15,7 @@ const LIVE_FEEDS = {
 
 const useCommunityLiveUpdates = vi.fn<() => CommunityLiveState>(() => ({
   connected: true,
-  realtime: { feeds: { ...LIVE_FEEDS }, fallbackIntervalMs: 30_000 },
+  realtime: { feeds: { ...LIVE_FEEDS } },
 }))
 
 vi.mock("@/lib/api/use-community-events", () => ({
@@ -75,10 +75,10 @@ function renderWith(state: {
 describe("CommunityConnections", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // Every feed live is the default; a test that needs a polled platform says so.
+    // Every feed live is the default; a test that needs a down feed says so.
     useCommunityLiveUpdates.mockReturnValue({
       connected: true,
-      realtime: { feeds: { ...LIVE_FEEDS }, fallbackIntervalMs: 30_000 },
+      realtime: { feeds: { ...LIVE_FEEDS } },
     })
   })
 
@@ -196,12 +196,11 @@ describe("CommunityConnections", () => {
     expect(screen.queryByText(/Checked /)).not.toBeInTheDocument()
   })
 
-  it("reports when the status was last confirmed once the platform is polled", () => {
+  it("reports when the status was last confirmed once the feed is down", () => {
     useCommunityLiveUpdates.mockReturnValue({
       connected: true,
       realtime: {
         feeds: { ...LIVE_FEEDS, discord: "down" },
-        fallbackIntervalMs: 30_000,
       },
     })
     renderWith({
@@ -215,12 +214,11 @@ describe("CommunityConnections", () => {
     expect(screen.getByText(/Checked /)).toBeInTheDocument()
   })
 
-  it("falls back to the connection time when a polled platform was never checked", () => {
+  it("falls back to the connection time when a platform without a feed was never checked", () => {
     useCommunityLiveUpdates.mockReturnValue({
       connected: true,
       realtime: {
         feeds: { ...LIVE_FEEDS, discord: "down" },
-        fallbackIntervalMs: 30_000,
       },
     })
     renderWith({ data: [connection({ lastCheckedAt: undefined })] })
@@ -236,22 +234,21 @@ describe("CommunityConnections", () => {
     )
   })
 
-  it("names the platform that is polled while its feed is down", () => {
+  it("names the platform whose feed is down, and how to read it meanwhile", () => {
     useCommunityLiveUpdates.mockReturnValue({
       connected: true,
       realtime: {
         feeds: { ...LIVE_FEEDS, discord: "down" },
-        fallbackIntervalMs: 30_000,
       },
     })
     renderWith({ data: [connection()] })
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      /Live — Discord checked every 30 s while its feed reconnects/
+      /Not live — the Discord feed is reconnecting; Re-check to see changes now/
     )
   })
 
-  it("says it is reconnecting and polling while the stream is down", () => {
+  it("says it is reconnecting while the stream is down", () => {
     useCommunityLiveUpdates.mockReturnValue({
       connected: false,
       realtime: undefined,

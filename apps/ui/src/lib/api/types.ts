@@ -232,7 +232,7 @@ export interface CommunityConnectionDto {
   name: string
   status: CommunityConnectionStatus
   statusReason?: string
-  /** When the platform last confirmed this state; checked on connect, on demand, per snapshot, whenever the platform's live feed reports a change, and by the reconciliation sweep. */
+  /** When the platform last confirmed this state; checked on connect, on demand, per snapshot, and whenever the platform's live feed reports a change. */
   lastCheckedAt?: string
   metadata?: CommunityConnectionMetadataDto
   createdAt: string
@@ -259,15 +259,13 @@ export interface CommunityResourceDto {
 /**
  * State of a platform's live feed. `live` means the platform pushes its changes
  * (Discord Gateway, GitHub App webhooks, Mattermost WebSocket); anything else
- * means the API polls that platform instead.
+ * means its changes are not arriving until the feed is back.
  */
 export type CommunityFeedState = "live" | "connecting" | "down"
 
 /** How changes are reaching an open events stream. */
 export interface CommunityRealtimeStatusDto {
   feeds: Record<CommunityPlatform, CommunityFeedState>
-  /** Poll cadence for a platform whose feed is not live, while a client watches. 0 when disabled. */
-  fallbackIntervalMs: number
 }
 
 /** Payloads of the `community/connections/events` SSE stream. */

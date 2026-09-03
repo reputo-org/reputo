@@ -17,7 +17,6 @@ const useCommunityLiveUpdates = vi.fn((_options?: { enabled?: boolean }) => ({
   connected: true,
   realtime: {
     feeds: { discord: "live", github: "live", mattermost: "live" },
-    fallbackIntervalMs: 30_000,
   },
 }))
 

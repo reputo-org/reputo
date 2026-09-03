@@ -19,7 +19,6 @@ vi.mock("@/lib/api/use-community-events", () => ({
     connected: true,
     realtime: {
       feeds: { discord: "live", github: "live", mattermost: "live" },
-      fallbackIntervalMs: 30_000,
     },
   }),
 }))

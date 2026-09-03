@@ -13,8 +13,8 @@ export interface CommunityLiveState {
   /** The events stream is open right now. */
   connected: boolean
   /**
-   * Which platforms push their changes and which the API polls for instead.
-   * Undefined until the stream's first event says.
+   * Which platforms are pushing their changes right now. Undefined until the
+   * stream's first event says.
    */
   realtime: CommunityRealtimeStatusDto | undefined
 }
@@ -32,9 +32,7 @@ const WATCHDOG_INTERVAL_MS = 10_000
 
 /**
  * One events stream per page, shared by every component that wants live
- * connection updates: the first subscriber opens it, the last closes it. The
- * API counts open streams to decide whether a platform without a live feed
- * needs polling, so a page never holds more than one.
+ * connection updates: the first subscriber opens it, the last closes it.
  */
 let subscribers = 0
 let source: EventSource | null = null
@@ -198,10 +196,10 @@ function release(): void {
 
 /**
  * Keeps the community connection queries live: whenever a platform reports a
- * change — its live feed, a Re-check, the reconciliation sweep, a snapshot
- * failure — this refetches the connections and the affected connection's
- * resources without a reload, in every open tab. Mount it wherever connections
- * or their resources are shown; the stream is shared.
+ * change — its live feed, a Re-check, a snapshot failure — this refetches the
+ * connections and the affected connection's resources without a reload, in
+ * every open tab. Mount it wherever connections or their resources are shown;
+ * the stream is shared.
  */
 export function useCommunityLiveUpdates(options?: {
   enabled?: boolean

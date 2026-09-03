@@ -113,7 +113,6 @@ describe("useCommunityLiveUpdates", () => {
         type: "community_connection:watch",
         data: {
           feeds: { discord: "live", github: "live", mattermost: "down" },
-          fallbackIntervalMs: 30_000,
         },
       })
     )

@@ -34,13 +34,9 @@ type StatusFilter = "all" | "attention" | "active"
 
 export function CommunityConnections() {
   // Each platform's own feed drives the probes, and the events stream pushes
-  // every verdict here. Polling is only the fallback for a dropped stream —
-  // while it is open, refetching on a timer would just re-read what the stream
-  // has already delivered.
+  // every verdict here, so there is nothing a timer would add.
   const live = useCommunityLiveUpdates()
-  const { data, isLoading, isError, refetch } = useCommunityConnections({
-    refetchIntervalMs: live.connected ? undefined : 60_000,
-  })
+  const { data, isLoading, isError, refetch } = useCommunityConnections()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
 
