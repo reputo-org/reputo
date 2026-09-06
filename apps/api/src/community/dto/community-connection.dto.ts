@@ -2,13 +2,44 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   COMMUNITY_CONNECTION_STATUSES,
   COMMUNITY_PLATFORMS,
+  COMMUNITY_RESOURCE_ACCESS_ISSUES,
   COMMUNITY_RESOURCE_KINDS,
   type CommunityConnectionDto as CommunityConnectionContract,
+  type CommunityConnectionEventDto as CommunityConnectionEventContract,
+  type CommunityConnectionMetadataDto as CommunityConnectionMetadataContract,
   type CommunityConnectionStatus,
   type CommunityHealthDto as CommunityHealthContract,
   type CommunityPlatform,
+  type CommunityResourceAccessIssue,
   type CommunityResourceDto as CommunityResourceContract,
 } from '@reputo/contracts';
+
+const COMMUNITY_CONNECTION_EVENT_TYPES: ReadonlyArray<CommunityConnectionEventContract['type']> = [
+  'community_connection:updated',
+  'community_connection:removed',
+  'community_connection:watch',
+  'community_connection:heartbeat',
+];
+
+export class CommunityConnectionMetadataDto implements CommunityConnectionMetadataContract {
+  @ApiPropertyOptional({
+    description: 'Public icon URL of the community, when the platform serves one unauthenticated.',
+    example: 'https://cdn.discordapp.com/icons/974492421130127923/a1b2c3.png?size=128',
+  })
+  avatarUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Approximate member count the platform reports.', example: 1874 })
+  memberCount?: number;
+
+  @ApiPropertyOptional({ description: 'Selectable resources the last successful probe counted.', example: 12 })
+  resourceCount?: number;
+
+  @ApiPropertyOptional({
+    description: "Of those, the resources the pipeline can read under the bot's current access.",
+    example: 10,
+  })
+  readableResourceCount?: number;
+}
 
 export class CommunityConnectionDto implements CommunityConnectionContract {
   @ApiProperty({ description: 'Connection identifier.', example: '01940000-0000-7000-8000-000000000000' })
@@ -34,10 +65,16 @@ export class CommunityConnectionDto implements CommunityConnectionContract {
 
   @ApiPropertyOptional({
     description:
-      'When the platform last confirmed this state. Health is checked on connect, on demand, and per snapshot — never on a timer.',
+      "When the platform last confirmed this state. Health is checked on connect, on demand, per snapshot, and whenever the platform's live feed reports a change.",
     example: '2026-08-26T10:00:00.000Z',
   })
   lastCheckedAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Display facts from the last successful probe. Kept across later failed probes.',
+    type: CommunityConnectionMetadataDto,
+  })
+  metadata?: CommunityConnectionMetadataDto;
 
   @ApiProperty({ description: 'Creation timestamp.', example: '2026-08-26T10:00:00.000Z' })
   createdAt: string;
@@ -55,6 +92,31 @@ export class CommunityResourceDto implements CommunityResourceContract {
 
   @ApiProperty({ description: 'Resource kind.', enum: COMMUNITY_RESOURCE_KINDS })
   kind: CommunityResourceContract['kind'];
+
+  @ApiProperty({
+    description: "Whether the pipeline can read this resource under the bot's current access.",
+    example: true,
+  })
+  readable: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Why the resource is unreadable; absent when it is readable.',
+    enum: COMMUNITY_RESOURCE_ACCESS_ISSUES,
+  })
+  accessIssue?: CommunityResourceAccessIssue;
+}
+
+export class CommunityConnectionEventDto {
+  @ApiProperty({ description: 'Event type.', enum: COMMUNITY_CONNECTION_EVENT_TYPES })
+  type: CommunityConnectionEventContract['type'];
+
+  @ApiProperty({
+    description:
+      "Event payload: the connection for `updated`, `{ id }` for `removed`, `{ feeds }` for `watch` — each platform's live feed state — and `{ at }` for the periodic `heartbeat`.",
+    type: 'object',
+    additionalProperties: true,
+  })
+  data: CommunityConnectionEventContract['data'];
 }
 
 export class CommunityHealthDto implements CommunityHealthContract {

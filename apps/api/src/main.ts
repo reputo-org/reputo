@@ -10,7 +10,10 @@ import { setupSwagger } from './docs';
 import { HttpExceptionFilter } from './shared/filters/http-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  // `rawBody` keeps the exact bytes of a request alongside the parsed body, so
+  // the GitHub webhook route can verify its HMAC signature — re-serialized JSON
+  // would never match it.
+  const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
   app.useLogger(app.get(Logger));
   app.enableShutdownHooks();
   app.useGlobalInterceptors(new LoggerErrorInterceptor());

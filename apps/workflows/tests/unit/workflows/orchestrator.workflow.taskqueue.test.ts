@@ -4,6 +4,7 @@ import {
   ACTIVITY_MAX_ATTEMPTS,
   algorithmTypescriptTaskQueue,
   COMMUNITY_DEPENDENCY_RESOLUTION_TIMEOUT,
+  COMMUNITY_HEALTH_WRITEBACK_TIMEOUT,
   communityTaskQueue,
   DB_ACTIVITY_TIMEOUT,
   DEEP_ID_ENCRYPTED_SUBMISSION_TIMEOUT,
@@ -129,32 +130,38 @@ describe('OrchestratorWorkflow task queue routing', () => {
       startToCloseTimeout: DB_ACTIVITY_TIMEOUT,
       retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
     });
-    expect(recordedOptions[2]).toMatchObject({
+    // The write-back health probe runs on the API queue with a single attempt.
+    expect(recordedOptions[1]).toMatchObject({
+      taskQueue: API_SNAPSHOT_ACTIVITIES_TASK_QUEUE,
+      startToCloseTimeout: COMMUNITY_HEALTH_WRITEBACK_TIMEOUT,
+      retry: { maximumAttempts: 1 },
+    });
+    expect(recordedOptions[3]).toMatchObject({
       taskQueue: 'orchestrator-q',
       startToCloseTimeout: DEPENDENCY_RESOLUTION_TIMEOUT,
       heartbeatTimeout: expect.any(String),
     });
-    expect(recordedOptions[3]).toMatchObject({
+    expect(recordedOptions[4]).toMatchObject({
       taskQueue: onchainDataTaskQueue,
       startToCloseTimeout: ONCHAIN_DATA_DEPENDENCY_RESOLUTION_TIMEOUT,
     });
-    expect(recordedOptions[3]).not.toHaveProperty('heartbeatTimeout');
-    expect(recordedOptions[4]).toMatchObject({
+    expect(recordedOptions[4]).not.toHaveProperty('heartbeatTimeout');
+    expect(recordedOptions[5]).toMatchObject({
       taskQueue: communityTaskQueue,
       startToCloseTimeout: COMMUNITY_DEPENDENCY_RESOLUTION_TIMEOUT,
       heartbeatTimeout: HEARTBEAT_TIMEOUT,
       retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
     });
-    expect(recordedOptions[5]).toMatchObject({ taskQueue: algorithmTypescriptTaskQueue });
+    expect(recordedOptions[6]).toMatchObject({ taskQueue: algorithmTypescriptTaskQueue });
     // The best-effort post proxy is created after the phases, so the DeepID
     // proxies sit one index earlier than before the finalizer restructure.
-    expect(recordedOptions[7]).toMatchObject({
+    expect(recordedOptions[8]).toMatchObject({
       taskQueue: 'orchestrator-q',
       startToCloseTimeout: DEEP_ID_READINESS_CHECK_TIMEOUT,
       heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
       retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
     });
-    expect(recordedOptions[8]).toMatchObject({
+    expect(recordedOptions[9]).toMatchObject({
       taskQueue: 'orchestrator-q',
       startToCloseTimeout: DEEP_ID_ENCRYPTED_SUBMISSION_TIMEOUT,
       heartbeatTimeout: DEEP_ID_POST_SCORES_HEARTBEAT_TIMEOUT,
@@ -220,11 +227,11 @@ describe('OrchestratorWorkflow task queue routing', () => {
       snapshotId: 'snapshot-1',
     });
 
-    expect(recordedOptions[3]).toMatchObject({
+    expect(recordedOptions[4]).toMatchObject({
       taskQueue: onchainDataTaskQueue,
       startToCloseTimeout: ONCHAIN_DATA_DEPENDENCY_RESOLUTION_TIMEOUT,
     });
-    expect(recordedOptions[3]).not.toHaveProperty('heartbeatTimeout');
+    expect(recordedOptions[4]).not.toHaveProperty('heartbeatTimeout');
     expect(resolveDependency).toHaveBeenCalledWith({
       dependencyKey: 'onchain-data',
       snapshotId: 'snapshot-1',
@@ -301,7 +308,7 @@ describe('OrchestratorWorkflow task queue routing', () => {
       snapshotId: 'snapshot-1',
     });
 
-    expect(recordedOptions[4]).toMatchObject({
+    expect(recordedOptions[5]).toMatchObject({
       taskQueue: communityTaskQueue,
       startToCloseTimeout: COMMUNITY_DEPENDENCY_RESOLUTION_TIMEOUT,
       heartbeatTimeout: HEARTBEAT_TIMEOUT,

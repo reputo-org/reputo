@@ -1,15 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { CommunityApiError } from '@reputo/community-api';
-import { CommunityConnectionStatus } from '@reputo/contracts';
+import { CommunityConnectionStatus, type CommunityResourceDto } from '@reputo/contracts';
 import type { AlgorithmDefinition, ArrayIoItem, IoItem, StringIoItem } from '@reputo/reputation-algorithms';
 import { type AlgorithmInputValue, getAlgorithmDefinitionOrThrow } from '../shared/utils';
+import { describeAccessIssue, formatResourceName } from './community.constants';
+import { CommunityPlatformUnsupportedException } from './community.exceptions';
+import { CommunityService } from './community.service';
 import { CommunityConnectionRepository, type CommunityConnectionRow } from './community-connection.repository';
-import { CommunityPlatformRegistry } from './community-platform.registry';
 
 export interface CommunityInputValidationError {
   field: string;
   message: string;
 }
+
+type ResourceListing = Map<string, CommunityResourceDto>;
 
 function isCommunityConnectionInput(input: IoItem): input is StringIoItem {
   return input.type === 'string' && input.uiHint?.widget === 'community_connection';
@@ -38,30 +42,31 @@ function isSubAlgorithmEntry(
 /**
  * Validates the community inputs of a preset — the connection must exist, be
  * active, and match the widget's platform, and every selected resource id must
- * be one the connection can currently list. Runs after the shared validator, so
- * value shapes are already checked; covers root inputs and `custom_score`
- * children alike, with error fields on the same paths the shared validator uses.
+ * be one the connection lists and can read right now. Runs after the shared
+ * validator, so value shapes are already checked; covers root inputs and
+ * `custom_score` children alike, with error fields on the same paths the
+ * shared validator uses.
  */
 @Injectable()
 export class CommunityInputValidationService {
   constructor(
     private readonly connections: CommunityConnectionRepository,
-    private readonly platforms: CommunityPlatformRegistry,
+    private readonly communityService: CommunityService,
   ) {}
 
   async validate(
     definition: AlgorithmDefinition,
     inputs: ReadonlyArray<AlgorithmInputValue>,
   ): Promise<CommunityInputValidationError[]> {
-    const resourceIdsByConnection = new Map<string, Promise<Set<string> | undefined>>();
-    return this.validateLevel(definition, inputs, '', resourceIdsByConnection);
+    const listingsByConnection = new Map<string, Promise<ResourceListing | undefined>>();
+    return this.validateLevel(definition, inputs, '', listingsByConnection);
   }
 
   private async validateLevel(
     definition: AlgorithmDefinition,
     inputs: ReadonlyArray<AlgorithmInputValue>,
     fieldPrefix: string,
-    resourceIdsByConnection: Map<string, Promise<Set<string> | undefined>>,
+    listingsByConnection: Map<string, Promise<ResourceListing | undefined>>,
   ): Promise<CommunityInputValidationError[]> {
     const errors: CommunityInputValidationError[] = [];
     const valueByKey = new Map(inputs.map((input) => [input.key, input.value]));
@@ -108,8 +113,8 @@ export class CommunityInputValidationService {
       // An invalid or missing connection already produced its own error above.
       if (!connection) continue;
 
-      const knownIds = await this.listResourceIds(connection, resourceIdsByConnection);
-      if (knownIds === undefined) {
+      const listing = await this.listResources(connection, listingsByConnection);
+      if (listing === undefined) {
         errors.push({
           field,
           message: `The selected ${input.label ?? input.key} could not be verified with ${connection.name}. Try again shortly.`,
@@ -117,11 +122,25 @@ export class CommunityInputValidationService {
         continue;
       }
 
-      const unknown = value.filter((id) => typeof id !== 'string' || !knownIds.has(id));
+      const unknown = value.filter((id) => typeof id !== 'string' || !listing.has(id));
       if (unknown.length > 0) {
         errors.push({
           field,
           message: `Unknown resource id(s) for ${connection.name}: ${unknown.map((id) => String(id)).join(', ')}`,
+        });
+        continue;
+      }
+
+      const unreadable = value
+        .map((id) => listing.get(id as string))
+        .filter((resource): resource is CommunityResourceDto => resource !== undefined && !resource.readable);
+      if (unreadable.length > 0) {
+        const named = unreadable
+          .map((resource) => `${formatResourceName(resource)} (${describeAccessIssue(resource.accessIssue)})`)
+          .join(', ');
+        errors.push({
+          field,
+          message: `The bot cannot read ${named} in ${connection.name}. Fix its access on the platform or remove them.`,
         });
       }
     }
@@ -149,7 +168,7 @@ export class CommunityInputValidationService {
             childDefinition,
             entry.inputs,
             `${fieldPrefix}${input.key}.${index}.inputs.`,
-            resourceIdsByConnection,
+            listingsByConnection,
           )),
         );
       }
@@ -159,28 +178,25 @@ export class CommunityInputValidationService {
   }
 
   /**
-   * Lists the connection's resource ids once per validation pass. A platform
+   * Lists the connection's resources once per validation pass, through the
+   * service so a platform failure also moves the connection's state. That
    * failure — or a platform Reputo cannot read yet — resolves to `undefined`,
    * reported as "could not verify", so an outage cannot silently accept
    * unknown ids.
    */
-  private listResourceIds(
+  private listResources(
     connection: CommunityConnectionRow,
-    cache: Map<string, Promise<Set<string> | undefined>>,
-  ): Promise<Set<string> | undefined> {
+    cache: Map<string, Promise<ResourceListing | undefined>>,
+  ): Promise<ResourceListing | undefined> {
     const cached = cache.get(connection.id);
     if (cached) return cached;
 
     const listed = (async () => {
-      const client = this.platforms.find(connection.platform);
-      if (!client) {
-        return undefined;
-      }
       try {
-        const resources = await client.listResources(connection.externalId);
-        return new Set(resources.map((resource) => resource.id));
+        const resources = await this.communityService.readResources(connection, null);
+        return new Map(resources.map((resource) => [resource.id, resource]));
       } catch (error) {
-        if (error instanceof CommunityApiError) {
+        if (error instanceof CommunityApiError || error instanceof CommunityPlatformUnsupportedException) {
           return undefined;
         }
         throw error;

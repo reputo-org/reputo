@@ -5,11 +5,47 @@ import { getAlgorithmDefinition } from "@reputo/reputation-algorithms"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useForm } from "react-hook-form"
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { Form } from "@/components/ui/form"
 import { SubAlgorithmComposerField } from "@/core/fields"
 import { FormUploadProvider } from "@/core/form-context"
 import { buildZodSchema, type FormInput } from "@/core/schema-builder"
+
+const useCommunityConnections = vi.fn()
+
+vi.mock("@/lib/api/hooks", () => ({
+  useCommunityConnections: (options?: unknown) =>
+    useCommunityConnections(options),
+  useCommunityResources: () => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  }),
+}))
+
+vi.mock("@/lib/api/use-community-events", () => ({
+  useCommunityLiveUpdates: () => ({
+    connected: true,
+    realtime: {
+      feeds: { discord: "live", github: "live", mattermost: "live" },
+    },
+  }),
+}))
+
+/** Every platform active by default, so community children stay selectable. */
+const ALL_PLATFORMS_ACTIVE = ["discord", "github", "mattermost"].map(
+  (platform) => ({ id: `conn-${platform}`, platform, status: "active" })
+)
+
+beforeEach(() => {
+  useCommunityConnections.mockReturnValue({
+    data: ALL_PLATFORMS_ACTIVE,
+    isLoading: false,
+    isError: false,
+  })
+})
 
 const definition = JSON.parse(
   getAlgorithmDefinition({ key: "custom_score", version: "1.0.0" })
@@ -214,5 +250,52 @@ describe("SubAlgorithmComposerField", () => {
       ).not.toBeInTheDocument()
     })
     expect(screen.getByText("100%")).toBeInTheDocument()
+  })
+
+  it("locks community children whose platform has no active connection", async () => {
+    useCommunityConnections.mockReturnValue({
+      data: [{ id: "conn-discord", platform: "discord", status: "active" }],
+      isLoading: false,
+      isError: false,
+    })
+    const user = userEvent.setup()
+    renderComposerForm([votingRow])
+
+    await user.click(screen.getByRole("button", { name: /add algorithm/i }))
+
+    const mattermost = await screen.findByRole("menuitem", {
+      name: /mattermost/i,
+    })
+    expect(mattermost).toHaveAttribute("aria-disabled", "true")
+    expect(
+      screen.getByText(/no active mattermost connection/i)
+    ).toBeInTheDocument()
+
+    const discord = screen.getByRole("menuitem", { name: /discord/i })
+    expect(discord).not.toHaveAttribute("aria-disabled", "true")
+
+    expect(
+      screen.getByRole("menuitem", { name: /connect communities/i })
+    ).toBeInTheDocument()
+  })
+
+  it("locks nothing while the connections query loads or fails", async () => {
+    useCommunityConnections.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+    })
+    const user = userEvent.setup()
+    renderComposerForm([votingRow])
+
+    await user.click(screen.getByRole("button", { name: /add algorithm/i }))
+
+    const mattermost = await screen.findByRole("menuitem", {
+      name: /mattermost/i,
+    })
+    expect(mattermost).not.toHaveAttribute("aria-disabled", "true")
+    expect(
+      screen.queryByRole("menuitem", { name: /connect communities/i })
+    ).not.toBeInTheDocument()
   })
 })

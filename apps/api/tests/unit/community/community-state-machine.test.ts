@@ -41,6 +41,18 @@ describe('describeErrorCategory', () => {
     }
   });
 
+  it('tells a kicked bot from a deleted community on every platform', () => {
+    // A kicked bot is answered with 404 as often as with 403, so the notFound
+    // wording has to name reconnecting as the fix rather than blaming a
+    // deletion the admin cannot act on.
+    for (const platform of ['discord', 'github', 'mattermost'] as const) {
+      const reason = describeErrorCategory(CommunityErrorCategory.notFound, platform);
+      expect(reason).not.toBe(describeErrorCategory(CommunityErrorCategory.notFound));
+      expect(reason).toMatch(/no longer|could not be found/i);
+    }
+    expect(describeErrorCategory(CommunityErrorCategory.notFound, 'discord')).toMatch(/reconnect/i);
+  });
+
   it('falls back to a safe sentence for an unknown category', () => {
     expect(describeErrorCategory('something_new')).toBe('The last check did not succeed.');
   });

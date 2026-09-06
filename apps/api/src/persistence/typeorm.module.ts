@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule, type TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+import { CommunityConnectionListenerService } from './community-connection-listener.service';
 import { ENTITIES } from './entities';
 import { MIGRATIONS } from './migrations';
 import { SnapshotListenerService } from './snapshot-listener.service';
@@ -24,7 +25,7 @@ import { SnapshotListenerService } from './snapshot-listener.service';
       }),
     }),
   ],
-  providers: [SnapshotListenerService],
-  exports: [TypeOrmModule, SnapshotListenerService],
+  providers: [SnapshotListenerService, CommunityConnectionListenerService],
+  exports: [TypeOrmModule, SnapshotListenerService, CommunityConnectionListenerService],
 })
 export class PersistenceModule {}

@@ -66,6 +66,8 @@ describe('Mattermost community connections e2e', () => {
       respond(CHANNELS);
     } else if (url === '/api/v4/users/me/teams/team-2/channels') {
       respond([]);
+    } else if (url.startsWith('/api/v4/teams/team-1/channels?') || url.startsWith('/api/v4/teams/team-2/channels?')) {
+      respond([]);
     } else if (url.startsWith('/api/v4/channels/chan-1/posts')) {
       respond(POSTS);
     } else {
@@ -200,7 +202,7 @@ describe('Mattermost community connections e2e', () => {
 
       const response = await api(app, adminCookie).get(`/community/connections/${connection.id}/resources`).expect(200);
 
-      expect(response.body).toEqual([{ id: 'chan-1', name: 'Town Square', kind: 'text' }]);
+      expect(response.body).toEqual([{ id: 'chan-1', name: 'Town Square', kind: 'text', readable: true }]);
     });
 
     it('re-checks health with the sealed token', async () => {

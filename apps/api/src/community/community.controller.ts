@@ -5,11 +5,13 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  type MessageEvent,
   Param,
   ParseUUIDPipe,
   Post,
   Query,
   Res,
+  Sse,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -30,13 +32,16 @@ import {
 } from '@nestjs/swagger';
 import { ACCESS_ROLE_ADMIN, ACCESS_ROLE_OWNER } from '@reputo/contracts';
 import type { Response } from 'express';
+import { map, type Observable } from 'rxjs';
 import { COMMUNITY_CONNECTIONS_ROUTE, GITHUB_CALLBACK_ROUTE } from '../shared/constants';
 import { CurrentUser, Roles } from '../shared/decorators';
 import { RolesGuard } from '../shared/guards/roles.guard';
 import type { OAuthUserRow } from '../users';
 import { CommunityService } from './community.service';
+import { CommunityEventsService } from './community-events.service';
 import {
   CommunityConnectionDto,
+  CommunityConnectionEventDto,
   CommunityHealthDto,
   CommunityInstallUrlDto,
   CommunityInstallUrlQueryDto,
@@ -55,7 +60,10 @@ import {
 @Roles(ACCESS_ROLE_OWNER, ACCESS_ROLE_ADMIN)
 @Controller(COMMUNITY_CONNECTIONS_ROUTE)
 export class CommunityController {
-  constructor(private readonly communityService: CommunityService) {}
+  constructor(
+    private readonly communityService: CommunityService,
+    private readonly events: CommunityEventsService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -65,6 +73,20 @@ export class CommunityController {
   @ApiOkResponse({ description: 'Community connections.', type: [CommunityConnectionDto] })
   list(): Promise<CommunityConnectionDto[]> {
     return this.communityService.list();
+  }
+
+  @Sse('events')
+  @ApiOperation({
+    summary: 'Follow connection changes via SSE',
+    description:
+      'Opens a Server-Sent Events stream of connection changes: status, reason, metadata, name, and removals. ' +
+      "Changes are driven by each platform's own live feed, so a permission change on the platform arrives " +
+      'within about a second. The first event carries the feed status — which platforms are pushing right ' +
+      'now — and it is sent again whenever a feed changes state.',
+  })
+  @ApiOkResponse({ description: 'SSE stream established.', type: CommunityConnectionEventDto })
+  subscribeToEvents(): Observable<MessageEvent> {
+    return this.events.subscribe().pipe(map((event) => ({ data: event })));
   }
 
   @Get('discord/install-url')

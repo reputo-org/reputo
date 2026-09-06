@@ -1,6 +1,7 @@
 import { ApplicationFailure } from '@temporalio/activity';
 import { MockActivityEnvironment } from '@temporalio/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { CommunityService } from '../../../src/community/community.service';
 import type { CommunityConnectionRepository } from '../../../src/community/community-connection.repository';
 import type { SnapshotService } from '../../../src/snapshot/snapshot.service';
 import { createSnapshotActivities, toSnapshotDto } from '../../../src/temporal/snapshot.activities';
@@ -38,6 +39,7 @@ describe('snapshot.activities factory', () => {
     findById: ReturnType<typeof vi.fn>;
     findCredentialsCiphertextById: ReturnType<typeof vi.fn>;
   };
+  let communityService: { checkHealth: ReturnType<typeof vi.fn> };
   let activities: ReturnType<typeof createSnapshotActivities>;
 
   beforeEach(() => {
@@ -50,9 +52,11 @@ describe('snapshot.activities factory', () => {
       findById: vi.fn(),
       findCredentialsCiphertextById: vi.fn(),
     };
+    communityService = { checkHealth: vi.fn() };
     activities = createSnapshotActivities(
       snapshotService as unknown as SnapshotService,
       communityConnections as unknown as CommunityConnectionRepository,
+      communityService as unknown as CommunityService,
     );
   });
 
@@ -124,6 +128,32 @@ describe('snapshot.activities factory', () => {
       expect(error).toBeInstanceOf(ApplicationFailure);
       expect((error as ApplicationFailure).nonRetryable).toBe(true);
       expect((error as ApplicationFailure).type).toBe('CommunityCredentialNotFoundError');
+    });
+  });
+
+  describe('checkCommunityConnectionHealth', () => {
+    const CONNECTION_ID = '01940000-0000-7000-8000-000000000002';
+
+    it('delegates to the community service as a system actor and returns the health', async () => {
+      const health = { status: 'broken', checkedAt: FIXED_NOW.toISOString(), reason: 'kicked' };
+      communityService.checkHealth.mockResolvedValue(health);
+
+      const result = await env.run(activities.checkCommunityConnectionHealth, { connectionId: CONNECTION_ID });
+
+      expect(communityService.checkHealth).toHaveBeenCalledWith(null, CONNECTION_ID);
+      expect(result).toEqual(health);
+    });
+
+    it('maps a missing or disconnected connection to a non-retryable failure', async () => {
+      communityService.checkHealth.mockRejectedValue(new Error('not found'));
+
+      const error = await env
+        .run(activities.checkCommunityConnectionHealth, { connectionId: CONNECTION_ID })
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(ApplicationFailure);
+      expect((error as ApplicationFailure).nonRetryable).toBe(true);
+      expect((error as ApplicationFailure).type).toBe('CommunityConnectionNotFoundError');
     });
   });
 });

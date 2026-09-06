@@ -26,8 +26,8 @@ describe('POST /api/v1/algorithm-presets (github_engagement)', () => {
   beforeEach(async () => {
     listResources.mockReset();
     listResources.mockResolvedValue([
-      { id: '9001', name: 'snet/reputo', kind: 'repository' },
-      { id: '9002', name: 'snet/deep-id', kind: 'repository' },
+      { id: '9001', name: 'snet/reputo', kind: 'repository', readable: true },
+      { id: '9002', name: 'snet/deep-id', kind: 'repository', readable: true },
     ]);
     const repo = dataSource.getRepository(CommunityConnectionEntity);
     const saved = await repo.save(

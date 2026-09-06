@@ -45,26 +45,25 @@ const inputs = (resources: string[]) => [
 
 describe('CommunityInputValidationService', () => {
   let connections: { findById: ReturnType<typeof vi.fn> };
-  let discord: { listResources: ReturnType<typeof vi.fn> };
-  let platforms: { find: ReturnType<typeof vi.fn> };
+  let communityService: { readResources: ReturnType<typeof vi.fn> };
   let service: CommunityInputValidationService;
 
   beforeEach(() => {
     connections = { findById: vi.fn().mockResolvedValue(connectionRow()) };
-    discord = {
-      listResources: vi.fn().mockResolvedValue([
-        { id: 'c1', name: 'general', kind: 'text' },
-        { id: 'c2', name: 'dev', kind: 'forum' },
+    communityService = {
+      readResources: vi.fn().mockResolvedValue([
+        { id: 'c1', name: 'general', kind: 'text', readable: true },
+        { id: 'c2', name: 'dev', kind: 'forum', readable: true },
+        { id: 'c3', name: 'staff', kind: 'text', readable: false, accessIssue: 'missing_view_channel' },
       ]),
     };
-    platforms = { find: vi.fn().mockReturnValue(discord) };
-    service = new CommunityInputValidationService(connections as never, platforms as never);
+    service = new CommunityInputValidationService(connections as never, communityService as never);
   });
 
-  it('accepts an active connection of the right platform with known resource ids', async () => {
+  it('accepts an active connection of the right platform with known, readable resource ids', async () => {
     await expect(service.validate(definition, inputs(['c1', 'c2']))).resolves.toEqual([]);
     expect(connections.findById).toHaveBeenCalledWith(CONNECTION_ID);
-    expect(discord.listResources).toHaveBeenCalledWith('guild-1');
+    expect(communityService.readResources).toHaveBeenCalledWith(expect.objectContaining({ id: CONNECTION_ID }), null);
   });
 
   it('rejects a missing connection', async () => {
@@ -73,7 +72,7 @@ describe('CommunityInputValidationService', () => {
     const errors = await service.validate(definition, inputs(['c1']));
 
     expect(errors).toEqual([{ field: 'community_connection_id', message: expect.stringContaining('not found') }]);
-    expect(discord.listResources).not.toHaveBeenCalled();
+    expect(communityService.readResources).not.toHaveBeenCalled();
   });
 
   it('rejects a connection of another platform', async () => {
@@ -100,8 +99,20 @@ describe('CommunityInputValidationService', () => {
     expect(errors).toEqual([{ field: 'resources', message: expect.stringContaining('deleted-channel') }]);
   });
 
+  it('rejects resources the bot cannot read, naming them and why', async () => {
+    const errors = await service.validate(definition, inputs(['c1', 'c3']));
+
+    expect(errors).toEqual([
+      {
+        field: 'resources',
+        message:
+          'The bot cannot read #staff (the bot lacks View Channel) in SNET. Fix its access on the platform or remove them.',
+      },
+    ]);
+  });
+
   it('reports resources as unverifiable when the platform cannot be reached, never silently accepting', async () => {
-    discord.listResources.mockRejectedValue(new CommunityHttpError('server exploded', 502));
+    communityService.readResources.mockRejectedValue(new CommunityHttpError('server exploded', 502));
 
     const errors = await service.validate(definition, inputs(['c1']));
 
@@ -149,6 +160,6 @@ describe('CommunityInputValidationService', () => {
       },
     ]);
 
-    expect(discord.listResources).toHaveBeenCalledTimes(1);
+    expect(communityService.readResources).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,9 +1,11 @@
 import {
   type AlgorithmPresetFrozenDto,
   type ApiSnapshotActivities,
+  type CheckCommunityConnectionHealthInput,
   COMMUNITY_CONNECTION_NOT_FOUND_ERROR_TYPE,
   COMMUNITY_CREDENTIAL_NOT_FOUND_ERROR_TYPE,
   type CommunityConnectionDto,
+  type CommunityHealthDto,
   type CommunitySealedCredentialDto,
   type GetCommunityConnectionInput,
   type GetCommunitySealedCredentialInput,
@@ -14,6 +16,7 @@ import {
   type UpdateSnapshotInput,
 } from '@reputo/contracts';
 import { ApplicationFailure, Context } from '@temporalio/activity';
+import type { CommunityService } from '../community/community.service';
 import type { CommunityConnectionRepository } from '../community/community-connection.repository';
 import type { AlgorithmPresetFrozen, SnapshotRow } from '../snapshot/snapshot.repository';
 import type { SnapshotService } from '../snapshot/snapshot.service';
@@ -64,6 +67,7 @@ export function toSnapshotDto(row: SnapshotRow): SnapshotDto {
 export function createSnapshotActivities(
   snapshotService: SnapshotService,
   communityConnections: CommunityConnectionRepository,
+  communityService: CommunityService,
 ): ApiSnapshotActivities {
   return {
     async getSnapshot(input: GetSnapshotInput): Promise<SnapshotDto> {
@@ -144,6 +148,28 @@ export function createSnapshotActivities(
       }
 
       return { credentialsCiphertext };
+    },
+
+    /**
+     * A failed probe resolves with the reported state — the workflow only
+     * needs the connection row to end up truthful, never the platform error.
+     */
+    async checkCommunityConnectionHealth(input: CheckCommunityConnectionHealthInput): Promise<CommunityHealthDto> {
+      const logger = Context.current().log;
+      logger.info('Re-checking community connection health', { connectionId: input.connectionId });
+
+      try {
+        return await communityService.checkHealth(null, input.connectionId);
+      } catch {
+        // Missing or disconnected: both states are already precise, so there
+        // is nothing to re-check and retrying cannot help.
+        logger.warn('Community connection cannot be re-checked', { connectionId: input.connectionId });
+        throw ApplicationFailure.create({
+          message: `Community connection ${input.connectionId} cannot be re-checked`,
+          type: COMMUNITY_CONNECTION_NOT_FOUND_ERROR_TYPE,
+          nonRetryable: true,
+        });
+      }
     },
 
     async recordSnapshotPublication(input: RecordSnapshotPublicationInput): Promise<void> {

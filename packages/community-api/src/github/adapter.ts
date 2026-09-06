@@ -1,13 +1,20 @@
 import { CommunityContractError, CommunityHttpError, CommunityPermissionError } from '../shared/errors.js';
 import type { CommunityHttpObserver, CommunityLogger } from '../shared/http.js';
 import type { CommunityAdapter } from '../shared/records.js';
-import type { CommunityProbeResult, CommunityResource } from '../shared/types.js';
+import { type CommunityProbeResult, type CommunityResource, digestCommunityResources } from '../shared/types.js';
 import { createGitHubApi, type GitHubApi } from './auth.js';
 import { createGitHubRecordIterator } from './fetch.js';
-import { hasRequiredIssueFields, toIssueEnabledIds, toMatchedAccountId, toRepositoryResources } from './transform.js';
+import {
+  assertInstallationUsable,
+  hasRequiredIssueFields,
+  toGitHubAccountProfile,
+  toMatchedAccountId,
+  toRepositoryResources,
+} from './transform.js';
 import type {
   GitHubAdapterConfig,
   GitHubRateLimit,
+  GitHubRawInstallation,
   GitHubRawIssue,
   GitHubRawRepositoriesResponse,
   GitHubRawUser,
@@ -28,16 +35,12 @@ const REPOSITORIES_PAGE_LIMIT = 100;
  */
 const PROBE_REPOSITORY_LIMIT = 10;
 
-interface InstallationRepositories {
-  resources: CommunityResource[];
-  /** Repositories the probe can actually read issues from. */
-  probeCandidates: CommunityResource[];
-}
-
-/** Every repository the installation can read, across all listing pages. */
-async function readInstallationRepositories(api: GitHubApi, installationId: string): Promise<InstallationRepositories> {
+/** Every repository the installation can read, across all listing pages, with its readability. */
+export async function listInstallationRepositories(
+  api: GitHubApi,
+  installationId: string,
+): Promise<CommunityResource[]> {
   const resources: CommunityResource[] = [];
-  const issueEnabled = new Set<string>();
 
   for (let page = 1; ; page++) {
     const response = await api.installationRequest<GitHubRawRepositoriesResponse>(
@@ -47,33 +50,29 @@ async function readInstallationRepositories(api: GitHubApi, installationId: stri
     );
     const listed = toRepositoryResources(response?.repositories);
     resources.push(...listed);
-    for (const id of toIssueEnabledIds(response?.repositories)) {
-      issueEnabled.add(id);
-    }
     if (listed.length < REPOSITORIES_PAGE_LIMIT) {
-      resources.sort((a, b) => a.name.localeCompare(b.name));
-      return { resources, probeCandidates: resources.filter((resource) => issueEnabled.has(resource.id)) };
+      return resources.sort((a, b) => a.name.localeCompare(b.name));
     }
   }
 }
 
-export async function listInstallationRepositories(
-  api: GitHubApi,
-  installationId: string,
-): Promise<CommunityResource[]> {
-  return (await readInstallationRepositories(api, installationId)).resources;
-}
-
 /**
- * Lists the installation's repositories and reads one issues page, proving both
- * the App's permissions and that the fields the crawl depends on arrive.
- * Candidates are the repositories whose tracker is on, so an installation whose
- * first repositories happen to have issues disabled still probes cleanly.
+ * Confirms the installation still exists and is usable, lists its repositories,
+ * and reads one issues page, proving both the App's permissions and that the
+ * fields the crawl depends on arrive. The installation lookup goes first: an
+ * uninstalled App answers it with 404 and a suspended one is refused outright,
+ * before any repository is touched.
  */
 export async function probeInstallation(api: GitHubApi, installationId: string): Promise<CommunityProbeResult> {
-  const { resources, probeCandidates } = await readInstallationRepositories(api, installationId);
+  const installation =
+    (await api.appRequest<GitHubRawInstallation>('GET', `/app/installations/${encodeURIComponent(installationId)}`)) ??
+    {};
+  assertInstallationUsable(installation);
 
-  for (const resource of probeCandidates.slice(0, PROBE_REPOSITORY_LIMIT)) {
+  const resources = await listInstallationRepositories(api, installationId);
+  const readable = resources.filter((resource) => resource.readable);
+
+  for (const resource of readable.slice(0, PROBE_REPOSITORY_LIMIT)) {
     try {
       const issues = await api.installationRequest<GitHubRawIssue[]>(
         installationId,
@@ -88,10 +87,18 @@ export async function probeInstallation(api: GitHubApi, installationId: string):
         );
       }
 
-      return { resourceCount: resources.length, sampledResourceId: resource.id, sampledRecordCount: page.length };
+      return {
+        resourceCount: resources.length,
+        readableResourceCount: readable.length,
+        resourcesDigest: digestCommunityResources(resources),
+        sampledResourceId: resource.id,
+        sampledRecordCount: page.length,
+        profile: toGitHubAccountProfile(installation),
+      };
     } catch (error) {
-      // A repository with issues disabled or read access revoked is normal;
-      // only an installation with no readable repository at all fails a probe.
+      // A repository that lost access or turned its tracker off since the
+      // listing is normal; only an installation with no readable repository
+      // at all fails a probe.
       const skippable =
         error instanceof CommunityPermissionError ||
         (error instanceof CommunityHttpError && (error.statusCode === 404 || error.statusCode === 410));
@@ -102,7 +109,7 @@ export async function probeInstallation(api: GitHubApi, installationId: string):
   throw new CommunityPermissionError(
     resources.length === 0
       ? 'The GitHub App installation grants access to no repositories.'
-      : probeCandidates.length === 0
+      : readable.length === 0
         ? 'No repository in this installation has its issue tracker enabled, so there is nothing to score.'
         : 'The GitHub App cannot read issues in any repository of this installation.',
     403,

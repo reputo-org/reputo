@@ -2,13 +2,14 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   buildMattermostExternalId,
+  type CommunityProbeResult,
   type DiscordClient,
   type GitHubClient,
   type MattermostClient,
   type MattermostTeam,
   toErrorCategory,
 } from '@reputo/community-api';
-import { CommunityConnectionStatus, CommunityPlatform } from '@reputo/contracts';
+import { type CommunityConnectionMetadataDto, CommunityConnectionStatus, CommunityPlatform } from '@reputo/contracts';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { throwNotFoundError } from '../shared/exceptions';
 import type { OAuthUserRow } from '../users';
@@ -29,7 +30,7 @@ import {
   CommunityPlatformException,
   CommunityPlatformMismatchException,
 } from './community.exceptions';
-import { CommunityAuditRepository, type LatestVerification } from './community-audit.repository';
+import { CommunityAuditRepository } from './community-audit.repository';
 import { CommunityConnectionRepository, type CommunityConnectionRow } from './community-connection.repository';
 import { CommunityCredentialsService } from './community-credentials.service';
 import { CommunityInstallStateService } from './community-install-state.service';
@@ -47,6 +48,16 @@ const COMMUNITY_CONNECTION_ENTITY = 'CommunityConnection';
 
 /** GitHub sends this when an organization owner still has to approve the install. */
 const GITHUB_SETUP_ACTION_REQUEST = 'request';
+
+/** Display facts a successful probe carries, in the shape the row stores. */
+function toConnectionMetadata(probe: CommunityProbeResult): CommunityConnectionMetadataDto {
+  return {
+    avatarUrl: probe.profile?.avatarUrl,
+    memberCount: probe.profile?.memberCount,
+    resourceCount: probe.resourceCount,
+    readableResourceCount: probe.readableResourceCount,
+  };
+}
 
 @Injectable()
 export class CommunityService {
@@ -73,9 +84,13 @@ export class CommunityService {
 
   async list(): Promise<CommunityConnectionDto[]> {
     const rows = await this.connections.findAll();
-    const verifications = await this.audit.findLatestVerification(rows.map((row) => row.id));
+    return rows.map((row) => this.toDto(row));
+  }
 
-    return rows.map((row) => this.toDto(row, verifications.get(row.id)));
+  /** One connection as the clients see it, or null once it is gone. */
+  async findById(id: string): Promise<CommunityConnectionDto | null> {
+    const row = await this.connections.findById(id);
+    return row ? this.toDto(row) : null;
   }
 
   /**
@@ -222,7 +237,7 @@ export class CommunityService {
 
     try {
       const probe = await this.platforms.get(platform).probe(externalId);
-      const active = await this.connections.updateStatus(connection.id, CommunityConnectionStatus.active);
+      const active = await this.recordProbeSuccess(connection, probe);
 
       await this.recordOutcome(actor, connection, CommunityAuditAction.connect);
       this.logger.info(
@@ -232,8 +247,7 @@ export class CommunityService {
 
       return this.toDto(active ?? connection);
     } catch (error) {
-      const category = toErrorCategory(error);
-      await this.connections.updateStatus(connection.id, statusForFailure(category));
+      await this.recordProbeFailure(connection, toErrorCategory(error));
       throw await this.failMattermost(actor, CommunityAuditAction.connect, error, connection.id);
     }
   }
@@ -242,33 +256,81 @@ export class CommunityService {
     const connection = await this.getUsableConnection(id);
 
     try {
-      const resources = await this.platforms.get(connection.platform).listResources(connection.externalId);
-      await this.recordOutcome(actor, connection, CommunityAuditAction.listResources);
-      return resources;
+      return await this.readResources(connection, actor);
     } catch (error) {
-      throw await this.handlePlatformFailure(actor, connection, CommunityAuditAction.listResources, error);
+      throw new CommunityPlatformException(describeErrorCategory(toErrorCategory(error), connection.platform));
     }
   }
 
-  /** On-demand probe. A failed probe is a reported state, not a failed request. */
-  async checkHealth(actor: OAuthUserRow, id: string): Promise<CommunityHealthDto> {
-    const connection = await this.getUsableConnection(id);
-    const checkedAt = new Date().toISOString();
+  /**
+   * Lists a connection's resources, each with the platform's read verdict. Any
+   * platform call is also a health signal: a failure moves the connection to
+   * the state its category implies and is rethrown untouched, so the caller
+   * keeps the category. A null actor is a system read — preset validation.
+   */
+  async readResources(connection: CommunityConnectionRow, actor: OAuthUserRow | null): Promise<CommunityResourceDto[]> {
+    const client = this.platforms.get(connection.platform);
 
     try {
-      await this.platforms.get(connection.platform).probe(connection.externalId);
-      await this.connections.updateStatus(connection.id, CommunityConnectionStatus.active);
-      await this.recordOutcome(actor, connection, CommunityAuditAction.healthCheck);
-
-      return { status: CommunityConnectionStatus.active, checkedAt };
+      const resources = await client.listResources(connection.externalId);
+      await this.recordOutcome(actor, connection, CommunityAuditAction.listResources, undefined, false);
+      return resources;
     } catch (error) {
       const category = toErrorCategory(error);
       const status = statusForFailure(category);
 
-      await this.connections.updateStatus(connection.id, status);
-      await this.recordOutcome(actor, connection, CommunityAuditAction.healthCheck, category);
+      await this.recordProbeFailure(connection, category);
+      await this.recordOutcome(
+        actor,
+        connection,
+        CommunityAuditAction.listResources,
+        category,
+        this.changesState(connection, status, category),
+      );
+      throw error;
+    }
+  }
 
-      return { status, checkedAt, reason: describeErrorCategory(category, connection.platform) };
+  /**
+   * On-demand probe. A failed probe is a reported state, not a failed request.
+   * A null actor is a system check — a live feed's re-probe or a snapshot
+   * failure write-back — and audits only what changes the row.
+   */
+  async checkHealth(actor: OAuthUserRow | null, id: string): Promise<CommunityHealthDto> {
+    const connection = await this.getUsableConnection(id);
+    const client = this.platforms.get(connection.platform);
+    const checkedAt = new Date();
+
+    try {
+      const probe = await client.probe(connection.externalId);
+      await this.recordProbeSuccess(connection, probe, checkedAt);
+      await this.recordOutcome(
+        actor,
+        connection,
+        CommunityAuditAction.healthCheck,
+        undefined,
+        this.changesState(connection, CommunityConnectionStatus.active),
+      );
+
+      return { status: CommunityConnectionStatus.active, checkedAt: checkedAt.toISOString() };
+    } catch (error) {
+      const category = toErrorCategory(error);
+      const status = statusForFailure(category);
+
+      await this.recordProbeFailure(connection, category, checkedAt);
+      await this.recordOutcome(
+        actor,
+        connection,
+        CommunityAuditAction.healthCheck,
+        category,
+        this.changesState(connection, status, category),
+      );
+
+      return {
+        status,
+        checkedAt: checkedAt.toISOString(),
+        reason: describeErrorCategory(category, connection.platform),
+      };
     }
   }
 
@@ -284,7 +346,10 @@ export class CommunityService {
     try {
       await this.platforms.get(connection.platform).revokeAccess(connection.externalId);
     } catch (error) {
-      throw await this.handlePlatformFailure(actor, connection, CommunityAuditAction.disconnect, error);
+      const category = toErrorCategory(error);
+      await this.recordProbeFailure(connection, category);
+      await this.recordOutcome(actor, connection, CommunityAuditAction.disconnect, category);
+      throw new CommunityPlatformException(describeErrorCategory(category, connection.platform));
     }
 
     await this.recordOutcome(actor, connection, CommunityAuditAction.disconnect);
@@ -311,22 +376,38 @@ export class CommunityService {
     return connection;
   }
 
-  /**
-   * Any platform call is also a health signal: a failure moves the connection
-   * to the state its category implies before the error reaches the client.
-   */
-  private async handlePlatformFailure(
-    actor: OAuthUserRow,
+  private recordProbeSuccess(
     connection: CommunityConnectionRow,
-    action: CommunityAuditAction,
-    error: unknown,
-  ): Promise<Error> {
-    const category = toErrorCategory(error);
+    probe: CommunityProbeResult,
+    checkedAt = new Date(),
+  ): Promise<CommunityConnectionRow | null> {
+    return this.connections.recordCheck(connection.id, {
+      status: CommunityConnectionStatus.active,
+      checkedAt,
+      metadata: toConnectionMetadata(probe),
+      resourcesDigest: probe.resourcesDigest,
+    });
+  }
 
-    await this.connections.updateStatus(connection.id, statusForFailure(category));
-    await this.recordOutcome(actor, connection, action, category);
+  private recordProbeFailure(
+    connection: CommunityConnectionRow,
+    category: CommunityAuditErrorCategory,
+    checkedAt = new Date(),
+  ): Promise<CommunityConnectionRow | null> {
+    return this.connections.recordCheck(connection.id, {
+      status: statusForFailure(category),
+      checkedAt,
+      failureCategory: category,
+    });
+  }
 
-    return new CommunityPlatformException(describeErrorCategory(category, connection.platform));
+  /** Whether a check outcome differs from what the row already said. */
+  private changesState(
+    connection: CommunityConnectionRow,
+    status: CommunityConnectionStatus,
+    failureCategory?: CommunityAuditErrorCategory,
+  ): boolean {
+    return connection.status !== status || (connection.lastFailureCategory ?? null) !== (failureCategory ?? null);
   }
 
   /**
@@ -380,7 +461,7 @@ export class CommunityService {
       });
 
       const probe = await this.platforms.get(platform).probe(community.externalId);
-      await this.connections.updateStatus(connection.id, CommunityConnectionStatus.active);
+      await this.recordProbeSuccess(connection, probe);
 
       await this.audit.record({
         connectionId: connection.id,
@@ -398,7 +479,7 @@ export class CommunityService {
     } catch (error) {
       const category = toErrorCategory(error);
       if (connection) {
-        await this.connections.updateStatus(connection.id, statusForFailure(category));
+        await this.recordProbeFailure(connection, category);
       }
       return this.failCallback(actor, platform, category, connection?.id, error);
     }
@@ -458,16 +539,26 @@ export class CommunityService {
     return this.redirectUrl({ error: category, platform });
   }
 
+  /**
+   * Human actions are always on the record. System checks — a live feed's
+   * re-probe, a snapshot write-back, preset validation — are recorded only when
+   * they change what the row says, so a busy community leaves a transition
+   * history rather than a heartbeat log. The row itself carries the freshness.
+   */
   private recordOutcome(
-    actor: OAuthUserRow,
+    actor: OAuthUserRow | null,
     connection: CommunityConnectionRow,
     action: CommunityAuditAction,
     errorCategory?: CommunityAuditErrorCategory,
+    changesState = true,
   ): Promise<void> {
+    if (actor === null && !changesState) {
+      return Promise.resolve();
+    }
     return this.audit.record({
       connectionId: connection.id,
       platform: connection.platform,
-      actorUserId: actor._id,
+      actorUserId: actor?._id ?? null,
       action,
       outcome: errorCategory ? CommunityAuditOutcome.failure : CommunityAuditOutcome.success,
       errorCategory,
@@ -482,9 +573,7 @@ export class CommunityService {
     return url.toString();
   }
 
-  private toDto(row: CommunityConnectionRow, verification?: LatestVerification): CommunityConnectionDto {
-    const failureCategory = verification?.failureCategory;
-
+  private toDto(row: CommunityConnectionRow): CommunityConnectionDto {
     return {
       id: row.id,
       platform: row.platform,
@@ -492,10 +581,11 @@ export class CommunityService {
       name: row.name,
       status: row.status,
       statusReason:
-        row.status === CommunityConnectionStatus.active || !failureCategory
+        row.status === CommunityConnectionStatus.active || row.lastFailureCategory === undefined
           ? undefined
-          : describeErrorCategory(failureCategory, row.platform),
-      lastCheckedAt: verification?.checkedAt.toISOString(),
+          : describeErrorCategory(row.lastFailureCategory, row.platform),
+      lastCheckedAt: row.lastCheckedAt?.toISOString(),
+      metadata: row.metadata,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

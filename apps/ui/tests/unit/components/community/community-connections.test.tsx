@@ -1,10 +1,26 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { CommunityConnections } from "@/components/community/community-connections"
 import type { CommunityConnectionDto } from "@/lib/api/types"
+import type { CommunityLiveState } from "@/lib/api/use-community-events"
 
 const useCommunityConnections = vi.fn()
+const LIVE_FEEDS = {
+  discord: "live",
+  github: "live",
+  mattermost: "live",
+} as const
+
+const useCommunityLiveUpdates = vi.fn<() => CommunityLiveState>(() => ({
+  connected: true,
+  realtime: { feeds: { ...LIVE_FEEDS } },
+}))
+
+vi.mock("@/lib/api/use-community-events", () => ({
+  useCommunityLiveUpdates: () => useCommunityLiveUpdates(),
+}))
 
 vi.mock("@/lib/api/hooks", () => ({
   useCommunityConnections: () => useCommunityConnections(),
@@ -40,6 +56,8 @@ const connection = (
   ...overrides,
 })
 
+const refetch = vi.fn()
+
 function renderWith(state: {
   data?: CommunityConnectionDto[]
   isLoading?: boolean
@@ -49,12 +67,20 @@ function renderWith(state: {
     data: state.data,
     isLoading: state.isLoading ?? false,
     isError: state.isError ?? false,
+    refetch,
   })
   render(<CommunityConnections />)
 }
 
 describe("CommunityConnections", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Every feed live is the default; a test that needs a down feed says so.
+    useCommunityLiveUpdates.mockReturnValue({
+      connected: true,
+      realtime: { feeds: { ...LIVE_FEEDS } },
+    })
+  })
 
   it("shows a spinner while the connections load", () => {
     renderWith({ isLoading: true })
@@ -62,19 +88,29 @@ describe("CommunityConnections", () => {
     expect(screen.getByLabelText("Loading connections")).toBeInTheDocument()
   })
 
-  it("shows an error state when the query failed", () => {
+  it("shows an error state with a retry action when the query failed", async () => {
+    const user = userEvent.setup()
     renderWith({ isError: true })
 
     expect(
       screen.getByText("Connections could not be loaded")
     ).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: /try again/i }))
+    expect(refetch).toHaveBeenCalledOnce()
   })
 
-  it("renders one card per platform", () => {
+  it("renders one section per platform with its brand mark", () => {
     renderWith({ data: [] })
 
     for (const label of ["Discord", "GitHub", "Mattermost"]) {
       expect(screen.getByText(label)).toBeInTheDocument()
+    }
+    // Every mark is an inline SVG path — Mattermost included, not a
+    // placeholder icon.
+    for (const label of ["Discord", "GitHub", "Mattermost"]) {
+      const mark = document.querySelector(`svg[aria-label='${label}']`)
+      expect(mark?.querySelector("path")).toBeInTheDocument()
     }
   })
 
@@ -146,7 +182,9 @@ describe("CommunityConnections", () => {
     ).toBeEnabled()
   })
 
-  it("reports when the status was last confirmed, so a stale Active is visible as stale", () => {
+  it("hides the freshness line while the platform pushes its changes", () => {
+    // A live feed keeps the row current, so "Checked an hour ago" would date
+    // the last probe rather than the data, and read as stale when nothing is.
     renderWith({
       data: [
         connection({
@@ -155,12 +193,157 @@ describe("CommunityConnections", () => {
       ],
     })
 
-    expect(screen.getByText(/^Checked /)).toBeInTheDocument()
+    expect(screen.queryByText(/Checked /)).not.toBeInTheDocument()
   })
 
-  it("falls back to the connection time when the platform has never been checked", () => {
+  it("reports when the status was last confirmed once the feed is down", () => {
+    useCommunityLiveUpdates.mockReturnValue({
+      connected: true,
+      realtime: {
+        feeds: { ...LIVE_FEEDS, discord: "down" },
+      },
+    })
+    renderWith({
+      data: [
+        connection({
+          lastCheckedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+        }),
+      ],
+    })
+
+    expect(screen.getByText(/Checked /)).toBeInTheDocument()
+  })
+
+  it("falls back to the connection time when a platform without a feed was never checked", () => {
+    useCommunityLiveUpdates.mockReturnValue({
+      connected: true,
+      realtime: {
+        feeds: { ...LIVE_FEEDS, discord: "down" },
+      },
+    })
     renderWith({ data: [connection({ lastCheckedAt: undefined })] })
 
-    expect(screen.getByText(/^Connected /)).toBeInTheDocument()
+    expect(screen.getByText(/Connected /)).toBeInTheDocument()
+  })
+
+  it("says changes arrive as they happen while every feed is live", () => {
+    renderWith({ data: [connection()] })
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /Live — Discord changes appear as they happen/
+    )
+  })
+
+  it("names the platform whose feed is down, and how to read it meanwhile", () => {
+    useCommunityLiveUpdates.mockReturnValue({
+      connected: true,
+      realtime: {
+        feeds: { ...LIVE_FEEDS, discord: "down" },
+      },
+    })
+    renderWith({ data: [connection()] })
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /Not live — the Discord feed is reconnecting; Re-check to see changes now/
+    )
+  })
+
+  it("says it is reconnecting while the stream is down", () => {
+    useCommunityLiveUpdates.mockReturnValue({
+      connected: false,
+      realtime: undefined,
+    })
+    renderWith({ data: [connection()] })
+
+    expect(screen.getByRole("status")).toHaveTextContent(/Reconnecting/)
+  })
+
+  it("shows how many channels the bot can read once it is shut out of some", () => {
+    renderWith({
+      data: [
+        connection({
+          metadata: { resourceCount: 12, readableResourceCount: 10 },
+        }),
+      ],
+    })
+
+    expect(screen.getByText(/10 of 12 channels readable/)).toBeInTheDocument()
+  })
+
+  it("shows the community avatar and probe metadata on a row", () => {
+    renderWith({
+      data: [
+        connection({
+          metadata: {
+            avatarUrl: "https://cdn.discordapp.com/icons/974/a1.png?size=128",
+            memberCount: 1874,
+            resourceCount: 12,
+          },
+        }),
+      ],
+    })
+
+    const avatar = document.querySelector("img[src^='https://cdn.discordapp']")
+    expect(avatar).toBeInTheDocument()
+    expect(screen.getByText(/1,874 members/)).toBeInTheDocument()
+    expect(screen.getByText(/12 channels/)).toBeInTheDocument()
+    expect(screen.getByText(/974492421130127923/)).toBeInTheDocument()
+  })
+
+  it("falls back to the letter tile when the avatar fails to load", () => {
+    renderWith({
+      data: [
+        connection({
+          metadata: {
+            avatarUrl: "https://cdn.discordapp.com/icons/broken.png",
+          },
+        }),
+      ],
+    })
+
+    const avatar = document.querySelector(
+      "img[src^='https://cdn.discordapp']"
+    ) as HTMLImageElement
+    fireEvent.error(avatar)
+
+    expect(document.querySelector("img")).not.toBeInTheDocument()
+    expect(screen.getByText("S")).toBeInTheDocument()
+  })
+
+  it("keeps the toolbar hidden at small connection counts", () => {
+    renderWith({ data: [connection()] })
+
+    expect(
+      screen.queryByLabelText("Search connections")
+    ).not.toBeInTheDocument()
+  })
+
+  it("searches and filters once the list grows past the threshold", async () => {
+    const user = userEvent.setup()
+    const many = Array.from({ length: 7 }, (_, index) =>
+      connection({
+        id: `01940000-0000-7000-8000-00000000000${index}`,
+        name: index === 0 ? "AGI House" : `Guild ${index}`,
+        status: index === 1 ? "broken" : "active",
+      })
+    )
+    renderWith({ data: many })
+
+    const search = screen.getByLabelText("Search connections")
+    await user.type(search, "agi")
+
+    expect(screen.getByText("AGI House")).toBeInTheDocument()
+    expect(screen.queryByText("Guild 2")).not.toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, "zzz-no-such-name")
+    expect(screen.getByText("No connections match.")).toBeInTheDocument()
+
+    await user.clear(search)
+    await user.click(screen.getByLabelText("Filter by status"))
+    await user.click(screen.getByRole("option", { name: "Needs attention" }))
+
+    expect(screen.getByText("Guild 1")).toBeInTheDocument()
+    expect(screen.queryByText("AGI House")).not.toBeInTheDocument()
   })
 })

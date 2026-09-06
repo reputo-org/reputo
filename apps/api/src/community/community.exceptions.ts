@@ -5,6 +5,7 @@ import {
   HttpException,
   HttpStatus,
   NotImplementedException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { CommunityErrorCategory } from '@reputo/community-api';
 import type { CommunityPlatform } from '@reputo/contracts';
@@ -23,6 +24,17 @@ export class CommunityPlatformException extends BadGatewayException {}
 export class CommunityPlatformUnsupportedException extends NotImplementedException {
   constructor(platform: CommunityPlatform) {
     super(`Reputo cannot reach ${platform} communities yet.`);
+  }
+}
+
+/**
+ * Raised when a webhook delivery does not authenticate. The message is
+ * deliberately uniform across a missing, malformed, and wrong signature, so a
+ * caller learns nothing about the secret from the response.
+ */
+export class CommunityWebhookRejectedException extends UnauthorizedException {
+  constructor() {
+    super('The delivery signature could not be verified.');
   }
 }
 

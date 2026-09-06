@@ -9,6 +9,17 @@ import type {
 
 import { env } from './env';
 
+/** How the API follows the platforms' own live feeds. */
+export interface CommunityRealtimeConfig {
+  /** Window in which repeated signals for one community collapse into a single re-probe. */
+  debounceMs: number;
+  /**
+   * Secret the GitHub App signs its deliveries with. It belongs to the feed,
+   * not to the API client, which never sees it.
+   */
+  githubWebhookSecret: string;
+}
+
 export interface CommunityConfig {
   http: CommunityHttpConfig;
   installStateTtlSeconds: number;
@@ -16,6 +27,7 @@ export interface CommunityConfig {
   github: GitHubClientConfig;
   mattermost: MattermostClientConfig;
   credentials: CommunityCredentialKeyring;
+  realtime: CommunityRealtimeConfig;
 }
 
 export default registerAs('community', (): CommunityConfig => {
@@ -55,6 +67,10 @@ export default registerAs('community', (): CommunityConfig => {
     credentials: {
       currentSecret: env.COMMUNITY_CREDENTIALS_ENCRYPTION_KEY,
       previousSecret: env.COMMUNITY_CREDENTIALS_ENCRYPTION_KEY_PREVIOUS,
+    },
+    realtime: {
+      debounceMs: env.COMMUNITY_REALTIME_DEBOUNCE_MS,
+      githubWebhookSecret: env.GITHUB_APP_WEBHOOK_SECRET,
     },
   };
 });

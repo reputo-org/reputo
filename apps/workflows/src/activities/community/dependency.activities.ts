@@ -1,6 +1,7 @@
 import {
   type CommunityAdapter,
   CommunityApiError,
+  CommunityErrorCategory,
   type CommunityHttpObserver,
   type CommunityLogger,
   createDiscordAdapter,
@@ -10,7 +11,7 @@ import {
 } from '@reputo/community-api';
 import { CommunityPlatform } from '@reputo/contracts';
 import { createDeepIdClient } from '@reputo/deep-id-api';
-import { Context } from '@temporalio/activity';
+import { ApplicationFailure, Context } from '@temporalio/activity';
 import config from '../../config/index.js';
 import type {
   CommunityDependencyKey,
@@ -25,15 +26,32 @@ import { buildCommunityCohort } from './cohort.js';
 import { openMattermostTarget } from './credentials.js';
 import { type CommunityFetchCheckpoint, type CommunityRequestStats, freezeCommunityDataset } from './dataset-engine.js';
 
+const COMMUNITY_FETCH_ERROR_TYPE = 'CommunityFetchError';
+
+/** The categories the API marks `broken`: an admin reconnect is the remedy, so retrying cannot help. */
+const NON_RETRYABLE_CATEGORIES = new Set<string>([
+  CommunityErrorCategory.authFailed,
+  CommunityErrorCategory.permissionDenied,
+  CommunityErrorCategory.notFound,
+  CommunityErrorCategory.outboundPolicy,
+]);
+
 /**
  * Platform errors carry a response-body snippet in their message. Temporal
  * serializes an activity failure into workflow history and the orchestrator
  * persists it on the snapshot, so a platform failure crosses this boundary as
  * its safe category only — never a body, and never chained as a `cause`.
+ * A kicked bot or revoked token fails the run on the first attempt instead of
+ * burning the full retry budget; the orchestrator then re-checks the
+ * connection so its row tells the truth.
  */
 function toSafeFailure(platform: CommunityPlatform, error: unknown): unknown {
   return error instanceof CommunityApiError
-    ? new Error(`Community ${platform} fetch failed: ${error.category}`)
+    ? ApplicationFailure.create({
+        message: `Community ${platform} fetch failed: ${error.category}`,
+        type: COMMUNITY_FETCH_ERROR_TYPE,
+        nonRetryable: NON_RETRYABLE_CATEGORIES.has(error.category),
+      })
     : error;
 }
 

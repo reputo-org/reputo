@@ -12,6 +12,7 @@ import {
   ALGORITHM_EXECUTION_TIMEOUT,
   ALGORITHM_LIBRARY_TIMEOUT,
   COMMUNITY_DEPENDENCY_RESOLUTION_TIMEOUT,
+  COMMUNITY_HEALTH_WRITEBACK_TIMEOUT,
   communityTaskQueue,
   DB_ACTIVITY_TIMEOUT,
   DEEP_ID_ENCRYPTED_SUBMISSION_TIMEOUT,
@@ -57,6 +58,16 @@ const { getSnapshot, updateSnapshot, getCommunityConnection, getCommunitySealedC
     startToCloseTimeout: DB_ACTIVITY_TIMEOUT,
     retry: { maximumAttempts: ACTIVITY_MAX_ATTEMPTS },
   });
+
+// Best-effort write-back probe after a failed community fetch: one attempt on
+// a probe-sized timeout, so it cannot extend a failing run by much.
+const { checkCommunityConnectionHealth } = workflow.proxyActivities<
+  Pick<ApiSnapshotActivities, 'checkCommunityConnectionHealth'>
+>({
+  taskQueue: API_SNAPSHOT_ACTIVITIES_TASK_QUEUE,
+  startToCloseTimeout: COMMUNITY_HEALTH_WRITEBACK_TIMEOUT,
+  retry: { maximumAttempts: 1 },
+});
 
 const { getAlgorithmDefinition } = workflow.proxyActivities<AlgorithmLibraryActivities>({
   startToCloseTimeout: ALGORITHM_LIBRARY_TIMEOUT,
@@ -193,6 +204,39 @@ async function resolveCommunityFetch(
 
 /** Platforms whose connection stores a sealed token rather than deployment credentials. */
 const SEALED_CREDENTIAL_PLATFORMS = new Set<CommunityPlatform>([CommunityPlatform.mattermost]);
+
+/**
+ * Runs the community dependency and, when the fetch fails for any reason but
+ * cancellation, re-checks the connection through the API before rethrowing —
+ * so a kicked bot flips its row to `broken` the moment a snapshot hits it,
+ * instead of the row claiming `active` until the platform says otherwise. The
+ * probe is the arbiter: a transient blip probes clean and changes nothing.
+ */
+async function resolveCommunityDependencyWithWriteback(
+  resolve: DependencyResolverActivities['resolveDependency'],
+  input: Parameters<DependencyResolverActivities['resolveDependency']>[0] & { communityFetch: CommunityFetchInput },
+): Promise<ResolveDependencyResult> {
+  try {
+    return await resolve(input);
+  } catch (error) {
+    if (!workflow.isCancellation(error)) {
+      try {
+        const health = await checkCommunityConnectionHealth({ connectionId: input.communityFetch.connectionId });
+        workflow.log.warn('Community fetch failed; connection state re-checked', {
+          snapshotId: input.snapshotId,
+          connectionId: input.communityFetch.connectionId,
+          status: health.status,
+        });
+      } catch (healthError) {
+        workflow.log.warn('Community connection health write-back failed', {
+          snapshotId: input.snapshotId,
+          error: healthError instanceof Error ? healthError.message : String(healthError),
+        });
+      }
+    }
+    throw error;
+  }
+}
 
 /** Point the algorithm's `dids` input at a dependency-assembled DID map (in-memory only). */
 function applyDidsOverride(snapshot: Snapshot, didsKey: string): void {
@@ -519,7 +563,7 @@ async function runSnapshotPhases(args: {
             });
           }
           if (isCommunityDependencyKey(dependencyKey)) {
-            return resolveCommunityDependency({
+            return resolveCommunityDependencyWithWriteback(resolveCommunityDependency, {
               dependencyKey,
               snapshotId,
               communityFetch: await resolveCommunityFetch(
@@ -569,7 +613,7 @@ async function runSnapshotPhases(args: {
           });
         }
         if (isCommunityDependencyKey(dependencyKey)) {
-          return resolveCommunityDependency({
+          return resolveCommunityDependencyWithWriteback(resolveCommunityDependency, {
             dependencyKey,
             snapshotId,
             communityFetch: await resolveCommunityFetch(

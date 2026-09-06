@@ -82,6 +82,7 @@ describe('ApiWorkerBootstrap', () => {
       configService,
       snapshotService as never,
       communityConnections as never,
+      { checkHealth: vi.fn() } as never,
       workerStatus,
     );
   }

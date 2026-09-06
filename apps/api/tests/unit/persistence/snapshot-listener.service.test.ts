@@ -91,6 +91,29 @@ describe('SnapshotListenerService', () => {
     expect(client.end).toHaveBeenCalledOnce();
   });
 
+  it('checks the connection every 30 s and reconnects when the check fails', async () => {
+    const first = createFakeClient();
+    const second = createFakeClient();
+    const { service } = makeService([first, second]);
+
+    await service.onModuleInit();
+    first.query.mockClear();
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(first.query).toHaveBeenCalledWith('SELECT 1');
+    expect(second.connect).not.toHaveBeenCalled();
+
+    first.query.mockRejectedValueOnce(new Error('connection is dead'));
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(first.end).toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(second.connect).toHaveBeenCalled();
+    expect(second.query).toHaveBeenCalledWith(`LISTEN ${SNAPSHOT_UPDATES_CHANNEL}`);
+
+    await service.onModuleDestroy();
+  });
+
   it('reconnects with exponential backoff after the connection ends unexpectedly', async () => {
     const first = createFakeClient();
     const second = createFakeClient();

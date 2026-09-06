@@ -10,10 +10,16 @@ import { api } from '../../utils/request';
 
 const INSTALLATION = { id: '55', account: 'singnet' };
 const REPOSITORIES = [
-  { id: '1', name: 'singnet/snet', kind: 'repository' as const },
-  { id: '2', name: 'singnet/docs', kind: 'repository' as const },
+  { id: '1', name: 'singnet/snet', kind: 'repository' as const, readable: true },
+  { id: '2', name: 'singnet/docs', kind: 'repository' as const, readable: true },
 ];
-const PROBE = { resourceCount: 2, sampledResourceId: '1', sampledRecordCount: 1 };
+const PROBE = {
+  resourceCount: 2,
+  readableResourceCount: 2,
+  resourcesDigest: 'digest-2',
+  sampledResourceId: '1',
+  sampledRecordCount: 1,
+};
 
 const github = {
   buildInstallUrl: vi.fn(
@@ -179,7 +185,7 @@ describe('GitHub community connections e2e', () => {
       const response = await api(app, adminCookie).get(`/community/connections/${connection.id}/health`).expect(200);
 
       expect(response.body.status).toBe('broken');
-      expect(response.body.reason).toMatch(/rejected Reputo's credentials/);
+      expect(response.body.reason).toMatch(/uninstalled or suspended/);
 
       const list = await api(app, adminCookie).get('/community/connections').expect(200);
       expect(list.body[0].status).toBe('broken');

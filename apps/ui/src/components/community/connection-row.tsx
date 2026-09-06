@@ -35,6 +35,7 @@ import {
   useRecheckCommunityConnection,
 } from "@/lib/api/hooks"
 import type { CommunityConnectionDto } from "@/lib/api/types"
+import { mattermostServerUrlFromExternalId } from "@/lib/community/mattermost"
 import {
   canDisconnect,
   canRecheck,
@@ -48,18 +49,92 @@ interface ConnectionRowProps {
   /** Starts the platform install flow again, reviving this connection. */
   onReconnect: () => void
   isReconnecting: boolean
+  /**
+   * This platform pushes its changes right now, so the row is current and its
+   * freshness is not worth a line.
+   */
+  isLive: boolean
+}
+
+/** Platform-side identifier worth showing: guild/installation id, or the Mattermost host. */
+function identifierFor(connection: CommunityConnectionDto): string {
+  if (connection.platform === "mattermost") {
+    const serverUrl = mattermostServerUrlFromExternalId(connection.externalId)
+    if (serverUrl !== undefined) {
+      try {
+        return new URL(serverUrl).host
+      } catch {
+        return connection.externalId
+      }
+    }
+  }
+  return connection.externalId
+}
+
+/** "12 channels", or "10 of 12 channels readable" once the bot is shut out of some. */
+function resourceSummary(
+  connection: CommunityConnectionDto
+): string | undefined {
+  const { resourceCount, readableResourceCount } = connection.metadata ?? {}
+  if (resourceCount === undefined) return undefined
+  const noun = connection.platform === "github" ? "repositories" : "channels"
+  if (
+    readableResourceCount !== undefined &&
+    readableResourceCount < resourceCount
+  ) {
+    return `${readableResourceCount.toLocaleString()} of ${resourceCount.toLocaleString()} ${noun} readable`
+  }
+  return `${resourceCount.toLocaleString()} ${noun}`
+}
+
+/**
+ * One truncating line: identifier · counts · freshness. Absolute times live in
+ * the tooltip.
+ *
+ * Freshness is shown only while the platform's feed is down. With a live feed
+ * the row is current to the second, so "Checked 12 minutes ago" would describe
+ * the last probe rather than the data, and read as stale when nothing is.
+ */
+function metaLine(connection: CommunityConnectionDto, isLive: boolean): string {
+  const { memberCount } = connection.metadata ?? {}
+  return [
+    identifierFor(connection),
+    memberCount !== undefined
+      ? `${memberCount.toLocaleString()} members`
+      : undefined,
+    resourceSummary(connection),
+    isLive ? undefined : freshness(connection),
+  ]
+    .filter(Boolean)
+    .join(" · ")
+}
+
+function freshness(connection: CommunityConnectionDto): string {
+  return connection.lastCheckedAt
+    ? `Checked ${formatRelativeFromNow(connection.lastCheckedAt)}`
+    : `Connected ${formatRelativeFromNow(connection.createdAt)}`
+}
+
+function metaTooltip(connection: CommunityConnectionDto): string {
+  const connected = `Connected ${new Date(connection.createdAt).toLocaleString()}`
+  return connection.lastCheckedAt
+    ? `Checked ${new Date(connection.lastCheckedAt).toLocaleString()}\n${connected}`
+    : connected
 }
 
 export function ConnectionRow({
   connection,
   onReconnect,
   isReconnecting,
+  isLive,
 }: ConnectionRowProps) {
   const [isConfirmingDisconnect, setIsConfirmingDisconnect] = useState(false)
+  const [avatarFailed, setAvatarFailed] = useState(false)
   const recheck = useRecheckCommunityConnection()
   const disconnect = useDisconnectCommunityConnection()
 
   const reconnectable = needsReconnect(connection.status)
+  const avatarUrl = avatarFailed ? undefined : connection.metadata?.avatarUrl
 
   const handleRecheck = async () => {
     try {
@@ -90,18 +165,29 @@ export function ConnectionRow({
   return (
     <div className="flex flex-col">
       <Item size="sm" className="px-0">
-        <ItemMedia className="bg-muted text-muted-foreground grid size-7 shrink-0 place-items-center rounded-md text-xs font-semibold">
-          {connection.name.trim().charAt(0).toUpperCase() || "?"}
+        <ItemMedia className="bg-muted text-muted-foreground grid size-7 shrink-0 place-items-center overflow-hidden rounded-md text-xs font-semibold">
+          {avatarUrl ? (
+            // biome-ignore lint/performance/noImgElement: tiny platform-CDN avatar; next/image would need a remotePatterns entry per platform host
+            <img
+              src={avatarUrl}
+              alt=""
+              className="size-7 object-cover"
+              onError={() => setAvatarFailed(true)}
+            />
+          ) : (
+            connection.name.trim().charAt(0).toUpperCase() || "?"
+          )}
         </ItemMedia>
 
         <ItemContent className="min-w-0 gap-0">
           <span className="truncate text-sm font-medium">
             {connection.name}
           </span>
-          <span className="text-muted-foreground/80 text-xs">
-            {connection.lastCheckedAt
-              ? `Checked ${formatRelativeFromNow(connection.lastCheckedAt)}`
-              : `Connected ${formatRelativeFromNow(connection.createdAt)}`}
+          <span
+            className="text-muted-foreground/80 truncate text-xs"
+            title={metaTooltip(connection)}
+          >
+            {metaLine(connection, isLive)}
           </span>
         </ItemContent>
 

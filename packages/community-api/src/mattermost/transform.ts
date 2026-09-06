@@ -1,17 +1,19 @@
 import { CommunityContractError, CommunityOutboundPolicyError } from '../shared/errors.js';
+import { CommunitySignalKind } from '../shared/realtime.js';
 import {
   type CommunityActivityRecord,
   CommunityChatActivityType,
   type CommunityFetchWindow,
   isWithinWindow,
 } from '../shared/records.js';
-import type { CommunityResource } from '../shared/types.js';
+import type { CommunityProfile, CommunityResource, CommunityResourceAccessIssue } from '../shared/types.js';
 import type {
   MattermostRawChannel,
   MattermostRawPost,
   MattermostRawPostList,
   MattermostRawReaction,
   MattermostRawTeam,
+  MattermostRawTeamStats,
   MattermostRawUser,
   MattermostTeam,
 } from './types.js';
@@ -83,8 +85,30 @@ export function toMattermostTeams(teams: unknown): MattermostTeam[] {
     });
 }
 
-/** Channels the bot is in, active only, alphabetical by shown name. */
-export function toMattermostResources(channels: unknown): CommunityResource[] {
+/**
+ * Display facts from the team stats. No avatar: the team image endpoint needs
+ * the bot token, so there is no URL a browser could load unauthenticated.
+ */
+export function toMattermostTeamProfile(raw: MattermostRawTeamStats): CommunityProfile {
+  const active = raw?.active_member_count;
+  const total = raw?.total_member_count;
+  const memberCount = typeof active === 'number' && Number.isFinite(active) ? active : total;
+
+  return {
+    memberCount: typeof memberCount === 'number' && Number.isFinite(memberCount) ? memberCount : undefined,
+  };
+}
+
+/** The verdict a whole channel listing shares — the caller knows how it was listed. */
+export type MattermostChannelAccess =
+  | { readable: true }
+  | { readable: false; accessIssue: CommunityResourceAccessIssue };
+
+/** Open and private channels of one listing, active only, alphabetical by shown name, each carrying `access`. */
+export function toMattermostResources(
+  channels: unknown,
+  access: MattermostChannelAccess = { readable: true },
+): CommunityResource[] {
   if (!Array.isArray(channels)) {
     throw new CommunityContractError('Mattermost channel listing was not an array.');
   }
@@ -97,14 +121,17 @@ export function toMattermostResources(channels: unknown): CommunityResource[] {
         READABLE_CHANNEL_TYPES.has(channel.type) &&
         !(typeof channel.delete_at === 'number' && channel.delete_at > 0),
     )
-    .map((channel) => {
+    .map((channel): CommunityResource => {
       const displayName = typeof channel.display_name === 'string' && channel.display_name.length > 0;
       const name = displayName ? (channel.display_name as string) : channel.name;
-      return {
+      const resource = {
         id: channel.id,
         name: typeof name === 'string' && name.length > 0 ? name : channel.id,
         kind: 'text' as const,
       };
+      return access.readable
+        ? { ...resource, readable: true }
+        : { ...resource, readable: false, accessIssue: access.accessIssue };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -309,4 +336,89 @@ export function toAccountIdsByUsername(users: unknown, requested: readonly strin
     }
   }
   return byUsername;
+}
+
+/** Events that change which channels a team lists. */
+const CHANNEL_EVENTS = new Set([
+  'channel_created',
+  'channel_deleted',
+  'channel_restored',
+  'channel_updated',
+  'channel_converted',
+]);
+
+/**
+ * Membership events, which move the bot's read access only when the bot is the
+ * member in question. Every other member's comings and goings are dropped —
+ * otherwise an active team would re-probe on ordinary chatter.
+ */
+const MEMBERSHIP_EVENTS = new Set(['user_added', 'user_removed', 'channel_member_updated']);
+
+/** Events about the team itself. */
+const TEAM_EVENTS = new Set(['update_team', 'restore_team']);
+
+/** Events that end the bot's access to the team. */
+const TEAM_LOST_EVENTS = new Set(['leave_team', 'delete_team']);
+
+/** One WebSocket frame, in the shape the mapping reads. Content fields are never touched. */
+export interface MattermostSocketFrame {
+  event?: unknown;
+  data?: unknown;
+  broadcast?: unknown;
+}
+
+export interface MattermostSocketScope {
+  /** The team this socket is connected for; frames about other teams are dropped. */
+  teamId: string;
+  /** The bot's own user id, when known. Unknown lets membership events through. */
+  botUserId?: string;
+}
+
+/**
+ * What one Mattermost socket frame means for the connected team, or null when
+ * it means nothing about read access. Pure, so the event mapping is tested
+ * without a socket.
+ *
+ * A socket receives the events of every team the bot belongs to on that server,
+ * and every channel it is in — including posts. Only the frames below are read
+ * at all; a post frame is dropped without inspecting its payload.
+ */
+export function readMattermostEvent(
+  frame: MattermostSocketFrame,
+  scope: MattermostSocketScope,
+): CommunitySignalKind | null {
+  const event = frame.event;
+  if (typeof event !== 'string') return null;
+
+  const frameTeamId = readMattermostTeamId(frame);
+  if (frameTeamId !== undefined && frameTeamId !== scope.teamId) return null;
+
+  if (TEAM_LOST_EVENTS.has(event)) return CommunitySignalKind.revoked;
+  if (TEAM_EVENTS.has(event)) return CommunitySignalKind.community;
+  if (CHANNEL_EVENTS.has(event)) return CommunitySignalKind.resources;
+  if (MEMBERSHIP_EVENTS.has(event) && concernsMattermostUser(frame, scope.botUserId)) {
+    return CommunitySignalKind.resources;
+  }
+  return null;
+}
+
+/**
+ * Team a frame concerns. Mattermost puts it on the event data for channel
+ * events and on the broadcast envelope for team-wide ones; a frame with neither
+ * is server-wide and is judged against the socket's own team.
+ */
+function readMattermostTeamId(frame: MattermostSocketFrame): string | undefined {
+  const fromData = (frame.data as { team_id?: unknown } | undefined)?.team_id;
+  if (typeof fromData === 'string' && fromData.length > 0) return fromData;
+  const fromBroadcast = (frame.broadcast as { team_id?: unknown } | undefined)?.team_id;
+  return typeof fromBroadcast === 'string' && fromBroadcast.length > 0 ? fromBroadcast : undefined;
+}
+
+/** Whether a membership frame is about one particular user. An unknown user matches everything. */
+function concernsMattermostUser(frame: MattermostSocketFrame, userId: string | undefined): boolean {
+  if (userId === undefined) return true;
+  const fromData = (frame.data as { user_id?: unknown } | undefined)?.user_id;
+  if (typeof fromData === 'string') return fromData === userId;
+  const fromBroadcast = (frame.broadcast as { user_id?: unknown } | undefined)?.user_id;
+  return typeof fromBroadcast === 'string' ? fromBroadcast === userId : true;
 }
