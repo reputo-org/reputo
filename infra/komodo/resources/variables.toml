@@ -302,6 +302,11 @@ description = "Staging GitHub App setup URL. GitHub has no redirect parameter fo
 is_secret = false
 
 [[variable]]
+name = "STAGING_GITHUB_APP_WEBHOOK_SECRET"
+description = "Staging secret on the GitHub App's webhook; 16+ chars, must equal the value configured on the App. Signs every delivery, which is the only way GitHub reports a change."
+is_secret = true
+
+[[variable]]
 name = "STAGING_COMMUNITY_CREDENTIALS_ENCRYPTION_KEY"
 description = "Staging secret sealing community platform tokens (Mattermost) at rest; 32+ chars, shared by the API and the community worker. Rotate by moving the old value to the _PREVIOUS variable."
 is_secret = true
@@ -571,6 +576,11 @@ is_secret = false
 name = "PRODUCTION_GITHUB_APP_CALLBACK_URL"
 description = "Production GitHub App setup URL. GitHub has no redirect parameter for installs, so this must match the App's Setup URL exactly, e.g. https://<PRODUCTION_API_DOMAIN>/api/v1/community/connections/github/callback."
 is_secret = false
+
+[[variable]]
+name = "PRODUCTION_GITHUB_APP_WEBHOOK_SECRET"
+description = "Production secret on the GitHub App's webhook; 16+ chars, must equal the value configured on the App. Signs every delivery, which is the only way GitHub reports a change."
+is_secret = true
 
 [[variable]]
 name = "PRODUCTION_COMMUNITY_CREDENTIALS_ENCRYPTION_KEY"
