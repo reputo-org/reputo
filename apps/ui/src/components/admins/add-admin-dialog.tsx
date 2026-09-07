@@ -84,7 +84,7 @@ export function AddAdminDialog({ open, onOpenChange }: AddAdminDialogProps) {
       const status = extractApiStatus(error)
       if (status === 409) {
         toast.error(
-          `${validation.email} already has access. Restore it from the table if it was removed.`
+          `${validation.email} already has access or was removed before. Use the table to restore access if needed.`
         )
       } else if (status === 400) {
         toast.error("Provider or email is invalid.")
@@ -104,7 +104,8 @@ export function AddAdminDialog({ open, onOpenChange }: AddAdminDialogProps) {
         <DialogHeader>
           <DialogTitle>Add admin</DialogTitle>
           <DialogDescription>
-            They can access Reputo when they next sign in with this provider.
+            This person can access Reputo the next time they sign in with this
+            provider.
           </DialogDescription>
         </DialogHeader>
 

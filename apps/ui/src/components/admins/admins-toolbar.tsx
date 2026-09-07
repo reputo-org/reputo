@@ -45,7 +45,7 @@ function roleLabel(role: AdminRole): string {
 
 function statusLabel(status: AdminAllowlistStatus): string {
   if (status === "active") return "Active"
-  if (status === "revoked") return "Revoked"
+  if (status === "revoked") return "Removed"
   return "All"
 }
 
@@ -100,7 +100,7 @@ export function AdminsToolbar({ query, onChange, onAdd }: AdminsToolbarProps) {
           />
           <Input
             type="text"
-            placeholder="Search email…"
+            placeholder="Search by email…"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             className={
