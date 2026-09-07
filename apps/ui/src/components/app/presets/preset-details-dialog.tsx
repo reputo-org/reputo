@@ -48,7 +48,7 @@ export function PresetDetailsDialog({
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>{preset?.name || "Preset details"}</DialogTitle>
           <DialogDescription>
-            {preset?.description || "Saved inputs for this algorithm."}
+            {preset?.description || "Review the saved inputs for this preset."}
           </DialogDescription>
         </DialogHeader>
 

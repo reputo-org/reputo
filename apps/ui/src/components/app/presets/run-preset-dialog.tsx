@@ -30,10 +30,10 @@ export function RunPresetDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Run preset</DialogTitle>
+          <DialogTitle>Start snapshot?</DialogTitle>
           <DialogDescription>
-            Start a snapshot{presetName ? ` for “${presetName}”` : ""}? You can
-            track its progress on the Snapshots tab.
+            Use{presetName ? ` “${presetName}”` : " this preset"} to start a
+            snapshot. You can track its progress on the Snapshots tab.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -46,7 +46,7 @@ export function RunPresetDialog({
             ) : (
               <Play className="mr-2 size-4" />
             )}
-            Run
+            Start snapshot
           </Button>
         </DialogFooter>
       </DialogContent>

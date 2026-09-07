@@ -20,9 +20,7 @@ const algorithm: Algorithm = {
   category: "Engagement",
   summary: "Scores voting diversity.",
   description: "Calculates voting engagement from a vote file.",
-  duration: "~2-5 min",
   inputSummary: "2 configurable inputs",
-  level: "Intermediate",
   kind: "standalone",
   inputs: [
     { key: "wallets", type: "json", label: "Wallet Addresses JSON" },
@@ -231,9 +229,7 @@ describe("buildSchemaFromAlgorithm", () => {
       category: "Activity",
       summary: "Tracks held token value.",
       description: "Measures holdings over time.",
-      duration: "~2-5 min",
       inputSummary: "2 configurable inputs",
-      level: "Intermediate",
       kind: "standalone",
       inputs: [
         {
@@ -414,9 +410,7 @@ describe("buildSchemaFromAlgorithm", () => {
       category: "Custom",
       summary: "Combines sub-algorithms.",
       description: "Combines sub-algorithms into a composite score.",
-      duration: "~2-5 min",
       inputSummary: "2 configurable inputs",
-      level: "Intermediate",
       kind: "combined",
       inputs: [
         { key: "wallets", type: "json", label: "Wallets Input (JSON)" },

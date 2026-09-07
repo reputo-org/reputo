@@ -10,9 +10,7 @@ const algorithm: Algorithm = {
   category: "Engagement",
   summary: "Demo.",
   description: "Demo.",
-  duration: "~1 min",
   inputSummary: "4 configurable inputs",
-  level: "Beginner",
   kind: "standalone",
   inputs: [
     { key: "threshold", type: "number", label: "Threshold" },

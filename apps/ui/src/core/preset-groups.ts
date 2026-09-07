@@ -42,8 +42,9 @@ const GROUPS_BY_ALGORITHM: Record<string, GroupSpec[]> = {
     },
     {
       id: "time-window",
-      title: "Time period and decay",
-      description: "Choose which comments count and how they lose value.",
+      title: "Time period and score reduction",
+      description:
+        "Choose which comments count and how their value changes over time.",
       keys: ["engagement_window_months", "monthly_decay_rate_percent"],
     },
   ],
@@ -56,8 +57,9 @@ const GROUPS_BY_ALGORITHM: Record<string, GroupSpec[]> = {
     },
     {
       id: "time-window",
-      title: "Time period and decay",
-      description: "Choose which proposals count and how they lose value.",
+      title: "Time period and score reduction",
+      description:
+        "Choose which proposals count and how their value changes over time.",
       keys: ["engagement_window_months", "monthly_decay_rate_percent"],
     },
   ],
@@ -71,14 +73,15 @@ const GROUPS_BY_ALGORITHM: Record<string, GroupSpec[]> = {
   ],
   token_value_over_time: [
     {
-      id: "maturation",
-      title: "Maturation",
-      description: "Set how long tokens must be held to reach full value.",
+      id: "holding-period",
+      title: "Holding period",
+      description:
+        "Set how long tokens must be held before they reach full value.",
       keys: ["maturation_threshold_days"],
     },
     {
       id: "token-resources",
-      title: "Token resources",
+      title: "Tokens and staking contracts",
       description: "Choose the tokens and staking contracts to include.",
       keys: ["selected_resources"],
     },

@@ -19,7 +19,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -175,7 +174,7 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
       await deleteSnapshotMutation.mutateAsync(snapshotToDelete)
       setIsDeleteDialogOpen(false)
       setSnapshotToDelete(null)
-      toast.success("Snapshot deleted")
+      toast.success("Snapshot deleted.")
     } catch {
       toast.error("Could not delete the snapshot. Try again.")
     } finally {
@@ -281,8 +280,8 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
         <div>
           <h2 className="text-lg font-semibold">Snapshots</h2>
           <p className="text-sm text-muted-foreground">
-            Runs created from this algorithm's presets. Results appear after a
-            run finishes.
+            Snapshots started from this algorithm's presets. Results appear when
+            a snapshot is complete.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -330,7 +329,7 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
               <Loader2 className="size-6 animate-spin" />
             </EmptyMedia>
             <EmptyTitle>Loading snapshots</EmptyTitle>
-            <EmptyDescription>Getting your snapshots…</EmptyDescription>
+            <EmptyDescription>Loading your snapshots…</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : error ? (
@@ -360,7 +359,7 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
             <EmptyDescription>
               {presetFilter || selectedStatus !== "all"
                 ? "No snapshots match the current filters."
-                : "Run a preset from the Presets tab to start a snapshot."}
+                : "Start a snapshot from a preset on the Presets tab."}
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
@@ -426,7 +425,8 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
                       <div className="flex flex-col">
                         <div className="font-medium truncate">{presetName}</div>
                         <div className="text-muted-foreground text-xs">
-                          {outputCount} output{outputCount !== 1 ? "s" : ""}
+                          {outputCount} result file
+                          {outputCount !== 1 ? "s" : ""}
                         </div>
                       </div>
                     </TableCell>
@@ -463,12 +463,6 @@ export function AlgorithmSnapshots({ algo }: { algo?: Algorithm }) {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onSelect={() => handleViewSnapshot(snapshot)}
-                            >
-                              <Eye className="mr-2 size-4" /> View details
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
                             <DropdownMenuItem
                               variant="destructive"
                               onSelect={() =>

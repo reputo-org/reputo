@@ -40,9 +40,7 @@ const algo: Algorithm = {
   category: "Engagement",
   summary: "Scores proposal owners.",
   description: "### What it does\nScores proposal owners.",
-  duration: "2–4 min",
   inputSummary: "4 inputs",
-  level: "Beginner",
   kind: "standalone",
   inputs: [
     {
@@ -58,12 +56,12 @@ const algo: Algorithm = {
     {
       key: "engagement_window_months",
       type: "integer",
-      label: "Lookback period (months)",
+      label: "Time period (months)",
     },
     {
       key: "monthly_decay_rate_percent",
       type: "integer",
-      label: "Monthly decay (%)",
+      label: "Monthly score reduction (%)",
     },
   ],
   dependencyLabels: ["Deep Funding Portal"],
@@ -87,20 +85,20 @@ describe("PresetComposer (create mode)", () => {
       .getAllByRole("heading", { level: 2 })
       .map((heading) => heading.textContent ?? "")
     expect(headings).toContain("Rewards and penalties")
-    expect(headings).toContain("Time period and decay")
+    expect(headings).toContain("Time period and score reduction")
     // Details is the last section of the fields column (the review panel
     // headings follow it in DOM order).
     expect(headings.indexOf("Details")).toBeGreaterThan(
-      headings.indexOf("Time period and decay")
+      headings.indexOf("Time period and score reduction")
     )
 
     expect(screen.getByRole("textbox", { name: /preset name/i })).toHaveValue(
       "Suggested"
     )
     // Registry default for the lookback window (48 after the data fix).
-    expect(
-      screen.getByRole("textbox", { name: /lookback period/i })
-    ).toHaveValue("48")
+    expect(screen.getByRole("textbox", { name: /time period/i })).toHaveValue(
+      "48"
+    )
   })
 
   it("lists why submit is disabled and enables it once complete", async () => {
@@ -281,9 +279,9 @@ describe("PresetComposer (edit mode)", () => {
     expect(screen.getByRole("textbox", { name: /preset name/i })).toHaveValue(
       "Stored name"
     )
-    expect(
-      screen.getByRole("textbox", { name: /lookback period/i })
-    ).toHaveValue("24")
+    expect(screen.getByRole("textbox", { name: /time period/i })).toHaveValue(
+      "24"
+    )
 
     const saveButton = screen.getAllByRole("button", {
       name: "Save changes",

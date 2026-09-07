@@ -128,13 +128,13 @@ function WeightSharesBlock({ subAlgorithmKey }: { subAlgorithmKey: string }) {
 
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-medium">Score shares</h3>
+      <h3 className="text-sm font-medium">Final score shares</h3>
       <ul className="space-y-1.5">
         {rows.map((row, index) => {
           const label = row.algorithm_key
             ? (childOptions.find((option) => option.key === row.algorithm_key)
                 ?.label ?? row.algorithm_key)
-            : `Child algorithm ${index + 1}`
+            : `Algorithm ${index + 1}`
           const share = shares[index]?.sharePercent ?? null
           return (
             <li key={`${row.algorithm_key ?? "row"}-${index}`}>
@@ -227,7 +227,7 @@ export function ComposerReviewPanel({
           {schema.outputs.length > 0 && (
             <div className="mt-3 space-y-1.5">
               <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Outputs
+                Results
               </h3>
               <ul className="space-y-1">
                 {schema.outputs.map((output: any) => (

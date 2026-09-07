@@ -1,4 +1,4 @@
-import { ArrowLeft, Clock, Database, SlidersHorizontal } from "lucide-react"
+import { ArrowLeft, Database, SlidersHorizontal } from "lucide-react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
@@ -21,24 +21,10 @@ export default async function AlgorithmPage({ params }: PageProps) {
       <div className="mb-6 flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
           <Link href="/dashboard">
-            <ArrowLeft className="mr-2 size-4" /> Back
+            <ArrowLeft className="mr-2 size-4" /> Back to algorithms
           </Link>
         </Button>
         <Badge variant="outline">{algo.category}</Badge>
-        {/* Version selector */}
-        {/* <div className="ml-auto">
-          <Select defaultValue="v1.0.0">
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Version" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="v1.0.0">v1.0.0</SelectItem>
-              <SelectItem value="v1.1.0">v1.1.0</SelectItem>
-              <SelectItem value="v1.2.0">v1.2.0</SelectItem>
-              <SelectItem value="v1.0.0-rc.1">v1.0.0-rc.1</SelectItem>
-            </SelectContent>
-          </Select>
-        </div> */}
       </div>
 
       <section className="grid gap-4">
@@ -47,14 +33,8 @@ export default async function AlgorithmPage({ params }: PageProps) {
           <p className="text-muted-foreground max-w-2xl">{algo.summary}</p>
           <div className="flex flex-wrap items-center gap-4 text-sm">
             <span className="inline-flex items-center gap-2 text-muted-foreground">
-              <Clock className="size-4" /> {algo.duration}
-            </span>
-            <span className="inline-flex items-center gap-2 text-muted-foreground">
               <SlidersHorizontal className="size-4" /> {algo.inputSummary}
             </span>
-            <Badge className="bg-emerald-500 text-white border-transparent">
-              {algo.level}
-            </Badge>
           </div>
           <div className="flex flex-col gap-3 pt-2">
             <div className="flex flex-col gap-2">

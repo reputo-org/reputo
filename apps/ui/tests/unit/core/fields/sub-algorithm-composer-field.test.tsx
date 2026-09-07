@@ -53,7 +53,7 @@ const definition = JSON.parse(
 
 const subAlgorithmsInput: FormInput = {
   key: "sub_algorithms",
-  label: "Child algorithms",
+  label: "Algorithms",
   type: "sub_algorithm",
   required: true,
   minItems: 1,
@@ -110,12 +110,12 @@ describe("SubAlgorithmComposerField", () => {
     const user = userEvent.setup()
     renderComposerForm([])
 
-    const methodLine = screen.getByText(/normalization:/i)
-    expect(methodLine).toHaveTextContent("Observed min–max")
-    expect(methodLine).toHaveTextContent(/range 0–100/i)
+    const methodLine = screen.getByText(/score adjustment:/i)
+    expect(methodLine).toHaveTextContent("Use the lowest and highest scores")
+    expect(methodLine).toHaveTextContent(/final range 0–100/i)
 
     const trigger = screen.getByRole("button", {
-      name: /how scores are combined/i,
+      name: /how reputo combines scores/i,
     })
     expect(trigger).toHaveAttribute("aria-expanded", "false")
     await user.click(trigger)
@@ -133,20 +133,22 @@ describe("SubAlgorithmComposerField", () => {
     )
 
     const normalizationCopy = screen.getByText(
-      /scaled to 0–100 using its observed minimum and maximum/
+      /changes each algorithm's score range to 0–100/
     )
     expect(normalizationCopy).toHaveTextContent(
-      /if its minimum and maximum are equal, all its scaled scores are 0/i
+      /if those scores are equal, every adjusted score for that algorithm is 0/i
     )
 
     expect(
       screen.getByText(/controls how much each algorithm affects/)
     ).toBeInTheDocument()
     expect(
-      screen.getByText(/calculates a weighted average without decrypting/)
+      screen.getByText(
+        /calculates a weighted average while the scores remain encrypted/
+      )
     ).toBeInTheDocument()
     expect(
-      screen.getByText(/does not contain plaintext user scores/)
+      screen.getByText(/does not contain readable user scores/)
     ).toBeInTheDocument()
   })
 
@@ -162,13 +164,13 @@ describe("SubAlgorithmComposerField", () => {
       name: /voting engagement/i,
     })
     // The picker shows a summary under the algorithm name.
-    expect(votingItem).toHaveTextContent(/wallet-linked votes/i)
+    expect(votingItem).toHaveTextContent(/variety of votes/i)
     await user.click(votingItem)
 
     expect(screen.queryByText(/no algorithms added/i)).not.toBeInTheDocument()
     expect(screen.getByText("Voting Engagement")).toBeInTheDocument()
     expect(screen.getByText("v1.0.0")).toBeInTheDocument()
-    expect(screen.getByLabelText("Weight for child algorithm 1")).toHaveValue(1)
+    expect(screen.getByLabelText("Weight for algorithm 1")).toHaveValue(1)
     // A single child owns 100% of the score.
     expect(screen.getByText("100%")).toBeInTheDocument()
 
@@ -197,19 +199,15 @@ describe("SubAlgorithmComposerField", () => {
     expect(await screen.findByText("25%")).toBeInTheDocument()
     expect(screen.getByText("75%")).toBeInTheDocument()
 
-    await user.click(
-      screen.getByRole("button", { name: "Remove child algorithm 2" })
-    )
+    await user.click(screen.getByRole("button", { name: "Remove algorithm 2" }))
     await waitFor(() =>
       expect(
-        screen.queryByRole("button", { name: "Remove child algorithm 2" })
+        screen.queryByRole("button", { name: "Remove algorithm 2" })
       ).not.toBeInTheDocument()
     )
 
     // The last card can be removed too; the empty state returns.
-    await user.click(
-      screen.getByRole("button", { name: "Remove child algorithm 1" })
-    )
+    await user.click(screen.getByRole("button", { name: "Remove algorithm 1" }))
     expect(await screen.findByText(/no algorithms added/i)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Save preset" })).toBeDisabled()
   })
@@ -218,16 +216,16 @@ describe("SubAlgorithmComposerField", () => {
     const user = userEvent.setup()
     renderComposerForm()
 
-    const weight = screen.getByLabelText("Weight for child algorithm 1")
+    const weight = screen.getByLabelText("Weight for algorithm 1")
 
     await user.clear(weight)
     expect(
-      await screen.findByText(/weight must be a valid number/i)
+      await screen.findByText(/weight for Algorithms must be a valid number/i)
     ).toBeInTheDocument()
 
     await user.type(weight, "0")
     expect(
-      await screen.findByText(/weight must be greater than 0/i)
+      await screen.findByText(/weight for Algorithms must be greater than 0/i)
     ).toBeInTheDocument()
     expect(weight).toHaveAttribute("aria-invalid", "true")
     expect(screen.getByRole("button", { name: "Save preset" })).toBeDisabled()
@@ -236,17 +234,17 @@ describe("SubAlgorithmComposerField", () => {
 
     fireEvent.change(weight, { target: { value: "-1" } })
     expect(
-      await screen.findByText(/weight must be greater than 0/i)
+      await screen.findByText(/weight for Algorithms must be greater than 0/i)
     ).toBeInTheDocument()
 
     await user.clear(weight)
     await user.type(weight, "2.5")
     await waitFor(() => {
       expect(
-        screen.queryByText(/weight must be greater than 0/i)
+        screen.queryByText(/weight for Algorithms must be greater than 0/i)
       ).not.toBeInTheDocument()
       expect(
-        screen.queryByText(/weight must be a valid number/i)
+        screen.queryByText(/weight for Algorithms must be a valid number/i)
       ).not.toBeInTheDocument()
     })
     expect(screen.getByText("100%")).toBeInTheDocument()
@@ -268,7 +266,7 @@ describe("SubAlgorithmComposerField", () => {
     })
     expect(mattermost).toHaveAttribute("aria-disabled", "true")
     expect(
-      screen.getByText(/no active mattermost connection/i)
+      screen.getByText(/no working mattermost connection/i)
     ).toBeInTheDocument()
 
     const discord = screen.getByRole("menuitem", { name: /discord/i })

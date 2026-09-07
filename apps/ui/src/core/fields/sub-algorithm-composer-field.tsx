@@ -181,7 +181,7 @@ export function SubAlgorithmComposerField({
       {fields.length === 0 ? (
         <div className="rounded-lg border border-dashed px-4 py-8 text-center">
           <p className="text-muted-foreground text-sm">
-            No algorithms added. Add at least one to build a custom score.
+            No algorithms added. Add at least one to create a custom score.
           </p>
         </div>
       ) : (
@@ -240,7 +240,7 @@ export function SubAlgorithmComposerField({
                 <span className="text-sm font-medium">{option.label}</span>
                 {locked ? (
                   <span className="text-muted-foreground text-xs">
-                    No active{" "}
+                    No working{" "}
                     {COMMUNITY_PLATFORMS.find(
                       (platform) => platform.id === option.communityPlatform
                     )?.label ?? option.communityPlatform}{" "}
@@ -395,7 +395,7 @@ function SubAlgorithmCard({
           <button
             type="button"
             className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={`${expanded ? "Collapse" : "Expand"} child algorithm ${index + 1}`}
+            aria-label={`${expanded ? "Collapse" : "Expand"} algorithm ${index + 1}`}
             aria-expanded={expanded}
           >
             <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
@@ -403,7 +403,7 @@ function SubAlgorithmCard({
             </span>
             <span className="flex min-w-0 flex-1 items-center gap-2">
               <span className="truncate text-sm font-medium">
-                {selectedLabel ?? "Child algorithm"}
+                {selectedLabel ?? "Algorithm"}
               </span>
               {selectedVersion && (
                 <Badge variant="secondary" className="shrink-0 text-[10px]">
@@ -439,7 +439,7 @@ function SubAlgorithmCard({
                   const parsed = Number(raw.replace(",", "."))
                   field.onChange(Number.isFinite(parsed) ? parsed : raw)
                 }}
-                aria-label={`Weight for child algorithm ${index + 1}`}
+                aria-label={`Weight for algorithm ${index + 1}`}
                 aria-invalid={fieldState.invalid}
                 aria-errormessage={
                   fieldState.error ? `${rowPrefix}-weight-error` : undefined
@@ -463,7 +463,7 @@ function SubAlgorithmCard({
           size="icon"
           className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
           onClick={onRemove}
-          aria-label={`Remove child algorithm ${index + 1}`}
+          aria-label={`Remove algorithm ${index + 1}`}
         >
           <Trash2 className="size-4" />
         </Button>
