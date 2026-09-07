@@ -57,7 +57,7 @@ describe("schema-builder community widgets (real discord_engagement definition)"
     expect(activities?.widget).toBe("repeater")
     expect(activities?.uniqueBy).toEqual(["activity"])
     expect(activities?.arrayPresets?.[0]).toMatchObject({
-      label: "Recommended weights",
+      label: "Recommended settings",
     })
     expect(activities?.arrayPresets?.[0].value).toHaveLength(6)
   })
@@ -147,7 +147,7 @@ describe("schema-builder community widgets (real github_engagement definition)",
     expect(activities?.widget).toBe("repeater")
     expect(activities?.uniqueBy).toEqual(["activity"])
     expect(activities?.arrayPresets?.[0]).toMatchObject({
-      label: "Recommended weights",
+      label: "Recommended settings",
     })
     expect(
       (activities?.arrayPresets?.[0].value as Array<{ activity: string }>).map(

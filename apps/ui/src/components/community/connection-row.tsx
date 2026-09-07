@@ -71,18 +71,25 @@ function identifierFor(connection: CommunityConnectionDto): string {
   return connection.externalId
 }
 
-/** "12 channels", or "10 of 12 channels readable" once the bot is shut out of some. */
+/** "12 channels", or "10 of 12 channels available" once the bot is shut out of some. */
 function resourceSummary(
   connection: CommunityConnectionDto
 ): string | undefined {
   const { resourceCount, readableResourceCount } = connection.metadata ?? {}
   if (resourceCount === undefined) return undefined
-  const noun = connection.platform === "github" ? "repositories" : "channels"
+  const noun =
+    connection.platform === "github"
+      ? resourceCount === 1
+        ? "repository"
+        : "repositories"
+      : resourceCount === 1
+        ? "channel"
+        : "channels"
   if (
     readableResourceCount !== undefined &&
     readableResourceCount < resourceCount
   ) {
-    return `${readableResourceCount.toLocaleString()} of ${resourceCount.toLocaleString()} ${noun} readable`
+    return `${readableResourceCount.toLocaleString()} of ${resourceCount.toLocaleString()} ${noun} available`
   }
   return `${resourceCount.toLocaleString()} ${noun}`
 }
@@ -100,7 +107,7 @@ function metaLine(connection: CommunityConnectionDto, isLive: boolean): string {
   return [
     identifierFor(connection),
     memberCount !== undefined
-      ? `${memberCount.toLocaleString()} members`
+      ? `${memberCount.toLocaleString()} ${memberCount === 1 ? "member" : "members"}`
       : undefined,
     resourceSummary(connection),
     isLive ? undefined : freshness(connection),
@@ -140,23 +147,21 @@ export function ConnectionRow({
     try {
       const health = await recheck.mutateAsync(connection.id)
       if (health.status === "active") {
-        toast.success(`${connection.name} is reachable.`)
+        toast.success(`${connection.name} is connected and working.`)
       } else {
         toast.error(health.reason ?? describeStatus(health.status).description)
       }
     } catch {
-      toast.error("The check could not be run. Try again.")
+      toast.error("Could not check the connection. Try again.")
     }
   }
 
   const handleDisconnect = async () => {
     try {
       await disconnect.mutateAsync(connection.id)
-      toast.success(`${connection.name} disconnected and the bot has left.`)
+      toast.success(`${connection.name} disconnected.`)
     } catch {
-      toast.error(
-        "The bot could not be removed. The connection was kept — try again."
-      )
+      toast.error("Could not disconnect. The connection was kept. Try again.")
     } finally {
       setIsConfirmingDisconnect(false)
     }
@@ -228,7 +233,7 @@ export function ConnectionRow({
                   disabled={recheck.isPending}
                 >
                   <RefreshCw className="size-3.5" />
-                  Re-check
+                  Check again
                 </DropdownMenuItem>
               )}
               {canDisconnect(connection.status) && (
@@ -267,7 +272,7 @@ export function ConnectionRow({
             disabled={reconnectable ? isReconnecting : recheck.isPending}
             onClick={reconnectable ? onReconnect : handleRecheck}
           >
-            {reconnectable ? "Reconnect" : "Re-check"}
+            {reconnectable ? "Reconnect" : "Check again"}
           </Button>
         </div>
       )}
@@ -280,9 +285,8 @@ export function ConnectionRow({
           <AlertDialogHeader>
             <AlertDialogTitle>Disconnect {connection.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              The bot leaves the server and this connection is removed.
-              Snapshots already taken keep their data, and you can connect the
-              server again later.
+              This removes the connection from Reputo. Existing snapshots keep
+              their data, and you can connect the community again later.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

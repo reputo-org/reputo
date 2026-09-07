@@ -46,7 +46,7 @@ const formSchema = z.object({
     .min(1, "Enter the server URL.")
     .refine(
       (value) => /^https?:\/\//i.test(value),
-      "Enter the full URL, like https://chat.example.com"
+      "Enter the full URL, for example https://chat.example.com."
     ),
   token: z.string().trim().min(1, "Enter the bot token."),
   teamId: z.string(),
@@ -128,7 +128,7 @@ export function ConnectMattermostDialog({
       }
 
       if (!values.teamId) {
-        form.setError("teamId", { message: "Pick a team." })
+        form.setError("teamId", { message: "Select a team." })
         return
       }
       await connect.mutateAsync({
@@ -136,7 +136,7 @@ export function ConnectMattermostDialog({
         token: values.token,
         teamId: values.teamId,
       })
-      toast.success("Mattermost connected")
+      toast.success("Mattermost connected.")
       onOpenChange(false)
     } catch (error) {
       setServerError(describeMattermostConnectError(error))
@@ -149,8 +149,8 @@ export function ConnectMattermostDialog({
         <DialogHeader>
           <DialogTitle>Connect Mattermost</DialogTitle>
           <DialogDescription>
-            Reputo reads the server with a bot account you create. Works with
-            Mattermost current ESR and newer.
+            Use a Mattermost bot account to give Reputo access to the selected
+            team.
           </DialogDescription>
         </DialogHeader>
 
@@ -175,8 +175,8 @@ export function ConnectMattermostDialog({
                     />
                   </FormControl>
                   <FormDescription>
-                    Public HTTPS address of the server; anything after the host
-                    is ignored.
+                    Enter the public HTTPS address of your Mattermost server.
+                    Reputo ignores anything after the host name.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -198,8 +198,8 @@ export function ConnectMattermostDialog({
                     />
                   </FormControl>
                   <FormDescription>
-                    Access token of the bot account. It is stored encrypted and
-                    never shown again.
+                    Enter the access token for the bot account. Reputo encrypts
+                    it and does not show it again.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -220,7 +220,7 @@ export function ConnectMattermostDialog({
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Pick a team" />
+                          <SelectValue placeholder="Select a team" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -232,8 +232,8 @@ export function ConnectMattermostDialog({
                       </SelectContent>
                     </Select>
                     <FormDescription>
-                      The bot reads public channels it is in, and private
-                      channels only where it was invited.
+                      The bot reads public channels it has joined and private
+                      channels it was invited to.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -266,7 +266,7 @@ export function ConnectMattermostDialog({
                 {teams === null
                   ? isPending
                     ? "Checking…"
-                    : "Continue"
+                    : "Check connection"
                   : isPending
                     ? "Connecting…"
                     : "Connect"}

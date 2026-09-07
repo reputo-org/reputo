@@ -136,7 +136,7 @@ describe("CommunityConnections", () => {
     renderWith({ data: [connection()] })
 
     expect(screen.getByText("SingularityNET")).toBeInTheDocument()
-    expect(screen.getByText("Active")).toBeInTheDocument()
+    expect(screen.getByText("Connected")).toBeInTheDocument()
     expect(
       screen.getByRole("button", { name: /Add another server/ })
     ).toBeInTheDocument()
@@ -152,7 +152,7 @@ describe("CommunityConnections", () => {
       screen.getByRole("button", { name: "Actions for SingularityNET" })
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole("button", { name: /^Re-check$/ })
+      screen.queryByRole("button", { name: /^Check again$/ })
     ).not.toBeInTheDocument()
   })
 
@@ -166,7 +166,7 @@ describe("CommunityConnections", () => {
       ],
     })
 
-    expect(screen.getByText("Broken")).toBeInTheDocument()
+    expect(screen.getByText("Action needed")).toBeInTheDocument()
     expect(
       screen.getByText("The platform rejected the bot credentials.")
     ).toBeInTheDocument()
@@ -226,38 +226,6 @@ describe("CommunityConnections", () => {
     expect(screen.getByText(/Connected /)).toBeInTheDocument()
   })
 
-  it("says changes arrive as they happen while every feed is live", () => {
-    renderWith({ data: [connection()] })
-
-    expect(screen.getByRole("status")).toHaveTextContent(
-      /Live — Discord changes appear as they happen/
-    )
-  })
-
-  it("names the platform whose feed is down, and how to read it meanwhile", () => {
-    useCommunityLiveUpdates.mockReturnValue({
-      connected: true,
-      realtime: {
-        feeds: { ...LIVE_FEEDS, discord: "down" },
-      },
-    })
-    renderWith({ data: [connection()] })
-
-    expect(screen.getByRole("status")).toHaveTextContent(
-      /Not live — the Discord feed is reconnecting; Re-check to see changes now/
-    )
-  })
-
-  it("says it is reconnecting while the stream is down", () => {
-    useCommunityLiveUpdates.mockReturnValue({
-      connected: false,
-      realtime: undefined,
-    })
-    renderWith({ data: [connection()] })
-
-    expect(screen.getByRole("status")).toHaveTextContent(/Reconnecting/)
-  })
-
   it("shows how many channels the bot can read once it is shut out of some", () => {
     renderWith({
       data: [
@@ -267,7 +235,7 @@ describe("CommunityConnections", () => {
       ],
     })
 
-    expect(screen.getByText(/10 of 12 channels readable/)).toBeInTheDocument()
+    expect(screen.getByText(/10 of 12 channels available/)).toBeInTheDocument()
   })
 
   it("shows the community avatar and probe metadata on a row", () => {

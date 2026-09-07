@@ -2,7 +2,6 @@
 
 import { Search, TriangleAlert } from "lucide-react"
 import { useState } from "react"
-import { LiveStatus } from "@/components/community/live-status"
 import { PlatformSection } from "@/components/community/platform-section"
 import { Button } from "@/components/ui/button"
 import {
@@ -74,9 +73,6 @@ export function CommunityConnections() {
   }
 
   const connections = data ?? []
-  const connectedPlatforms = COMMUNITY_PLATFORMS.map(
-    (platform) => platform.id
-  ).filter((id) => connections.some((connection) => connection.platform === id))
   const showToolbar = connections.length > TOOLBAR_THRESHOLD
   const normalizedSearch = search.trim().toLowerCase()
 
@@ -102,10 +98,6 @@ export function CommunityConnections() {
 
   return (
     <div className="flex flex-col gap-4">
-      {connections.length > 0 && (
-        <LiveStatus live={live} platforms={connectedPlatforms} />
-      )}
-
       {showToolbar && (
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-56 flex-1">
@@ -116,7 +108,7 @@ export function CommunityConnections() {
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by name or id…"
+              placeholder="Search by name or ID…"
               aria-label="Search connections"
               className="pl-8"
             />
@@ -131,7 +123,7 @@ export function CommunityConnections() {
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               <SelectItem value="attention">Needs attention</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="active">Connected</SelectItem>
             </SelectContent>
           </Select>
         </div>

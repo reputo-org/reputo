@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select"
 import { useCommunityConnections } from "@/lib/api/hooks"
 import { useCommunityLiveUpdates } from "@/lib/api/use-community-events"
-import { describeStatus } from "@/lib/community/platforms"
+import { describeStatus, platformLabel } from "@/lib/community/platforms"
 import type { FormInput } from "../schema-builder"
 import { InlineMarkdown } from "./inline-markdown"
 
@@ -140,16 +140,17 @@ export function CommunityConnectionField({
                 <FormDescription>
                   {forPlatform.length > 0 ? (
                     <>
-                      Your {input.platform ?? "community"} connection is{" "}
-                      {describeStatus(
-                        forPlatform[0].status
-                      ).label.toLowerCase()}
-                      . Fix it on the {communitiesLink} first.
+                      {describeStatus(forPlatform[0].status).description} Manage
+                      it on the {communitiesLink} first.
                     </>
                   ) : (
                     <>
-                      No active {input.platform ?? "community"} connection yet.
-                      Connect one on the {communitiesLink} first.
+                      There is no working{" "}
+                      {input.platform
+                        ? platformLabel(input.platform)
+                        : "community"}{" "}
+                      connection yet. Connect one on the {communitiesLink}{" "}
+                      first.
                     </>
                   )}
                 </FormDescription>
@@ -158,11 +159,9 @@ export function CommunityConnectionField({
               <FormDescription className="text-destructive">
                 {storedConnection ? (
                   <>
-                    This preset points at {storedConnection.name}, which is{" "}
-                    {describeStatus(
-                      storedConnection.status
-                    ).label.toLowerCase()}
-                    . Fix it on the {communitiesLink} before running a snapshot.
+                    This preset points at {storedConnection.name}.{" "}
+                    {describeStatus(storedConnection.status).description} Manage
+                    it on the {communitiesLink} before running a snapshot.
                   </>
                 ) : (
                   <>

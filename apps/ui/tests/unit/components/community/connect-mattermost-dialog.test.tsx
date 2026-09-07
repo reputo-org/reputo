@@ -64,7 +64,7 @@ describe("ConnectMattermostDialog", () => {
     const user = userEvent.setup()
     renderDialog()
 
-    await user.click(screen.getByRole("button", { name: "Continue" }))
+    await user.click(screen.getByRole("button", { name: "Check connection" }))
 
     expect(await screen.findByText("Enter the server URL.")).toBeInTheDocument()
     expect(validateMutateAsync).not.toHaveBeenCalled()
@@ -75,7 +75,7 @@ describe("ConnectMattermostDialog", () => {
     expect(screen.queryByText("Team")).not.toBeInTheDocument()
     const user = await fillCredentials()
 
-    await user.click(screen.getByRole("button", { name: "Continue" }))
+    await user.click(screen.getByRole("button", { name: "Check connection" }))
 
     expect(await screen.findByText("Team")).toBeInTheDocument()
     expect(validateMutateAsync).toHaveBeenCalledWith({
@@ -88,7 +88,7 @@ describe("ConnectMattermostDialog", () => {
   it("connects the picked team and closes with a success toast", async () => {
     const { onOpenChange } = renderDialog()
     const user = await fillCredentials()
-    await user.click(screen.getByRole("button", { name: "Continue" }))
+    await user.click(screen.getByRole("button", { name: "Check connection" }))
     await screen.findByText("Team")
 
     await user.click(screen.getByRole("combobox"))
@@ -102,7 +102,7 @@ describe("ConnectMattermostDialog", () => {
         teamId: "team-2",
       })
     )
-    expect(toastSuccess).toHaveBeenCalledWith("Mattermost connected")
+    expect(toastSuccess).toHaveBeenCalledWith("Mattermost connected.")
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
@@ -115,10 +115,10 @@ describe("ConnectMattermostDialog", () => {
     renderDialog()
     const user = await fillCredentials("https://10.0.0.8")
 
-    await user.click(screen.getByRole("button", { name: "Continue" }))
+    await user.click(screen.getByRole("button", { name: "Check connection" }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      /public HTTPS hosts/
+      /public HTTPS server addresses/
     )
     expect(screen.queryByText("Team")).not.toBeInTheDocument()
   })
@@ -128,7 +128,7 @@ describe("ConnectMattermostDialog", () => {
     renderDialog()
     const user = await fillCredentials()
 
-    await user.click(screen.getByRole("button", { name: "Continue" }))
+    await user.click(screen.getByRole("button", { name: "Check connection" }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /not a member of any team/

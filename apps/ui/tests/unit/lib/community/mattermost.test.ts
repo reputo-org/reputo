@@ -20,7 +20,7 @@ function apiError(message: unknown): AxiosError {
 describe("describeMattermostConnectError", () => {
   it("maps every reason code the API raises to prose", () => {
     expect(describeMattermostConnectError(apiError("outbound_policy"))).toMatch(
-      /public HTTPS hosts/
+      /public HTTPS server addresses/
     )
     expect(describeMattermostConnectError(apiError("auth_failed"))).toMatch(
       /rejected the token/
@@ -46,7 +46,7 @@ describe("describeMattermostConnectError", () => {
     ]) {
       const copy = describeMattermostConnectError(error)
       expect(copy).toBe(
-        "Could not connect to the server. Check the URL and token."
+        "Could not connect to the server. Check the URL and bot token, then try again."
       )
       expect(copy).not.toContain("upstream")
     }
