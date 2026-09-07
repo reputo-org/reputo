@@ -7,16 +7,13 @@ interface HeroProps {
   subtitle?: ReactNode
   /** CTA stack rendered beneath the title. */
   children: ReactNode
-  /** Small muted footer (e.g. terms/privacy) rendered below the CTAs. */
-  footer?: ReactNode
 }
 
 /**
  * Centered hero shared by every pre-auth route. An h1, optional subtitle,
- * the CTA stack, and an optional muted footer. Title styling lives in
- * `.rp-title` (globals.css).
+ * and the CTA stack. Title styling lives in `.rp-title` (globals.css).
  */
-export function Hero({ title, subtitle, children, footer }: HeroProps) {
+export function Hero({ title, subtitle, children }: HeroProps) {
   return (
     <div className="flex flex-col gap-6 md:gap-7">
       <div className="flex flex-col gap-3 md:gap-4">
@@ -24,7 +21,6 @@ export function Hero({ title, subtitle, children, footer }: HeroProps) {
         {subtitle ? <p className="rp-subtitle">{subtitle}</p> : null}
       </div>
       {children}
-      {footer ? <div className="rp-legal">{footer}</div> : null}
     </div>
   )
 }

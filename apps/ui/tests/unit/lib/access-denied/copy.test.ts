@@ -31,7 +31,7 @@ describe("resolveAccessDeniedCopy", () => {
     [
       "not_allowlisted",
       "Access restricted",
-      "Your account does not have access to Reputo. Contact an admin if this seems wrong.",
+      "Your account does not have access to Reputo. Contact an admin if you think this is a mistake.",
     ],
     [
       "email_unverified",
@@ -40,7 +40,7 @@ describe("resolveAccessDeniedCopy", () => {
     ],
     [
       "revoked",
-      "Access revoked",
+      "Access removed",
       "Your access to Reputo was removed. Contact an admin if you need it restored.",
     ],
     [
