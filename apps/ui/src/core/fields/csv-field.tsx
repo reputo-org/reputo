@@ -205,9 +205,8 @@ export function CSVField({ input, control }: CSVFieldProps) {
           if (!isMountedRef.current) {
             return
           }
-          const errorMessage = `Upload failed: ${
-            uploadError instanceof Error ? uploadError.message : "Unknown error"
-          }`
+          console.error("Could not upload CSV file:", uploadError)
+          const errorMessage = "Could not upload the file. Try again."
           setValidationResult({
             valid: false,
             errors: [errorMessage],
@@ -232,9 +231,8 @@ export function CSVField({ input, control }: CSVFieldProps) {
       if (!isMountedRef.current) {
         return
       }
-      const errorMessage = `Validation failed: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`
+      console.error("Could not validate CSV file:", error)
+      const errorMessage = "Could not check the file. Try again."
       setValidationResult({
         valid: false,
         errors: [errorMessage],
@@ -271,7 +269,7 @@ export function CSVField({ input, control }: CSVFieldProps) {
                   <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground bg-muted rounded-md border">
                     <div className="flex-1">{filenameValue}</div>
                     <span className="text-xs text-muted-foreground">
-                      Upload a new file to replace it
+                      Upload another file to replace it.
                     </span>
                   </div>
                 )}
@@ -310,7 +308,7 @@ export function CSVField({ input, control }: CSVFieldProps) {
                         <AlertDescription>
                           {validationResult.valid ? (
                             <span className="text-green-600 dark:text-green-400 whitespace-nowrap">
-                              CSV file is valid
+                              CSV file is valid.
                             </span>
                           ) : (
                             <div className="space-y-1">

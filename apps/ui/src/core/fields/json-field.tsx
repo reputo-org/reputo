@@ -112,9 +112,8 @@ export function JSONField({ input, control }: JSONFieldProps) {
           if (!isMountedRef.current) {
             return
           }
-          const errorMessage = `Upload failed: ${
-            uploadError instanceof Error ? uploadError.message : "Unknown error"
-          }`
+          console.error("Could not upload JSON file:", uploadError)
+          const errorMessage = "Could not upload the file. Try again."
           setValidationResult({
             valid: false,
             errors: [errorMessage],
@@ -139,9 +138,8 @@ export function JSONField({ input, control }: JSONFieldProps) {
       if (!isMountedRef.current) {
         return
       }
-      const errorMessage = `Validation failed: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`
+      console.error("Could not validate JSON file:", error)
+      const errorMessage = "Could not check the file. Try again."
       setValidationResult({
         valid: false,
         errors: [errorMessage],
@@ -178,7 +176,7 @@ export function JSONField({ input, control }: JSONFieldProps) {
                   <div className="flex items-center gap-2 rounded-md border bg-muted p-2 text-sm text-muted-foreground">
                     <div className="flex-1">{filenameValue}</div>
                     <span className="text-xs text-muted-foreground">
-                      Upload a new file to replace it
+                      Upload another file to replace it.
                     </span>
                   </div>
                 )}
@@ -217,7 +215,7 @@ export function JSONField({ input, control }: JSONFieldProps) {
                         <AlertDescription>
                           {validationResult.valid ? (
                             <span className="text-green-600 dark:text-green-400 whitespace-nowrap">
-                              JSON file is valid
+                              JSON file is valid.
                             </span>
                           ) : (
                             <div className="space-y-1">

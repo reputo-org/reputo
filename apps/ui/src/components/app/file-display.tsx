@@ -116,7 +116,7 @@ export function FileDisplay({
       setCsvViewerOpen(true)
     } catch (err) {
       console.error("Failed to open viewer:", err)
-      alert("Could not open the CSV preview.")
+      alert("Could not open the CSV preview. Try again.")
     }
   }
 
