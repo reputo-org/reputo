@@ -176,7 +176,7 @@ describe('Community connections e2e', () => {
         'http://localhost:5173/community?error=contract_violation&platform=discord',
       );
       expect(connection.status).toBe('degraded');
-      expect(connection.statusReason).toMatch(/unexpected response/);
+      expect(connection.statusReason).toMatch(/response that Reputo could not use/);
     });
 
     it('breaks the connection when the probe finds no readable channel', async () => {
@@ -264,11 +264,11 @@ describe('Community connections e2e', () => {
       const response = await api(app, adminCookie).get(`/community/connections/${connection.id}/health`).expect(200);
 
       expect(response.body.status).toBe('broken');
-      expect(response.body.reason).toMatch(/rejected Reputo's credentials/);
+      expect(response.body.reason).toMatch(/no longer accepts this connection/);
 
       const list = await api(app, adminCookie).get('/community/connections').expect(200);
       expect(list.body[0]).toMatchObject({ status: 'broken' });
-      expect(list.body[0].statusReason).toMatch(/rejected Reputo's credentials/);
+      expect(list.body[0].statusReason).toMatch(/no longer accepts this connection/);
     });
 
     it('degrades rather than breaks on a transient failure, and recovers on the next check', async () => {

@@ -62,28 +62,30 @@ function validateStorageMetadata(
   const label = getStorageInputFileLabel(input);
 
   if (!allowedTypes.includes(metadata.contentType)) {
-    errors.push(`Invalid content type: ${metadata.contentType}. Allowed types: ${allowedTypes.join(', ')}`);
+    errors.push(
+      `This file type is not supported: ${metadata.contentType}. Supported types: ${allowedTypes.join(', ')}.`,
+    );
   }
 
   if (metadata.size > storageMaxSizeBytes) {
-    errors.push(`File size ${metadata.size} bytes exceeds API limit of ${storageMaxSizeBytes} bytes`);
+    errors.push(`The file is ${metadata.size} bytes. The maximum is ${storageMaxSizeBytes} bytes.`);
   }
 
   if (input.type === 'csv') {
     if (!isCsvMetadata(metadata)) {
-      errors.push(`${label} must be a CSV file`);
+      errors.push(`${label} must be a CSV file.`);
     }
     if (input.csv.maxBytes !== undefined && metadata.size > input.csv.maxBytes) {
-      errors.push(`File size ${metadata.size} bytes exceeds algorithm limit of ${input.csv.maxBytes} bytes`);
+      errors.push(`The file is ${metadata.size} bytes. The maximum for ${label} is ${input.csv.maxBytes} bytes.`);
     }
   }
 
   if (input.type === 'json') {
     if (!isJsonMetadata(metadata)) {
-      errors.push(`${label} must be a JSON file`);
+      errors.push(`${label} must be a JSON file.`);
     }
     if (input.json?.maxBytes !== undefined && metadata.size > input.json.maxBytes) {
-      errors.push(`File size ${metadata.size} bytes exceeds algorithm limit of ${input.json.maxBytes} bytes`);
+      errors.push(`The file is ${metadata.size} bytes. The maximum for ${label} is ${input.json.maxBytes} bytes.`);
     }
   }
 
@@ -96,7 +98,7 @@ export function getAlgorithmDefinitionOrThrow(key: string, version: string): Alg
     return JSON.parse(algorithmDefinition) as AlgorithmDefinition;
   } catch (error) {
     if (error && typeof error === 'object' && 'code' in error) {
-      throw new NotFoundException(`Algorithm definition not found: ${key}@${version}`);
+      throw new NotFoundException(`Could not find algorithm ${key} version ${version}.`);
     }
     throw error;
   }
@@ -164,7 +166,7 @@ export async function validateAlgorithmInputs(params: {
       const communityErrors = await params.communityValidation.validate(params.definition, params.inputs);
       if (communityErrors.length > 0) {
         throw new BadRequestException({
-          message: 'Invalid algorithm inputs',
+          message: 'One or more algorithm inputs are invalid.',
           errors: communityErrors,
         });
       }
@@ -192,7 +194,7 @@ export async function validateAlgorithmInputs(params: {
 
   if (requestValidationErrors.length > 0) {
     throw new BadRequestException({
-      message: 'Invalid algorithm inputs',
+      message: 'One or more algorithm inputs are invalid.',
       errors: requestValidationErrors,
     });
   }

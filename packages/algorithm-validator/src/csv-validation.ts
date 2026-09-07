@@ -89,12 +89,12 @@ export async function validateCSVContent(
     const hasHeader = csvConfig.hasHeader ?? true;
     const dataLines = hasHeader ? lines.slice(1) : lines;
     if (csvConfig.maxRows !== undefined && dataLines.length > csvConfig.maxRows) {
-      errors.push(`CSV has ${dataLines.length} rows, but maximum is ${csvConfig.maxRows}`);
+      errors.push(`The CSV file has ${dataLines.length} data rows. The maximum is ${csvConfig.maxRows}.`);
     }
 
     const headerLine = hasHeader ? lines[0] : null;
     if (!headerLine && hasHeader) {
-      errors.push('CSV is missing header row');
+      errors.push('The CSV file is missing a header row.');
       return { valid: false, errors };
     }
 
@@ -157,15 +157,15 @@ export async function validateCSVContent(
 
       if (!found) {
         errors.push(
-          `Missing required column: ${column.key}${
-            column.aliases?.length ? ` (or aliases: ${column.aliases.join(', ')})` : ''
+          `Required column is missing: ${column.key}${
+            column.aliases?.length ? ` (accepted alternatives: ${column.aliases.join(', ')})` : ''
           }`,
         );
       }
     }
 
     if (dataLines.length === 0) {
-      errors.push('CSV must contain at least one data row');
+      errors.push('The CSV file must contain at least one data row.');
     }
 
     const sampleSize = Math.min(5, dataLines.length);
@@ -176,7 +176,7 @@ export async function validateCSVContent(
       const values = row.split(delimiter);
 
       if (values.length !== headers.length) {
-        errors.push(`Row ${i + 1} has ${values.length} values but header has ${headers.length} columns`);
+        errors.push(`Row ${i + 1} has ${values.length} values, but the header row has ${headers.length} columns.`);
       }
 
       for (const col of csvConfig.columns.filter((c) => c.type === 'enum')) {
@@ -187,16 +187,14 @@ export async function validateCSVContent(
           const value = values[colIndex]?.trim().replace(/^["']+|["']+$/g, '');
           if (value && col.enum && !col.enum.includes(value)) {
             errors.push(
-              `Row ${i + 1}, column ${col.key}: "${value}" is not a valid value. Expected one of: ${col.enum.join(
-                ', ',
-              )}`,
+              `Row ${i + 1}, column ${col.key}: "${value}" is not valid. Use one of: ${col.enum.join(', ')}.`,
             );
           }
         }
       }
     }
   } catch (error) {
-    errors.push(`Failed to parse CSV: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    errors.push(`Could not read the CSV file: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 
   return {

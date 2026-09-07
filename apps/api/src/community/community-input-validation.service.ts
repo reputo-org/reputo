@@ -83,7 +83,10 @@ export class CommunityInputValidationService {
       const connection = await this.connections.findById(value.trim());
 
       if (!connection) {
-        errors.push({ field, message: `${input.label ?? input.key} was not found. Connect the community first.` });
+        errors.push({
+          field,
+          message: `${input.label ?? input.key} is no longer available. Connect the community again.`,
+        });
         continue;
       }
       if (platform !== undefined && connection.platform !== platform) {
@@ -93,7 +96,7 @@ export class CommunityInputValidationService {
       if (connection.status !== CommunityConnectionStatus.active) {
         errors.push({
           field,
-          message: `${input.label ?? input.key} is ${connection.status}. Only active connections can be used.`,
+          message: `${input.label ?? input.key} is not ready to use. Open Communities and fix the connection first.`,
         });
         continue;
       }
@@ -126,7 +129,9 @@ export class CommunityInputValidationService {
       if (unknown.length > 0) {
         errors.push({
           field,
-          message: `Unknown resource id(s) for ${connection.name}: ${unknown.map((id) => String(id)).join(', ')}`,
+          message: `These items are no longer available in ${connection.name}: ${unknown
+            .map((id) => String(id))
+            .join(', ')}`,
         });
         continue;
       }
@@ -140,7 +145,7 @@ export class CommunityInputValidationService {
           .join(', ');
         errors.push({
           field,
-          message: `The bot cannot read ${named} in ${connection.name}. Fix its access on the platform or remove them.`,
+          message: `The bot cannot read ${named} in ${connection.name}. Give the bot access or remove these items.`,
         });
       }
     }

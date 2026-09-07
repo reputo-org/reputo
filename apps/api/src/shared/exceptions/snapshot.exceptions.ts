@@ -7,6 +7,6 @@ import { ServiceUnavailableException } from '@nestjs/common';
  */
 export class SnapshotWorkflowStartException extends ServiceUnavailableException {
   constructor() {
-    super('Snapshot workflow could not be started; the snapshot has been marked as failed');
+    super('The snapshot could not be started. Its status was set to Failed.');
   }
 }

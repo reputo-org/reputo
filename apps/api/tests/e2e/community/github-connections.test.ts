@@ -185,7 +185,7 @@ describe('GitHub community connections e2e', () => {
       const response = await api(app, adminCookie).get(`/community/connections/${connection.id}/health`).expect(200);
 
       expect(response.body.status).toBe('broken');
-      expect(response.body.reason).toMatch(/uninstalled or suspended/);
+      expect(response.body.reason).toMatch(/removed or suspended/);
 
       const list = await api(app, adminCookie).get('/community/connections').expect(200);
       expect(list.body[0].status).toBe('broken');

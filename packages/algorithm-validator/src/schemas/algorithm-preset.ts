@@ -4,9 +4,9 @@ export const algorithmPresetInputSchema: z.ZodObject<{
   key: z.ZodString;
   value: z.ZodUnknown;
 }> = z.object({
-  key: z.string().min(1, 'Input key is required'),
+  key: z.string().min(1, 'Input key is required.'),
   value: z.unknown().refine((val) => val !== undefined && val !== null, {
-    message: 'Input value is required',
+    message: 'Input value is required.',
   }),
 });
 
@@ -17,18 +17,18 @@ export const createAlgorithmPresetSchema: z.ZodObject<{
   name: z.ZodOptional<z.ZodString>;
   description: z.ZodOptional<z.ZodString>;
 }> = z.object({
-  key: z.string().min(1, 'Algorithm key is required'),
-  version: z.string().min(1, 'Algorithm version is required'),
-  inputs: z.array(algorithmPresetInputSchema).min(1, 'At least one input is required'),
+  key: z.string().min(1, 'Algorithm key is required.'),
+  version: z.string().min(1, 'Algorithm version is required.'),
+  inputs: z.array(algorithmPresetInputSchema).min(1, 'At least one input is required.'),
   name: z
     .string()
-    .min(3, 'Name must be at least 3 characters')
-    .max(100, 'Name must be at most 100 characters')
+    .min(3, 'Name must be at least 3 characters.')
+    .max(100, 'Name must be at most 100 characters.')
     .optional(),
   description: z
     .string()
-    .min(10, 'Description must be at least 10 characters')
-    .max(500, 'Description must be at most 500 characters')
+    .min(10, 'Description must be at least 10 characters.')
+    .max(500, 'Description must be at most 500 characters.')
     .optional(),
 });
 

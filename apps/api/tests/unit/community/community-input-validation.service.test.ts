@@ -71,7 +71,9 @@ describe('CommunityInputValidationService', () => {
 
     const errors = await service.validate(definition, inputs(['c1']));
 
-    expect(errors).toEqual([{ field: 'community_connection_id', message: expect.stringContaining('not found') }]);
+    expect(errors).toEqual([
+      { field: 'community_connection_id', message: expect.stringContaining('no longer available') },
+    ]);
     expect(communityService.readResources).not.toHaveBeenCalled();
   });
 
@@ -90,7 +92,9 @@ describe('CommunityInputValidationService', () => {
 
     const errors = await service.validate(definition, inputs(['c1']));
 
-    expect(errors).toEqual([{ field: 'community_connection_id', message: expect.stringContaining('broken') }]);
+    expect(errors).toEqual([
+      { field: 'community_connection_id', message: expect.stringContaining('is not ready to use') },
+    ]);
   });
 
   it('rejects unknown resource ids, naming them', async () => {
@@ -106,7 +110,7 @@ describe('CommunityInputValidationService', () => {
       {
         field: 'resources',
         message:
-          'The bot cannot read #staff (the bot lacks View Channel) in SNET. Fix its access on the platform or remove them.',
+          'The bot cannot read #staff (the bot does not have View Channel access) in SNET. Give the bot access or remove these items.',
       },
     ]);
   });
@@ -142,7 +146,10 @@ describe('CommunityInputValidationService', () => {
     ]);
 
     expect(errors).toEqual([
-      { field: 'sub_algorithms.0.inputs.community_connection_id', message: expect.stringContaining('not found') },
+      {
+        field: 'sub_algorithms.0.inputs.community_connection_id',
+        message: expect.stringContaining('no longer available'),
+      },
     ]);
   });
 

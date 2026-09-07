@@ -100,12 +100,12 @@ export class AdminService {
 
     if (existing && !existing.revokedAt) {
       this.logMutation(actor, 'admin.add', provider, targetEmail, 'active_conflict');
-      throw new ConflictException('An active allowlist row already exists for this email.');
+      throw new ConflictException('An admin with this email already has access.');
     }
 
     if (existing?.revokedAt) {
       this.logMutation(actor, 'admin.add', provider, targetEmail, 'restore_required');
-      throw new ConflictException('A revoked allowlist row exists. Use the restore endpoint instead.');
+      throw new ConflictException('This admin was removed before. Restore their access instead.');
     }
 
     try {
@@ -116,7 +116,7 @@ export class AdminService {
     } catch (error) {
       if (this.adminAllowlistRepository.isDuplicateKeyError(error)) {
         this.logMutation(actor, 'admin.add', provider, targetEmail, 'race_conflict');
-        throw new ConflictException('An allowlist row already exists for this email. Refresh and try again.');
+        throw new ConflictException('This admin already exists. Refresh the page and try again.');
       }
       throw error;
     }
@@ -130,7 +130,7 @@ export class AdminService {
 
     if (!restored) {
       this.logMutation(actor, 'admin.restore', provider, targetEmail, 'not_found');
-      throw new NotFoundException('No revoked allowlist row to restore.');
+      throw new NotFoundException('No removed admin was found with this email.');
     }
 
     this.logMutation(actor, 'admin.restore', provider, targetEmail, 'restored');
@@ -150,7 +150,7 @@ export class AdminService {
 
     if (!existing) {
       this.logMutation(actor, 'admin.role', provider, targetEmail, 'not_found');
-      throw new NotFoundException('Active allowlist row not found.');
+      throw new NotFoundException('No active admin was found with this email.');
     }
 
     if (existing.role === input.role) {
@@ -161,14 +161,14 @@ export class AdminService {
 
     if (isDemotion && actorEmail === targetEmail) {
       this.logMutation(actor, 'admin.role', provider, targetEmail, 'self_demote_blocked');
-      throw new ForbiddenException('Owners cannot demote themselves.');
+      throw new ForbiddenException('Owners cannot change their own role.');
     }
 
     if (isDemotion) {
       const owners = await this.adminAllowlistRepository.countActiveOwners(provider);
       if (owners <= 1) {
         this.logMutation(actor, 'admin.role', provider, targetEmail, 'last_owner_blocked');
-        throw new ForbiddenException('Cannot demote the last active owner.');
+        throw new ForbiddenException('The last owner must remain an owner.');
       }
     }
 
@@ -176,7 +176,7 @@ export class AdminService {
 
     if (!updated) {
       this.logMutation(actor, 'admin.role', provider, targetEmail, 'not_found');
-      throw new NotFoundException('Active allowlist row not found.');
+      throw new NotFoundException('No active admin was found with this email.');
     }
 
     this.logMutation(actor, 'admin.role', provider, targetEmail, `set_${input.role}`);
@@ -198,14 +198,14 @@ export class AdminService {
 
     if (!existing) {
       this.logMutation(actor, 'admin.remove', provider, targetEmail, 'not_found');
-      throw new NotFoundException('Active allowlist row not found.');
+      throw new NotFoundException('No active admin was found with this email.');
     }
 
     if (existing.role === ACCESS_ROLE_OWNER) {
       const owners = await this.adminAllowlistRepository.countActiveOwners(provider);
       if (owners <= 1) {
         this.logMutation(actor, 'admin.remove', provider, targetEmail, 'last_owner_blocked');
-        throw new ForbiddenException('Cannot remove the last active owner.');
+        throw new ForbiddenException('The last owner cannot be removed.');
       }
     }
 
@@ -213,7 +213,7 @@ export class AdminService {
 
     if (!revokedRow) {
       this.logMutation(actor, 'admin.remove', provider, targetEmail, 'not_found');
-      throw new NotFoundException('Active allowlist row not found.');
+      throw new NotFoundException('No active admin was found with this email.');
     }
 
     const targetUser = await this.oauthUserRepository.findByProviderEmail(provider, targetEmail);
@@ -357,7 +357,7 @@ export class AdminService {
 
   private requireProvider(provider: OAuthProvider): OAuthProvider {
     if (!OAUTH_PROVIDERS.includes(provider)) {
-      throw new BadRequestException(`Unknown provider: ${provider}`);
+      throw new BadRequestException(`This sign-in provider is not supported: ${provider}.`);
     }
     return provider;
   }

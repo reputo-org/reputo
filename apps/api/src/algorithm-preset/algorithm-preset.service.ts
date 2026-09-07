@@ -14,7 +14,7 @@ import type { AlgorithmPresetRow } from './algorithm-preset.repository';
 import { AlgorithmPresetRepository } from './algorithm-preset.repository';
 import type { CreateAlgorithmPresetDto, ListAlgorithmPresetsQueryDto, UpdateAlgorithmPresetDto } from './dto';
 
-const ALGORITHM_PRESET_ENTITY = 'AlgorithmPreset';
+const ALGORITHM_PRESET_ENTITY = 'algorithm preset';
 
 @Injectable()
 export class AlgorithmPresetService {

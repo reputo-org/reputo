@@ -309,7 +309,7 @@ describe('validateAlgorithmPreset', () => {
         expect.objectContaining({
           field: 'selected_targets',
           source: 'definition',
-          message: expect.stringContaining('Recreate the preset'),
+          message: expect.stringContaining('Create the preset again'),
         }),
         expect.objectContaining({
           field: 'selected_resources',
@@ -360,7 +360,7 @@ describe('validateAlgorithmPreset', () => {
         expect.objectContaining({
           field: 'selected_resources.0.resource_key',
           source: 'payload',
-          message: 'Resource must match the selected chain',
+          message: 'Select a resource that is available for this blockchain.',
         }),
       ]),
     );
@@ -600,7 +600,7 @@ describe('validateAlgorithmPreset', () => {
         expect.objectContaining({
           field: 'sub_algorithms',
           source: 'payload',
-          message: expect.stringContaining('total weight must be finite'),
+          message: expect.stringContaining('total weight for Sub-Algorithms is too large'),
         }),
       ]),
     );
@@ -686,7 +686,7 @@ describe('validateAlgorithmPreset', () => {
         expect.objectContaining({
           field: 'sub_algorithms',
           source: 'payload',
-          message: 'Sub-Algorithms must not contain the same sub-algorithm more than once',
+          message: 'Add each algorithm to Sub-Algorithms only once.',
         }),
       ]),
     );
@@ -737,7 +737,7 @@ describe('validateAlgorithmPreset', () => {
         expect.objectContaining({
           field: 'sub_algorithms.0.inputs.wallets',
           source: 'definition',
-          message: expect.stringContaining('inherited from the parent algorithm'),
+          message: expect.stringContaining('shared by the combined algorithm'),
         }),
       ]),
     );
@@ -786,7 +786,7 @@ describe('validateAlgorithmPreset', () => {
         expect.objectContaining({
           field: 'sub_algorithms.0.algorithm_key',
           source: 'definition',
-          message: expect.stringContaining('must not be a combined algorithm'),
+          message: expect.stringContaining('cannot be added because it is also a combined algorithm'),
         }),
       ]),
     );

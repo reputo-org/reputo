@@ -40,8 +40,8 @@ describe('algorithm preset schemas', () => {
     }
     expect(inputResult.error.issues).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ message: 'Input key is required' }),
-        expect.objectContaining({ message: 'Input value is required' }),
+        expect.objectContaining({ message: 'Input key is required.' }),
+        expect.objectContaining({ message: 'Input value is required.' }),
       ]),
     );
 
@@ -51,11 +51,11 @@ describe('algorithm preset schemas', () => {
     }
     expect(presetResult.error.issues).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ message: 'Algorithm key is required' }),
-        expect.objectContaining({ message: 'Algorithm version is required' }),
-        expect.objectContaining({ message: 'At least one input is required' }),
-        expect.objectContaining({ message: 'Name must be at least 3 characters' }),
-        expect.objectContaining({ message: 'Description must be at least 10 characters' }),
+        expect.objectContaining({ message: 'Algorithm key is required.' }),
+        expect.objectContaining({ message: 'Algorithm version is required.' }),
+        expect.objectContaining({ message: 'At least one input is required.' }),
+        expect.objectContaining({ message: 'Name must be at least 3 characters.' }),
+        expect.objectContaining({ message: 'Description must be at least 10 characters.' }),
       ]),
     );
   });
