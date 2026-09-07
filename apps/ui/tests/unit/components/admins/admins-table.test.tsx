@@ -91,7 +91,7 @@ describe("AdminsTable", () => {
     expect(screen.getByText("alice@example.com")).toBeInTheDocument()
     expect(screen.getByText("bob@example.com")).toBeInTheDocument()
     expect(screen.getByText("owner")).toBeInTheDocument()
-    expect(screen.getByText("Revoked")).toBeInTheDocument()
+    expect(screen.getByText("Removed")).toBeInTheDocument()
   })
 
   it("requests the next page and disables Previous on the first page", async () => {

@@ -3,14 +3,14 @@
     "name": "Contribution Score",
     "kind": "standalone",
     "category": "Activity",
-    "summary": "Scores Deep Funding Portal users based on the comments they write.",
-    "description": "### What it does\nScores the quality and impact of each user's comments in the Deep Funding Portal.\n\n### How it works\n- Each user is identified by their DID.\n- Every valid comment starts with a base score.\n- Upvotes add points, while downvotes remove points.\n- Comments on your own proposal and replies to yourself can receive a penalty.\n- An upvote from the proposal owner can add a bonus.\n- Older comments can lose value over time.\n\n### Data source\nUses proposal, comment, user, and vote data from the Deep Funding Portal.\n\n### Outputs\n- CSV file with `did` and `contribution_score`.\n- JSON file with score details for each user and comment.",
+    "summary": "Scores users by the comments they write in the Deep Funding Portal.",
+    "description": "### What it does\nMeasures the quality and impact of each user's comments in the Deep Funding Portal.\n\n### How it works\n- Reputo identifies each user by their decentralized identifier (DID).\n- Each valid comment starts with a base score.\n- Upvotes add points, and downvotes remove points.\n- Comments on your own proposal and replies to your own comments can receive a penalty.\n- An upvote from the proposal owner can add a bonus.\n- Older comments can lose value over time.\n\n### Data used\nProposal, comment, user, and vote data from the Deep Funding Portal.\n\n### Results\n- A CSV file with `did` and `contribution_score`.\n- A JSON file with score details for each user and comment.",
     "version": "1.0.0",
     "inputs": [
         {
             "key": "comment_base_score",
-            "label": "Base score per comment",
-            "description": "Points a valid comment receives before votes, bonuses, penalties, and decay.",
+            "label": "Base points per comment",
+            "description": "Points a valid comment receives before votes, bonuses, penalties, and monthly score reduction.",
             "type": "integer",
             "min": 0,
             "max": 100,
@@ -20,7 +20,7 @@
         },
         {
             "key": "comment_upvote_weight",
-            "label": "Upvote weight",
+            "label": "Points per upvote",
             "description": "How much one upvote increases the comment score.",
             "type": "number",
             "min": 0,
@@ -32,7 +32,7 @@
         },
         {
             "key": "comment_downvote_weight",
-            "label": "Downvote weight",
+            "label": "Points per downvote",
             "description": "How much one downvote reduces the comment score.",
             "type": "number",
             "min": 0,
@@ -45,7 +45,7 @@
         {
             "key": "self_interaction_penalty_factor",
             "label": "Self-interaction penalty",
-            "description": "Multiplier for comments on your own proposal and replies to yourself. Use `1` to turn off this penalty.",
+            "description": "Multiplier for comments on your own proposal and replies to your own comments. Use `1` to turn off this penalty.",
             "type": "number",
             "min": 0,
             "max": 1,
@@ -68,8 +68,8 @@
         },
         {
             "key": "engagement_window_months",
-            "label": "Lookback period (months)",
-            "description": "Only comments from this number of past months are included.",
+            "label": "Time period (months)",
+            "description": "Number of previous months of comments to include.",
             "type": "integer",
             "min": 1,
             "max": 72,
@@ -79,8 +79,8 @@
         },
         {
             "key": "monthly_decay_rate_percent",
-            "label": "Monthly decay (%)",
-            "description": "Percentage removed from a comment's score for each month of age. Use `0` to turn off decay.",
+            "label": "Monthly score reduction (%)",
+            "description": "Percentage removed from a comment's score for each month of age. Use `0` to keep older scores unchanged.",
             "type": "integer",
             "min": 0,
             "max": 100,
@@ -103,12 +103,12 @@
                     {
                         "key": "did",
                         "type": "string",
-                        "description": "User DID (`did:plc` or `did:sub`)."
+                        "description": "DeepID user identifier (DID; `did:plc` or `did:sub`)."
                     },
                     {
                         "key": "contribution_score",
                         "type": "number",
-                        "description": "Raw user score. It is not normalized, so its range depends on the included comments."
+                        "description": "Final user score. It is not adjusted to a fixed range, so the range depends on the included comments."
                     }
                 ]
             }

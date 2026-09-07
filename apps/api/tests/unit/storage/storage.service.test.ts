@@ -120,7 +120,7 @@ describe('StorageService', () => {
       const promise = service.presignPut(filename, contentType);
 
       await expect(promise).rejects.toBeInstanceOf(InvalidContentTypeException);
-      await expect(promise).rejects.toThrow(/contentType not allowed/i);
+      await expect(promise).rejects.toThrow(/file type is not supported/i);
     });
 
     it('should throw InvalidContentTypeException for empty content type', async () => {
@@ -214,7 +214,7 @@ describe('StorageService', () => {
       const promise = service.verifyUpload(key);
 
       await expect(promise).rejects.toBeInstanceOf(ObjectNotFoundException);
-      await expect(promise).rejects.toThrow(/object not found/i);
+      await expect(promise).rejects.toThrow(/file was not found/i);
     });
 
     it('should throw ObjectNotFoundException when error name is NotFound', async () => {
@@ -245,7 +245,7 @@ describe('StorageService', () => {
       const promise = service.verifyUpload(key);
 
       await expect(promise).rejects.toBeInstanceOf(FileTooLargeException);
-      await expect(promise).rejects.toThrow(/file too large/i);
+      await expect(promise).rejects.toThrow(/file is too large/i);
     });
 
     it('should throw InvalidContentTypeException when content type not allowed', async () => {
@@ -261,7 +261,7 @@ describe('StorageService', () => {
       const promise = service.verifyUpload(key);
 
       await expect(promise).rejects.toBeInstanceOf(InvalidContentTypeException);
-      await expect(promise).rejects.toThrow(/contentType not allowed/i);
+      await expect(promise).rejects.toThrow(/file type is not supported/i);
     });
 
     it('should throw HeadObjectFailedException on other S3 errors', async () => {
@@ -280,7 +280,7 @@ describe('StorageService', () => {
       const promise = service.verifyUpload(key);
 
       await expect(promise).rejects.toBeInstanceOf(HeadObjectFailedException);
-      await expect(promise).rejects.toThrow(/Failed to check object metadata/i);
+      await expect(promise).rejects.toThrow(/Could not check the file/i);
     });
 
     it('should default to 0 size when ContentLength is undefined', async () => {
@@ -384,7 +384,7 @@ describe('StorageService', () => {
       const promise = service.presignGet(key);
 
       await expect(promise).rejects.toBeInstanceOf(ObjectNotFoundException);
-      await expect(promise).rejects.toThrow(/object not found/i);
+      await expect(promise).rejects.toThrow(/file was not found/i);
     });
 
     it('should throw ObjectNotFoundException when error name is NotFound', async () => {
@@ -417,7 +417,7 @@ describe('StorageService', () => {
       const promise = service.presignGet(key);
 
       await expect(promise).rejects.toBeInstanceOf(HeadObjectFailedException);
-      await expect(promise).rejects.toThrow(/Failed to check object metadata/i);
+      await expect(promise).rejects.toThrow(/Could not check the file/i);
     });
 
     it('should throw HeadObjectFailedException on network errors', async () => {

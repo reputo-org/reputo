@@ -20,7 +20,6 @@ import { communityApi } from "@/lib/api/services"
 import type { CommunityConnectionDto } from "@/lib/api/types"
 import { mattermostServerUrlFromExternalId } from "@/lib/community/mattermost"
 import type { PlatformMeta } from "@/lib/community/platforms"
-import { cn } from "@/lib/utils"
 
 interface PlatformSectionProps {
   platform: PlatformMeta
@@ -74,7 +73,7 @@ export function PlatformSection({
       window.location.href = url
     } catch {
       toast.error(
-        `Could not start the ${platform.label} connect flow. Try again.`
+        `Could not start the ${platform.label} connection. Try again.`
       )
       setIsConnecting(false)
     }
@@ -97,64 +96,49 @@ export function PlatformSection({
                   {totalCount}
                 </Badge>
               )}
-              {!platform.available && (
-                <Badge variant="outline" className="font-normal">
-                  Coming soon
-                </Badge>
-              )}
             </div>
             <CardDescription className="text-[13px] leading-relaxed">
               {platform.description}
             </CardDescription>
           </div>
-          {platform.available && (
-            <Button
-              size="sm"
-              variant={hasConnections ? "outline" : "default"}
-              disabled={isConnecting}
-              onClick={() => startConnect()}
-            >
-              {isConnecting ? (
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <Plus className="size-4" aria-hidden="true" />
-              )}
-              {hasConnections
-                ? `Add another ${platform.resourceNoun}`
-                : `Connect ${platform.label}`}
-            </Button>
-          )}
+          <Button
+            size="sm"
+            variant={hasConnections ? "outline" : "default"}
+            disabled={isConnecting}
+            onClick={() => startConnect()}
+          >
+            {isConnecting ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Plus className="size-4" aria-hidden="true" />
+            )}
+            {hasConnections
+              ? `Add another ${platform.resourceNoun}`
+              : `Connect ${platform.label}`}
+          </Button>
         </div>
       </CardHeader>
 
-      <CardContent
-        className={cn("flex flex-col", !platform.available && "opacity-60")}
-      >
-        {platform.available ? (
-          connections.length > 0 ? (
-            <div className="flex flex-col">
-              {connections.map((connection, index) => (
-                <div key={connection.id}>
-                  {index > 0 && <ItemSeparator />}
-                  <ConnectionRow
-                    connection={connection}
-                    onReconnect={() => startConnect(connection)}
-                    isReconnecting={isConnecting}
-                    isLive={isLive}
-                  />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground/70 text-[13px]">
-              {hasConnections
-                ? "No connections match."
-                : `No ${platform.resourceNoun} connected yet.`}
-            </p>
-          )
+      <CardContent className="flex flex-col">
+        {connections.length > 0 ? (
+          <div className="flex flex-col">
+            {connections.map((connection, index) => (
+              <div key={connection.id}>
+                {index > 0 && <ItemSeparator />}
+                <ConnectionRow
+                  connection={connection}
+                  onReconnect={() => startConnect(connection)}
+                  isReconnecting={isConnecting}
+                  isLive={isLive}
+                />
+              </div>
+            ))}
+          </div>
         ) : (
           <p className="text-muted-foreground/70 text-[13px]">
-            Arrives with a later release.
+            {hasConnections
+              ? "No connections match."
+              : `No ${platform.resourceNoun} connected yet.`}
           </p>
         )}
       </CardContent>

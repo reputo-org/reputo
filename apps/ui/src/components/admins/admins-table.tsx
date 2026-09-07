@@ -115,7 +115,7 @@ export function AdminsTable({
             <span className="truncate font-medium">{row.original.email}</span>
             {row.original.revokedAt ? (
               <span className="border-destructive/40 text-destructive bg-destructive/5 inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide">
-                Revoked
+                Removed
               </span>
             ) : null}
           </div>
@@ -235,7 +235,7 @@ export function AdminsTable({
                     colSpan={visibleColumnsCount}
                     className="text-muted-foreground py-10 text-center"
                   >
-                    Could not load admins. Refresh and try again.
+                    Could not load admins. Refresh the page and try again.
                   </TableCell>
                 </TableRow>
               ) : table.getRowModel().rows.length === 0 ? (
@@ -281,7 +281,7 @@ export function AdminsTable({
                   : `${startIndex}–${endIndex} of ${total}`}
             </span>
             <div className="flex items-center gap-2">
-              <span>Rows</span>
+              <span>Rows per page</span>
               <Select
                 value={String(limit)}
                 onValueChange={(value) =>

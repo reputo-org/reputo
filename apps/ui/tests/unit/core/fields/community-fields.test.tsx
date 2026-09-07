@@ -192,7 +192,7 @@ describe("CommunityConnectionField", () => {
     )
 
     expect(
-      screen.getByText(/No active discord connection yet/)
+      screen.getByText(/There is no working Discord connection yet/)
     ).toBeInTheDocument()
   })
 })
@@ -214,7 +214,7 @@ describe("CommunityResourcesField", () => {
 
     expect(mockUseCommunityResources).toHaveBeenCalledWith("conn-1", true)
     expect(mockUseCommunityLiveUpdates).toHaveBeenCalledWith({ enabled: true })
-    expect(screen.getByText("2 of 3 channels readable")).toBeInTheDocument()
+    expect(screen.getByText("2 of 3 channels available")).toBeInTheDocument()
     expect(screen.getByText(/No access · 1/)).toBeInTheDocument()
 
     await user.click(screen.getByRole("checkbox", { name: "#general" }))
@@ -232,10 +232,10 @@ describe("CommunityResourcesField", () => {
     expect(staff).toBeDisabled()
     expect(screen.getByText("Can't view")).toBeInTheDocument()
     expect(
-      screen.getByText(/The bot lacks View Channel here/)
+      screen.getByText(/The bot does not have View Channel access/)
     ).toBeInTheDocument()
     expect(
-      screen.getByText(/A channel is readable when the Reputo role has/)
+      screen.getByText(/A channel is available when the Reputo role has/)
     ).toBeInTheDocument()
   })
 
@@ -244,7 +244,7 @@ describe("CommunityResourcesField", () => {
     renderResources({ community_connection_id: "conn-1", resources: [] })
 
     await user.click(
-      screen.getByRole("button", { name: "Select all readable" })
+      screen.getByRole("button", { name: "Select all with access" })
     )
 
     expect(screen.getByText("2 selected")).toBeInTheDocument()
@@ -252,7 +252,7 @@ describe("CommunityResourcesField", () => {
     expect(screen.getByRole("checkbox", { name: "#dev-forum" })).toBeChecked()
     expect(screen.getByRole("checkbox", { name: "#staff" })).not.toBeChecked()
     expect(
-      screen.getByRole("button", { name: "Select all readable" })
+      screen.getByRole("button", { name: "Select all with access" })
     ).toBeDisabled()
 
     await user.click(screen.getByRole("button", { name: "Clear" }))
@@ -320,7 +320,7 @@ describe("CommunityResourcesField", () => {
     expect(screen.getByRole("checkbox", { name: "#staff" })).not.toBeDisabled()
 
     await user.click(
-      within(alert).getByRole("button", { name: "Remove unreadable" })
+      within(alert).getByRole("button", { name: "Remove unavailable" })
     )
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
@@ -334,7 +334,7 @@ describe("CommunityResourcesField", () => {
       resources: ["c1", "deleted-channel"],
     })
 
-    expect(screen.getByText(/No longer listed · 1/)).toBeInTheDocument()
+    expect(screen.getByText(/No longer available · 1/)).toBeInTheDocument()
     expect(screen.getByText("deleted-channel")).toBeInTheDocument()
 
     await user.click(

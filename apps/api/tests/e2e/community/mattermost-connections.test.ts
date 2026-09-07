@@ -278,7 +278,7 @@ describe('Mattermost community connections e2e', () => {
 
       const health = await api(app, adminCookie).get(`/community/connections/${id}/health`).expect(200);
       expect(health.body.status).toBe('broken');
-      expect(health.body.reason).toMatch(/outbound network policy/);
+      expect(health.body.reason).toMatch(/server address is not allowed/);
 
       await api(app, adminCookie).get(`/community/connections/${id}/resources`).expect(502);
     });

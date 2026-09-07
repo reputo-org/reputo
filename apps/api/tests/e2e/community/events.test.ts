@@ -124,7 +124,7 @@ describe('Community connection events via PostgreSQL LISTEN/NOTIFY', () => {
     expect((await broken).data).toMatchObject({
       id: connection.id,
       status: 'broken',
-      statusReason: expect.stringMatching(/rejected Reputo's credentials/),
+      statusReason: expect.stringMatching(/no longer accepts this connection/),
     });
 
     const removed = nextEvent((event) => event.type === 'community_connection:removed');

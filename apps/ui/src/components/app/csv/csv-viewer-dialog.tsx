@@ -40,7 +40,9 @@ export function CSVViewerDialog({
       >
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>Search and sort the CSV data.</DialogDescription>
+          <DialogDescription>
+            Search and sort the rows in this file.
+          </DialogDescription>
         </DialogHeader>
         <div
           className={cn(

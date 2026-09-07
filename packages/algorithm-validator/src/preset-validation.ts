@@ -141,7 +141,7 @@ function getUnsupportedInputErrors(params: {
 
     errors.push({
       field: input.key,
-      message: `Input "${input.key}" is not supported by ${params.definition.key}@${params.definition.version}. Recreate the preset using the current algorithm definition.`,
+      message: `Input "${input.key}" is no longer supported by ${params.definition.name}. Create the preset again.`,
       source: 'definition',
     });
   }
@@ -165,7 +165,7 @@ function getDuplicateInputErrors(
 
   return [...duplicates].map((key) => ({
     field: key,
-    message: `Input "${key}" must only be provided once`,
+    message: `Input "${key}" can be added only once.`,
     source: 'preset' as const,
   }));
 }
@@ -180,7 +180,7 @@ function getDefinitionConsistencyErrors(params: {
   if (params.key !== params.definition.key) {
     errors.push({
       field: 'key',
-      message: `Preset key must match ${params.definition.key}`,
+      message: `The preset must use ${params.definition.name}.`,
       source: 'definition',
     });
   }
@@ -188,7 +188,7 @@ function getDefinitionConsistencyErrors(params: {
   if (params.version !== params.definition.version) {
     errors.push({
       field: 'version',
-      message: `Preset version must match ${params.definition.version}`,
+      message: `The preset must use version ${params.definition.version}.`,
       source: 'definition',
     });
   }
@@ -210,7 +210,7 @@ async function resolveInputContent(params: {
     return resolvedValue;
   }
 
-  throw new Error(`Unable to resolve ${params.input.label ?? params.input.key} content for validation`);
+  throw new Error(`Could not open ${params.input.label ?? params.input.key} for checking.`);
 }
 
 function getSelectedChains(selectorValue: unknown, selectorChainField: string): string[] {
@@ -249,7 +249,7 @@ function runJsonChainCoverageRule(params: {
     return [
       {
         field: params.rule.walletInputKey,
-        message: `Validation rule references unknown JSON input "${params.rule.walletInputKey}"`,
+        message: `The algorithm definition refers to an unknown JSON input: "${params.rule.walletInputKey}".`,
         source: 'rule',
       },
     ];
@@ -286,7 +286,7 @@ function runJsonChainCoverageRule(params: {
   return [
     {
       field: params.rule.walletInputKey,
-      message: `Wallet JSON is missing wallet addresses for selected chain(s): ${missingChains.join(', ')}`,
+      message: `The wallet file has no addresses for these selected blockchains: ${missingChains.join(', ')}.`,
       source: 'rule',
     },
   ];
@@ -334,7 +334,7 @@ function normalizeErrorMessages(error: unknown): string[] {
     return [error.message];
   }
 
-  return ['Unable to validate file input'];
+  return ['Could not check the file. Try again.'];
 }
 
 async function validateFileBackedInputs(params: {
@@ -436,7 +436,7 @@ async function resolveNestedDefinition(params: {
       errors: [
         {
           field: `${params.input.key}.${params.childIndex}.algorithm_key`,
-          message: `Unable to resolve nested definition for ${params.entry.algorithm_key}@${params.entry.algorithm_version}`,
+          message: `Could not load ${params.entry.algorithm_key} version ${params.entry.algorithm_version}.`,
           source: 'definition',
         },
       ],
@@ -457,7 +457,7 @@ async function resolveNestedDefinition(params: {
         errors: [
           {
             field: `${params.input.key}.${params.childIndex}.algorithm_key`,
-            message: `Algorithm definition not found: ${params.entry.algorithm_key}@${params.entry.algorithm_version}`,
+            message: `Could not find ${params.entry.algorithm_key} version ${params.entry.algorithm_version}.`,
             source: 'definition',
           },
         ],
@@ -476,7 +476,7 @@ async function resolveNestedDefinition(params: {
           message:
             error instanceof Error
               ? error.message
-              : `Algorithm definition not found: ${params.entry.algorithm_key}@${params.entry.algorithm_version}`,
+              : `Could not find ${params.entry.algorithm_key} version ${params.entry.algorithm_version}.`,
           source: 'definition',
         },
       ],
@@ -524,7 +524,7 @@ async function validateNestedSubAlgorithms(params: {
       for (const sharedInputKey of providedSharedKeys) {
         errors.push({
           field: `${input.key}.${childIndex}.inputs.${sharedInputKey}`,
-          message: `Input "${sharedInputKey}" is inherited from the parent algorithm and must not be provided here`,
+          message: `Input "${sharedInputKey}" is shared by the combined algorithm. Remove it from this algorithm.`,
           source: 'definition',
         });
       }
@@ -537,7 +537,7 @@ async function validateNestedSubAlgorithms(params: {
       if (childDefinition.kind === 'combined') {
         errors.push({
           field: `${input.key}.${childIndex}.algorithm_key`,
-          message: `Sub-algorithm ${childDefinition.key}@${childDefinition.version} must not be a combined algorithm`,
+          message: `${childDefinition.name} cannot be added because it is also a combined algorithm.`,
           source: 'definition',
         });
         continue;

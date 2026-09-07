@@ -54,7 +54,7 @@ export function resolveAccessDeniedCopy(rawReason: unknown): AccessDeniedCopy {
         reason,
         title: "Access restricted",
         subtitle:
-          "Your account does not have access to Reputo. Contact an admin if this seems wrong.",
+          "Your account does not have access to Reputo. Contact an admin if you think this is a mistake.",
         cta: RETRY_CTA,
       }
     case "email_unverified":
@@ -68,7 +68,7 @@ export function resolveAccessDeniedCopy(rawReason: unknown): AccessDeniedCopy {
     case "revoked":
       return {
         reason,
-        title: "Access revoked",
+        title: "Access removed",
         subtitle:
           "Your access to Reputo was removed. Contact an admin if you need it restored.",
         cta: RETRY_CTA,

@@ -96,11 +96,11 @@ describe('validation', () => {
     expect(result.success).toBe(false);
     expect(result.errors).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ field: 'wallets', message: 'Wallet Addresses JSON is required' }),
-        expect.objectContaining({ field: 'votes_csv', message: 'Votes CSV is required' }),
-        expect.objectContaining({ field: 'threshold', message: 'Threshold must be at most 10' }),
-        expect.objectContaining({ field: 'min_votes', message: 'Minimum Votes must be a whole number' }),
-        expect.objectContaining({ field: 'name', message: 'Display Name is required' }),
+        expect.objectContaining({ field: 'wallets', message: 'Wallet Addresses JSON is required.' }),
+        expect.objectContaining({ field: 'votes_csv', message: 'Votes CSV is required.' }),
+        expect.objectContaining({ field: 'threshold', message: 'Threshold must be at most 10.' }),
+        expect.objectContaining({ field: 'min_votes', message: 'Minimum Votes must be a whole number.' }),
+        expect.objectContaining({ field: 'name', message: 'Display Name is required.' }),
       ]),
     );
   });
@@ -154,7 +154,7 @@ describe('validation', () => {
       errors: [
         {
           field: '_schema',
-          message: expect.stringContaining('Validation error:'),
+          message: expect.stringContaining('Could not check the inputs:'),
         },
       ],
     });
@@ -243,7 +243,7 @@ describe('validation', () => {
       expect.arrayContaining([
         expect.objectContaining({
           field: 'target_configs',
-          message: 'Targets to Include must not contain duplicate chain + target_identifier combinations',
+          message: 'Remove duplicate entries from Targets to Include.',
         }),
       ]),
     );
@@ -358,7 +358,7 @@ describe('validation', () => {
       expect.arrayContaining([
         expect.objectContaining({
           field: 'selected_resources.0.chain',
-          message: 'Chain must match the resource selector catalog',
+          message: 'Select a blockchain from the available list.',
         }),
       ]),
     );
@@ -376,7 +376,7 @@ describe('validation', () => {
       expect.arrayContaining([
         expect.objectContaining({
           field: 'selected_resources.0.resource_key',
-          message: 'Resource must match the selected chain',
+          message: 'Select a resource that is available for this blockchain.',
         }),
       ]),
     );

@@ -85,7 +85,7 @@ describe("CommunityConnectionField", () => {
 
     expect(screen.getByRole("combobox")).toBeDisabled()
     expect(
-      screen.getByText(/no active discord connection yet/i)
+      screen.getByText(/there is no working Discord connection yet/i)
     ).toBeInTheDocument()
     expect(
       screen.getByRole("link", { name: /communities page/i })
@@ -103,7 +103,7 @@ describe("CommunityConnectionField", () => {
     render(<TestForm />)
 
     expect(
-      screen.getByText(/your discord connection is broken/i)
+      screen.getByText(/cannot read this community until it is reconnected/i)
     ).toBeInTheDocument()
     expect(
       screen.getByRole("link", { name: /communities page/i })
@@ -123,7 +123,7 @@ describe("CommunityConnectionField", () => {
 
     expect(screen.getByText(/could not load connections/i)).toBeInTheDocument()
     expect(
-      screen.queryByText(/no active discord connection yet/i)
+      screen.queryByText(/there is no working Discord connection yet/i)
     ).not.toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: /retry/i }))
@@ -141,7 +141,9 @@ describe("CommunityConnectionField", () => {
     render(<TestForm value="c2" />)
 
     expect(
-      screen.getByText(/this preset points at SNET, which is broken/i)
+      screen.getByText(
+        /this preset points at SNET.*cannot read this community/i
+      )
     ).toBeInTheDocument()
     expect(screen.getByRole("combobox")).not.toBeDisabled()
   })

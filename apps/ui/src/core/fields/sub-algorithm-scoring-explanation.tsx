@@ -47,9 +47,9 @@ export function SubAlgorithmScoringExplanation({
         <p className="flex min-w-0 flex-1 items-center gap-2 text-xs text-muted-foreground">
           <Info className="size-3.5 shrink-0" aria-hidden="true" />
           <span className="min-w-0">
-            Normalization:{" "}
+            Score adjustment:{" "}
             <span className="font-medium text-foreground">{methodLabel}</span>
-            {" · "}Range {targetMin}–{targetMax}
+            {" · "}Final range {targetMin}–{targetMax}
           </span>
         </p>
         <CollapsibleTrigger asChild>
@@ -57,7 +57,7 @@ export function SubAlgorithmScoringExplanation({
             type="button"
             className="inline-flex shrink-0 items-center gap-1 rounded-sm text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            How scores are combined
+            How Reputo combines scores
             <ChevronDown
               className={cn(
                 "size-3.5 transition-transform",

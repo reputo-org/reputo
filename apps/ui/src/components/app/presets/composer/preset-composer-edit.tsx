@@ -37,7 +37,7 @@ export function PresetComposerEdit({
             <Loader2 className="size-6 animate-spin" />
           </EmptyMedia>
           <EmptyTitle>Loading preset</EmptyTitle>
-          <EmptyDescription>Getting the preset…</EmptyDescription>
+          <EmptyDescription>Loading the preset…</EmptyDescription>
         </EmptyHeader>
       </Empty>
     )

@@ -1,7 +1,6 @@
 "use client"
 
 import {
-  Clock,
   Combine,
   Database,
   FolderOpen,
@@ -52,19 +51,19 @@ const categories: {
   {
     key: "Engagement",
     title: "Engagement",
-    description: "Scores participation and the quality of user interactions",
+    description: "Scores participation and the quality of user interactions.",
     icon: <Target className="size-4 text-primary" />,
   },
   {
     key: "Activity",
     title: "Activity",
-    description: "Scores contributions and on-chain activity over time",
+    description: "Scores contributions and on-chain activity over time.",
     icon: <Users className="size-4 text-primary" />,
   },
   {
     key: "Custom",
     title: "Custom",
-    description: "Combines several algorithms into one score",
+    description: "Combines several algorithms into one score.",
     icon: <Combine className="size-4 text-primary" />,
   },
 ]
@@ -90,7 +89,7 @@ export default function Home() {
         <div className="flex items-center gap-3 w-full">
           <div className="relative w-full">
             <Input
-              placeholder="Search by name or category…"
+              placeholder="Search algorithms…"
               aria-label="Search algorithms"
               className="pl-9"
               value={searchQuery}
@@ -139,7 +138,7 @@ export default function Home() {
 
       <div className="text-sm text-muted-foreground">
         {filteredAlgorithms.length} algorithm
-        {filteredAlgorithms.length !== 1 ? "s" : ""} found
+        {filteredAlgorithms.length !== 1 ? "s" : ""}
       </div>
 
       {filteredAlgorithms.length === 0 ? (
@@ -217,15 +216,9 @@ export default function Home() {
                           <CardDescription>{algo.summary}</CardDescription>
                           <div className="mt-4 flex flex-wrap items-center gap-4 text-sm">
                             <span className="inline-flex items-center gap-2 text-muted-foreground">
-                              <Clock className="size-4" /> {algo.duration}
-                            </span>
-                            <span className="inline-flex items-center gap-2 text-muted-foreground">
                               <SlidersHorizontal className="size-4" />{" "}
                               {algo.inputSummary}
                             </span>
-                            <Badge className="bg-emerald-500 text-white border-transparent">
-                              {algo.level}
-                            </Badge>
                           </div>
                         </CardContent>
 

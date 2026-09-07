@@ -72,14 +72,16 @@ const CONFIRM_COPY: Record<ConfirmKind, ConfirmCopy> = {
     destructive: true,
   },
   demote: {
-    title: (email) => `Demote ${email} to admin?`,
-    description: <>They will lose owner permissions but keep admin access.</>,
-    actionLabel: "Demote",
+    title: (email) => `Change ${email} to admin?`,
+    description: (
+      <>They will lose owner permissions but keep access as an admin.</>
+    ),
+    actionLabel: "Change to admin",
   },
   promote: {
-    title: (email) => `Promote ${email} to owner?`,
+    title: (email) => `Change ${email} to owner?`,
     description: <>They will be able to manage other admins.</>,
-    actionLabel: "Promote",
+    actionLabel: "Change to owner",
   },
 }
 
@@ -108,11 +110,11 @@ export function AdminRowActions({ row, actorEmail }: AdminRowActionsProps) {
           break
         case "demote":
           await updateRole.mutateAsync({ ...target, role: "admin" })
-          toast.success(`${row.email} demoted to admin.`)
+          toast.success(`${row.email} is now an admin.`)
           break
         case "promote":
           await updateRole.mutateAsync({ ...target, role: "owner" })
-          toast.success(`${row.email} promoted to owner.`)
+          toast.success(`${row.email} is now an owner.`)
           break
       }
     } catch (error) {
@@ -166,15 +168,15 @@ export function AdminRowActions({ row, actorEmail }: AdminRowActionsProps) {
                   disabled={isPending}
                 >
                   <ArrowUpCircle className="mr-2 size-4" />
-                  Promote to owner
+                  Change to owner
                 </DropdownMenuItem>
               ) : (
                 <GuardedMenuItem
                   icon={ArrowDownCircle}
-                  label="Demote to admin"
+                  label="Change to admin"
                   disabled={isPending}
                   guardReason={
-                    isSelf ? "You can't demote yourself." : undefined
+                    isSelf ? "You cannot change your own role." : undefined
                   }
                   onSelect={() => setConfirm("demote")}
                 />
@@ -184,7 +186,7 @@ export function AdminRowActions({ row, actorEmail }: AdminRowActionsProps) {
                 icon={Trash2}
                 label="Remove"
                 disabled={isPending}
-                guardReason={isSelf ? "You can't remove yourself." : undefined}
+                guardReason={isSelf ? "You cannot remove yourself." : undefined}
                 onSelect={() => setConfirm("remove")}
                 destructive
               />
@@ -282,7 +284,7 @@ function RowMetadataLabel({
   isRevoked: boolean
 }) {
   const subtitle = isRevoked
-    ? `Revoked ${formatRelativeFromNow(row.revokedAt)}${row.revokedByEmail ? ` by ${row.revokedByEmail}` : ""}`
+    ? `Removed ${formatRelativeFromNow(row.revokedAt)}${row.revokedByEmail ? ` by ${row.revokedByEmail}` : ""}`
     : `${row.role === "owner" ? "Owner" : "Admin"} · invited ${formatRelativeFromNow(row.invitedAt)}${row.invitedByEmail ? ` by ${row.invitedByEmail}` : ""}`
 
   const sessions = row.activeSessionCount ?? 0
@@ -311,7 +313,7 @@ function handleMutationError(
 ): void {
   const status = extractApiStatus(error)
   if (status === 403) {
-    toast.error("That action isn't allowed.")
+    toast.error("You do not have permission to do that.")
     return
   }
   if (status === 404) {

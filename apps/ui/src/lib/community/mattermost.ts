@@ -10,22 +10,23 @@ import axios from "axios"
  */
 const CONNECT_ERROR_COPY: Record<string, string> = {
   outbound_policy:
-    "That server address is not allowed. Reputo only connects to public HTTPS hosts.",
+    "Reputo can connect only to public HTTPS server addresses. Check the URL.",
   auth_failed: "Mattermost rejected the token. Check it and try again.",
   team_not_found:
-    "The bot is not a member of that team. Pick one of its teams.",
+    "The bot is not a member of that team. Select one of its teams.",
   permission_denied:
-    "The bot cannot read any channel of this team. Invite it to the channels it should read, then try again.",
+    "The bot cannot read any channel in this team. Add it to the channels Reputo should use, then try again.",
   not_found: "That does not look like a Mattermost server. Check the URL.",
   contract_violation:
     "That does not look like a Mattermost server. Check the URL.",
-  rate_limited: "The server is rate limiting Reputo. Try again shortly.",
+  rate_limited:
+    "The server has limited Reputo's requests. Try again in a few minutes.",
   network_error: "The server could not be reached. Check the URL.",
   upstream_error: "The server answered with an error. Try again shortly.",
 }
 
 const GENERIC_CONNECT_ERROR =
-  "Could not connect to the server. Check the URL and token."
+  "Could not connect to the server. Check the URL and bot token, then try again."
 
 /**
  * Copy for a failed validate/connect call. Reads the reason code out of the

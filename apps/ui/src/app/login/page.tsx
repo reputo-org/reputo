@@ -52,17 +52,11 @@ export default function LoginPage() {
     <PreAuthShell>
       <Hero
         title="Sign in to Reputo"
-        subtitle="Choose a sign-in method."
-        footer={
-          <>
-            By continuing, you agree to our <a href="/terms">Terms</a> and{" "}
-            <a href="/privacy">Privacy Policy</a>.
-          </>
-        }
+        subtitle="Use your DeepID account to continue."
       >
         <div className="flex flex-col gap-4">
           <ProviderStack />
-          <p className="rp-legal" style={{ textAlign: "center", margin: 0 }}>
+          <p className="rp-help-link">
             <a
               href={guideViewerUrl(getGuide("sign-in").slug)}
               target="_blank"
@@ -80,49 +74,17 @@ export default function LoginPage() {
 function ProviderStack() {
   return (
     <div className="flex flex-col gap-2">
-      {SIGN_IN_PROVIDERS.map((provider) => {
-        if (provider.status === "live") {
-          return (
-            <a
-              key={provider.id}
-              className="rp-btn rp-btn-primary"
-              href={provider.loginPath}
-              aria-label={provider.ariaLabel}
-            >
-              <span className="rp-btn-pre">Sign in with</span>
-              <ProviderLogo
-                provider={provider.id}
-                height={provider.logoHeight}
-              />
-            </a>
-          )
-        }
-        return (
-          <button
-            key={provider.id}
-            type="button"
-            className="rp-btn rp-btn-disabled"
-            disabled
-            aria-disabled="true"
-            aria-label={provider.ariaLabel}
-          >
-            <span className="rp-btn-pre">Sign in with</span>
-            <span style={{ fontWeight: 600 }}>{provider.label}</span>
-            <span
-              className="rp-mono"
-              style={{
-                marginLeft: "auto",
-                fontSize: 10,
-                letterSpacing: "0.16em",
-                textTransform: "uppercase",
-                color: "var(--rp-muted-soft)",
-              }}
-            >
-              coming soon
-            </span>
-          </button>
-        )
-      })}
+      {SIGN_IN_PROVIDERS.map((provider) => (
+        <a
+          key={provider.id}
+          className="rp-btn rp-btn-primary"
+          href={provider.loginPath}
+          aria-label={provider.ariaLabel}
+        >
+          <span className="rp-btn-pre">Sign in with</span>
+          <ProviderLogo provider={provider.id} height={provider.logoHeight} />
+        </a>
+      ))}
     </div>
   )
 }

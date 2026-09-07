@@ -17,28 +17,13 @@ const DEPENDENCY_KEY_TO_LABEL: Record<string, string> = {
   "mattermost-activity": "Mattermost",
 }
 
-/** Per-algorithm display metadata not derived from the definition itself */
-const ALGORITHM_META: Record<string, { duration: string; level: string }> = {
-  contribution_score: { duration: "3–6 min", level: "Intermediate" },
-  proposal_engagement: { duration: "2–4 min", level: "Beginner" },
-  voting_engagement: { duration: "1–3 min", level: "Beginner" },
-  token_value_over_time: { duration: "4–8 min", level: "Intermediate" },
-  discord_engagement: { duration: "5–20 min", level: "Beginner" },
-  github_engagement: { duration: "5–20 min", level: "Beginner" },
-  mattermost_engagement: { duration: "5–20 min", level: "Beginner" },
-}
-
-const DEFAULT_META = { duration: "2–5 min", level: "Intermediate" }
-
 export interface Algorithm {
   id: string
   title: string
   category: string
   summary: string
   description: string
-  duration: string
   inputSummary: string
-  level: string
   kind: AlgorithmKind
   inputs: Array<{
     key: string
@@ -59,17 +44,13 @@ function transformAlgorithm(definition: AlgorithmDefinition): Algorithm {
       ?.map((dep) => DEPENDENCY_KEY_TO_LABEL[dep.key])
       .filter((label): label is string => Boolean(label)) ?? []
 
-  const meta = ALGORITHM_META[definition.key] ?? DEFAULT_META
-
   return {
     id: definition.key,
     title: definition.name,
     category: definition.category,
     summary: definition.summary,
     description: definition.description,
-    duration: meta.duration,
     inputSummary: formatInputSummary(definition.inputs.length),
-    level: meta.level,
     kind: definition.kind ?? "standalone",
     inputs: definition.inputs.map((input) => ({
       key: input.key,

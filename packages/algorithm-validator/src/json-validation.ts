@@ -21,7 +21,7 @@ function validateChainWalletMap(params: {
   const unsupportedChains = chainKeys.filter((chain) => !params.allowedChains.includes(chain));
   if (unsupportedChains.length > 0) {
     params.errors.push(
-      `Unsupported wallet chain key(s): ${unsupportedChains.join(', ')}. Allowed chains: ${params.allowedChains.join(', ')}`,
+      `Unsupported blockchains: ${unsupportedChains.join(', ')}. Supported blockchains: ${params.allowedChains.join(', ')}.`,
     );
   }
 
@@ -31,7 +31,7 @@ function validateChainWalletMap(params: {
     const chainValue = params.chainMap[chain];
 
     if (!Array.isArray(chainValue)) {
-      params.errors.push(`"${params.pathPrefix}.${chain}" must be an array of wallet addresses`);
+      params.errors.push(`"${params.pathPrefix}.${chain}" must contain a list of wallet addresses.`);
       continue;
     }
 
@@ -42,23 +42,23 @@ function validateChainWalletMap(params: {
       const address = chainValue[index];
 
       if (typeof address !== 'string' || address.trim() === '') {
-        params.errors.push(`"${params.pathPrefix}.${chain}[${index}]" must be a non-empty string`);
+        params.errors.push(`"${params.pathPrefix}.${chain}[${index}]" must contain a wallet address.`);
         continue;
       }
 
       const normalizedAddress = chain === 'ethereum' ? address.toLowerCase() : address;
       if (seen.has(normalizedAddress)) {
-        params.errors.push(`"${params.pathPrefix}.${chain}" contains a duplicate address: ${address}`);
+        params.errors.push(`"${params.pathPrefix}.${chain}" contains the same address more than once: ${address}.`);
         continue;
       }
       seen.add(normalizedAddress);
 
       if (chain === 'ethereum' && !ETHEREUM_ADDRESS_PATTERN.test(address)) {
-        params.errors.push(`"${params.pathPrefix}.${chain}[${index}]" must be a valid Ethereum address`);
+        params.errors.push(`"${params.pathPrefix}.${chain}[${index}]" must be a valid Ethereum address.`);
       }
 
       if (chain === 'cardano' && !CARDANO_PAYMENT_ADDRESS_PATTERN.test(address)) {
-        params.errors.push(`"${params.pathPrefix}.${chain}[${index}]" must be a valid Cardano payment address`);
+        params.errors.push(`"${params.pathPrefix}.${chain}[${index}]" must be a valid Cardano payment address.`);
       }
     }
   }
@@ -84,7 +84,7 @@ async function readContent(file: File | string | Buffer): Promise<{ text: string
 
 function validateWalletAddressMap(parsed: unknown, jsonConfig: JsonIoItem['json'], errors: string[]): void {
   if (!isRecord(parsed)) {
-    errors.push('JSON root must be an object');
+    errors.push('The JSON file must contain an object at its top level.');
     return;
   }
 
@@ -92,12 +92,12 @@ function validateWalletAddressMap(parsed: unknown, jsonConfig: JsonIoItem['json'
   const topLevelKeys = Object.keys(parsed);
   const extraTopLevelKeys = topLevelKeys.filter((key) => key !== rootKey);
   if (extraTopLevelKeys.length > 0) {
-    errors.push(`JSON must only contain the top-level key "${rootKey}"`);
+    errors.push(`The JSON file must contain only the top-level key "${rootKey}".`);
   }
 
   const walletsValue = parsed[rootKey];
   if (!isRecord(walletsValue)) {
-    errors.push(`"${rootKey}" must be an object`);
+    errors.push(`"${rootKey}" must contain an object.`);
     return;
   }
 
@@ -109,7 +109,7 @@ function validateWalletAddressMap(parsed: unknown, jsonConfig: JsonIoItem['json'
   });
 
   if (walletCount === 0) {
-    errors.push('Wallet JSON must contain at least one wallet address');
+    errors.push('The wallet file must contain at least one wallet address.');
   }
 }
 
@@ -123,11 +123,11 @@ export async function validateJSONContent(
     const { text, sizeBytes } = await readContent(file);
 
     if (jsonConfig?.maxBytes !== undefined && sizeBytes > jsonConfig.maxBytes) {
-      errors.push(`JSON file size ${sizeBytes} bytes exceeds algorithm limit of ${jsonConfig.maxBytes} bytes`);
+      errors.push(`The JSON file is ${sizeBytes} bytes. The maximum is ${jsonConfig.maxBytes} bytes.`);
     }
 
     if (text.trim() === '') {
-      errors.push('JSON file is empty');
+      errors.push('The JSON file is empty.');
       return { valid: false, errors };
     }
 
@@ -135,17 +135,17 @@ export async function validateJSONContent(
     try {
       parsed = JSON.parse(text);
     } catch (error) {
-      errors.push(`Failed to parse JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      errors.push(`Could not read the JSON file: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return { valid: false, errors };
     }
 
     if (jsonConfig?.schema === 'wallet_address_map') {
       validateWalletAddressMap(parsed, jsonConfig, errors);
     } else if (!isRecord(parsed)) {
-      errors.push('JSON root must be an object');
+      errors.push('The JSON file must contain an object at its top level.');
     }
   } catch (error) {
-    errors.push(`Failed to parse JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    errors.push(`Could not read the JSON file: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 
   return {

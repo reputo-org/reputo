@@ -79,7 +79,7 @@ export function validatePayload(definition: AlgorithmDefinition, payload: unknow
       errors: [
         {
           field: '_schema',
-          message: `Validation error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          message: `Could not check the inputs: ${error instanceof Error ? error.message : 'Unknown error'}`,
         },
       ],
     };
@@ -106,9 +106,9 @@ function buildFieldSchema(input: any, label: string): z.ZodType {
         typeof globalThis !== 'undefined' && typeof (globalThis as { window?: unknown }).window !== 'undefined';
 
       if (!isBrowser) {
-        schema = z.string().min(1, `${label} is required`);
+        schema = z.string().min(1, `${label} is required.`);
       } else {
-        schema = z.union([buildCSVSchema(input.csv, label), z.string().min(1, `${label} is required`)]);
+        schema = z.union([buildCSVSchema(input.csv, label), z.string().min(1, `${label} is required.`)]);
       }
       break;
     }
@@ -119,9 +119,9 @@ function buildFieldSchema(input: any, label: string): z.ZodType {
         typeof globalThis !== 'undefined' && typeof (globalThis as { window?: unknown }).window !== 'undefined';
 
       if (!isBrowser) {
-        schema = z.string().min(1, `${label} is required`);
+        schema = z.string().min(1, `${label} is required.`);
       } else {
-        schema = z.union([buildJSONSchema(jsonInput.json, label), z.string().min(1, `${label} is required`)]);
+        schema = z.union([buildJSONSchema(jsonInput.json, label), z.string().min(1, `${label} is required.`)]);
       }
       break;
     }
@@ -130,17 +130,17 @@ function buildFieldSchema(input: any, label: string): z.ZodType {
     case 'integer':
     case 'slider': {
       let numSchema = z.number({
-        error: `${label} must be a valid number`,
+        error: `${label} must be a valid number.`,
       });
 
       if (input.min !== undefined) {
-        numSchema = numSchema.min(input.min, `${label} must be at least ${input.min}`);
+        numSchema = numSchema.min(input.min, `${label} must be at least ${input.min}.`);
       }
       if (input.max !== undefined) {
-        numSchema = numSchema.max(input.max, `${label} must be at most ${input.max}`);
+        numSchema = numSchema.max(input.max, `${label} must be at most ${input.max}.`);
       }
       if (input.type === 'integer') {
-        numSchema = numSchema.int(`${label} must be a whole number`);
+        numSchema = numSchema.int(`${label} must be a whole number.`);
       }
 
       const preprocessedSchema = z.preprocess(
@@ -176,7 +176,7 @@ function buildFieldSchema(input: any, label: string): z.ZodType {
             return val;
           }, numSchema)
           .refine((val) => val !== undefined, {
-            message: `${label} is required`,
+            message: `${label} is required.`,
           });
       } else {
         schema = preprocessedSchema;
@@ -195,19 +195,19 @@ function buildFieldSchema(input: any, label: string): z.ZodType {
       let strSchema = z.string().trim();
 
       if (input.required !== false) {
-        strSchema = strSchema.min(1, `${label} is required`);
+        strSchema = strSchema.min(1, `${label} is required.`);
       }
 
       if (typeof input.minLength === 'number') {
-        strSchema = strSchema.min(input.minLength, `${label} must be at least ${input.minLength} characters`);
+        strSchema = strSchema.min(input.minLength, `${label} must be at least ${input.minLength} characters.`);
       }
       if (typeof input.maxLength === 'number') {
-        strSchema = strSchema.max(input.maxLength, `${label} must be at most ${input.maxLength} characters`);
+        strSchema = strSchema.max(input.maxLength, `${label} must be at most ${input.maxLength} characters.`);
       }
 
       if (input.enum && input.enum.length > 0) {
         const allowedValues = input.enum as [string, ...string[]];
-        schema = z.enum(allowedValues, { error: `${label} must be one of: ${allowedValues.join(', ')}` });
+        schema = z.enum(allowedValues, { error: `${label} must be one of: ${allowedValues.join(', ')}.` });
       } else {
         schema = input.required === false ? strSchema.optional() : strSchema;
       }
@@ -218,13 +218,16 @@ function buildFieldSchema(input: any, label: string): z.ZodType {
       const arrayInput = input as ArrayIoItem;
 
       if (getArrayItemType(arrayInput, input) === 'string') {
-        let strArrSchema = z.array(z.string().trim().min(1, `${label} entries must not be empty`));
+        let strArrSchema = z.array(z.string().trim().min(1, `${label} entries cannot be empty.`));
         if (arrayInput.minItems ?? input.minItems) {
           const minItems = arrayInput.minItems ?? input.minItems;
-          strArrSchema = strArrSchema.min(minItems, `${label} must have at least ${minItems} item(s)`);
+          strArrSchema = strArrSchema.min(
+            minItems,
+            `${label} must have at least ${minItems} ${minItems === 1 ? 'item' : 'items'}.`,
+          );
         }
         const uniqueSchema = strArrSchema.refine((items) => new Set(items).size === items.length, {
-          message: `${label} must not contain duplicate entries`,
+          message: `Remove duplicate entries from ${label}.`,
         });
         schema = arrayInput.required === false ? uniqueSchema.optional() : uniqueSchema;
         break;
@@ -253,13 +256,13 @@ function buildFieldSchema(input: any, label: string): z.ZodType {
       if (subAlgorithmInput.minItems !== undefined) {
         arrSchema = arrSchema.min(
           subAlgorithmInput.minItems,
-          `${label} must have at least ${subAlgorithmInput.minItems} item(s)`,
+          `${label} must have at least ${subAlgorithmInput.minItems} ${subAlgorithmInput.minItems === 1 ? 'item' : 'items'}.`,
         );
       }
       if (subAlgorithmInput.maxItems !== undefined) {
         arrSchema = arrSchema.max(
           subAlgorithmInput.maxItems,
-          `${label} must have at most ${subAlgorithmInput.maxItems} item(s)`,
+          `${label} must have at most ${subAlgorithmInput.maxItems} ${subAlgorithmInput.maxItems === 1 ? 'item' : 'items'}.`,
         );
       }
       // Each sub-algorithm reports under its own algorithm key, so one key may appear only once.
@@ -275,13 +278,13 @@ function buildFieldSchema(input: any, label: string): z.ZodType {
           }
           return true;
         },
-        { message: `${label} must not contain the same sub-algorithm more than once` },
+        { message: `Add each algorithm to ${label} only once.` },
       );
       // Entry weights are finite and positive, but their sum can still overflow to Infinity.
       const weightRuleSchema = uniqueSchema.refine(
         (entries) =>
           Number.isFinite(entries.reduce((total: number, entry) => total + getSubAlgorithmEntryWeight(entry), 0)),
-        { message: `${label} total weight must be finite` },
+        { message: `The total weight for ${label} is too large.` },
       );
       schema = subAlgorithmInput.required === false ? weightRuleSchema.optional() : weightRuleSchema;
       break;
@@ -296,8 +299,8 @@ function buildFieldSchema(input: any, label: string): z.ZodType {
 
 function buildSubAlgorithmEntrySchema(label: string): z.ZodType {
   return z.object({
-    algorithm_key: z.string().trim().min(1, `${label} algorithm key is required`),
-    algorithm_version: z.string().trim().min(1, `${label} algorithm version is required`),
+    algorithm_key: z.string().trim().min(1, `Select an algorithm for ${label}.`),
+    algorithm_version: z.string().trim().min(1, `Select an algorithm version for ${label}.`),
     weight: z.preprocess(
       (value) => {
         if (value === '' || value === null || value === undefined) {
@@ -312,13 +315,15 @@ function buildSubAlgorithmEntrySchema(label: string): z.ZodType {
         }
         return value;
       },
-      z.number({ error: `${label} weight must be a valid number` }).gt(0, `${label} weight must be greater than 0`),
+      z
+        .number({ error: `The weight for ${label} must be a valid number.` })
+        .gt(0, `The weight for ${label} must be greater than 0.`),
     ),
     inputs: z.array(
       z.object({
-        key: z.string().min(1, 'Input key is required'),
+        key: z.string().min(1, 'Input key is required.'),
         value: z.unknown().refine((value) => value !== undefined && value !== null, {
-          message: 'Input value is required',
+          message: 'Input value is required.',
         }),
       }),
     ),
@@ -337,7 +342,7 @@ function buildObjectPropertySchema(prop: ObjectPropertyParam): z.ZodType {
 
   if ('enum' in prop && prop.enum && prop.enum.length > 0) {
     const allowed = prop.enum as [string, ...string[]];
-    const enumSchema = z.enum(allowed, { error: `${propLabel} must be one of: ${allowed.join(', ')}` });
+    const enumSchema = z.enum(allowed, { error: `${propLabel} must be one of: ${allowed.join(', ')}.` });
     return prop.required === false ? enumSchema.optional() : enumSchema;
   }
 
@@ -345,24 +350,24 @@ function buildObjectPropertySchema(prop: ObjectPropertyParam): z.ZodType {
     case 'string': {
       let s = z.string().trim();
       if (prop.required !== false) {
-        s = s.min(1, `${propLabel} is required`);
+        s = s.min(1, `${propLabel} is required.`);
       }
       return prop.required === false ? s.optional() : s;
     }
     case 'number':
     case 'integer': {
-      let n = z.number({ error: `${propLabel} must be a valid number` });
+      let n = z.number({ error: `${propLabel} must be a valid number.` });
       if (prop.type === 'integer') {
-        n = n.int(`${propLabel} must be a whole number`);
+        n = n.int(`${propLabel} must be a whole number.`);
       }
       if (typeof prop.min === 'number') {
         n =
           prop.exclusiveMin === true
-            ? n.gt(prop.min, `${propLabel} must be greater than ${prop.min}`)
-            : n.min(prop.min, `${propLabel} must be at least ${prop.min}`);
+            ? n.gt(prop.min, `${propLabel} must be greater than ${prop.min}.`)
+            : n.min(prop.min, `${propLabel} must be at least ${prop.min}.`);
       }
       if (typeof prop.max === 'number') {
-        n = n.max(prop.max, `${propLabel} must be at most ${prop.max}`);
+        n = n.max(prop.max, `${propLabel} must be at most ${prop.max}.`);
       }
       const preprocessed = z.preprocess(
         (value) => {
@@ -384,7 +389,7 @@ function buildObjectPropertySchema(prop: ObjectPropertyParam): z.ZodType {
       return prop.required === false
         ? preprocessed
         : preprocessed.refine((value) => value !== undefined, {
-            message: `${propLabel} is required`,
+            message: `${propLabel} is required.`,
           });
     }
     case 'array': {
@@ -440,7 +445,10 @@ function applyArrayConstraints(params: {
   let schema = params.schema;
 
   if (params.minItems !== undefined) {
-    schema = schema.min(params.minItems, `${params.label} must have at least ${params.minItems} item(s)`);
+    schema = schema.min(
+      params.minItems,
+      `${params.label} must have at least ${params.minItems} ${params.minItems === 1 ? 'item' : 'items'}.`,
+    );
   }
 
   const hasUniquenessKeys =
@@ -461,7 +469,7 @@ function applyArrayConstraints(params: {
       }
       return true;
     },
-    { message: `${params.label} must not contain duplicate ${params.uniqueBy.join(' + ')} combinations` },
+    { message: `Remove duplicate entries from ${params.label}.` },
   );
 }
 
@@ -517,7 +525,7 @@ function validateResourceSelectorFieldConstraints(params: {
     if (!chain) {
       errors.push({
         field: `${params.fieldPath}.${index}.chain`,
-        message: 'Chain must match the resource selector catalog',
+        message: 'Select a blockchain from the available list.',
         code: 'invalid_value',
       });
       continue;
@@ -527,7 +535,7 @@ function validateResourceSelectorFieldConstraints(params: {
     if (!resource) {
       errors.push({
         field: `${params.fieldPath}.${index}.resource_key`,
-        message: 'Resource must match the selected chain',
+        message: 'Select a resource that is available for this blockchain.',
         code: 'invalid_value',
       });
     }
@@ -623,7 +631,7 @@ function validateFieldOptionConstraints(params: {
 
   errors.push({
     field: params.fieldPath,
-    message: `${String(params.field.label ?? params.field.key)} must match the current selection context`,
+    message: `${String(params.field.label ?? params.field.key)} does not match the current selection. Select it again.`,
     code: 'invalid_value',
   });
 
@@ -755,7 +763,7 @@ function buildCSVSchema(csvConfig: CsvIoItem['csv'], label: string): z.ZodType {
     label,
     maxBytes: csvConfig.maxBytes,
     isValidFileType: (file) => file.type === 'text/csv' || file.type === 'text/plain' || file.name.endsWith('.csv'),
-    invalidTypeMessage: `${label} must be a CSV file`,
+    invalidTypeMessage: `${label} must be a CSV file.`,
   });
 }
 
@@ -764,7 +772,7 @@ function buildJSONSchema(jsonConfig: JsonIoItem['json'], label: string): z.ZodTy
     label,
     maxBytes: jsonConfig?.maxBytes,
     isValidFileType: (file) => file.type === 'application/json' || file.name.endsWith('.json'),
-    invalidTypeMessage: `${label} must be a JSON file`,
+    invalidTypeMessage: `${label} must be a JSON file.`,
   });
 }
 
@@ -775,12 +783,12 @@ function buildUploadedFileSchema(input: {
   invalidTypeMessage: string;
 }): z.ZodType {
   return z
-    .instanceof(File, { message: `${input.label} must be a file` })
+    .instanceof(File, { message: `${input.label} must be a file.` })
     .refine((file) => input.isValidFileType(file), {
       message: input.invalidTypeMessage,
     })
     .refine((file) => input.maxBytes === undefined || file.size <= input.maxBytes, {
-      message: `${input.label} must be smaller than ${input.maxBytes !== undefined ? input.maxBytes / 1024 / 1024 : 0}MB`,
+      message: `${input.label} must be no larger than ${input.maxBytes !== undefined ? input.maxBytes / 1024 / 1024 : 0} MB.`,
     });
 }
 

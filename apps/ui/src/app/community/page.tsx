@@ -14,8 +14,9 @@ export default function CommunityPage() {
       <header className="flex flex-col gap-1">
         <h1 className="font-semibold text-2xl tracking-tight">Communities</h1>
         <p className="text-muted-foreground text-sm">
-          Connect the platforms Reputo scores. Reputo reads ids, timestamps, and
-          counts only — never message content.
+          Connect community platforms to use their activity in reputation
+          scores. Reputo reads IDs, dates, and counts. It never reads message
+          content.
         </p>
       </header>
 

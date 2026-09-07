@@ -44,7 +44,7 @@ import type {
   MattermostValidationDto,
 } from './dto';
 
-const COMMUNITY_CONNECTION_ENTITY = 'CommunityConnection';
+const COMMUNITY_CONNECTION_ENTITY = 'community connection';
 
 /** GitHub sends this when an organization owner still has to approve the install. */
 const GITHUB_SETUP_ACTION_REQUEST = 'request';

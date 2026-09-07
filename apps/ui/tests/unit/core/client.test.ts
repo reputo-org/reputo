@@ -55,7 +55,7 @@ describe("ReputoClientClass", () => {
         {
           field: "_schema",
           message:
-            'Algorithm definition "missing" not found. Please register it first.',
+            'Could not find algorithm "missing". Refresh the page and try again.',
         },
       ],
     })
@@ -97,7 +97,7 @@ describe("ReputoClientClass", () => {
       errors: [
         {
           field: "_request",
-          message: "Failed to parse request: bad json",
+          message: "Could not read the request: bad json",
         },
       ],
     })

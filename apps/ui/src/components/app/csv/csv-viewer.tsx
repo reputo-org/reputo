@@ -180,7 +180,6 @@ export function CSVViewer({
   const [query, setQuery] = useState("")
   const [sortCol, setSortCol] = useState<number | null>(null)
   const [sortDir, setSortDir] = useState<SortDirection>(null)
-  const [lastRefreshedAt, setLastRefreshedAt] = useState<number>(0)
   const [page, setPage] = useState(1)
   const pageSize = Math.max(10, pageSizeProp)
 
@@ -218,7 +217,6 @@ export function CSVViewer({
         ...finalParsed,
         truncated: finalParsed.truncated || bytesTruncated,
       })
-      setLastRefreshedAt(Date.now())
       setPage(1)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error")
@@ -308,25 +306,16 @@ export function CSVViewer({
     >
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <Input
-          placeholder="Search…"
+          placeholder="Search rows…"
+          aria-label="Search CSV rows"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="w-60"
         />
         <div className="text-xs text-muted-foreground">
           {sortedRows.length} of {csv.rows.length} rows
-          {lastRefreshedAt
-            ? ` • Updated ${new Date(lastRefreshedAt).toLocaleTimeString(
-                "en-US",
-                {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                }
-              )}`
-            : ""}
           {csv.truncated
-            ? ` • Preview limited to ${maxPreviewRows} rows or ${Math.round(
+            ? ` · Preview limited to ${maxPreviewRows} rows or ${Math.round(
                 maxPreviewBytes / 1_000_000
               )} MB`
             : ""}
@@ -374,6 +363,7 @@ export function CSVViewer({
           size="sm"
           onClick={() => void load()}
           disabled={loading}
+          aria-label="Refresh CSV preview"
         >
           {loading ? <Spinner /> : <RefreshCw className="h-4 w-4" />}
         </Button>
@@ -381,7 +371,7 @@ export function CSVViewer({
 
       {error && (
         <div className="text-sm text-red-600 dark:text-red-400 mb-2">
-          Could not load the CSV: {error}
+          Could not load the CSV file: {error}
         </div>
       )}
 
@@ -434,7 +424,7 @@ export function CSVViewer({
                   <TableCell colSpan={csv.headers.length}>
                     <div className="flex items-center gap-2 py-10 justify-center text-muted-foreground">
                       <Spinner />
-                      <span>Loading CSV…</span>
+                      <span>Loading CSV file…</span>
                     </div>
                   </TableCell>
                 </TableRow>

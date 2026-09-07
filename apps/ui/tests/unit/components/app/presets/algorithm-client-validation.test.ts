@@ -48,7 +48,7 @@ describe("algorithm client validation", () => {
       expect.arrayContaining([
         expect.objectContaining({
           field: "selected_targets",
-          message: expect.stringContaining("Recreate the preset"),
+          message: expect.stringContaining("Create the preset again"),
         }),
         expect.objectContaining({
           field: "selected_resources",

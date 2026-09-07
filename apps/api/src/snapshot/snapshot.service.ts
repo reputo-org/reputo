@@ -18,8 +18,8 @@ import type {
 } from './snapshot.repository';
 import { SnapshotRepository } from './snapshot.repository';
 
-const ALGORITHM_PRESET_ENTITY = 'AlgorithmPreset';
-const SNAPSHOT_ENTITY = 'Snapshot';
+const ALGORITHM_PRESET_ENTITY = 'algorithm preset';
+const SNAPSHOT_ENTITY = 'snapshot';
 
 @Injectable()
 export class SnapshotService {

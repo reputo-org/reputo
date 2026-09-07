@@ -69,7 +69,7 @@ describe("PresetDetailsDialog", () => {
   it("renders each child algorithm with its name, weight and share", () => {
     renderDialog(customScorePreset)
 
-    expect(screen.getByText("Child algorithms")).toBeInTheDocument()
+    expect(screen.getByText("Algorithms")).toBeInTheDocument()
     expect(screen.getByText("Token Value Over Time")).toBeInTheDocument()
     expect(screen.getByText("Voting Engagement")).toBeInTheDocument()
     expect(screen.getByText("75%")).toBeInTheDocument()
@@ -80,9 +80,9 @@ describe("PresetDetailsDialog", () => {
     const { container } = renderDialog(customScorePreset)
 
     expect(container.textContent).not.toContain("[object Object]")
-    expect(screen.getByText("Maturation period (days)")).toBeInTheDocument()
+    expect(screen.getByText("Days to reach full value")).toBeInTheDocument()
     expect(screen.getByText("90")).toBeInTheDocument()
-    expect(screen.getByText("Token resources")).toBeInTheDocument()
+    expect(screen.getByText("Tokens and staking contracts")).toBeInTheDocument()
 
     const files = screen.getAllByTestId("file-display")
     expect(files.map((node) => node.textContent)).toEqual([
@@ -94,7 +94,9 @@ describe("PresetDetailsDialog", () => {
   it("resolves a child resource selection against the child's catalog", () => {
     renderDialog(customScorePreset)
 
-    const resources = screen.getByText("Token resources").parentElement
+    const resources = screen.getByText(
+      "Tokens and staking contracts"
+    ).parentElement
     expect(resources).not.toBeNull()
     expect(within(resources as HTMLElement).getByText("Ethereum")).toBeVisible()
     expect(within(resources as HTMLElement).getByText("FET")).toBeVisible()

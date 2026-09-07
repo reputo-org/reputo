@@ -65,7 +65,7 @@ class ReputoClientClass {
         errors: [
           {
             field: "_schema",
-            message: `Algorithm definition "${schemaKey}" not found. Please register it first.`,
+            message: `Could not find algorithm "${schemaKey}". Refresh the page and try again.`,
           },
         ],
       }
@@ -106,7 +106,7 @@ class ReputoClientClass {
         errors: [
           {
             field: "_request",
-            message: `Failed to parse request: ${
+            message: `Could not read the request: ${
               error instanceof Error ? error.message : "Unknown error"
             }`,
           },

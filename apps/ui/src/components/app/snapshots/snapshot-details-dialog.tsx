@@ -58,7 +58,7 @@ function summarizeCounts(counts: SnapshotPublicationDto["counts"]): string {
   if (counts.dropped > 0) parts.push(`${counts.dropped} without consent`)
   if (counts.failed > 0) parts.push(`${counts.failed} rejected`)
   if (counts.skipped > 0) parts.push(`${counts.skipped} skipped`)
-  return `${counts.posted} posted · ${parts.join(" · ")}`
+  return `${counts.posted} sent to DeepID · ${parts.join(" · ")}`
 }
 
 export function SnapshotDetailsDialog({
@@ -120,17 +120,13 @@ export function SnapshotDetailsDialog({
       <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader className="shrink-0">
           <DialogTitle>Snapshot details</DialogTitle>
-          <DialogDescription>View run details and results.</DialogDescription>
+          <DialogDescription>
+            Review the settings and results for this snapshot.
+          </DialogDescription>
         </DialogHeader>
         {snapshot && (
           <div className="space-y-6 overflow-y-auto flex-1 min-h-0 pr-1">
             <div className="grid gap-4">
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground">
-                  Snapshot ID
-                </h3>
-                <p className="text-sm font-mono">{snapshot._id}</p>
-              </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">
                   Status
@@ -184,48 +180,16 @@ export function SnapshotDetailsDialog({
                   />
                 </div>
                 <p className="text-muted-foreground mt-2 text-xs">
-                  Frozen when the run started. Later edits to the preset do not
-                  change them.
+                  These inputs were saved when the snapshot started. Later
+                  changes to the preset do not affect this snapshot.
                 </p>
-              </div>
-            )}
-
-            {snapshot.temporal && (
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-3">
-                  Temporal workflow
-                </h3>
-                <div className="space-y-2">
-                  <div className="p-3 border rounded-lg">
-                    <div className="font-medium">Workflow ID</div>
-                    <div className="text-sm text-muted-foreground font-mono">
-                      {snapshot.temporal.workflowId}
-                    </div>
-                  </div>
-                  {snapshot.temporal.runId && (
-                    <div className="p-3 border rounded-lg">
-                      <div className="font-medium">Run ID</div>
-                      <div className="text-sm text-muted-foreground font-mono">
-                        {snapshot.temporal.runId}
-                      </div>
-                    </div>
-                  )}
-                  {snapshot.temporal.taskQueue && (
-                    <div className="p-3 border rounded-lg">
-                      <div className="font-medium">Task queue</div>
-                      <div className="text-sm text-muted-foreground">
-                        {snapshot.temporal.taskQueue}
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
             )}
 
             {snapshot.outputs && Object.keys(snapshot.outputs).length > 0 && (
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-3">
-                  Outputs
+                  Results
                 </h3>
                 <div className="space-y-2 pb-4">
                   {Object.entries(snapshot.outputs).map(([key, value]) => {

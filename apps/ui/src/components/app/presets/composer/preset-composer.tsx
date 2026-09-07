@@ -166,7 +166,7 @@ function PresetComposerInner({
           data: updateData,
         })
         didSubmitRef.current = true
-        toast.success("Preset updated")
+        toast.success("Preset updated.")
         router.push(`${presetsUrl}&updated=${basePreset._id}`)
       } else {
         const createData: CreateAlgorithmPresetDto = {
@@ -179,7 +179,7 @@ function PresetComposerInner({
 
         const created = await createMutation.mutateAsync(createData)
         didSubmitRef.current = true
-        toast.success("Preset created")
+        toast.success("Preset created.")
         router.push(`${presetsUrl}&created=${created._id}`)
       }
     } catch (error) {

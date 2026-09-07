@@ -92,7 +92,7 @@ describe('POST /api/v1/algorithm-presets (discord_engagement)', () => {
       .send(withInput('resources', ['c1', 'c3']))
       .expect(400);
 
-    expect(JSON.stringify(res.body)).toContain('#staff (the bot lacks View Channel)');
+    expect(JSON.stringify(res.body)).toContain('#staff (the bot does not have View Channel access)');
   });
 
   it('rejects a lookback beyond 183 days (400)', async () => {
@@ -125,7 +125,7 @@ describe('POST /api/v1/algorithm-presets (discord_engagement)', () => {
 
     const res = await api(app, authCookie).post('/algorithm-presets').send(makeDto()).expect(400);
 
-    expect(JSON.stringify(res.body)).toContain('broken');
+    expect(JSON.stringify(res.body)).toContain('is not ready to use');
   });
 
   it('rejects a missing connection (400) without calling the platform', async () => {
@@ -134,7 +134,7 @@ describe('POST /api/v1/algorithm-presets (discord_engagement)', () => {
       .send(withInput('community_connection_id', '01990000-0000-7000-8000-00000000dead'))
       .expect(400);
 
-    expect(JSON.stringify(res.body)).toContain('not found');
+    expect(JSON.stringify(res.body)).toContain('is no longer available');
     expect(listResources).not.toHaveBeenCalled();
   });
 

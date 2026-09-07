@@ -72,7 +72,7 @@ export function PresetComposerCreate({ algo }: PresetComposerCreateProps) {
             <Loader2 className="size-6 animate-spin" />
           </EmptyMedia>
           <EmptyTitle>Loading preset</EmptyTitle>
-          <EmptyDescription>Getting the preset to copy…</EmptyDescription>
+          <EmptyDescription>Loading the preset to copy…</EmptyDescription>
         </EmptyHeader>
       </Empty>
     )

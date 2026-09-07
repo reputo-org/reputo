@@ -3,8 +3,8 @@
     "name": "Proposal Engagement",
     "kind": "standalone",
     "category": "Engagement",
-    "summary": "Scores Deep Funding Portal users based on proposal outcomes and community ratings.",
-    "description": "### What it does\nScores proposal owners based on proposal outcomes and community ratings.\n\n### How it works\n- Each user is identified by their DID.\n- Funded and completed proposals add points.\n- Unfunded proposals remove points.\n- Higher ratings increase rewards and reduce penalties.\n- Older proposals can lose value over time.\n\n### Limits\nOnly rounds 31, 36, and 107 are included because they have reliable ownership data.\n\n### Data source\nUses proposal, user, and review data from the Deep Funding Portal.\n\n### Outputs\n- CSV file with `did` and `proposal_engagement`.\n- JSON file with score details for each user and proposal.",
+    "summary": "Scores proposal owners by proposal results and community ratings in the Deep Funding Portal.",
+    "description": "### What it does\nScores proposal owners by proposal results and community ratings in the Deep Funding Portal.\n\n### How it works\n- Reputo identifies each user by their decentralized identifier (DID).\n- Funded and completed proposals add points.\n- Unfunded proposals remove points.\n- Higher ratings increase rewards and reduce penalties.\n- Older proposals can lose value over time.\n\n### Limits\nOnly rounds 31, 36, and 107 are included because they have reliable ownership data.\n\n### Data used\nProposal, user, and review data from the Deep Funding Portal.\n\n### Results\n- A CSV file with `did` and `proposal_engagement`.\n- A JSON file with score details for each user and proposal.",
     "version": "1.0.0",
     "inputs": [
         {
@@ -33,8 +33,8 @@
         },
         {
             "key": "engagement_window_months",
-            "label": "Lookback period (months)",
-            "description": "Only proposals from this number of past months are included. A short period may exclude all supported rounds and give every user a score of `0`.",
+            "label": "Time period (months)",
+            "description": "Number of previous months of proposals to include. A short period may exclude all supported rounds and give every user a score of `0`.",
             "type": "integer",
             "min": 1,
             "max": 72,
@@ -44,8 +44,8 @@
         },
         {
             "key": "monthly_decay_rate_percent",
-            "label": "Monthly decay (%)",
-            "description": "Percentage removed from a proposal's score for each month of age. Use `0` to turn off decay.",
+            "label": "Monthly score reduction (%)",
+            "description": "Percentage removed from a proposal's score for each month of age. Use `0` to keep older scores unchanged.",
             "type": "integer",
             "min": 0,
             "max": 100,
@@ -68,12 +68,12 @@
                     {
                         "key": "did",
                         "type": "string",
-                        "description": "User DID (`did:plc` or `did:sub`)."
+                        "description": "DeepID user identifier (DID; `did:plc` or `did:sub`)."
                     },
                     {
                         "key": "proposal_engagement",
                         "type": "number",
-                        "description": "Raw user score. It is not normalized and can be negative when penalties are higher than rewards."
+                        "description": "Final user score. It is not adjusted to a fixed range and can be negative when penalties are higher than rewards."
                     }
                 ]
             }

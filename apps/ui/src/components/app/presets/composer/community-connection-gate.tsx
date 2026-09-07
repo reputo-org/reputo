@@ -17,15 +17,12 @@ import { getRequiredCommunityPlatform } from "@/core/community-requirements"
 import { useCommunityConnections } from "@/lib/api/hooks"
 import type { CommunityConnectionDto } from "@/lib/api/types"
 import { useCommunityLiveUpdates } from "@/lib/api/use-community-events"
-import { COMMUNITY_PLATFORMS, describeStatus } from "@/lib/community/platforms"
+import { describeStatus, platformLabel } from "@/lib/community/platforms"
 
 interface CommunityConnectionGateProps {
   algo: Algorithm
   children: React.ReactNode
 }
-
-const platformLabel = (id: string) =>
-  COMMUNITY_PLATFORMS.find((entry) => entry.id === id)?.label ?? id
 
 /**
  * Blocks the create composer of a community algorithm until an active
@@ -58,7 +55,7 @@ export function CommunityConnectionGate({
           </EmptyMedia>
           <EmptyTitle>Checking connections</EmptyTitle>
           <EmptyDescription>
-            Looking for a connected {platformLabel(platform)} community…
+            Looking for a working {platformLabel(platform)} connection…
           </EmptyDescription>
         </EmptyHeader>
       </Empty>
@@ -88,15 +85,15 @@ export function CommunityConnectionGate({
             <EmptyDescription>
               {unhealthy.statusReason ??
                 describeStatus(unhealthy.status).description}{" "}
-              This preset needs an active {label} connection.
+              This preset needs a working {label} connection.
             </EmptyDescription>
           </>
         ) : (
           <>
             <EmptyTitle>Connect a {label} community first</EmptyTitle>
             <EmptyDescription>
-              {algo.title} scores a connected {label} community. Connect one on
-              the Communities page, then come back here.
+              {algo.title} uses activity from a connected {label} community.
+              Connect one on the Communities page, then return here.
             </EmptyDescription>
           </>
         )}

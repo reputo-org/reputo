@@ -21,9 +21,7 @@ const ALL_STATUSES: CommunityConnectionStatus[] = [
 
 describe("COMMUNITY_PLATFORMS", () => {
   it("offers every platform with a shipped connect flow", () => {
-    const available = COMMUNITY_PLATFORMS.filter((entry) => entry.available)
-
-    expect(available.map((entry) => entry.id)).toEqual([
+    expect(COMMUNITY_PLATFORMS.map((entry) => entry.id)).toEqual([
       "discord",
       "github",
       "mattermost",
@@ -154,9 +152,9 @@ describe("describeAccessIssue", () => {
     )
   })
 
-  it("states the readability rule of every platform", () => {
+  it("states the access rule of every platform", () => {
     for (const platform of ["discord", "github", "mattermost"] as const) {
-      expect(RESOURCE_ACCESS_RULE[platform]).toMatch(/readable when/)
+      expect(RESOURCE_ACCESS_RULE[platform]).toMatch(/available when/)
     }
   })
 })

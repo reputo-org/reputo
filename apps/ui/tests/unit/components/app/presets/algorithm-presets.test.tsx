@@ -44,9 +44,7 @@ const algo: Algorithm = {
   category: "Engagement",
   summary: "Scores reputation.",
   description: "Scores reputation.",
-  duration: "~2-5 min",
   inputSummary: "1 configurable input",
-  level: "Beginner",
   kind: "standalone",
   inputs: [],
   dependencyLabels: [],
@@ -166,13 +164,15 @@ describe("AlgorithmPresets", () => {
     const user = userEvent.setup()
     render(<AlgorithmPresets algo={algo} />)
 
-    await user.click(screen.getByRole("button", { name: /^run$/i }))
+    await user.click(screen.getByRole("button", { name: /^run preset$/i }))
     expect(createSnapshotMutateAsync).not.toHaveBeenCalled()
 
     const dialog = await screen.findByRole("dialog")
     expect(dialog).toHaveTextContent(/My Preset/)
 
-    await user.click(within(dialog).getByRole("button", { name: /^run$/i }))
+    await user.click(
+      within(dialog).getByRole("button", { name: /^start snapshot$/i })
+    )
 
     await waitFor(() =>
       expect(createSnapshotMutateAsync).toHaveBeenCalledWith({

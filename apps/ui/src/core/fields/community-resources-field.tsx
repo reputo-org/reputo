@@ -263,7 +263,7 @@ export function CommunityResourcesField({
                       ])
                     }
                   >
-                    Select all readable
+                    Select all with access
                   </Button>
                   <Button
                     type="button"
@@ -317,7 +317,7 @@ export function CommunityResourcesField({
                   ) : listEmpty ? (
                     <p className="text-muted-foreground px-4 py-6 text-center text-sm">
                       {model.counts.total === 0
-                        ? `This connection lists no ${noun}.`
+                        ? `No ${noun} are available for this connection.`
                         : `No ${noun} match "${search.trim()}".`}
                     </p>
                   ) : (
@@ -368,7 +368,7 @@ export function CommunityResourcesField({
                           />
                         }
                       >
-                        No longer listed · {model.unavailable.length}
+                        No longer available · {model.unavailable.length}
                       </SectionHeading>
                       <div className="space-y-0.5">
                         {model.unavailable.map((id) => (
@@ -400,7 +400,7 @@ export function CommunityResourcesField({
                   <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t px-2.5 py-2 text-xs">
                     <span className="tabular-nums">
                       {model.counts.readable} of {model.counts.total} {noun}{" "}
-                      readable
+                      available
                     </span>
                     {connection && (
                       <span className="min-w-0">
@@ -421,9 +421,9 @@ export function CommunityResourcesField({
                     {model.selectedUnreadable
                       .map((row) => row.label)
                       .join(", ")}
-                    . Fix its access on the platform, or remove{" "}
-                    {model.selectedUnreadable.length === 1 ? "it" : "them"} —
-                    the preset cannot be saved until then.
+                    . Give the bot access on the platform, or remove{" "}
+                    {model.selectedUnreadable.length === 1 ? "it" : "them"}. You
+                    cannot save the preset until this is fixed.
                   </p>
                   <Button
                     type="button"
@@ -440,7 +440,7 @@ export function CommunityResourcesField({
                       )
                     }
                   >
-                    Remove unreadable
+                    Remove unavailable
                   </Button>
                 </AlertDescription>
               </Alert>

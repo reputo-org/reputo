@@ -41,7 +41,7 @@ describe('validateJSONContent — wallet_address_map', () => {
     });
 
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('Unsupported wallet chain'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('Unsupported blockchains'))).toBe(true);
   });
 
   it('rejects malformed wallet entries', async () => {
@@ -70,12 +70,12 @@ describe('validateJSONContent — wallet_address_map', () => {
       walletAddressMapConfig,
     );
 
-    expect(result.errors.some((e) => e.includes('duplicate address'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('same address more than once'))).toBe(true);
   });
 
   it('rejects empty wallet maps', async () => {
     const result = await validateJSONContent(JSON.stringify({ wallets: {} }), walletAddressMapConfig);
-    expect(result.errors).toContain('Wallet JSON must contain at least one wallet address');
+    expect(result.errors).toContain('The wallet file must contain at least one wallet address.');
   });
 
   it('rejects non-array chain values', async () => {
@@ -83,7 +83,7 @@ describe('validateJSONContent — wallet_address_map', () => {
       JSON.stringify({ wallets: { ethereum: 'not-an-array' } }),
       walletAddressMapConfig,
     );
-    expect(result.errors.some((e) => e.includes('must be an array'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('must contain a list'))).toBe(true);
   });
 
   it('uses a custom rootKey when provided in config', async () => {
@@ -103,18 +103,18 @@ describe('validateJSONContent — wallet_address_map', () => {
 describe('validateJSONContent — general failures', () => {
   it('rejects an empty body', async () => {
     const result = await validateJSONContent('', walletAddressMapConfig);
-    expect(result.errors).toContain('JSON file is empty');
+    expect(result.errors).toContain('The JSON file is empty.');
   });
 
   it('rejects malformed JSON', async () => {
     const result = await validateJSONContent('{not valid', walletAddressMapConfig);
-    expect(result.errors.some((e) => e.startsWith('Failed to parse JSON'))).toBe(true);
+    expect(result.errors.some((e) => e.startsWith('Could not read the JSON file'))).toBe(true);
   });
 
   it('rejects oversized payloads when maxBytes is configured', async () => {
     const body = JSON.stringify({ wallets: { ethereum: ['0x1234567890abcdef1234567890abcdef12345678'] } });
     const result = await validateJSONContent(body, { ...walletAddressMapConfig, maxBytes: 1 });
-    expect(result.errors.some((e) => e.includes('exceeds algorithm limit'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('The maximum is 1 byte'))).toBe(true);
   });
 
   it('accepts any JSON object when no schema is configured', async () => {
@@ -124,6 +124,6 @@ describe('validateJSONContent — general failures', () => {
 
   it('rejects non-object JSON when no schema is configured', async () => {
     const result = await validateJSONContent('[]');
-    expect(result.errors).toContain('JSON root must be an object');
+    expect(result.errors).toContain('The JSON file must contain an object at its top level.');
   });
 });

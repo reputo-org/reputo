@@ -20,7 +20,7 @@ export interface ChildAlgorithmOption {
 }
 
 const NORMALIZATION_METHOD_LABELS: Record<string, string> = {
-  observed_min_max: "Observed min–max",
+  observed_min_max: "Use the lowest and highest scores",
 }
 
 export interface NormalizationSummary {

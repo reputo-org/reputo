@@ -3,14 +3,14 @@
     "name": "Token Value Over Time",
     "kind": "standalone",
     "category": "Activity",
-    "summary": "Scores users by the FET value they hold over time, with higher scores for longer holding periods.",
-    "description": "### What it does\nScores each user based on the FET still held in their linked wallets.\n\n### How it works\n- Users and their wallets come from DeepID.\n- Each incoming transfer creates a separate token lot.\n- A lot gains value as it gets older and reaches full value at the end of the maturation period.\n- When tokens leave a wallet, the oldest lots are used first.\n- Wallet scores are added together for each user.\n\n### Resources\nChoose the FET tokens and staking contracts to include.\n\n### Data source\nUses indexed token transfer data for each user's wallets.\n\n### Outputs\n- CSV file with `did` and `token_value`.\n- JSON file with score details for each user, wallet, and token lot.",
+    "summary": "Scores users by how much FET they hold and how long they hold it.",
+    "description": "### What it does\nScores each user by the FET that remains in their linked wallets. Tokens held for longer receive a higher value.\n\n### How it works\n- Users and their wallets come from DeepID.\n- Each incoming transfer is tracked as a separate group of tokens.\n- A group gains value as it gets older and reaches full value after the selected holding period.\n- When tokens leave a wallet, the oldest groups are used first.\n- Reputo adds the wallet scores together for each user.\n\n### Tokens and contracts\nChoose the FET tokens and staking contracts to include.\n\n### Data used\nIndexed token transfer data from each user's linked wallets.\n\n### Results\n- A CSV file with `did` and `token_value`.\n- A JSON file with score details for each user, wallet, and token group.",
     "version": "1.0.0",
     "inputs": [
         {
             "key": "maturation_threshold_days",
-            "label": "Maturation period (days)",
-            "description": "Number of days a token lot must be held before it reaches full value.",
+            "label": "Days to reach full value",
+            "description": "Number of days a group of tokens must be held before it reaches full value.",
             "type": "integer",
             "min": 1,
             "max": 3650,
@@ -25,7 +25,7 @@
         },
         {
             "key": "selected_resources",
-            "label": "Token resources",
+            "label": "Tokens and staking contracts",
             "description": "Choose the FET tokens and staking contracts to include.",
             "type": "array",
             "minItems": 1,
@@ -186,12 +186,12 @@
                     {
                         "key": "did",
                         "type": "string",
-                        "description": "User DID (`did:plc` or `did:sub`)."
+                        "description": "DeepID user identifier (DID; `did:plc` or `did:sub`)."
                     },
                     {
                         "key": "token_value",
                         "type": "number",
-                        "description": "Raw user score. It is not normalized, so its range depends on the amount of FET held."
+                        "description": "Final user score. It is not adjusted to a fixed range, so the range depends on the amount of FET held."
                     }
                 ]
             }
@@ -199,7 +199,7 @@
         {
             "key": "token_value_over_time_details",
             "label": "Token value over time details (JSON)",
-            "description": "Score details for each user, wallet, and token lot.",
+            "description": "Score details for each user, wallet, and token group.",
             "type": "json"
         }
     ],

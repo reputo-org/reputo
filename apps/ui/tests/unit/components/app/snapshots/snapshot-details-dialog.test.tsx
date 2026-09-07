@@ -73,9 +73,9 @@ describe("SnapshotDetailsDialog", () => {
     )
 
     expect(screen.getByText("Inputs")).toBeInTheDocument()
-    expect(screen.getByText("Maturation period (days)")).toBeInTheDocument()
+    expect(screen.getByText("Days to reach full value")).toBeInTheDocument()
     expect(screen.getByText("90")).toBeInTheDocument()
-    expect(screen.getByText("Token resources")).toBeInTheDocument()
+    expect(screen.getByText("Tokens and staking contracts")).toBeInTheDocument()
     expect(screen.getByText("FET")).toBeInTheDocument()
     expect(container.textContent).not.toContain("[object Object]")
   })
@@ -126,7 +126,7 @@ describe("SnapshotDetailsDialog", () => {
     expect(screen.getByText("DeepID publication")).toBeInTheDocument()
     expect(screen.getByText("Sent")).toBeInTheDocument()
     expect(
-      screen.getByText("12 posted · 10 accepted · 2 without consent")
+      screen.getByText("12 sent to DeepID · 10 accepted · 2 without consent")
     ).toBeInTheDocument()
   })
 

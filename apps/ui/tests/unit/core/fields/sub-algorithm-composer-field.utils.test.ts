@@ -199,12 +199,12 @@ describe("sub-algorithm composer helpers", () => {
 
   it("defaults normalization display to observed min-max over [0, 100]", () => {
     expect(describeNormalization(undefined)).toEqual({
-      methodLabel: "Observed min–max",
+      methodLabel: "Use the lowest and highest scores",
       targetMin: 0,
       targetMax: 100,
     })
     expect(describeNormalization(null)).toEqual({
-      methodLabel: "Observed min–max",
+      methodLabel: "Use the lowest and highest scores",
       targetMin: 0,
       targetMax: 100,
     })
@@ -218,7 +218,7 @@ describe("sub-algorithm composer helpers", () => {
         targetMax: 100,
       })
     ).toEqual({
-      methodLabel: "Observed min–max",
+      methodLabel: "Use the lowest and highest scores",
       targetMin: 0,
       targetMax: 100,
     })

@@ -42,7 +42,7 @@ describe('validateCSVContent', () => {
     const result = await validateCSVContent('', csvConfig);
 
     expect(result.valid).toBe(false);
-    expect(result.errors).toContain('CSV is missing header row');
+    expect(result.errors).toContain('The CSV file is missing a header row.');
   });
 
   it('reports row-count, column-count, and enum validation issues together', async () => {
@@ -51,11 +51,9 @@ describe('validateCSVContent', () => {
     const result = await validateCSVContent(csv, csvConfig);
 
     expect(result.valid).toBe(false);
-    expect(result.errors).toContain('CSV has 3 rows, but maximum is 2');
-    expect(result.errors).toContain('Row 1 has 3 values but header has 2 columns');
-    expect(result.errors).toContain(
-      'Row 1, column vote: "maybe" is not a valid value. Expected one of: upvote, downvote',
-    );
+    expect(result.errors).toContain('The CSV file has 3 data rows. The maximum is 2.');
+    expect(result.errors).toContain('Row 1 has 3 values, but the header row has 2 columns.');
+    expect(result.errors).toContain('Row 1, column vote: "maybe" is not valid. Use one of: upvote, downvote.');
   });
 
   it('returns a parse error when file text reading fails', async () => {
@@ -69,6 +67,6 @@ describe('validateCSVContent', () => {
     const result = await validateCSVContent(file, csvConfig);
 
     expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Failed to parse CSV: cannot read file');
+    expect(result.errors).toContain('Could not read the CSV file: cannot read file');
   });
 });

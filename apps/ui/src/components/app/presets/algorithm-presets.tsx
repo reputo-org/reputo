@@ -146,7 +146,7 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
       await deletePresetMutation.mutateAsync(presetToDelete)
       setIsDeleteDialogOpen(false)
       setPresetToDelete(null)
-      toast.success("Preset deleted")
+      toast.success("Preset deleted.")
     } catch {
       toast.error("Could not delete the preset. Try again.")
     } finally {
@@ -167,7 +167,7 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
 
       await createSnapshotMutation.mutateAsync(snapshotData)
       setPresetToRun(null)
-      toast.success("Snapshot started")
+      toast.success("Snapshot started.")
 
       const params = new URLSearchParams(searchParams.toString())
       params.set("tab", "snapshots")
@@ -193,8 +193,8 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
         <div>
           <h2 className="text-lg font-semibold">Presets</h2>
           <p className="text-sm text-muted-foreground">
-            Saved inputs{algo ? ` for ${algo.title}` : ""}. Run a preset to
-            create a snapshot.
+            Saved inputs{algo ? ` for ${algo.title}` : ""}. Use a preset to
+            start a snapshot.
           </p>
         </div>
         {newPresetUrl && (
@@ -213,7 +213,7 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
               <Loader2 className="size-6 animate-spin" />
             </EmptyMedia>
             <EmptyTitle>Loading presets</EmptyTitle>
-            <EmptyDescription>Getting your saved presets…</EmptyDescription>
+            <EmptyDescription>Loading your saved presets…</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : error ? (
@@ -323,7 +323,7 @@ export function AlgorithmPresets({ algo }: { algo?: Algorithm }) {
                         ) : (
                           <Play className="mr-2 size-4" />
                         )}
-                        Run
+                        Run preset
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

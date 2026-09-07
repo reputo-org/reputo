@@ -3,14 +3,14 @@
     "name": "Custom Score",
     "kind": "combined",
     "category": "Custom",
-    "summary": "Combines selected algorithms into one encrypted score after normalizing and weighting their results.",
-    "description": "### What it does\nCombines the results of one or more child algorithms into a single encrypted score.\n\n### How it works\n- Each selected algorithm runs independently, and you can add each one only once.\n- A user receives a final score only when every selected algorithm has a result for them. A score of `0` still counts as a result.\n- Each algorithm's scores are scaled to 0–100 using its observed minimum and maximum. If its minimum and maximum are equal, all its scaled scores are `0`.\n- A weight above `0` controls how much each algorithm affects the final score.\n- Reputo calculates a weighted average without decrypting the scores, then sends the final encrypted score to DeepID.\n\n### Privacy and results\n- Each child algorithm keeps its original DID type and result files.\n- The details JSON contains the setup, observed score ranges, and run status. It does not contain plaintext user scores or encrypted values.",
+    "summary": "Combines selected algorithms into one encrypted score. Reputo adjusts each result to the same range and applies the weights you choose.",
+    "description": "### What it does\nCombines the results of one or more algorithms into one encrypted score.\n\n### How it works\n- Each selected algorithm runs separately. You can add each algorithm only once.\n- A user receives a final score only when every selected algorithm has a result for them. A score of `0` still counts as a result.\n- Before combining the results, Reputo changes each algorithm's score range to 0–100. It uses the lowest and highest scores in the snapshot. If those scores are equal, every adjusted score for that algorithm is `0`.\n- A weight above `0` controls how much each algorithm affects the final score.\n- Reputo calculates a weighted average while the scores remain encrypted. It then sends the final encrypted score to DeepID.\n\n### Data used\nThe results from the selected algorithms.\n\n### Results\n- Each selected algorithm keeps its original decentralized identifier (DID) type and result files.\n- The details JSON file contains the settings, score ranges, and run status. It does not contain readable user scores or encrypted values.",
     "version": "1.0.0",
     "inputs": [
         {
             "key": "sub_algorithms",
-            "label": "Child algorithms",
-            "description": "Choose the algorithms to combine. Add each one only once, then set a weight above `0`. Higher weights have more effect on the final score.",
+            "label": "Algorithms",
+            "description": "Choose the algorithms to combine. Add each one only once, then set a weight above `0`. A higher weight gives an algorithm more effect on the final score.",
             "type": "sub_algorithm",
             "required": true,
             "minItems": 1,
@@ -24,7 +24,7 @@
         {
             "key": "custom_score_details",
             "label": "Custom score details (JSON)",
-            "description": "Setup, observed score ranges, and run status. This file does not contain plaintext user scores or encrypted values. Child result files remain separate.",
+            "description": "Settings, score ranges, and run status. This file does not contain readable user scores or encrypted values. Each algorithm's result files remain separate.",
             "type": "json"
         }
     ],
