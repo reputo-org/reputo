@@ -70,8 +70,8 @@ describe('custom_score registry loading', () => {
     // evaluated, scores are normalized before weighting, and DeepID receives the result.
     expect(definition.description).toContain('DeepID');
     expect(definition.description).toContain('every selected algorithm has a result');
-    expect(definition.description).toContain('scaled to 0–100');
-    expect(definition.description).toContain('weighted average without decrypting');
+    expect(definition.description).toContain('score range to 0–100');
+    expect(definition.description).toContain('weighted average while the scores remain encrypted');
     expect(definition.summary).toContain('encrypted');
 
     // Normalization stays definition metadata: no preset input and no source min/max inputs.

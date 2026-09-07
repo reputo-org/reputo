@@ -3,8 +3,8 @@
     "name": "Voting Engagement",
     "kind": "standalone",
     "category": "Engagement",
-    "summary": "Scores users based on how varied their wallet-linked votes are.",
-    "description": "### What it does\nMeasures the variety in each user's wallet-linked voting history.\n\n### How it works\n- Users and their wallets come from DeepID.\n- The wallet collections file links each wallet to one or more voting collections.\n- The vote history file groups votes by collection.\n- Using a wider range of ratings increases the score.\n- Repeating the same rating lowers the score.\n- Scores range from 0 to 1.\n\n### Inputs\nUpload a vote history CSV and a wallet collections CSV. The second file links each voting `collection_id` to a wallet `address`.\n\n### Outputs\n- CSV file with `did` and `voting_engagement`.\n- JSON file with vote distribution details for each user.",
+    "summary": "Scores users by the variety of votes linked to their wallets.",
+    "description": "### What it does\nMeasures the variety in each user's voting history across their linked wallets.\n\n### How it works\n- Users and their wallets come from DeepID.\n- The wallet collections file links each wallet to one or more voting collections.\n- The vote history file groups votes by collection.\n- Using a wider range of ratings increases the score.\n- Repeating the same rating lowers the score.\n- Scores range from 0 to 1.\n\n### Data used\nA vote history CSV file and a wallet collections CSV file. The wallet collections file links each voting `collection_id` to a wallet `address`.\n\n### Results\n- A CSV file with `did` and `voting_engagement`.\n- A JSON file with vote distribution details for each user.",
     "version": "1.0.0",
     "inputs": [
         {
@@ -110,7 +110,7 @@
                     {
                         "key": "address",
                         "type": "string",
-                        "description": "Wallet address linked to the `collection_id`. Matching is not case-sensitive."
+                        "description": "Wallet address linked to the `collection_id`. Matching ignores uppercase and lowercase differences."
                     },
                     {
                         "key": "network",
@@ -135,7 +135,7 @@
                     {
                         "key": "did",
                         "type": "string",
-                        "description": "User DID (`did:plc` or `did:sub`)."
+                        "description": "DeepID user identifier (DID; `did:plc` or `did:sub`)."
                     },
                     {
                         "key": "voting_engagement",

@@ -3,8 +3,8 @@
     "name": "Mattermost Engagement",
     "kind": "standalone",
     "category": "Engagement",
-    "summary": "Scores Mattermost community activity per consented user, with configurable points and daily caps per activity.",
-    "description": "### What it does\nScores each consented user's activity in a connected Mattermost team during the snapshot window.\n\n### How it works\n- The snapshot freezes the selected channels' activity for the lookback window into an immutable dataset. The bot reads a channel only while it is a member of it.\n- Users who granted the `mattermost` consent scope in DeepID are matched to their Mattermost account by username. A user who cannot be matched receives an explicit `0` with a flag — never a guess.\n- Each enabled activity earns the points you set. Counts are capped per user, per activity, per UTC day by that activity's daily cap.\n- `active_day` credits one unit per UTC day that has at least one message or reply; its daily cap bounds the number of credited days in the window.\n- The final score is the sum of the earned points. Scores stay raw — normalization and weighting happen only in Custom Score.\n- Bots are excluded from scoring. System messages and deleted posts are not scored. An activity without a row is disabled.\n\n### Outputs\n- CSV file with `did`, the raw `mattermost_engagement` score, and the points earned per activity.\n- JSON file with per-user counts, match status, and channel coverage details.",
+    "summary": "Scores activity for each Mattermost user who has given consent. You choose the points and daily limit for each activity.",
+    "description": "### What it does\nScores activity from users who gave DeepID permission to use their Mattermost account.\n\n### How it works\n- When the snapshot starts, Reputo saves a fixed copy of activity from the selected channels for the chosen time period. The bot can read only channels it has joined.\n- Reputo matches each user to their Mattermost account by username. If it cannot find a match, the user gets a score of `0` and is marked as unmatched.\n- Each enabled activity earns the points you set. A daily limit sets the maximum number of times each activity is counted for one user on one UTC day.\n- `active_day` counts one day when the user sends at least one message or reply. Its daily limit sets the maximum number of active days counted in the time period.\n- The final score is the total of all points. Reputo does not adjust it to a fixed range unless you use it in Custom Score.\n- Bots, system messages, and deleted posts are not scored. Leave an activity out if you do not want to score it.\n\n### Data used\nActivity totals from the selected Mattermost channels and the Mattermost usernames that users linked through DeepID.\n\n### Results\n- A CSV file with `did`, the `mattermost_engagement` score, and the points earned from each activity.\n- A JSON file with activity counts, account match status, and channel coverage for each user.",
     "version": "1.0.0",
     "inputs": [
         {
@@ -35,8 +35,8 @@
         },
         {
             "key": "lookback_days",
-            "label": "Lookback period (days)",
-            "description": "How far back the snapshot fetches activity, counted from the moment the snapshot starts.",
+            "label": "Time period (days)",
+            "description": "Number of previous days of activity to include, counted back from when the snapshot starts.",
             "type": "integer",
             "min": 1,
             "max": 183,
@@ -56,8 +56,8 @@
         },
         {
             "key": "activities",
-            "label": "Activity weights",
-            "description": "Points and daily caps per activity. Points must be above `0`; the daily cap bounds how much of one activity a user can earn per UTC day. Leave an activity out to disable it.",
+            "label": "Activity points and limits",
+            "description": "Set the points and daily limit for each activity. Points must be above `0`. Leave an activity out if you do not want to score it.",
             "type": "array",
             "minItems": 1,
             "required": true,
@@ -109,7 +109,7 @@
                     {
                         "key": "points",
                         "label": "Points",
-                        "description": "Points per counted unit. Must be above `0`.",
+                        "description": "Points earned each time this activity is counted. Must be above `0`.",
                         "type": "number",
                         "min": 0,
                         "exclusiveMin": true,
@@ -117,8 +117,8 @@
                     },
                     {
                         "key": "daily_cap",
-                        "label": "Daily cap",
-                        "description": "Most units of this activity credited per user per UTC day.",
+                        "label": "Daily limit",
+                        "description": "Maximum number of times this activity is counted for one user on one UTC day.",
                         "type": "integer",
                         "min": 1,
                         "required": true
@@ -130,7 +130,7 @@
                 "addButtonLabel": "Add activity",
                 "presets": [
                     {
-                        "label": "Recommended weights",
+                        "label": "Recommended settings",
                         "value": [
                             {
                                 "activity": "message",
@@ -167,7 +167,7 @@
         {
             "key": "mattermost_engagement",
             "label": "Mattermost engagement (CSV)",
-            "description": "One row per consented user with the raw score and the points earned per activity. Explicit zeros included.",
+            "description": "One row for each user who gave consent, with their score and the points earned from each activity. Users without a matched account have a score of `0`.",
             "type": "csv",
             "csv": {
                 "hasHeader": true,
@@ -176,12 +176,12 @@
                     {
                         "key": "did",
                         "type": "string",
-                        "description": "User DID (`did:sub`)."
+                        "description": "DeepID user identifier (DID; `did:sub`)."
                     },
                     {
                         "key": "mattermost_engagement",
                         "type": "number",
-                        "description": "Raw engagement score: the sum of the per-activity points."
+                        "description": "Final engagement score: the total points earned from all activities."
                     },
                     {
                         "key": "message_points",
@@ -214,7 +214,7 @@
         {
             "key": "mattermost_engagement_details",
             "label": "Mattermost engagement details (JSON)",
-            "description": "Per-user activity counts, match status, and channel coverage for the snapshot window.",
+            "description": "Activity counts, account match status, and channel coverage for each user in the selected time period.",
             "type": "json"
         }
     ],
