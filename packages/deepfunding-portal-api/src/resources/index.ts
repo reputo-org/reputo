@@ -11,8 +11,8 @@ import { createUsersRepo } from './users/repository.js';
 /**
  * Create all repositories bound to a specific database instance.
  *
- * Use this together with {@link import('../db/client.js').createDb} to get a
- * fully isolated set of repos that is safe for concurrent algorithm execution.
+ * Use this with `createDb` to get an isolated set of repositories that is safe
+ * for concurrent algorithm runs.
  */
 export function createRepos(db: DeepFundingPortalDb) {
   return {
