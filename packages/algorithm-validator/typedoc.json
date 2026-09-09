@@ -5,7 +5,7 @@
     "out": "docs",
     "cleanOutputDir": true,
 
-    "readme": "README.md",
+    "readme": "none",
     "name": "@reputo/algorithm-validator",
     "includeVersion": true,
 
@@ -32,6 +32,9 @@
     "commentStyle": "jsdoc",
     "excludeNotDocumented": false,
     "excludeNotDocumentedKinds": [],
+    "validation": {
+        "notExported": false
+    },
     "sort": ["source-order"],
     "kindSortOrder": [
         "Project",
