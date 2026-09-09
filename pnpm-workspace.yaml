@@ -28,7 +28,7 @@ catalog:
   '@semantic-release/github': ^12.0.9
   '@semantic-release/release-notes-generator': ^14.1.1
   '@swc/core': ^1.15.43
-  '@tanstack/react-table': ^8.21.3
+  '@tanstack/react-table': ^9.2.4
   '@temporalio/activity': ^1.20.2
   '@temporalio/client': ^1.20.2
   '@temporalio/testing': ^1.20.2
