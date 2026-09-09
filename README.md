@@ -1,10 +1,6 @@
-![Reputo](.github/assets/banner.png "Reputo")
+# Reputo
 
-<p align="center">
-  <a href="https://logid.xyz">Reputo</a> is a privacy-preserving reputation platform. It has three parts: a NestJS API, a Next.js UI, and Temporal workers that run snapshots and algorithms.
-  <br/>
-  This is the pnpm monorepo for those apps and the packages they share.
-</p>
+[Reputo](https://logid.xyz) is a modular, privacy-preserving reputation platform.
 
 <div align="center">
 
@@ -12,61 +8,31 @@
 
 </div>
 
-## Live URLs (staging)
-
-| Surface | URL |
-| --- | --- |
-| App | <https://staging.logid.xyz> |
-| API reference | <https://api-staging.logid.xyz/reference> |
-
 ## Quick start
 
-1. Install [mise](https://mise.jdx.dev) and activate it in your shell, so `node` and `pnpm` use the pinned versions:
+Install [mise](https://mise.jdx.dev), then run:
 
-    ```bash
-    brew install mise            # macOS
-    curl https://mise.run | sh   # Linux / WSL
-    winget install jdx.mise      # Windows
-    ```
+```bash
+mise trust
+mise run setup
+```
 
-2. Bootstrap the repo:
+Add the required secrets to `.env`, then start the stack:
 
-    ```bash
-    mise trust                   # trust this repo's mise config (first run only)
-    mise run setup               # installs Node + pnpm, copies .env.example -> .env, runs pnpm install
-    ```
+```bash
+pnpm docker:up
+```
 
-3. Open `.env` and fill in every empty value (mainly OAuth credentials and `*_SECRET` / `*_KEY` values). See [Environment variables](docs/environment-variables.md).
+Open <http://localhost:4000>.
 
-4. Run the stack. Pick one:
+See [Local development](docs/local-development.md) for setup options, endpoints, and common commands.
 
-    **Full Docker** — apps and infrastructure in containers:
+## Project guide
 
-    ```bash
-    pnpm docker:up
-    ```
-
-    **Hybrid** — infrastructure in Docker, apps native for faster iteration:
-
-    ```bash
-    pnpm docker:up:infra         # start Temporal, Postgres, MinIO
-    pnpm db:migrate              # apply pending migrations
-    pnpm dev                     # run api, ui, workflows in watch mode
-    ```
-
-See [Local development](docs/local-development.md) for the full guide.
-
-## Workspaces
-
-See [Monorepo structure](docs/monorepo-structure.md) for the apps, packages, and import rules.
-
-## Documentation
-
-Guides live in [docs/](docs/README.md).
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for branching, commits, and the PR workflow.
+- [Documentation](docs/README.md)
+- [Monorepo structure](docs/monorepo-structure.md)
+- [Contributing](CONTRIBUTING.md)
+- [Staging app](https://staging.logid.xyz) and [API reference](https://api-staging.logid.xyz/reference)
 
 ## License
 

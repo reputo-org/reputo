@@ -1,19 +1,19 @@
 ---
 name: ❓ Question
-about: Ask a question about usage, design decisions, etc.
+about: Ask about usage or a design decision
 title: '[QUESTION] '
 labels: question
 assignees: ''
 ---
 
-### What’s your question?
+## Question
 
 Be as specific as possible.
 
-### Context
+## Context
 
 Explain where you’re stuck or what you’ve tried so far.
 
-### Additional information
+## Extra information
 
-Any other details (e.g. links to docs, screenshots, code snippets).
+Add useful links, screenshots, or code examples.
