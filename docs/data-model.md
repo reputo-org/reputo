@@ -1,18 +1,13 @@
 # Data model
 
-The application database is the system of record for the platform. It is a PostgreSQL
-database owned by `@reputo/api` and managed with TypeORM. This page describes its tables.
+The application database is PostgreSQL, owned by `@reputo/api`, and managed with TypeORM. The entities and migrations are the source of truth; this page is a quick map.
 
-Two other stores live outside this database and are documented with their packages:
+Two other stores live outside this database:
 
-- On-chain transfers — separate Postgres owned by
-  [`@reputo/onchain-data`](../packages/onchain-data/README.md).
-- DeepFunding Portal ingest — local store owned by
-  [`@reputo/deepfunding-portal-api`](../packages/deepfunding-portal-api/README.md).
+- On-chain transfers, a separate Postgres owned by [`@reputo/onchain-data`](../packages/onchain-data/README.md).
+- Deep Funding Portal data, a per-snapshot SQLite file owned by [`@reputo/deepfunding-portal-api`](../packages/deepfunding-portal-api/README.md).
 
-The schema is created by the initial migration
-[`1748000000000-Init.ts`](../apps/api/src/persistence/migrations/1748000000000-Init.ts).
-Entities live in [`apps/api/src/persistence/entities/`](../apps/api/src/persistence/entities).
+Entities live in [`apps/api/src/persistence/entities/`](../apps/api/src/persistence/entities). Migrations live in [`apps/api/src/persistence/migrations/`](../apps/api/src/persistence/migrations).
 
 ## Enums
 
@@ -20,72 +15,39 @@ Entities live in [`apps/api/src/persistence/entities/`](../apps/api/src/persiste
 | --- | --- |
 | `snapshot_status` | `queued`, `running`, `completed`, `failed`, `cancelled` |
 | `snapshot_publication_status` | `pending`, `sent`, `failed` |
+| `community_platform` | `discord`, `github`, `mattermost` |
+| `community_connection_status` | `pending`, `active`, `degraded`, `broken`, `disconnected` |
 | `oauth_provider` | `deep-id` |
 | `access_role` | `owner`, `admin` |
 
-
-
 ## Algorithms and snapshots
 
-### `algorithm_presets`
+| Table | What it holds |
+| --- | --- |
+| `algorithm_presets` | A saved algorithm configuration: `key`, `version`, `name`, `description`. |
+| `algorithm_preset_inputs` | One row per input of a preset: `key`, JSONB `value`, `position`. Unique per `(preset, key)`. Deleted with the preset. |
+| `snapshots` | One run of a preset: `status`, the frozen preset (`algorithm_preset_frozen`), Temporal metadata, an optional `error`, `started_at`, `completed_at`. A preset with snapshots cannot be deleted. |
+| `snapshot_outputs` | The results of a snapshot as `key` / `value` pairs. Unique per `(snapshot, key)`. |
+| `snapshot_publications` | One DeepID publication record per `(snapshot, algorithm_key)`: `status`, the posting `counts` (JSONB), a safe `error`. Written by the workflow through the API activities queue. |
 
-A saved, named configuration of an algorithm. Key columns: `key`, `version`, `name`,
-`description`. Indexed by `key`, `version`, and the pair.
+## Community connections
 
-### `algorithm_preset_inputs`
-
-The input values for a preset, one row per input. Holds `key`, a JSONB `value`, and
-`position`. Foreign key to `algorithm_presets` (cascade on delete). Unique per
-`(preset, key)`.
-
-### `snapshots`
-
-One run of a preset. Holds the `status` enum, a frozen JSON copy of the preset
-(`algorithm_preset_frozen`), Temporal run metadata (`temporal`), an optional `error`, and
-`started_at` / `completed_at`. Foreign key to `algorithm_presets` (restricted on delete,
-so a preset with snapshots cannot be deleted).
-
-### `snapshot_outputs`
-
-The results of a snapshot, as `key` / `value` pairs. Foreign key to `snapshots` (cascade
-on delete). Unique per `(snapshot, key)`.
-
-### `snapshot_publications`
-
-One DeepID publication record per `(snapshot, algorithm key)`, written by the workflow
-through the API activities queue. Holds the `status` enum
-(`snapshot_publication_status`: `pending`, `sent`, `failed`), the posting `counts`
-(JSONB), and a safe `error` text. Foreign key to `snapshots` (cascade on delete). Unique
-per `(snapshot, algorithm_key)`.
+| Table | What it holds |
+| --- | --- |
+| `community_connections` | One connected community: `platform`, `external_id` (guild id, installation id, or `origin/teamId`), `name`, `status`, JSONB `settings` (the last check and display metadata), and `credentials_ciphertext` for sealed Mattermost tokens. Unique per `(platform, external_id)`. Triggers notify `community_connection_updates` on changes a client can see. |
+| `community_connection_audit` | One row per action on a connection: `connection_id`, `platform`, `actor_user_id` (null for system checks), `action`, `outcome`, `error_category`, `created_at`. |
 
 ## Identity and access
 
-### `oauth_users`
+| Table | What it holds |
+| --- | --- |
+| `oauth_users` | A person who signed in through OIDC: provider, subject `sub`, profile claims. Unique per `(provider, sub)`. |
+| `auth_sessions` | An app session: encrypted access and refresh tokens, their expiry, the granted `scope`, PKCE `state` and `code_verifier`. |
+| `oauth_consent_grants` | A short-lived consent flow started outside login (the Voting Portal grant): `source`, PKCE state, `expires_at`. Removed after the callback. |
+| `access_allowlist` | Who can sign in and as what: `email`, `role`, who invited or revoked the entry. Unique per `(provider, email)`. |
 
-A person who has signed in through an OIDC provider. Stores the provider, the subject
-`sub`, and profile claims (`email`, `username`, `picture`, …). Unique per `(provider, sub)`.
+## Change the schema
 
-### `auth_sessions`
-
-An app session for a signed-in user. Stores **encrypted** access and refresh tokens
-(`*_ciphertext`), their expiries, the granted `scope`, and the PKCE `state` /
-`code_verifier`. Foreign key to `oauth_users` (cascade). Indexed by `session_id`,
-`user_id`, `expires_at`, and `revoked_at`.
-
-### `oauth_consent_grants`
-
-Short-lived consent flows started outside login (for example a voting-portal grant).
-Stores `source`, PKCE `state` / `code_verifier`, and `expires_at`. Unique per `state`.
-
-### `access_allowlist`
-
-Who is allowed to sign in, and as what. Stores `email`, `role` (`owner` / `admin`), and
-who invited or revoked the entry (`invited_by_user_id`, `revoked_by_user_id`, both
-nullable foreign keys to `oauth_users`). Unique per `(provider, email)`.
-
-## Adding a table or column
-
-Change the entity in
-[`apps/api/src/persistence/entities/`](../apps/api/src/persistence/entities), add a
-TypeORM migration, and apply it with `pnpm db:migrate`. See
-[Environment variables](environment-variables.md) for `DATABASE_URL`.
+1. Change the entity under `apps/api/src/persistence/entities/`.
+2. Add a TypeORM migration under `apps/api/src/persistence/migrations/` with a working `down()`. CI applies, reverts, and re-applies every migration.
+3. Apply it locally with `pnpm db:migrate`.

@@ -1,17 +1,15 @@
 # Local development
 
-This guide gets the Reputo monorepo running on your machine.
+How to run Reputo on your machine.
 
 ## Requirements
 
-- Docker Desktop, or Docker Engine plus the Compose plugin.
-- [mise](https://mise.jdx.dev) for the Node (`24.15.0`) and pnpm (`11.13.0`) versions pinned in [`mise.toml`](../mise.toml). Mise runs on macOS, Linux, and Windows.
+- Docker Desktop, or Docker Engine with the Compose plugin.
+- [mise](https://mise.jdx.dev), which installs the Node and pnpm versions from [`mise.toml`](../mise.toml).
 
-Without mise, install the exact Node and pnpm versions yourself. Other versions are not supported.
+If you do not use mise, install the versions listed in `mise.toml` yourself.
 
 ## First-time setup
-
-Install mise, then activate it in your shell so `node` and `pnpm` resolve to the pinned versions (see the [mise docs](https://mise.jdx.dev)):
 
 ```bash
 brew install mise            # macOS
@@ -19,50 +17,36 @@ brew install mise            # macOS
 # winget install jdx.mise    # Windows
 ```
 
-Open a new shell, then trust this repo's config and run the setup task:
+Activate mise in your shell, then run:
 
 ```bash
-mise trust                   # trust this repo's mise config (first run only)
-mise run setup               # installs Node + pnpm, copies .env.example -> .env, runs pnpm install
+mise trust
+mise run setup
 ```
 
-Open `.env` and fill in every empty value, especially `*_SECRET`, `*_KEY`, and `*_PASSWORD`. See [Environment variables](environment-variables.md) for the list.
-
-Without mise:
-
-```bash
-cp .env.example .env
-pnpm install
-```
+Open `.env` and fill in every empty value, especially `*_SECRET`, `*_KEY`, and `*_PASSWORD`. See [Environment variables](environment-variables.md).
 
 ## Run the apps
 
-The dev Compose file ([`infra/dev/compose.yml`](../infra/dev/compose.yml)) groups services into two profiles:
+Pick one flow. Both use [`infra/dev/compose.yml`](../infra/dev/compose.yml).
 
-- `apps` — `api`, `ui`, `db-migrate`, and the three workflow workers. They run in containers with the repo bind-mounted into `/workspace` for hot reload.
-- `infra` — Temporal (server, UI, Postgres, Elasticsearch), the app Postgres, the onchain-data Postgres, MinIO, and `minio-init`.
-
-Pick one of the two flows.
-
-### Full Docker
+**Full Docker**
 
 ```bash
-pnpm docker:up               # builds the dev image, starts both profiles
-pnpm docker:down             # stops everything
+pnpm docker:up               # start the apps and supporting services
+pnpm docker:down
 ```
 
-### Hybrid
-
-Run infrastructure in Docker and the apps natively. You get faster iteration, native debugging, and you can start only the apps you need.
+**Hybrid** (infrastructure in Docker, apps native, faster iteration)
 
 ```bash
-pnpm docker:up:infra         # start Temporal, Postgres, MinIO
+pnpm docker:up:infra         # start supporting services only
 pnpm db:migrate              # apply pending migrations
-pnpm dev                     # run api, ui, workflows in watch mode
-pnpm docker:down             # stop infrastructure when done
+pnpm dev                     # api, ui, workflows in watch mode
+pnpm docker:down
 ```
 
-### Local endpoints (both flows)
+## Local endpoints
 
 | Service | URL or command |
 | --- | --- |
@@ -71,20 +55,27 @@ pnpm docker:down             # stop infrastructure when done
 | API reference | <http://localhost:3000/reference> |
 | Temporal UI | <http://localhost:8088> |
 | MinIO console | <http://localhost:9001> (login `minio` / `minio12345`) |
-| Mattermost | <http://localhost:8065> (create the first user, then a bot token, to try the connect flow) |
+| Mattermost | <http://localhost:8065> |
 | App Postgres | `psql postgresql://reputo_app:reputo_app@localhost:5434/reputo_app` |
 | Onchain Postgres | `psql postgresql://reputo_onchain:reputo_onchain@localhost:5433/reputo_onchain` |
+
+## Try the community flows locally
+
+The Communities page needs platform credentials. [Community platform setup](community-platform-setup.md) explains each platform. In short:
+
+- **Discord.** Create a development application and bot. Use `http://localhost:3000/api/v1/community/connections/discord/callback` as the OAuth redirect.
+- **GitHub.** Create a development GitHub App with the Setup URL `http://localhost:3000/api/v1/community/connections/github/callback`. Webhooks need a public tunnel to reach your API.
+- **Mattermost.** Open <http://localhost:8065>, create the first user, create a bot account with a token, and keep `COMMUNITY_MATTERMOST_ALLOWED_HOSTS=localhost` in `.env`.
+- **DeepID.** Add client values for the same DeepID environment as the data sources.
 
 ## Common commands
 
 | Command | What it does |
 | --- | --- |
 | `pnpm dev` | Run all apps in watch mode. |
-| `pnpm build` | Build every workspace through Turbo. |
-| `pnpm check` | Run Biome (lint and format check). |
-| `pnpm test` | Run Vitest across the repo. |
-| `pnpm test:watch` | Vitest in watch mode. |
-| `pnpm test:cov` | Vitest with coverage. |
+| `pnpm build` | Build every workspace. |
+| `pnpm check` | Biome lint and format check. |
+| `pnpm test` | Vitest across the repo. |
 | `pnpm typecheck` | Type-check every workspace. |
 | `pnpm clean` | Remove `dist/`, `.turbo/`, and caches. |
 | `pnpm algorithm:create <key> <version>` | Scaffold a new algorithm. See [Reputation algorithms](reputation-algorithms.md). |

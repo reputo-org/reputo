@@ -1,67 +1,54 @@
 # CI/CD
 
-GitHub Actions runs the quality gate on every pull request and the full build-test-deploy pipeline on every push to `main`. All workflows live under [`.github/workflows/`](../.github/workflows/).
+GitHub Actions runs the quality gate on every pull request and the build, test, and deploy pipeline on every push to `main`. Workflows live under [`.github/workflows/`](../.github/workflows/).
 
 Three rules shape the pipeline:
 
-- **Build once, deploy everywhere.** Every push to `main` builds all three apps and publishes immutable `sha-<commit>` images. Staging and production deploy those exact images; production never rebuilds.
-- **Deploys are pinned and verified.** A deploy sets a Komodo Variable (`STAGING_IMAGE_TAG` / `PRODUCTION_IMAGE_TAG`) to one `sha-<commit>` tag, triggers `DeployStack` through the Komodo API, waits for Komodo to finish, and then polls `GET /api/v1/health` until the running commit matches.
-- **Deploy runs queue, they are never cancelled.** PR runs cancel outdated attempts, but `main` runs and production promotions each use their own no-cancel concurrency group.
+- **Build once, deploy everywhere.** Every push to `main` builds all apps and publishes immutable `sha-<commit>` images. Staging and production deploy those images. Production never rebuilds.
+- **Deploys are pinned and verified.** A deploy sets a Komodo variable to one `sha-<commit>` tag, triggers `DeployStack`, waits, then polls `GET /api/v1/health` until the running commit matches.
+- **Deploy runs queue.** PR runs cancel outdated attempts. `main` runs and production promotions never cancel.
 
 ## Workflows
 
 | Workflow | Trigger | What it does |
 | --- | --- | --- |
-| [`pull-request.yml`](../.github/workflows/pull-request.yml) | PR opened, updated, or reopened against `main` | Quality gate, dependency review, and Docker builds. For a PR labelled `pullpreview`, it publishes the complete image set and redeploys the preview without starting a second workflow run. |
-| [`pull-preview.yml`](../.github/workflows/pull-preview.yml) | The `pullpreview` label is added or removed, or a labelled PR closes | Builds the initial preview images and creates or destroys the per-PR Lightsail preview. There is no scheduled cleanup; label removal and PR closure own teardown. |
-| [`_pull-preview.yml`](../.github/workflows/_pull-preview.yml) | Called by `pull-request.yml` and `pull-preview.yml` | Reusable PullPreview deploy/destroy job. Only real deploys update the GitHub `preview` environment; teardown does not replace its last-deployment status. |
-| [`main.yml`](../.github/workflows/main.yml) | Push to `main` | Quality gate, build and push **all** apps (`sha-<commit>`), Trivy scan, semantic-release, version-tag the images, deploy staging via the Komodo API, verify the deployed commit. |
-| [`_release.yml`](../.github/workflows/_release.yml) | Called by `main.yml` | Runs `semantic-release` and outputs the released tag (for image version tags). |
-| [`promote-production.yml`](../.github/workflows/promote-production.yml) | Manual `workflow_dispatch` | Takes a commit SHA **or release tag**, requires the commit to be on `main` and to have a complete image set, retags `production` / `prod-<commit>` aliases, then deploys via `_deploy.yml`. |
-| [`_quality-gate.yml`](../.github/workflows/_quality-gate.yml) | Called by other workflows | Reusable, parallel jobs: workflow lint (actionlint, plus advisory zizmor), lint + typecheck, tests with coverage (Codecov), build, and a database migration check (apply, revert, re-apply against a fresh Postgres). |
-| [`_build-and-push.yml`](../.github/workflows/_build-and-push.yml) | Called by other workflows | Reusable: derive the app set from `apps/*/Dockerfile`, compute affected apps via Turbo, build per-app images (with SBOM and provenance attestations), optionally push to GHCR, scan pushed images with Trivy. |
-| [`_deploy.yml`](../.github/workflows/_deploy.yml) | Called by `main.yml` and `promote-production.yml` | Reusable, one deploy path for both environments: pin the Komodo `*_IMAGE_TAG` Variable to `sha-<commit>`, `DeployStack`, wait for the update, verify `/api/v1/health` serves the commit. |
+| [`pull-request.yml`](../.github/workflows/pull-request.yml) | PR against `main` | Quality gate, dependency review, Docker builds. With the `pullpreview` label it also publishes images and redeploys the preview. |
+| [`pull-preview.yml`](../.github/workflows/pull-preview.yml) | The `pullpreview` label is added or removed, or a labelled PR closes | Creates or destroys the per-PR Lightsail preview. |
+| [`_pull-preview.yml`](../.github/workflows/_pull-preview.yml) | Called by the two above | Reusable PullPreview deploy or destroy job. |
+| [`main.yml`](../.github/workflows/main.yml) | Push to `main` | Quality gate, build and push all apps, Trivy scan, semantic-release, version tags, staging deploy, verification. |
+| [`_release.yml`](../.github/workflows/_release.yml) | Called by `main.yml` | Runs `semantic-release` and outputs the released tag. |
+| [`promote-production.yml`](../.github/workflows/promote-production.yml) | Manual | Takes a commit SHA or release tag, checks it is on `main` with a complete image set, retags the aliases, deploys production. |
+| [`_quality-gate.yml`](../.github/workflows/_quality-gate.yml) | Called by other workflows | Parallel jobs: workflow lint, lint and typecheck, tests with coverage, build, migration check (apply, revert, re-apply). |
+| [`_build-and-push.yml`](../.github/workflows/_build-and-push.yml) | Called by other workflows | Builds per-app images with SBOM and provenance, pushes to GHCR, scans with Trivy. |
+| [`_deploy.yml`](../.github/workflows/_deploy.yml) | Called by `main.yml` and `promote-production.yml` | Pins the `*_IMAGE_TAG` variable, deploys the stack, waits, verifies the health endpoint. |
 
-Two pieces keep the workflows small:
+Shared pieces:
 
-- [`.github/actions/setup`](../.github/actions/setup/action.yml) — composite action used by every job: installs pnpm (version from the root `package.json` `packageManager` field), Node.js (version read from [`mise.toml`](../mise.toml), the single source of truth — the Docker images use the same value through the `NODE_VERSION` build arg), and runs `pnpm install`. The pnpm store is cached (`actions/setup-node`), but Turbo's `.turbo` directory is deliberately **not** cached across runs: pnpm injects workspace packages (`injectWorkspacePackages` in [`pnpm-workspace.yaml`](../pnpm-workspace.yaml)), so consumers such as `@reputo/workflows` resolve an injected **copy** of a package like `@reputo/onchain-data`, not the source directory. pnpm only refreshes that copy after the package's `build` script actually runs (`syncInjectedDepsAfterScripts`). A Turbo cache hit restores `dist/` without running the script, the copy stays empty, and dependents fail with `TS2307: Cannot find module`. Every past "cache poisoning" incident was this; do not re-add a cross-run Turbo cache while workspace packages are injected.
-- [`.github/scripts/`](../.github/scripts/) — `komodo-deploy.sh` (pin variable, deploy stack, wait for the Komodo update) and `verify-deploy.sh` (poll `/api/v1/health` until the expected commit is serving).
+- [`.github/actions/setup`](../.github/actions/setup/action.yml) installs pnpm and Node (versions from `package.json` and [`mise.toml`](../mise.toml)) and runs `pnpm install`. The pnpm store is cached. The Turbo cache is **not** cached across runs on purpose: pnpm injects workspace packages, and a Turbo cache hit restores `dist/` without refreshing the injected copy, which breaks dependents with `TS2307`. Do not add a cross-run Turbo cache.
+- [`.github/scripts/`](../.github/scripts/) holds `komodo-deploy.sh` and `verify-deploy.sh`.
 
-## Versions and tags
+## Tags
 
 | Tag | Created by | Meaning |
 | --- | --- | --- |
 | `sha-<commit>` | every `main` push | Immutable build of that commit. The only tag stacks deploy. |
-| `vX.Y.Z` | `main.yml` after semantic-release | Alias for the `sha-<commit>` of the released commit. |
-| `prod-<commit>`, `production` | `promote-production.yml` | Aliases recording what was promoted; not used for deploys. |
-
-Previews have no tag of their own: the initial label workflow and subsequent
-pull-request workflow runs publish and deploy the same immutable `sha-<commit>`
-images as every other channel.
+| `vX.Y.Z` | `main.yml` after semantic-release | Alias of the released commit. |
+| `prod-<commit>`, `production` | `promote-production.yml` | Audit aliases of what was promoted. |
 
 ## Supply chain
 
-- All actions are pinned to commit SHAs; [Dependabot](../.github/dependabot.yml) updates the pins (and npm dependencies, including the pnpm catalog) weekly.
-- Every pull request runs [`dependency-review-action`](https://github.com/actions/dependency-review-action): it compares the PR's dependency changes against GitHub's advisory database and fails the PR when it introduces a dependency with a known high or critical vulnerability. It only looks at the diff, so alerts on already-installed packages never block unrelated PRs — those surface as Dependabot alerts instead.
-- `pnpm audit` needs pnpm 11 or later (npm retired the audit endpoints the 10.x line used).
-- Every workflow grants the minimum `GITHUB_TOKEN` permissions at the workflow level; jobs that push images or create releases raise their own scope.
-- Pushed images get SBOM and provenance attestations and a Trivy scan (gate on `CRITICAL`, unfixed CVEs ignored).
+- Actions are pinned to commit SHAs. Dependabot updates the pins and npm dependencies weekly.
+- `dependency-review-action` fails a PR that adds a dependency with a known high or critical vulnerability. It looks at the diff only.
+- `pnpm audit` needs pnpm 11 or later.
+- Workflows grant the minimum `GITHUB_TOKEN` permissions. Pushed images get SBOM and provenance attestations and a Trivy scan.
 
 ## Secrets
 
-In the GitHub `staging` and `production` environments (or as repository secrets):
+| Secret | Where | Used for |
+| --- | --- | --- |
+| `KOMODO_API_KEY`, `KOMODO_API_SECRET` | GitHub `staging` and `production` environments | Pin image tags and trigger deploys. |
+| `CODECOV_TOKEN` | Repository | Coverage upload. |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Repository | The Lightsail preview VM (`eu-central-1`). |
+| `DEEPFUNDING_API_KEY`, `ALCHEMY_API_KEY`, `BLOCKFROST_API_KEY`, `DEEP_ID_CLIENT_ID`, `DEEP_ID_CLIENT_SECRET` | Repository | Let the preview run snapshots end to end. |
 
-- `KOMODO_API_KEY` / `KOMODO_API_SECRET` — Komodo API key used to pin image tags and trigger deploys. Create it in Komodo under Settings > API Keys.
-
-Repository secrets used by the build:
-
-- `CODECOV_TOKEN` — coverage upload.
-- `GITHUB_TOKEN` — provided by GitHub Actions.
-
-Secrets used by the PullPreview lifecycle workflow:
-
-- `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` — provision the Lightsail preview VM (region `eu-central-1`).
-- `DEEPFUNDING_API_KEY`, `ALCHEMY_API_KEY`, `BLOCKFROST_API_KEY` — passed into the preview so the workers can run snapshots end to end.
-- `DEEP_ID_CLIENT_ID` / `DEEP_ID_CLIENT_SECRET` — authenticate the preview API with Deep ID.
-
-`KOMODO_WEBHOOK_SECRET` is no longer used by the pipelines (deploys go through the Komodo API); it is still needed by Komodo Core itself.
+The quality gate gives the migration job placeholder values for the Discord, GitHub, and community variables. They are not real credentials.

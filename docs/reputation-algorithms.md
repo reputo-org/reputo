@@ -1,106 +1,36 @@
 # Reputation algorithms
 
-A reputation algorithm calculates a user's reputation score. Each algorithm has two parts:
+What an algorithm is, which ones exist, and how to add one.
 
-- **Definition** — a JSON file. It lists the inputs the user must give and the outputs the algorithm returns. The UI uses it to build forms. The API and worker use it to validate inputs.
-- **Execution** — a function that runs inside a Temporal activity. It reads the inputs, calculates the score, and writes the outputs.
+## Two parts
 
-## Where they live
+- **Definition**: a JSON file in [`packages/reputation-algorithms/src/registry/<key>/<version>.json`](../packages/reputation-algorithms/src/registry). It lists the inputs, outputs, and data dependencies. The UI builds the preset form from it. The API and workers validate against it.
+- **Execution**: a compute function in [`apps/workflows/src/activities/typescript/algorithms/<kebab-key>/compute.ts`](../apps/workflows/src/activities/typescript/algorithms). It reads the frozen inputs, resolves the data, and writes the outputs to object storage.
 
-**Definition** — under [`packages/reputation-algorithms`](../packages/reputation-algorithms). One folder per algorithm key, one JSON file per version:
+Only the TypeScript runtime exists today.
 
-```text
-packages/reputation-algorithms/src/registry/
-└── <key>/
-    ├── 1.0.0.json
-    └── 1.1.0.json
-```
+## The algorithms
 
-**Execution** — under [`apps/workflows`](../apps/workflows). One folder per algorithm with the compute function and any helpers:
+| Key | Data | Raw score |
+| --- | --- | --- |
+| `contribution_score` | Deep Funding Portal comments and votes | Sum of scored comment values. |
+| `proposal_engagement` | Deep Funding Portal proposals and ratings | Rewards minus penalties. Can be negative. |
+| `voting_engagement` | Consented DeepID users plus two uploaded CSVs | 0 to 1. |
+| `token_value_over_time` | Consented DeepID users plus on-chain transfers | Sum of matured token value. |
+| `discord_engagement`, `github_engagement`, `mattermost_engagement` | Consented DeepID users plus a connected community | Sum of points, 0 or more. See [Community algorithms](community-algorithms.md). |
+| `custom_score` | The results of the selected algorithms | A weighted average of scores adjusted to 0–100, computed on encrypted values. |
 
-```text
-apps/workflows/src/activities/typescript/algorithms/<kebab-key>/
-├── compute.ts   # exports compute<PascalKey>(snapshot, storage)
-└── index.ts     # re-exports compute<PascalKey>
-```
+Standalone algorithms write the **raw** score. No normalization, rescaling, or weighting happens in an algorithm. The CSV, the details JSON, and the score posted to DeepID carry the same number. Normalization exists in one place: the encrypted `custom_score` phase. See [DeepID integration](deep-id-integration.md).
 
-### Runtimes
+## Add a standalone algorithm
 
-Only TypeScript is wired up today. The workflows app uses Temporal task queues, so other languages can be added later.
+1. **Scaffold.** `pnpm algorithm:create <snake_case_key> 1.0.0` creates the JSON, the compute folder, the dispatcher entry, and the barrel export. It stops if any target exists.
+2. **Fill the JSON.** `key` (matches the folder), `name`, `summary`, `description` (Markdown, shown in the UI), `kind` (`standalone` or `combined`), `category`, `version`, `runtime`, `inputs`, `outputs`, `dependencies`.
+3. **Write the compute function.** Read `snapshot.algorithmPresetFrozen.inputs`, download files with `storage.getObject`, call `Context.current().heartbeat()` in long loops, write outputs through `@reputo/storage`, and return `{ outputs: { <key>: <storageKey> } }` with one entry per output.
+4. **Wire the UI.** Add the input keys to the group map in [`apps/ui/src/core/preset-groups.ts`](../apps/ui/src/core/preset-groups.ts) and, for a new dependency key, a label in `apps/ui/src/core/algorithms.ts`.
+5. **Validate and test.** `pnpm algorithm:validate`, then unit tests under `apps/workflows/tests/unit/activities/typescript/algorithms/<kebab-key>/` and `pnpm --filter @reputo/workflows test`.
+6. **Try it.** Start the apps, create a preset, run a snapshot, watch it at <http://localhost:8088>.
 
-## Raw scores
+Input types are `integer`, `number`, `string`, `boolean`, `csv`, `json`, `array`, and `sub_algorithm`. Widgets come from `uiHint.widget`: `slider`, `number`, `select`, `repeater`, `resource_selector`, `community_connection`, `community_resources`, `sub_algorithm_composer`.
 
-A standalone algorithm writes its **raw** per-user score to its CSV output. There is no normalization, rescaling, or weighting in the algorithm: the CSV, the `*_details.json` benchmark file, and the score posted to DeepID all carry the same number, on the algorithm's own scale.
-
-| Algorithm | Raw scale |
-| --- | --- |
-| `contribution_score` | Sum of the user's scored comment values. Range depends on the data. |
-| `proposal_engagement` | Weighted rewards minus weighted penalties. **Can be negative.** |
-| `token_value_over_time` | Sum of the user's matured lot values. Range depends on the held amounts. |
-| `voting_engagement` | Normalized vote entropy, already on **0–1** by construction. |
-
-DeepID accepts any finite score, so negative and unbounded values are posted as-is. Both posting paths read these CSVs verbatim: [`postSnapshotScores`](../apps/workflows/src/activities/orchestrator/deep-id-post-scores.activities.ts) for a standalone snapshot, and [`submitCustomRawScores`](../apps/workflows/src/activities/orchestrator/deep-id-submit-custom-scores.activities.ts) for every child of a `custom_score` run.
-
-Normalization exists in exactly one place: the `custom_score` homomorphic phase. It rescales each child's encrypted scores to 0–100 with that child's observed min–max bounds, applies the configured weights, and aggregates one `custom_score_encr` per complete user — all on ciphertexts, never in plaintext. See [`encrypted-evaluator`](../apps/workflows/src/activities/typescript/algorithms/custom-score/encrypted-evaluator) and [DeepID integration](deep-id-integration.md).
-
-## Add a new algorithm
-
-### 1. Scaffold
-
-Pick a `snake_case` key and a semver version, then run:
-
-```bash
-pnpm algorithm:create reviewer_quality 1.0.0
-```
-
-The script does four things. If any target path already exists, it stops and changes nothing:
-
-1. Creates the JSON file at `packages/reputation-algorithms/src/registry/<key>/<version>.json` from a template.
-2. Creates the activity folder at `apps/workflows/src/activities/typescript/algorithms/<kebab-key>/` with `compute.ts` (a function stub) and `index.ts` (an export file).
-3. Adds the new compute function to the dispatcher (`dispatchAlgorithm.activity.ts`). The worker uses the dispatcher to find the function by its key.
-4. Adds the new function to the `algorithms/index.ts` export list.
-
-### 2. Fill the JSON
-
-Open the new file under `packages/reputation-algorithms/src/registry/`. Required fields:
-
-| Field | Value |
-| --- | --- |
-| `key` | Must match the folder name (`snake_case`). |
-| `name`, `summary`, `description` | Shown in the UI. |
-| `kind` | `standalone` or `composite`. |
-| `category` | Short tag, e.g. `Activity` or `Voting`. |
-| `version`, `runtime` | A semver string. `runtime` is `typescript`. |
-| `inputs` | Typed fields the user fills in (`integer`, `number`, `string`, `boolean`, `csv`, `json`). |
-| `outputs` | Files the algorithm writes. Each has a `key` and a `type` (`csv` or `json`). |
-
-### 3. Write the compute function
-
-Open the new `compute.ts`. The function must:
-
-- Read frozen inputs from `snapshot.algorithmPresetFrozen.inputs`.
-- Download any input files with `storage.getObject(...)`.
-- Call `Context.current().heartbeat(...)` inside long loops so Temporal does not time it out.
-- Write the raw per-user score to the CSV (see [Raw scores](#raw-scores)). Do not normalize, rescale, or weight it.
-- Write output files through [`@reputo/storage`](../packages/storage). Do not call the AWS SDK directly.
-- Return `{ outputs: { <key>: <storage_key> } }`, with one entry for every `outputs[].key` in the JSON.
-
-### 4. Validate
-
-```bash
-pnpm algorithm:validate
-```
-
-This checks the JSON file, the matching execution folder, and the generated registry index.
-
-### 5. Test
-
-Add unit tests under `apps/workflows/tests/unit/activities/typescript/algorithms/<kebab-key>/`, then run:
-
-```bash
-pnpm --filter @reputo/workflows test
-```
-
-### 6. Try it locally
-
-Start the apps (see [Local development](local-development.md)). In the UI, create a preset, start a snapshot, and watch the run at <http://localhost:8088>.
+For a new community platform, follow [Adding a community platform](adding-a-community-platform.md) instead.
