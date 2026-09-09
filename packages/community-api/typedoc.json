@@ -5,7 +5,7 @@
   "out": "docs",
   "cleanOutputDir": true,
 
-  "readme": "README.md",
+  "readme": "none",
   "name": "@reputo/community-api",
   "includeVersion": true,
 

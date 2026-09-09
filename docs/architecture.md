@@ -1,66 +1,50 @@
 # Architecture
 
-A high-level map of how Reputo fits together: the apps, the data stores, and how a
-reputation snapshot flows through the system. For the workspace list and import rules see
-[Monorepo structure](monorepo-structure.md); for the database tables see
-[Data model](data-model.md).
+How the apps fit together, where data lives, and how a snapshot moves through the system. For the workspace list see [Monorepo structure](monorepo-structure.md). For the tables see [Data model](data-model.md).
 
-## What Reputo is
+## The parts
 
-Reputo is a privacy-preserving reputation platform. A user picks a reputation
-**algorithm**, saves a configured **preset**, and starts a **snapshot**. Temporal workers
-compute the score off the request path and store the result, which the API and UI surface.
+Reputo is three apps and eight shared packages. Traefik sits in front of the UI and API and terminates TLS.
 
-It is three apps — a NestJS API, a Next.js UI, and Temporal workers — plus six shared
-packages. See [Monorepo structure](monorepo-structure.md) for the full list.
+| Part | Role |
+| --- | --- |
+| `@reputo/api` (NestJS) | HTTP API, the application database, community connections, and a Temporal worker for database activities. |
+| `@reputo/ui` (Next.js) | The dashboard. Calls the API at `/api/v1` and follows changes over Server-Sent Events (SSE). |
+| `@reputo/workflows` (Temporal) | Four workers: orchestrator, algorithm, onchain-data, and community. They compute snapshots off the request path. |
 
-Traefik sits in front of the UI and API and terminates TLS.
+Workers never open the application database. They read and write snapshot rows through activities the API hosts on the `api-snapshot-activities` queue.
 
 ## Snapshot lifecycle
 
-1. The user configures a preset and starts a snapshot in the UI.
-2. The API creates a `snapshots` row with status `queued` and **freezes** the preset (a
-   JSON copy), so later edits do not change a running snapshot.
-3. The API starts the Temporal orchestrator workflow for that snapshot.
-4. The orchestrator marks the snapshot `running`, resolves any data dependencies (on-chain
-   transfers, portal data), and runs the selected algorithm on the matching worker.
-5. Results are stored: per-key scores in `snapshot_outputs`, and large artifacts in object
-   storage.
-6. Each status change is written to Postgres and announced with `pg_notify`. The API turns
-   that into an SSE stream, so the UI updates live (`running` → `completed` or `failed`).
+1. An admin saves a **preset** (an algorithm plus its inputs) and starts a **snapshot**.
+2. The API creates a `snapshots` row with status `queued` and freezes a JSON copy of the preset. Later edits do not change a running snapshot.
+3. The API starts the orchestrator workflow.
+4. The orchestrator sets `running` and resolves the algorithm's data dependencies: consented users from DeepID, Deep Funding Portal data, on-chain transfers, or a frozen community dataset. Community fetches run one at a time on the community worker.
+5. The algorithm worker computes the score and writes the results: a CSV with one row per user and a details JSON, stored in object storage and listed in `snapshot_outputs`.
+6. The orchestrator posts the scores to DeepID and records the outcome in `snapshot_publications`. See [DeepID integration](deep-id-integration.md).
+7. Every status change is written to Postgres and announced with `pg_notify`. The API turns that into SSE, so the UI updates live.
 
-A snapshot always reaches a final status. Starting the workflow is part of the create
-request: if the start fails, the API marks the row `failed` and returns 503. If the run
-fails or is cancelled at any later point, the workflow itself writes `failed` or
-`cancelled`. For the cases where no workflow code can run (run timeout, terminate, a lost
-start), a reconciler in the API periodically checks queued and running rows against
-Temporal and settles them. Status changes follow a fixed state machine
-(`queued → running → completed | failed | cancelled`), so a late write can never reopen a
-finished snapshot.
+A snapshot always ends in `completed`, `failed`, or `cancelled`. If the workflow cannot start, the API marks the row `failed`. If a run is lost (timeout, terminate), a reconciler in the API checks queued and running rows against Temporal and settles them. The state machine is `queued → running → completed | failed | cancelled`, so a late write can never reopen a finished snapshot.
+
+## Community connections
+
+An admin connects a Discord server, a GitHub installation, or a Mattermost team. The API checks access and follows the platform's live events. Community algorithms read the selected channels or repositories when a snapshot starts. See [Community connections](community-connections.md) and [Community algorithms](community-algorithms.md).
 
 ## Data stores
 
-- **Application Postgres** — system of record for presets, snapshots, outputs, users,
-  sessions, and the access allowlist. Owned by the API. See [Data model](data-model.md).
-- **On-chain Postgres** — separate database for synced transfers.
-- **Temporal** — its own cluster and database; holds workflow state and history.
-- **Object storage (S3 / MinIO)** — preset input files and snapshot artifacts, served
-  through presigned URLs.
+| Store | Holds | Owner |
+| --- | --- | --- |
+| Application Postgres | Presets, snapshots, outputs, publications, users, sessions, the access allowlist, community connections | `@reputo/api` |
+| On-chain Postgres | Synced token transfers | `@reputo/onchain-data` |
+| Temporal | Workflow state and history | Temporal cluster |
+| Object storage (S3 or MinIO) | Uploaded input files, snapshot results, community datasets. Served through presigned URLs. | `@reputo/storage` |
 
 ## Identity and access
 
-- Login uses **Deep ID** over OIDC with PKCE. The API stores an opaque session and keeps
-  the provider tokens encrypted at rest.
-- Access is gated by an **allowlist**: only emails with an `owner` or `admin` role can sign
-  in. There is no open sign-up.
-- Voting Portal consent is a separate, distributed flow. Reputo holds only transient PKCE
-  state; DeepID's Ory Hydra consent session is the durable source of truth. See
-  [Voting Portal integration](voting-portal-integration.md) for the ownership, visibility,
-  and revocation boundary.
+- Admins sign in with **DeepID** over OIDC with PKCE. The API keeps an opaque session and stores the provider tokens encrypted.
+- Access is an **allowlist** of emails with the role `owner` or `admin`. There is no self sign-up.
+- Community members give **consent** in DeepID, not in Reputo. Consent covers wallets, scores, and the linked GitHub, Discord, and Mattermost usernames. See [Voting Portal integration](voting-portal-integration.md).
 
-## Infrastructure and deployment
+## Infrastructure
 
-The platform runs as four Komodo stacks per environment — apps, database, Temporal, and
-observability — behind Traefik with TLS. Images are built in GitHub Actions and published
-to GHCR. See [Deployment](deployment.md), [Docker stack](docker.md),
-[Komodo operations](komodo.md), and [Observability](observability.md).
+Staging and production each run four Komodo stacks: apps, database, Temporal, and observability. GitHub Actions builds the images once and publishes them to GHCR. See [Deployment](deployment.md), [Komodo operations](komodo.md), and [Observability](observability.md).

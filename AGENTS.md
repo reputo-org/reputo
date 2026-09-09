@@ -1,6 +1,6 @@
 # Reputo
 
-Reputo is Monorepo of modular, privacy‑preserving reputation platform. A user defines an
+Reputo is a monorepo for a modular, privacy-preserving reputation platform. A user defines an
 algorithm _preset_, starts a _snapshot_, and Temporal workers compute a reputation score off the
 request path and store the result; the API and UI surface it. This is a pnpm + Turbo monorepo for
 the three apps and the libraries they share.

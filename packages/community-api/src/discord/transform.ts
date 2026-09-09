@@ -65,7 +65,7 @@ export interface DiscordPermissionContext {
   guildId: string;
   botUserId: string;
   botRoleIds: readonly string[];
-  /** Base permission bitfield of every guild role, the @everyone role included under the guild id. */
+  /** Base permission bitfield of every guild role, including the `@everyone` role under the guild id. */
   permissionsByRoleId: ReadonlyMap<string, bigint>;
 }
 
@@ -148,9 +148,9 @@ function parseOverwrites(raw: unknown): DiscordOverwrite[] {
 }
 
 /**
- * Discord's effective-permission algorithm for one channel: the @everyone role
+ * Discord's effective-permission algorithm for one channel: the `@everyone` role
  * and every role the bot holds, Administrator short-circuiting, then the
- * channel overwrites in Discord's order — @everyone, the bot's roles (denies
+ * channel overwrites in Discord's order — `@everyone`, the bot's roles (denies
  * before allows), the bot member itself. Discord answers a history request
  * with `200 []` when View Channel is allowed but Read Message History is not,
  * so the HTTP status of a read alone is never proof of access.
