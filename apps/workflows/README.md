@@ -1,52 +1,37 @@
 # @reputo/workflows
 
-Temporal workers that orchestrate snapshot execution and run TypeScript algorithms.
+Temporal workers that orchestrate snapshots and run the algorithms.
 
 ## What it does
 
-- **Orchestrator worker** resolves snapshot dependencies and coordinates execution.
-- **Algorithm worker** runs TypeScript compute functions and reads or writes snapshot data through S3.
+- **Orchestrator worker** resolves snapshot dependencies, runs the algorithm, and posts scores to DeepID.
+- **Algorithm worker** runs the TypeScript compute functions and reads or writes snapshot data through S3.
 - **Onchain-data worker** resolves the `onchain-data` dependency on its own task queue.
-- **Community worker** resolves community fetch dependencies (`discord-activity`): it crawls the
-  selected platform resources and freezes them as an immutable Parquet dataset under the snapshot
-  prefix. Its task queue runs one fetch at a time, so community snapshots queue up and run in
-  arrival order.
+- **Community worker** resolves `discord-activity`, `github-activity`, and `mattermost-activity`: it crawls the selected channels or repositories and freezes them as a Parquet dataset under the snapshot prefix. It runs one fetch at a time, so community snapshots queue up.
 
-Current TypeScript algorithms: `contribution_score`, `proposal_engagement`, `token_value_over_time`, `voting_engagement`. See [Reputation algorithms](../../docs/reputation-algorithms.md) for how to add a new one.
+The workers run all algorithms in the registry. See [Reputation algorithms](../../docs/reputation-algorithms.md) and [Community algorithms](../../docs/community-algorithms.md).
 
 ## Persistence boundary
 
-Workers do **not** open a connection to the application database. Snapshot reads and writes (`getSnapshot`, `updateSnapshot`) are proxied to the API's Temporal worker on the `api-snapshot-activities` task queue, defined in [`@reputo/contracts`](../../packages/contracts).
+Workers never open the application database. Snapshot and connection reads and writes go through the activities the API hosts on the `api-snapshot-activities` queue, defined in [`@reputo/contracts`](../../packages/contracts). To add persistence behaviour, add the activity in [`apps/api`](../api), publish its types in `@reputo/contracts`, and call it from the orchestrator.
 
-If a workflow needs new persistence behaviour, add the activity in [`apps/api`](../api), publish its I/O types in `@reputo/contracts`, and call it from the orchestrator. Do not introduce a DB client here.
-
-## Local commands
+## Run locally
 
 ```bash
 pnpm --filter @reputo/workflows dev                       # build deps, watch all four workers
-pnpm --filter @reputo/workflows dev:orchestrator          # just the orchestrator
-pnpm --filter @reputo/workflows dev:algorithm-typescript  # just the algorithm worker
-pnpm --filter @reputo/workflows dev:onchain-data          # just the onchain-data worker
-pnpm --filter @reputo/workflows dev:community             # just the community worker
-
+pnpm --filter @reputo/workflows dev:orchestrator          # one worker at a time: dev:algorithm-typescript, dev:onchain-data, dev:community
 pnpm --filter @reputo/workflows build
-pnpm --filter @reputo/workflows start:orchestrator
-pnpm --filter @reputo/workflows start:algorithm-typescript
-pnpm --filter @reputo/workflows start:onchain-data
-pnpm --filter @reputo/workflows start:community
-
+pnpm --filter @reputo/workflows start:orchestrator        # also start:algorithm-typescript, start:onchain-data, start:community
 pnpm --filter @reputo/workflows test
 pnpm --filter @reputo/workflows typecheck
 ```
 
 ## Configuration
 
-The workers validate their environment in [`src/config/env.ts`](src/config/env.ts). Required: Temporal, storage / AWS, DeepFunding, and the onchain-data Postgres URL. The full list is in the root [`.env.example`](../../.env.example).
+The workers validate their environment in [`src/config/env.ts`](src/config/env.ts): Temporal, storage, DeepFunding, DeepID, the onchain-data Postgres URL, and the community platform credentials. The full list is in the root [`.env.example`](../../.env.example).
 
-The onchain-data Postgres instance belongs to [`@reputo/onchain-data`](../../packages/onchain-data) and is independent of the API's application database.
-
-## More
+## Related documentation
 
 - [Documentation](../../docs/README.md)
-- [Reputation algorithms](../../docs/reputation-algorithms.md)
+- [DeepID integration](../../docs/deep-id-integration.md)
 - [Local development](../../docs/local-development.md)

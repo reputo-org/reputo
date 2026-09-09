@@ -1,34 +1,37 @@
 # Documentation
 
-Guides for the Reputo monorepo.
+Choose a page by task. Package API references are generated with `pnpm docs` and live beside each package.
 
-## Start here
+## Get started
 
-- [Local development](local-development.md) — install tools and run the apps.
-- [Environment variables](environment-variables.md) — what each variable does and how to add one.
-- [Monorepo structure](monorepo-structure.md) — apps, packages, and import rules.
+- [Local development](local-development.md): install the tools and run Reputo.
+- [User guides](guides.md): follow short app walkthroughs.
+- [Contributing](../CONTRIBUTING.md): prepare a change and open a pull request.
 
-## Understand the system
+## Develop
 
-- [Architecture](architecture.md) — how the apps fit together and the snapshot flow.
-- [Data model](data-model.md) — the application database tables.
-- [Community connections](community-connections.md) — platform connections, the health model, and the live feeds that keep them fresh.
-- [DeepID integration](deep-id-integration.md) — the M2M pipeline that reads users and posts scores.
-- [Voting Portal integration](voting-portal-integration.md) — the consent flow, storage,
-  ownership, visibility, and revocation across the Voting Portal, Reputo, and DeepID.
+- [Environment variables](environment-variables.md): add or change configuration.
+- [Reputation algorithms](reputation-algorithms.md): understand or add an algorithm.
+- [Add a community platform](adding-a-community-platform.md): connect another platform to the shared pipeline.
 
-## Build features
+## Understand
 
-- [Reputation algorithms](reputation-algorithms.md) — concepts and how to add one.
+- [Architecture](architecture.md): apps, data stores, and the snapshot lifecycle.
+- [Data model](data-model.md): application database tables.
+- [Community connections](community-connections.md): connection status, access, and live updates.
+- [Community algorithms](community-algorithms.md): datasets, user matching, and scoring.
+- [DeepID integration](deep-id-integration.md): consented users and score publication.
+- [Voting Portal integration](voting-portal-integration.md): the consent flow.
 
-## Ship and operate
+## Operate
 
-- [CI/CD](ci-cd.md) — GitHub Actions workflows.
-- [Docker stack](docker.md) — Compose files for local and production.
-- [Deployment](deployment.md) — staging and production through Komodo.
-- [Komodo operations](komodo.md) — install, RBAC, secrets, and operations.
-- [Observability](observability.md) — metrics, logs, and dashboards.
+- [Community platform setup](community-platform-setup.md): configure Discord, GitHub, and Mattermost.
+- [Community runbook](community-runbook.md): diagnose connection and scoring problems.
+- [Deployment](deployment.md): deploy or roll back staging and production.
+- [Komodo operations](komodo.md): install and manage the deployment platform.
+- [Observability](observability.md): use logs, metrics, and dashboards.
 
-## Use the app
+## Reference
 
-- [Guides](guides.md) — walkthroughs for the main tasks.
+- [Monorepo structure](monorepo-structure.md): workspaces, ownership, and import rules.
+- [CI/CD](ci-cd.md): GitHub Actions workflows, tags, and secrets.

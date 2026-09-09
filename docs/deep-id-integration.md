@@ -1,264 +1,81 @@
 # DeepID integration
 
-How Reputo reads consented users from DeepID and posts computed reputation scores back.
-Reputo talks to DeepID as a machine-to-machine (M2M) client through the thin
-`@reputo/deep-id-api` package — there is no extra service and no new database. For the
-snapshot flow around it see [Architecture](architecture.md); for the algorithms see
-[Reputation algorithms](reputation-algorithms.md). For the distributed Voting Portal
-consent flow, durable source of truth, and ownership boundary see
-[Voting Portal integration](voting-portal-integration.md).
+How Reputo reads consented users from DeepID and posts scores back. Reputo is a machine-to-machine client of the DeepID Client API through `@reputo/deep-id-api`. There is no extra service and no extra database. For the consent flow see [Voting Portal integration](voting-portal-integration.md).
 
-## Identity model: two DID families
+## Two DID families
 
-DeepID identifies every user with a DID. Reputo meets two families:
+- `did:sub:…` is the identity DeepID mints when a user consents to Reputo. The Users API is keyed by it, and it carries the linked wallets and platform usernames.
+- `did:plc:…` is the identity of a Deep Funding Portal user. The portal returns the bare 24-character value; Reputo adds the prefix.
 
-- **`did:sub:…`** — the identity DeepID mints when a user consents to Reputo. The
-  DeepID Users API is keyed by these, and they carry the user's linked wallets.
-- **`did:plc:…`** — the identity stored on Proposal Portal users (the portal returns the
-  bare 24-character value; Reputo prefixes it to `did:plc:` on ingestion).
+Reputo keeps no mapping between the two. Scores are posted under the DID the algorithm worked with. DeepID unifies a user's scores on its side.
 
-Reputo has **no mapping between the two families** and does not try to build one. Scores
-are posted under whichever DID the algorithm worked with, and DeepID unifies a user's
-`did:sub` and `did:plc` scores on its side.
+## Reading users
 
-## Reading consented users (wallet algorithms)
+| Algorithms | Users | How |
+| --- | --- | --- |
+| `voting_engagement`, `token_value_over_time` | Consented users | The `deep-id` dependency fetches `GET /v1/users` (page size 100, DeepID's maximum), builds a `did:sub → wallets` map, and injects it as the `dids` input. Users with no wallets or no activity get an explicit `0`. |
+| `discord_engagement`, `github_engagement`, `mattermost_engagement` | Consented users with a linked account | The cohort builder reads the platform field and matches by username. See [Community algorithms](community-algorithms.md#cohort-matching). |
+| `proposal_engagement`, `contribution_score` | All portal users | The Users API has no portal identifier, so every portal user is scored under `did:plc`. DeepID accepts consented users and reports the rest as `dropped`. |
 
-`voting_engagement` and `token_value_over_time` declare a `deep-id` dependency. When a
-snapshot starts, the orchestrator resolves it with the `deep_id_sync` activity:
+The platform field is `null` when the user granted the scope but linked no account, and absent when the scope is outside the token or consent. `username` is the only join key. A rename on the platform breaks the match until the user verifies again. Never log `vc`.
 
-1. Fetch every consented user from `GET /v1/users` (cursor-paginated), requesting the
-   configured `DEEP_ID_SCOPES`. DeepID rejects a `pageSize` above 100 with
-   `400 Invalid pageSize`, so `DEEP_ID_USERS_PAGE_SIZE` must stay at 100 or below — the
-   client's own default is 100.
-2. Assemble a `did:sub → { userWallets }` map (Ethereum and Cardano wallets; a user can
-   have several) and write it to object storage under the snapshot prefix.
-3. Inject the file's key as the algorithm's `dids` input (in memory only — the frozen
-   preset row is not changed).
+## Posting scores (standalone snapshots)
 
-The algorithms then resolve wallets → votes or wallets → token holdings and emit one row
-per consented DID. A consented user with no wallets or no activity gets an **explicit 0**,
-which keeps their DeepID profile current (see the dedup rule below).
+After a standalone snapshot completes, `post_snapshot_scores` runs:
 
-## Scoring all portal users (proposal algorithms)
+- Best-effort: Temporal retries it, then logs and swallows a failure. It never fails the run.
+- It reads the primary CSV, validates every `did` (`did:(plc|sub):` plus 24 alphanumerics), and posts in chunks of 500 to `POST /v1/clients/scores`.
+- The value is the raw score. The `type` is the algorithm key. Every entry carries the workflow start time as `timestamp`, so a retry reposts the same payload and DeepID dedups on `(did, type, timestamp)`. DeepID keeps the newest timestamp per `(client, type)`.
+- The result (`posted / ok / failed / dropped / skipped`) is stored in `snapshot_publications` and shown in the snapshot details as **DeepID publication** with Sent, Failed, or Pending.
 
-`proposal_engagement` and `contribution_score` need Proposal Portal data, and the DeepID
-Users API has no identifier that maps to a portal user. So these algorithms run against
-**all** synced portal users (about 5k), key their rows by `did:plc:…`, and Reputo posts
-every score. DeepID accepts only the users who consented to Reputo and rejects the rest
-with `User not found` — an expected outcome, reported as `dropped` (not `failed`) in the
-posting result. Portal users without a DID are skipped; there is nowhere to post their
-score.
-
-## Community identities (GitHub, Discord, Mattermost)
-
-The community algorithms — `github_engagement`, `discord_engagement`, and
-`mattermost_engagement` — score what a user did on a connected platform, so they need the
-platform account behind a DID. DeepID holds that link: a user grants the `github`,
-`discord`, or `mattermost` consent scope, verifies the account, and DeepID stores it as a
-verifiable credential. `GET /v1/users` then returns one field per granted scope, next to
-`wallets` and `scores_encr`:
-
-```json
-"discord": {
-  "username": "octocat",
-  "verifiedAt": "2026-08-25T10:44:56.502Z",
-  "expiresAt": "2026-11-23T10:44:56.502Z",
-  "vc": "eyJhbGciOiJFUzI1NiIs…"
-}
-```
-
-- The field is `null` when the user granted the scope but linked no account on that
-  platform, and absent when the scope is outside the token/consent intersection. Both are
-  normal. Validate the value with `parseSocialIdentity` before using it;
-  `@reputo/deep-id-api` also exports the field type and the `SOCIAL_IDENTITY_SCOPES` list.
-- **`username` is the only join key DeepID exposes.** A rename on the platform breaks the
-  link until the user re-verifies, and Reputo cannot detect it. A request for stable
-  platform ids is open with DeepID. Until it lands, a consented user who cannot be matched
-  is scored as an explicit zero with a status flag — never a guess.
-- Only consented users are matched, scored, and published. Everyone else appears in a
-  snapshot dataset as pseudonymous counterparty context only.
-- Never log the `vc` value.
-
-Community scores post through the same contract as every other algorithm: the score
-`type` is the algorithm key, and a community algorithm running as a `custom_score` child
-posts its native raw CSV under that same type. DeepID's score-type list is closed, so it
-must register all three types before any of this can be posted.
-
-## Posting scores back (standalone snapshots)
-
-After a standalone (non-`custom_score`) snapshot completes, the orchestrator runs the
-`post_snapshot_scores` activity:
-
-- **Best-effort by design.** A posting failure is retried by Temporal, then logged and
-  swallowed — it can never fail the reputation run.
-- The primary CSV output is read, every `did` is validated
-  (`did:(plc|sub):` + 24 alphanumerics), and scores are posted in chunks of 500 to
-  `POST /v1/clients/scores`.
-- The posted value is the algorithm's **raw** score. Nothing is normalized, rescaled, or
-  weighted on this path, and negative values are posted as-is — see
-  [Raw scores](reputation-algorithms.md#raw-scores).
-- The score `type` is the algorithm key — keys map 1:1 to DeepID score types, so there is
-  no translation table.
-- Every entry carries one run-consistent `timestamp` — the workflow start time — so a
-  retried post reuses the same value and DeepID dedupes on `(did, type, timestamp)`.
-  DeepID keeps the newest timestamp per `(client, type)`, so an older snapshot can never
-  overwrite a newer score.
-- The result reports `posted / ok / failed / dropped / skipped`. Only unexpected
-  rejections are logged per DID (capped, with a summary line for the rest).
-- The outcome is persisted per `(snapshot, algorithm key)` in the `snapshot_publications`
-  ledger (`pending → sent | failed`, with the counts and a safe error) through the API
-  activities queue, and shown on the snapshot page — a posting failure stays visible
-  instead of living only in worker logs.
-
-`custom_score` snapshots do not use this path. They follow the encrypted lifecycle below,
-and their submissions happen **before** the snapshot completes.
+`custom_score` snapshots use the lifecycle below instead.
 
 ## Encrypted custom_score lifecycle
 
-A `custom_score` snapshot aggregates its selected child algorithms homomorphically:
-DeepID encrypts each child score (CKKS), Reputo evaluates the weighted aggregate on the
-ciphertexts without decrypting anything, and DeepID decrypts the final score. Reputo
-never holds a secret key. The snapshot stays `running` through every stage and becomes
-`completed` only after DeepID accepts every complete user's final entry.
+A `custom_score` snapshot combines its child algorithms on ciphertexts. DeepID encrypts each child score (CKKS), Reputo evaluates the weighted aggregate without decrypting, and DeepID decrypts the final score. Reputo never holds a secret key. The snapshot stays `running` through every stage.
 
-The stages, in workflow order:
+1. **Compute children.** Every child runs in its own DID namespace and cohort. Outputs are persisted while the run continues.
+2. **Submit raw child scores** (`submit_custom_raw_scores`, fatal). Each child's native rows are posted under its own type with one run timestamp. The observed min and max of accepted rows become that child's normalization bounds. A child with zero accepted rows is skipped and the remaining weights are renormalized. The run fails only when every child is empty.
+3. **Poll readiness** (`check_encryption_readiness`, on timers: 1 min, 15 min, 60 min, then hourly). Each pass scans all users and classifies them: `complete`, `potentiallyComplete` (something still `pending_encryption`), or `incomplete`. The deadline is 24 hours from raw submission. At the deadline the workflow fails the snapshot with `DEEPID_ENCRYPTION_TIMEOUT`.
+4. **Evaluate and submit** (`submit_custom_encrypted_scores`, fatal). Each complete user's child ciphertexts are scaled to 0–100, weighted, and combined. The result is posted as `custom_score_encr` in batches of 25. Incomplete users are excluded, never zero-filled. Any rejection fails the snapshot.
+5. **Complete.** Reputo does not wait for DeepID's decryption.
 
-1. **Compute children.** Every selected child runs independently and keeps its native
-   DID namespace, cohort, and S3 result file. The outputs are persisted on the snapshot
-   while it is still `running`, so the child artifacts are visible during the long
-   encryption window.
-2. **Submit raw child scores** (`submit_custom_raw_scores`, fatal on failure). Each
-   child's native CSV rows are posted verbatim under its own score type — native zeros
-   included, no cross-child joins, no synthesized rows. The workflow generates one run
-   timestamp (its start time) and reuses it for every raw and final entry, which makes
-   every retry idempotent on DeepID's side. The observed min–max of each child's `OK`
-   rows becomes that child's normalization bounds; response counts are diagnostics only.
-3. **Poll encryption readiness** (`check_encryption_readiness` on durable timers: 1 min,
-   15 min, 60 min, then hourly). A pass scans all `GET /v1/users` pages (page size 100)
-   and classifies each unified user: `complete` (every selected field `encrypted`),
-   `potentiallyComplete` (at least one `pending_encryption`), or `incomplete` (a selected
-   field `null`/absent). The run waits while any potentially complete user remains. The
-   deadline is 24 hours from raw submission; at the deadline the workflow fails the
-   snapshot itself with `DEEPID_ENCRYPTION_TIMEOUT` (the 30-hour Temporal run timeout is
-   only a backstop and never transitions snapshot state).
-4. **Evaluate and submit final scores** (`submit_custom_encrypted_scores`, fatal on
-   failure). A fresh processing pass reads users in pages of 100, loads and caches the
-   public SEAL metadata each complete user references, homomorphically normalizes,
-   weights, and aggregates that user's child ciphertexts, and posts
-   `custom_score_encr` entries (`ciphertext`, `keyId`, `type`, the fixed run timestamp)
-   in batches of 25. Incomplete users are excluded — never zero-filled. Every posted
-   entry must return `OK`; any rejection fails the snapshot.
-5. **Complete.** Reputo does not wait for DeepID's final decryption.
+Diagnostics and retries:
 
-### Runbook: stage diagnostics and retry behavior
+- Every stage logs counts and DeepID request ids only. Never rows, ciphertexts, tokens, or keys.
+- A pagination cursor expiry (`400` after page 1) restarts the pass from page 1, at most 3 times per poll. A `pending_encryption` field found during submission sends the run back to polling under the same deadline. Accepted entries are reposted later with the same timestamp, which DeepID dedups.
+- Failure codes: `DEEPID_ENCRYPTION_READINESS_FATAL`, `DEEPID_ENCRYPTED_SUBMISSION_FATAL` (with an evaluator code such as `INCOMPATIBLE_METADATA`, `INCOMPATIBLE_CIPHERTEXT`, `CAPACITY_EXCEEDED`), `DEEPID_ENCRYPTION_TIMEOUT`. For the last one, check DeepID's encryption workers and start a new snapshot.
 
-Every stage logs aggregate counts and DeepID request ids only — never score rows,
-ciphertext bodies, tokens, or key material.
+## Scopes
 
-- **Raw submission** logs, per child: `posted / ok / dropped / rejected`, the observed
-  min–max, batch count, and `lastRequestId`. `dropped` counts DeepID's expected
-  `User not found` rejections (no consent). A child whose accepted cohort ends empty
-  fails the run. Temporal retries the activity as a whole; identical payloads and the
-  fixed timestamp make reposts safe.
-- **Readiness polling** logs, per pass: `complete / potentiallyComplete / incomplete`,
-  `scannedUsers`, `pages`, `cursorRestarts`, and `lastRequestId`; the workflow adds the
-  poll count and elapsed time. A pagination-cursor expiry (`400` after page 1) discards
-  the partial pass and restarts from page 1, at most 3 restarts per poll before failing
-  with `DEEPID_ENCRYPTION_READINESS_FATAL`. Auth failures and other 4xx responses fail
-  immediately; 5xx/429 bubble to the Temporal retry policy.
-- **Encrypted submission** logs the same pass diagnostics plus `submitted`, `batches`,
-  and `registeredKeys` (distinct SEAL metadata keys). Failure types surface as
-  `DEEPID_ENCRYPTED_SUBMISSION_FATAL` with an evaluator code when relevant (for example
-  `INCOMPATIBLE_METADATA`, `INCOMPATIBLE_CIPHERTEXT`, `CAPACITY_EXCEEDED`). Retry
-  behavior:
-  - A user found with a `pending_encryption` selected field stops the pass before that
-    user's page is evaluated; the workflow resumes readiness polling under the original
-    24-hour deadline. Entries already accepted in the stopped pass are resubmitted later
-    under the same logical identity and timestamp, which DeepID dedups.
-  - Cursor expiry restarts the pass from page 1 (bounded like readiness); already
-    accepted entries are safely reposted.
-  - A Temporal activity retry (worker crash, 5xx, heartbeat timeout) reruns the whole
-    pass; the fixed timestamp keeps every repost idempotent.
-  - A rejection of any complete user's final entry, malformed or incompatible SEAL
-    metadata, an incompatible ciphertext, or an evaluator failure marks the snapshot
-    `failed`.
-- **Timeout.** `DEEPID_ENCRYPTION_TIMEOUT` in the snapshot error means encryption was
-  still pending 24 hours after raw submission. Check DeepID's encryption workers, then
-  start a new snapshot; the failed run submits nothing after the deadline.
+Reputo uses two DeepID OAuth clients. The admin client (`DEEP_ID_ADMIN_*`) is the dashboard login and has nothing to do with scores. The Reputo client (`DEEP_ID_CLIENT_*`) runs the browser consent flow and the machine-to-machine token.
 
-## Consent and clients
+| Variable | App | Value |
+| --- | --- | --- |
+| `DEEP_ID_SCOPES` | workflows | `api wallets post_scores github discord mattermost` (schema default; set a Komodo variable only to override) |
+| `DEEP_ID_CONSENT_SCOPES` | API | `api wallets post_scores voting_engagement_encr contribution_score_encr proposal_engagement_encr token_value_over_time_encr github discord mattermost` (required, no default; `STAGING_` and `PRODUCTION_DEEP_ID_CONSENT_SCOPES` in Komodo) |
 
-Reputo uses two DeepID OAuth clients:
+What each scope allows: `api wallets post_scores` are the reads and the posting; the `_encr` scopes expose a user's child ciphertexts to the encrypted `custom_score` run; the platform scopes carry the linked usernames. A user without a scope silently drops out of the matching feature.
 
-- **Admin client** (`DEEP_ID_ADMIN_*`) — OIDC login for the Reputo dashboard. Unrelated to
-  scores.
-- **Reputo client** (`DEEP_ID_CLIENT_*`) — used twice: the browser consent flow
-  (`/oauth/consent/deep-id`) that lets a voting-portal user authorize Reputo, and the M2M
-  client-credentials token for `/v1` reads and writes.
+Encrypted activities request tokens with `api`, the selected child `_encr` scopes, and `post_scores`. DeepID validates `filteredTokenScopes` on `GET /v1/users` and rejects unknown values with `400 Invalid filters`.
 
-Consent scopes (`DEEP_ID_CONSENT_SCOPES`) are `api wallets post_scores`, the four
-encrypted read scopes (`voting_engagement_encr`, `contribution_score_encr`,
-`proposal_engagement_encr`, `token_value_over_time_encr`), and the three community
-identity scopes (`github`, `discord`, `mattermost`). Without the first three, DeepID will
-not accept posted scores for those users; without the `_encr` scopes, users expose no
-child ciphertexts and silently drop out of every encrypted `custom_score` run; without the
-identity scopes, a user is never matched on that platform and never scored there.
-DeepID validates the `filteredTokenScopes` values on `GET /v1/users` against its own
-scope registry and rejects unknown ones with `400 Invalid filters` — the `_encr` scopes
-only work as filters once DeepID has registered them on the target environment (checked
-on staging 2026-08-05: all four `_encr` scopes were still rejected as filters, while the
-identity server already granted them as token scopes).
+Roll out in order: DeepID registers the score types and allows the scopes for Reputo's client, then the variables change, then users consent again.
 
-The M2M token scopes (`DEEP_ID_SCOPES`) are `api wallets post_scores github discord
-mattermost` — the standard reads and posts plus the identity fields the community cohort
-match reads. The encrypted readiness and submission activities request their own
-tokens with `api` plus exactly the selected children's `_encr` scopes, so the DeepID
-client registration must allow those scopes for client-credentials tokens. The submission
-activity adds `post_scores`, which `POST /v1/clients/scores` requires, and keeps it out of
-the `filteredTokenScopes` it reads with — that filter must stay a subset of the token.
+## Configuration notes
 
-## Configuration
-
-All variables live in `.env.example` (workflows read `DEEP_ID_*`; the API reads the
-consent and admin variables). Staging and production values are Komodo variables — see
-[Deployment](deployment.md). Three operational notes:
-
-- Point `DEEPFUNDING_API_BASE_URL` and the DeepID hosts at the **same environment**. With
-  mixed environments (for example staging DeepID and production portal) every did:plc
-  score is dropped because the users do not exist on that DeepID instance.
-- Scope values, exactly as they must be set:
-
-  | Variable | App | Value |
-  | --- | --- | --- |
-  | `DEEP_ID_SCOPES` | workflows | `api wallets post_scores github discord mattermost` |
-  | `DEEP_ID_CONSENT_SCOPES` | API | `api wallets post_scores voting_engagement_encr contribution_score_encr proposal_engagement_encr token_value_over_time_encr github discord mattermost` |
-
-  `DEEP_ID_SCOPES` is optional and carries that value as its schema default, so a deploy
-  is enough; set a Komodo variable only to override one environment.
-  `DEEP_ID_CONSENT_SCOPES` is required and has no default — update
-  `STAGING_DEEP_ID_CONSENT_SCOPES` and `PRODUCTION_DEEP_ID_CONSENT_SCOPES` in Komodo, and
-  keep local `.env` and `infra/preview/compose.yml` on the same string.
-- **Roll out in order.** DeepID must register the three community score types and allow
-  the three identity scopes for Reputo's client before these values ship. A token request
-  for a scope the client does not hold fails, which would break every DeepID activity, so
-  verify on staging first.
+- Point `DEEPFUNDING_API_BASE_URL` and the DeepID hosts at the same environment. With mixed environments every `did:plc` score is dropped as `User not found`.
+- `DEEP_ID_USERS_PAGE_SIZE` must stay at 100 or below.
+- All variables are in [`.env.example`](../.env.example). Staging and production values are Komodo variables.
 
 ## Where the code lives
 
-- `packages/deep-id-api` — the client: token cache/refresh, retries, `getUsers`,
-  `postScores`, `getSealMetadata`, encrypted-score schemas.
-- `apps/workflows/src/activities/orchestrator/deep-id.activities.ts` — consented-user
-  fetch and DID-map assembly.
-- `apps/workflows/src/activities/orchestrator/deep-id-post-scores.activities.ts` — the
-  best-effort posting activity for standalone snapshots.
-- `apps/workflows/src/activities/orchestrator/deep-id-submit-custom-scores.activities.ts`
-  — raw child submission and normalization observations.
-- `apps/workflows/src/activities/orchestrator/deep-id-encryption-readiness.activities.ts`
-  and `deep-id-submit-encrypted-scores.activities.ts` — the readiness and processing
-  passes, sharing the cohort classification in `deep-id-encrypted-cohort.ts`.
-- `apps/workflows/src/activities/typescript/algorithms/custom-score/encrypted-evaluator/`
-  — the CKKS evaluator (normalization, weighting, aggregation on ciphertexts).
-- `apps/workflows/src/workflows/orchestrator.workflow.ts` — dependency resolution, `dids`
-  input injection, and the snapshot lifecycle; `encrypted-custom-score.ts` and
-  `encryption-readiness.ts` drive the encrypted stages on durable timers.
-- `apps/api/src/consent/` — the browser consent flow.
+| Part | Path |
+| --- | --- |
+| Client (tokens, `getUsers`, `postScores`, `getSealMetadata`, schemas) | [`packages/deep-id-api`](../packages/deep-id-api) |
+| User fetch and DID map | `apps/workflows/src/activities/orchestrator/deep-id.activities.ts` |
+| Standalone posting | `apps/workflows/src/activities/orchestrator/deep-id-post-scores.activities.ts` |
+| Raw child submission | `apps/workflows/src/activities/orchestrator/deep-id-submit-custom-scores.activities.ts` |
+| Readiness and encrypted submission | `deep-id-encryption-readiness.activities.ts`, `deep-id-submit-encrypted-scores.activities.ts`, `deep-id-encrypted-cohort.ts` in the same folder |
+| CKKS evaluator | `apps/workflows/src/activities/typescript/algorithms/custom-score/encrypted-evaluator/` |
+| Workflow stages | `apps/workflows/src/workflows/orchestrator.workflow.ts`, `encrypted-custom-score.ts`, `encryption-readiness.ts` |
+| Browser consent flow | `apps/api/src/consent/` |

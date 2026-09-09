@@ -55,7 +55,7 @@ function getLatestVersion(key: string): string {
  * ```ts
  * const keys = getAlgorithmDefinitionKeys()
  * console.log('Available algorithms:', keys)
- * // e.g. ['voting-engagement', 'contribution-score', ...]
+ * // e.g. ['voting_engagement', 'contribution_score', ...]
  * ```
  */
 export function getAlgorithmDefinitionKeys(): readonly string[] {
@@ -91,10 +91,10 @@ export function getAlgorithmDefinitionVersions(key: string): readonly string[] {
  *
  * @example
  * ```ts
- * const definition = getAlgorithmDefinition({ key: 'voting-engagement' })
+ * const definition = getAlgorithmDefinition({ key: 'voting_engagement' })
  *
  * const specific = getAlgorithmDefinition({
- *   key: 'voting-engagement',
+ *   key: 'voting_engagement',
  *   version: '1.0.0'
  * })
  * ```

@@ -2,12 +2,12 @@
 
 Shared Zod schemas for algorithm payloads and CSV content. Used by the API and the UI to validate user input against an algorithm definition.
 
-## What it exports
+## Main exports
 
-- `buildZodSchema(definition)` — build a Zod schema from an algorithm definition.
-- `validatePayload(definition, payload)` — validate user input against the schema.
-- `validateCSVContent(content)` — CSV checks that work in both Node.js and the browser.
-- `createAlgorithmPresetSchema()` and `validateCreateAlgorithmPreset(payload)` — preset payload validation.
+- `buildZodSchema(definition)`: build a Zod schema from an algorithm definition.
+- `validatePayload(definition, payload)`: validate user input against the schema.
+- `validateCSVContent(content)`: CSV checks that work in both Node.js and the browser.
+- `createAlgorithmPresetSchema()` and `validateCreateAlgorithmPreset(payload)`: preset payload validation.
 - Types: `AlgorithmDefinition`, `CsvIoItem`, `ValidationResult`, `CSVValidationResult`.
 
 ## Usage
@@ -15,19 +15,21 @@ Shared Zod schemas for algorithm payloads and CSV content. Used by the API and t
 ```ts
 import { getAlgorithmDefinition } from '@reputo/reputation-algorithms/api';
 import { validatePayload } from '@reputo/algorithm-validator';
+import type { AlgorithmDefinition } from '@reputo/reputation-algorithms';
 
-const definition = getAlgorithmDefinition('contribution_score', '1.0.0');
+const json = getAlgorithmDefinition({ key: 'contribution_score', version: '1.0.0' });
+const definition = JSON.parse(json) as AlgorithmDefinition;
 const result = validatePayload(definition, userInput);
 if (!result.success) {
   console.error(result.errors);
 }
 ```
 
-## Setup
+## Configuration
 
 No runtime configuration. The package is framework-agnostic and runs in any TypeScript or JavaScript environment.
 
-## Local commands
+## Commands
 
 ```bash
 pnpm --filter @reputo/algorithm-validator build
@@ -36,7 +38,6 @@ pnpm --filter @reputo/algorithm-validator typecheck
 pnpm --filter @reputo/algorithm-validator docs
 ```
 
-## More
+## Related documentation
 
 - [Reputation algorithms](../../docs/reputation-algorithms.md)
-- Generated API docs: [docs/README.md](docs/README.md)

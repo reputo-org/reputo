@@ -1,24 +1,34 @@
 # @reputo/api
 
-NestJS application that serves the Reputo HTTP API. It owns the application Postgres database and hosts a Temporal worker for snapshot activities.
+NestJS API for Reputo. It owns the application PostgreSQL database and hosts the Temporal worker for database activities.
 
 ## What it does
 
-- URI-versioned routes under `/api/v1`.
-- Algorithm preset CRUD at `/algorithm-presets`.
-- Snapshot create/list/get/delete and SSE updates at `/snapshots` and `/snapshots/events`.
-- Storage upload verification, presigned downloads, and attachment streaming at `/storage`.
-- Interactive API reference at `/reference` and `/docs`.
-- Temporal worker on the `api-snapshot-activities` task queue that exposes the `getSnapshot` and `updateSnapshot` activities the orchestrator workflow proxies to.
+Routes are versioned under `/api/v1`:
 
-## Local commands
+| Route group | Purpose |
+| --- | --- |
+| `/auth/*` | DeepID OIDC login, session, logout. |
+| `/admins/*` | The access allowlist (owners only). |
+| `/algorithm-presets` | Preset CRUD. |
+| `/snapshots`, `/snapshots/events` | Snapshot create, list, get, delete, and the SSE stream. |
+| `/community/connections/*`, `/community/events` | Connect Discord, GitHub, and Mattermost, list resources, re-check, disconnect, and the SSE stream. |
+| `/community/webhooks/github` | Signed GitHub App deliveries. The only community route without a session. |
+| `/oauth/consent/*` | The Voting Portal consent flow. |
+| `/storage/*` | Upload verification, presigned downloads, attachment streaming. |
+
+The protected API reference is available outside the version prefix at `/reference` and `/docs`.
+
+The Temporal worker on the `api-snapshot-activities` queue exposes `getSnapshot`, `updateSnapshot`, `getCommunityConnection`, `getCommunitySealedCredential`, `checkCommunityConnectionHealth`, and `recordSnapshotPublication` to the orchestrator.
+
+## Run locally
 
 ```bash
 pnpm --filter @reputo/api dev          # build deps, watch and run Nest
 pnpm --filter @reputo/api build
-pnpm --filter @reputo/api start        # run the built dist/main
+pnpm --filter @reputo/api start
 pnpm --filter @reputo/api test
-pnpm --filter @reputo/api test:e2e
+pnpm --filter @reputo/api test:e2e     # needs Docker
 pnpm --filter @reputo/api typecheck
 ```
 
@@ -26,16 +36,14 @@ Local development listens on <http://localhost:3000>.
 
 ## Configuration
 
-The API validates its environment in [`src/config/env.ts`](src/config/env.ts). Required variables include `DATABASE_URL`, the Deep ID OIDC settings, AWS / storage settings, and Temporal settings. The full list is in the root [`.env.example`](../../.env.example).
+The API validates its environment in [`src/config/env.ts`](src/config/env.ts): the database, DeepID OIDC and consent settings, storage, Temporal, and the community platform credentials. The full list is in the root [`.env.example`](../../.env.example).
 
 ## Database
 
-TypeORM owns the schema. Entities live under `src/persistence/entities/`. Migrations live under `src/persistence/migrations/`. Snapshot SSE is driven by PostgreSQL `LISTEN/NOTIFY` on the `snapshot_updates` channel.
+TypeORM owns the schema. Entities live under `src/persistence/entities/`, migrations under `src/persistence/migrations/`. The SSE streams are driven by PostgreSQL `LISTEN/NOTIFY` on `snapshot_updates` and `community_connection_updates`. Run migrations from the repo root with `pnpm db:migrate`.
 
-Run migrations from the repo root with `pnpm db:migrate`.
-
-## More
+## Related documentation
 
 - [Documentation](../../docs/README.md)
-- [Reputation algorithms](../../docs/reputation-algorithms.md)
-- [Local development](../../docs/local-development.md)
+- [Data model](../../docs/data-model.md)
+- [Community connections](../../docs/community-connections.md)

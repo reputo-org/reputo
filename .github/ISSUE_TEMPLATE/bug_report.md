@@ -1,37 +1,37 @@
 ---
 name: 🐞 Bug report
-about: Report unexpected behavior or errors
+about: Report unexpected behaviour or errors
 title: '[BUG] '
 labels: bug
 assignees: ''
 ---
 
-### Describe the bug
+## Describe the problem
 
-A clear and concise description of what the bug is.
+What happened?
 
-### To reproduce
+## Steps to reproduce
 
-Steps to reproduce the behavior:
+Give the shortest example that shows the problem:
 
-1. Go to '...'
-2. Click on '....'
-3. See error
+1. Go to …
+2. Select …
+3. See …
 
-### Expected behavior
+## Expected result
 
-A clear and concise description of what you expected to happen.
+What did you expect to happen?
 
-### Screenshots or logs
+## Screenshots or logs
 
-If applicable, add screenshots or terminal logs to help explain your problem.
+Add useful screenshots or logs. Remove secrets and personal data first.
 
-### Environment
+## Environment
 
-- OS: [e.g. macOS 12.1]
-- Browser / Node / Docker / etc.: [e.g. Chrome 96, Node v18]
-- Version: [e.g. v1.2.3]
+- Reputo version or commit:
+- Operating system:
+- Browser, Node, or Docker version:
 
-### Additional context
+## Extra context
 
-Add any other context about the problem here.
+Add anything else that may help.

@@ -12,5 +12,4 @@ Integration tests need a real Postgres and are opt-in:
 ```bash
 pnpm --filter @reputo/onchain-data test            # unit
 pnpm --filter @reputo/onchain-data test:integration # sets RUN_POSTGRES_TESTS=true
-``
 ```

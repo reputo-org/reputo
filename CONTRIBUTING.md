@@ -39,6 +39,13 @@ pnpm cz
 - `pre-commit` — `pnpm check` (Biome lint and format).
 - `pre-push` — `pnpm check` and `pnpm test`.
 
+## Documentation
+
+- Put cross-project guides in `docs/` and link new pages from [`docs/README.md`](docs/README.md).
+- Put package setup and examples in the package README. Keep public API details in JSDoc.
+- Generate a local API reference with `pnpm docs`. Files under `packages/*/docs/` are build output and are not committed.
+- Prefer a short example to a long explanation. Link to the source of truth instead of copying it.
+
 ## Pull requests
 
 - Keep diffs focused and PR-sized.
