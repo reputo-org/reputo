@@ -2,14 +2,14 @@
 
 Read-only registry of versioned algorithm definitions. Used by the UI, the API, and the workflow workers to discover algorithms and render their input forms.
 
-## What it exports
+## Main exports
 
 - **Root entry** (`@reputo/reputation-algorithms`): algorithm definition types and registry errors.
 - **API entry** (`@reputo/reputation-algorithms/api`):
   - `getAlgorithmDefinitionKeys()`
   - `getAlgorithmDefinitionVersions(key)`
-  - `getAlgorithmDefinition(key, version)`
-  - `searchAlgorithmDefinitions(query)`
+  - `getAlgorithmDefinition({ key, version })`
+  - `searchAlgorithmDefinitions(filters)`
 - The registry JSON files under `src/registry/`.
 - The generated registry index at `src/registry/index.gen.ts`.
 
@@ -17,12 +17,15 @@ Read-only registry of versioned algorithm definitions. Used by the UI, the API, 
 
 ```ts
 import { getAlgorithmDefinition } from '@reputo/reputation-algorithms/api';
+import type { AlgorithmDefinition } from '@reputo/reputation-algorithms';
 
-const def = getAlgorithmDefinition('contribution_score', '1.0.0');
-console.log(def.name, def.inputs.length);
+const json = getAlgorithmDefinition({ key: 'contribution_score', version: '1.0.0' });
+const definition = JSON.parse(json) as AlgorithmDefinition;
+
+console.log(definition.name, definition.inputs.length);
 ```
 
-## Setup
+## Build the registry
 
 No runtime configuration. The registry index is generated at build time:
 
@@ -40,7 +43,7 @@ pnpm algorithm:create <key> <version>
 
 This creates the JSON definition here **and** the matching compute scaffold in [`apps/workflows`](../../apps/workflows). See [Reputation algorithms](../../docs/reputation-algorithms.md) for the full workflow.
 
-## Local commands
+## Commands
 
 ```bash
 pnpm --filter @reputo/reputation-algorithms build
@@ -51,7 +54,6 @@ pnpm --filter @reputo/reputation-algorithms registry:build
 pnpm --filter @reputo/reputation-algorithms docs
 ```
 
-## More
+## Related documentation
 
 - [Reputation algorithms](../../docs/reputation-algorithms.md)
-- Generated API docs: [docs/README.md](docs/README.md)

@@ -1,16 +1,22 @@
 # @reputo/ui
 
-Next.js dashboard for the Reputo platform. Browse algorithms, create presets, launch snapshots, and follow snapshot progress.
+Next.js dashboard for Reputo.
 
 ## What it does
 
-- Redirects `/` to `/dashboard`.
-- Loads algorithm definitions from [`@reputo/reputation-algorithms`](../../packages/reputation-algorithms).
-- Calls the backend through same-origin `/api/v1` requests.
-- Listens to snapshot status changes over Server-Sent Events.
-- Builds as a standalone Next.js server for container runtime.
+| Page | Purpose |
+| --- | --- |
+| `/dashboard` | Browse the algorithms. Each algorithm has Description, Presets, and Snapshots tabs. |
+| `/dashboard/algorithms/<key>/presets/new`, `.../edit` | The preset composer. |
+| `/community` | Connect Discord, GitHub, and Mattermost and follow the connection status live. |
+| `/admins` | Manage who can sign in (owners only). |
+| `/guides` | The Scribe walkthroughs. |
 
-## Local commands
+- Loads algorithm definitions from [`@reputo/reputation-algorithms`](../../packages/reputation-algorithms).
+- Calls the API through same-origin `/api/v1` requests and follows snapshot and connection changes over Server-Sent Events.
+- Builds as a standalone Next.js server for the container runtime.
+
+## Run locally
 
 ```bash
 pnpm --filter @reputo/ui dev           # build deps, then start Next.js on :4000
@@ -20,15 +26,11 @@ pnpm --filter @reputo/ui test
 pnpm --filter @reputo/ui typecheck
 ```
 
-Local development listens on <http://localhost:4000>.
-
 ## Configuration
 
-The UI validates its environment in [`src/lib/env.ts`](src/lib/env.ts). Most variables are optional in development.
+The UI validates its environment in [`src/lib/env.ts`](src/lib/env.ts). Most variables are optional in development. If the API runs on a non-standard host, set `API_PROXY_TARGET` in the root `.env`. Behind Traefik, leave it unset.
 
-If you run the API on a non-standard host, set `API_PROXY_TARGET` in your root `.env` so Next.js rewrites `/api/*` to the right address. Behind Traefik (the Docker stack), keep `API_PROXY_TARGET` unset — the UI uses same-origin `/api/*`.
-
-## More
+## Related documentation
 
 - [Documentation](../../docs/README.md)
-- [Local development](../../docs/local-development.md)
+- [Guides](../../docs/guides.md)
