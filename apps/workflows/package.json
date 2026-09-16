@@ -83,7 +83,7 @@
     "@temporalio/worker": "catalog:",
     "@temporalio/workflow": "catalog:",
     "csv-parse": "^7.0.2",
-    "csv-stringify": "^6.8.1",
+    "csv-stringify": "^6.8.3",
     "node-seal": "catalog:",
     "pino": "catalog:",
     "pino-pretty": "catalog:",
