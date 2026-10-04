@@ -38,7 +38,7 @@
       "default": "./dist/shared/constants/index.js"
     }
   },
-  "packageManager": "pnpm@11.13.0",
+  "packageManager": "pnpm@11.28.2",
   "scripts": {
     "build": "tsc",
     "build:deps": "pnpm --filter @reputo/community-api --filter @reputo/contracts --filter @reputo/deep-id-api --filter @reputo/deepfunding-portal-api --filter @reputo/onchain-data --filter @reputo/reputation-algorithms --filter @reputo/storage run build",

@@ -1,6 +1,6 @@
 [tools]
 node = "24.15.0"
-pnpm = "11.13.0"
+pnpm = "11.28.2"
 
 [settings]
 auto_install = false

@@ -24,7 +24,7 @@
     "dist/**",
     "docker-entrypoint.sh"
   ],
-  "packageManager": "pnpm@11.13.0",
+  "packageManager": "pnpm@11.28.2",
   "scripts": {
     "build": "nest build",
     "build:deps": "pnpm --filter @reputo/algorithm-validator --filter @reputo/community-api --filter @reputo/contracts --filter @reputo/reputation-algorithms --filter @reputo/storage run build",

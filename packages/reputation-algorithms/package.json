@@ -43,7 +43,7 @@
     "dist",
     "!dist/**/*.test.*"
   ],
-  "packageManager": "pnpm@11.13.0",
+  "packageManager": "pnpm@11.28.2",
   "scripts": {
     "prebuild": "pnpm registry:validate && pnpm registry:build",
     "build": "tsc",

@@ -20,7 +20,7 @@
     "directory": "apps/ui"
   },
   "private": true,
-  "packageManager": "pnpm@11.13.0",
+  "packageManager": "pnpm@11.28.2",
   "scripts": {
     "build": "next build --turbopack",
     "build:deps": "pnpm --filter @reputo/algorithm-validator --filter @reputo/reputation-algorithms run build",

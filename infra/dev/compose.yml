@@ -270,7 +270,7 @@ services:
         container_name: db-migrate
         profiles: [apps]
         restart: 'no'
-        command: pnpm --filter @reputo/api typeorm:run
+        command: sh -c 'pnpm --filter @reputo/api build:deps && pnpm --filter @reputo/api typeorm:run'
         depends_on:
             postgres:
                 condition: service_healthy
@@ -411,7 +411,9 @@ services:
         <<: *service-defaults
         container_name: minio
         profiles: [infra]
-        image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+        image: cgr.dev/chainguard/minio@sha256:4cf4831a2bbcf13ddca09c1cbcc9faff716dd3c4247e0babc32864b8ee8e0034
+        # Preserve access to existing volumes created by the previous root-running image.
+        user: '0:0'
         command: server --console-address ":9001" /data
         environment:
             MINIO_ROOT_USER: minio
@@ -424,7 +426,7 @@ services:
         healthcheck:
             test:
                 - CMD-SHELL
-                - 'curl -fsS http://localhost:9000/minio/health/live || exit 1'
+                - 'bash -c "exec 3<>/dev/tcp/127.0.0.1/9000"'
             interval: 10s
             timeout: 5s
             retries: 10
@@ -436,7 +438,7 @@ services:
         <<: *service-defaults
         container_name: minio-init
         profiles: [infra]
-        image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+        image: cgr.dev/chainguard/minio-client@sha256:b056b795d31828015aea061e3168267b0ba80590ba2d8f869e72ff77153a68e8
         restart: 'no'
         depends_on:
             minio:
@@ -444,7 +446,7 @@ services:
         environment:
             STORAGE_BUCKET: '${STORAGE_BUCKET:?missing STORAGE_BUCKET}'
         entrypoint:
-            - /bin/sh
+            - /bin/bash
             - -lc
             - |
               set -eu

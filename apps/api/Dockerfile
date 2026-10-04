@@ -36,13 +36,14 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 # ---------- installer: install pruned deps ----------------------------------
 # turbo prune rewrites pnpm-lock.yaml and drops the `settings` block, which
 # clashes with `injectWorkspacePackages: true` in pnpm-workspace.yaml. Copy
-# the original lockfile back over the pruned one — pnpm ignores entries that
-# aren't referenced from the pruned package.json files.
+# the original lockfile back over the pruned one. pnpm 11 validates missing
+# importers on an unfiltered install, so install only this app and its deps.
 FROM base AS installer
+ARG APP_NAME
 COPY --from=pruner /repo/out/json/ ./
 COPY --from=pruner /repo/pnpm-lock.yaml ./pnpm-lock.yaml
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm install --frozen-lockfile
+    pnpm install --filter "@reputo/${APP_NAME}..." --frozen-lockfile
 
 # ---------- builder: build APP_NAME and its deps ----------------------------
 FROM installer AS builder
