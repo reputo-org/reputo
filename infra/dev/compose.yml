@@ -412,6 +412,8 @@ services:
         container_name: minio
         profiles: [infra]
         image: cgr.dev/chainguard/minio@sha256:4cf4831a2bbcf13ddca09c1cbcc9faff716dd3c4247e0babc32864b8ee8e0034
+        # Preserve access to existing volumes created by the previous root-running image.
+        user: '0:0'
         command: server --console-address ":9001" /data
         environment:
             MINIO_ROOT_USER: minio
@@ -444,7 +446,7 @@ services:
         environment:
             STORAGE_BUCKET: '${STORAGE_BUCKET:?missing STORAGE_BUCKET}'
         entrypoint:
-            - /bin/sh
+            - /bin/bash
             - -lc
             - |
               set -eu
