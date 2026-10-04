@@ -74,11 +74,11 @@
     "commitizen": "^4.3.2",
     "concurrently": "catalog:",
     "cz-conventional-changelog": "^3.3.0",
-    "lefthook": "^2.1.10",
+    "lefthook": "^2.1.15",
     "semantic-release": "catalog:",
     "tsconfig-paths": "catalog:",
     "tsx": "catalog:",
-    "turbo": "^2.10.5",
+    "turbo": "^2.11.6",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
