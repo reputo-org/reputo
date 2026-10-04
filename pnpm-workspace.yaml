@@ -75,6 +75,7 @@ catalog:
   uuid: ^14.0.1
   vitest: 3.2.6
   zod: ^4.4.3
+  next: 16.3.6
 
 catalogMode: strict
 
