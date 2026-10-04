@@ -34,7 +34,7 @@ Reputo is a pnpm workspace built with [Turbo](https://turborepo.com). Each works
 | Tool | Version or config |
 | --- | --- |
 | Node | `24.15.0`, pinned in [`mise.toml`](../mise.toml) |
-| pnpm | `11.13.0`, pinned in [`mise.toml`](../mise.toml) |
+| pnpm | `11.28.2`, pinned in [`mise.toml`](../mise.toml) |
 | Turbo | [`turbo.json`](../turbo.json) |
 | Biome (lint and format) | [`biome.json`](../biome.json) |
 | Vitest | [`vitest.base.ts`](../vitest.base.ts) |

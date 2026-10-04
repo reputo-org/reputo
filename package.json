@@ -23,7 +23,7 @@
     "url": "https://github.com/reputo-org/reputo/issues"
   },
   "private": true,
-  "packageManager": "pnpm@11.13.0",
+  "packageManager": "pnpm@11.28.2",
   "scripts": {
     "build": "turbo run build",
     "build:packages": "turbo run build --filter=\"./packages/*\"",
