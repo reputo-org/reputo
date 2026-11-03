@@ -74,7 +74,7 @@ catalog:
   undici: ^7.28.0
   uuid: ^14.0.1
   vitest: 3.2.6
-  zod: ^4.4.3
+  zod: ^4.6.6
   next: 16.3.6
 
 catalogMode: strict
